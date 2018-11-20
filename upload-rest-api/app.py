@@ -2,6 +2,7 @@
 """
 import os
 import hashlib
+import zipfile
 
 from shutil import rmtree
 from flask import Flask, abort, safe_join, request, jsonify
@@ -66,6 +67,29 @@ def create_app():
         if os.path.islink(fpath):
             os.unlink(fpath)
             status = "file not created. symlinks are not supported"
+            md5 = "none"
+        else:
+            md5 = _md5_digest(fpath)
+
+        # If zip file was uploaded extract all files
+        if zipfile.is_zipfile(fpath):
+
+            # Extract
+            with zipfile.ZipFile(fpath) as zipf:
+                fpath, fname = os.path.split(fpath)
+                zipf.extractall(fpath)
+
+            # Remove zip archive
+            os.remove("%s/%s" % (fpath, fname))
+
+            # Remove possible symlinks
+            for root, dirs, files in os.walk(fpath):
+                for _file in files:
+                    if os.path.islink("%s/%s" % (root, _file)):
+                        os.unlink("%s/%s" % (root, _file))
+
+            status = "zip uploaded and extracted"
+
 
         #Show user the relative path from /var/spool/uploads/
         return_path = fpath[len(FILE_PATH):]
@@ -73,7 +97,7 @@ def create_app():
         response = jsonify(
             {
                 "file_path": return_path,
-                "md5": _md5_digest(fpath),
+                "md5": md5,
                 "status": status
             }
         )
@@ -200,8 +224,8 @@ def create_app():
 
 
     @app.errorhandler(405)
-    def page_not_found(error):
-        """JSON response handler for the 404 - Not found errors
+    def method_not_allowed(error):
+        """JSON response handler for the 405 - Method not allowed errors
 
         :returns: HTTP Response
         """
