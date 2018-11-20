@@ -1,13 +1,15 @@
 """REST api for uploading files into passipservice
 """
-from flask import Flask, abort, safe_join, request, jsonify
-from shutil import rmtree
-import hashlib
 import os
+import hashlib
+
+from shutil import rmtree
+from flask import Flask, abort, safe_join, request, jsonify
 from werkzeug.utils import secure_filename
 
 
-BASE_PATH = "/home/vagrant/test/rest"
+FILE_PATH = "/home/vagrant/test/rest"
+API_PATH = "/api/upload/v1"
 
 
 def _md5_digest(fname):
@@ -31,44 +33,48 @@ def create_app():
     app = Flask(__name__)
 
     @app.route(
-        "/upload/v1/<string:project>/<path:fpath>/<string:fname>",
+        "%s/<string:project>/<path:fpath>" % API_PATH,
         methods=["POST"]
     )
-    def upload_file(project, fpath, fname):
+    def upload_file(project, fpath):
         """Save file uploaded as multipart/form-data at
         /var/spool/uploads/organization/project/fpath
 
         :returns: HTTP Response
         """
-        upload_dir = safe_join(BASE_PATH, secure_filename(project))
         _file = request.files["file"]
-        fpath = safe_join(upload_dir, fpath)
+
+        fpath, fname = os.path.split(fpath)
         fname = secure_filename(fname)
+        project = secure_filename(project)
+        fpath = safe_join(FILE_PATH, project, fpath)
 
         # Create directory if it does not exist
         if not os.path.exists(fpath):
-            os.makedirs(fpath)
+            os.makedirs(fpath, 0o700)
+
+        fpath = safe_join(fpath, fname)
 
         # Write the file if it does not exist already
-        if not os.path.exists("%s/%s" % (fpath, fname)):
-            _file.save("%s/%s" % (fpath, fname))
-            written = "true"
+        if not os.path.exists(fpath):
+            _file.save(fpath)
+            status = "file created"
         else:
-            written = "false"
+            status = "file already exists"
 
-        if os.path.islink("%s/%s" % (fpath, fname)):
-            os.unlink("%s/%s" % (fpath, fname))
-            written = "false"
+        # Do not accept symlinks
+        if os.path.islink(fpath):
+            os.unlink(fpath)
+            status = "file not created. symlinks are not supported"
 
         #Show user the relative path from /var/spool/uploads/
-        return_path = fpath[len(BASE_PATH):]
+        return_path = fpath[len(FILE_PATH):]
 
         response = jsonify(
             {
-                "written": written,
                 "file_path": return_path,
-                "file_name": fname,
-                "md5": _md5_digest("%s/%s" % (fpath, fname))
+                "md5": _md5_digest(fpath),
+                "status": status
             }
         )
         response.status_code = 200
@@ -77,56 +83,58 @@ def create_app():
 
 
     @app.route(
-        "/upload/v1/<string:project>/<path:fpath>/<string:fname>",
+        "%s/<string:project>/<path:fpath>" % API_PATH,
         methods=["GET"]
     )
-    def get_file(project, fpath, fname):
+    def get_file(project, fpath):
         """Get filepath, name and checksum.
 
         :returns: HTTP Response
         """
-        upload_dir = safe_join(BASE_PATH, secure_filename(project))
-        fpath = safe_join(upload_dir, fpath)
+        fpath, fname = os.path.split(fpath)
+
         fname = secure_filename(fname)
-        _file = "%s/%s" % (fpath, fname)
+        project = secure_filename(project)
+        fpath = safe_join(FILE_PATH, project, fpath, fname)
 
         #Show user the relative path from /var/spool/uploads/
-        return_path = fpath[len(BASE_PATH):]
+        return_path = fpath[len(FILE_PATH):]
 
-        if os.path.exists(_file):
+        if os.path.isfile(fpath):
             return jsonify(
                 {
                     "file_path": return_path,
-                    "file_name": fname,
-                    "md5": _md5_digest(_file)
+                    "md5": _md5_digest(fpath)
                 }
             )
         else:
             abort(404)
 
+
     @app.route(
-        "/upload/v1/<string:project>/<path:fpath>/<string:fname>",
+        "%s/<string:project>/<path:fpath>" % API_PATH,
         methods=["DELETE"]
     )
-    def delete_file(project, fpath, fname):
+    def delete_file(project, fpath):
         """Get filepath, name and checksum.
 
         :returns: HTTP Response
         """
-        upload_dir = safe_join(BASE_PATH, secure_filename(project))
-        fpath = safe_join(upload_dir, fpath)
+        fpath, fname = os.path.split(fpath)
+
         fname = secure_filename(fname)
-        _file = "%s/%s" % (fpath, fname)
+        project = secure_filename(project)
+        fpath = safe_join(FILE_PATH, project, fpath, fname)
 
         #Show user the relative path from /var/spool/uploads/
-        return_path = fpath[len(BASE_PATH):]
+        return_path = fpath[len(FILE_PATH):]
 
-        if os.path.exists(_file):
+        if os.path.isfile(fpath):
+            os.remove(fpath)
             return jsonify(
                 {
                     "file_path": return_path,
-                    "file_name": fname,
-                    "md5": _md5_digest(_file)
+                    "status": "deleted"
                 }
             )
         else:
@@ -134,7 +142,7 @@ def create_app():
 
 
     @app.route(
-        "/upload/v1/<string:project>",
+        "%s/<string:project>" % API_PATH,
         methods=["GET"]
     )
     def get_files(project):
@@ -142,22 +150,23 @@ def create_app():
 
         :return: HTTP Response
         """
-        fpath = safe_join(BASE_PATH, secure_filename(project))
-        
+        fpath = safe_join(FILE_PATH, secure_filename(project))
+
         if not os.path.exists(fpath):
             abort(404)
 
         file_dict = {}
         for root, dirs, files in os.walk(fpath):
-            file_dict[root[len(BASE_PATH):]] = files
+            file_dict[root[len(FILE_PATH):]] = files
 
         response = jsonify(file_dict)
         response.status_code = 200
+
         return response
 
 
     @app.route(
-        "/upload/v1/<string:project>",
+        "%s/<string:project>" % API_PATH,
         methods=["DELETE"]
     )
     def delete_files(project):
@@ -165,15 +174,16 @@ def create_app():
 
         :returns: HTTPS Response
         """
-        fpath = safe_join(BASE_PATH, secure_filename(project))
+        fpath = safe_join(FILE_PATH, secure_filename(project))
 
         if not os.path.exists(fpath):
             abort(404)
 
         rmtree(fpath)
 
-        response = jsonify({"fpath": fpath[len(BASE_PATH):], "deleted": "true"})
+        response = jsonify({"fpath": fpath[len(FILE_PATH):], "status": "deleted"})
         response.status_code = 200
+
         return response
 
 
@@ -189,8 +199,21 @@ def create_app():
         return response
 
 
+    @app.errorhandler(405)
+    def page_not_found(error):
+        """JSON response handler for the 404 - Not found errors
+
+        :returns: HTTP Response
+        """
+        response = jsonify({"code": 405, "error": str(error)})
+        response.status_code = 405
+
+        return response
+
+
     if __name__ == "__main__":
         app.run(debug=True)
+
 
 if __name__ == "__main__":
     create_app()
