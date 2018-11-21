@@ -9,10 +9,6 @@ from flask import Flask, abort, safe_join, request, jsonify
 from werkzeug.utils import secure_filename
 
 
-FILE_PATH = "/home/vagrant/test/rest"
-API_PATH = "/api/upload/v1"
-
-
 def _md5_digest(fname):
     """Return md5 digest of file fname
     """
@@ -33,8 +29,11 @@ def create_app():
     """
     app = Flask(__name__)
 
+    app.config["UPLOAD_PATH"] = "/home/vagrant/test/rest"
+    app.config["API_PATH"] = "/api/upload/v1"
+
     @app.route(
-        "%s/<string:project>/<path:fpath>" % API_PATH,
+        "%s/<string:project>/<path:fpath>" % app.config.get("API_PATH"),
         methods=["POST"]
     )
     def upload_file(project, fpath):
@@ -45,10 +44,12 @@ def create_app():
         """
         _file = request.files["file"]
 
+        upload_path = app.config.get("UPLOAD_PATH")
         fpath, fname = os.path.split(fpath)
         fname = secure_filename(fname)
         project = secure_filename(project)
-        fpath = safe_join(FILE_PATH, project, fpath)
+
+        fpath = safe_join(upload_path, project, fpath)
 
         # Create directory if it does not exist
         if not os.path.exists(fpath):
@@ -92,7 +93,7 @@ def create_app():
 
 
         #Show user the relative path from /var/spool/uploads/
-        return_path = fpath[len(FILE_PATH):]
+        return_path = fpath[len(upload_path):]
 
         response = jsonify(
             {
@@ -107,7 +108,7 @@ def create_app():
 
 
     @app.route(
-        "%s/<string:project>/<path:fpath>" % API_PATH,
+        "%s/<string:project>/<path:fpath>" % app.config.get("API_PATH"),
         methods=["GET"]
     )
     def get_file(project, fpath):
@@ -117,26 +118,22 @@ def create_app():
         """
         fpath, fname = os.path.split(fpath)
 
+        upload_path = app.config.get("UPLOAD_PATH")
         fname = secure_filename(fname)
         project = secure_filename(project)
-        fpath = safe_join(FILE_PATH, project, fpath, fname)
+        fpath = safe_join(upload_path, project, fpath, fname)
+
+        if not os.path.isfile(fpath):
+            abort(404)
 
         #Show user the relative path from /var/spool/uploads/
-        return_path = fpath[len(FILE_PATH):]
+        return_path = fpath[len(upload_path):]
 
-        if os.path.isfile(fpath):
-            return jsonify(
-                {
-                    "file_path": return_path,
-                    "md5": _md5_digest(fpath)
-                }
-            )
-        else:
-            abort(404)
+        return jsonify({"file_path": return_path, "md5": _md5_digest(fpath)})
 
 
     @app.route(
-        "%s/<string:project>/<path:fpath>" % API_PATH,
+        "%s/<string:project>/<path:fpath>" % app.config.get("API_PATH"),
         methods=["DELETE"]
     )
     def delete_file(project, fpath):
@@ -146,27 +143,24 @@ def create_app():
         """
         fpath, fname = os.path.split(fpath)
 
+        upload_path = app.config.get("UPLOAD_PATH")
         fname = secure_filename(fname)
         project = secure_filename(project)
-        fpath = safe_join(FILE_PATH, project, fpath, fname)
-
-        #Show user the relative path from /var/spool/uploads/
-        return_path = fpath[len(FILE_PATH):]
+        fpath = safe_join(upload_path, project, fpath, fname)
 
         if os.path.isfile(fpath):
             os.remove(fpath)
-            return jsonify(
-                {
-                    "file_path": return_path,
-                    "status": "deleted"
-                }
-            )
         else:
             abort(404)
 
+        #Show user the relative path from /var/spool/uploads/
+        return_path = fpath[len(upload_path):]
+
+        return jsonify({"file_path": return_path, "status": "deleted"})
+
 
     @app.route(
-        "%s/<string:project>" % API_PATH,
+        "%s/<string:project>" % app.config.get("API_PATH"),
         methods=["GET"]
     )
     def get_files(project):
@@ -174,14 +168,15 @@ def create_app():
 
         :return: HTTP Response
         """
-        fpath = safe_join(FILE_PATH, secure_filename(project))
+        upload_path = app.config.get("UPLOAD_PATH")
+        fpath = safe_join(upload_path, secure_filename(project))
 
         if not os.path.exists(fpath):
             abort(404)
 
         file_dict = {}
         for root, dirs, files in os.walk(fpath):
-            file_dict[root[len(FILE_PATH):]] = files
+            file_dict[root[len(upload_path):]] = files
 
         response = jsonify(file_dict)
         response.status_code = 200
@@ -190,7 +185,7 @@ def create_app():
 
 
     @app.route(
-        "%s/<string:project>" % API_PATH,
+        "%s/<string:project>" % app.config.get("API_PATH"),
         methods=["DELETE"]
     )
     def delete_files(project):
@@ -198,14 +193,15 @@ def create_app():
 
         :returns: HTTPS Response
         """
-        fpath = safe_join(FILE_PATH, secure_filename(project))
+        upload_path = app.config.get("UPLOAD_PATH")
+        fpath = safe_join(upload_path, secure_filename(project))
 
         if not os.path.exists(fpath):
             abort(404)
 
         rmtree(fpath)
 
-        response = jsonify({"fpath": fpath[len(FILE_PATH):], "status": "deleted"})
+        response = jsonify({"fpath": fpath[len(upload_path):], "status": "deleted"})
         response.status_code = 200
 
         return response
@@ -237,6 +233,8 @@ def create_app():
 
     if __name__ == "__main__":
         app.run(debug=True)
+    else:
+        return app
 
 
 if __name__ == "__main__":
