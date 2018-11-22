@@ -9,17 +9,32 @@ from flask import Flask, abort, safe_join, request, jsonify
 from werkzeug.utils import secure_filename
 
 
-def _md5_digest(fname):
-    """Return md5 digest of file fname
+def _md5_digest(fpath):
+    """Return md5 digest of file fpath
+
+    :param fpath: path to file to be hashed
+    :returns: digest as a string
     """
     md5_hash = hashlib.md5()
 
-    with open(fname, "rb") as _file:
+    with open(fpath, "rb") as _file:
         # read the file in 1MB chunks
         for chunk in iter(lambda: _file.read(1024 * 1024), b''):
             md5_hash.update(chunk)
 
     return md5_hash.hexdigest()
+
+
+def _rm_symlinks(fpath):
+    """Unlink all symlinks below fpath
+
+    :param fpath: Path to directory under which all symlinks are unlinked
+    :returns: None
+    """
+    for root, dirs, files in os.walk(fpath):
+        for _file in files:
+            if os.path.islink("%s/%s" % (root, _file)):
+                os.unlink("%s/%s" % (root, _file))
 
 
 def create_app():
@@ -84,10 +99,7 @@ def create_app():
             os.remove("%s/%s" % (fpath, fname))
 
             # Remove possible symlinks
-            for root, dirs, files in os.walk(fpath):
-                for _file in files:
-                    if os.path.islink("%s/%s" % (root, _file)):
-                        os.unlink("%s/%s" % (root, _file))
+            _rm_symlinks(fpath)
 
             status = "zip uploaded and extracted"
 

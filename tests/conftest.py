@@ -7,21 +7,27 @@ import shutil
 
 import pytest
 
-# Prefer modules from source directory rather than from site-python
-sys.path.insert(0, os.path.join(os.path.abspath(os.path.dirname(__file__)),
-                                '..'))
-@pytest.fixture(scope="function")
-def testpath(request):
-    """Creates temporary directory and clean up after testing.
+from upload_rest_api.app import create_app
 
-    :request: Pytest request fixture
-    :returns: Path to temporary directory
+# Prefer modules from source directory rather than from site-python
+sys.path.insert(
+    0, os.path.join(os.path.abspath(os.path.dirname(__file__)), '..')
+)
+
+@pytest.fixture(scope="function")
+def app():
+    """Creates temporary upload directory and app, which uses it.
+    Temp dirs are cleaned after use.
+
+    :returns: flask.Flask instance
     """
+    flask_app = create_app()
     temp_path = tempfile.mkdtemp(prefix="tests.testpath.")
 
-    def fin():
-        """remove temporary path"""
-        shutil.rmtree(temp_path)
+    flask_app.config["TESTING"] = True
+    flask_app.config["UPLOAD_PATH"] = temp_path
 
-    request.addfinalizer(fin)
-    return temp_path
+    yield flask_app
+
+    # Cleanup
+    shutil.rmtree(temp_path)
