@@ -17,20 +17,27 @@ def _slow_equals(hash1, hash2):
     :returns: True if identical else False
     """
 
-    # Iterate until the end of the shorter string
-    n = min(len(hash1), len(hash2))
+    # Iterate until the end of the shorter hash
+    hash_len = min(len(hash1), len(hash2))
 
     diff = len(hash1) ^ len(hash2)
-    for i in range(n):
+    for i in range(hash_len):
         diff |= ord(hash1[i]) ^ ord(hash2[i])
 
     return diff == 0
 
 
-def auth_user(user, password):
+def auth_user(username, password):
     """Authenticate user"""
-    users = db.get_users()
-    user = users.find_one({"_id" : user})
+    user = db.User(username)
+
+    if user.exists():
+        user = user.get()
+    else:
+        # Calculate digest even if user does not exist to avoid
+        # leaking information about which users exist
+        return _slow_equals("hash"*16, db.hash_passwd("passwd", "salt"))
+
     salt = user["salt"]
     digest = user["digest"]
 
@@ -38,7 +45,5 @@ def auth_user(user, password):
 
 
 if __name__ == "__main__":
-    for i in range(10):
+    for i in range(20):
         print auth_user(str(i), "test")
-
-    print auth_user("0", "test1")

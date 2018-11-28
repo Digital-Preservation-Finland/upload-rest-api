@@ -1,7 +1,10 @@
-from string import ascii_letters, digits
+"""Module for accessing user database
+"""
 import hashlib
 import binascii
 import random
+
+from string import ascii_letters, digits
 from bson.binary import Binary
 
 import pymongo
@@ -16,17 +19,16 @@ SALT_LEN = 20
 ITERATIONS = 200000
 HASH_ALG = "sha512"
 
-DEFAULT_QUOTA = 5 * 1024**3
 
+def _get_random_string(chars):
+    """Generate and return random string of given number of
+    ascii letters or digits.
 
-def _get_random_string(n):
-    """Generate and return random string of n ascii letters or digits
-
-    :param n: Lenght of the string to generate
+    :param chars: Lenght of the string to generate
     :returns: Generated random string
     """
     passwd = ""
-    for _ in range(n):
+    for _ in range(chars):
         passwd += random.SystemRandom().choice(ascii_letters + digits)
 
     return passwd
@@ -42,37 +44,101 @@ def hash_passwd(password, salt):
     return Binary(digest)
 
 
-def get_users():
-    """Opens pymongo client and returns users collection
-
-    :returns: pymongo.MongoClient().Database.Collection
-    """
-    return pymongo.MongoClient().authentication.users
+class User(object):
+    """Class for managing users in the database"""
 
 
-def create_user(user):
-    """Adds new user to the authentication database
-    """
-    users = get_users()
+    def __init__(self, user, quota=5*1024**3):
+        """Initializing User instances"""
+        self.users = pymongo.MongoClient().authentication.users
+        self.user = user
+        self.quota = quota
 
-    # Abort if user already exists
-    if users.find({"_id": user}).count() > 0:
-        abort(405)
 
-    salt = _get_random_string(SALT_LEN)
-    passwd = "test"#_get_random_string(PASSWD_LEN)
-    digest = hash_passwd(passwd, salt)
+    def __repr__(self):
+        """User instance representation"""
+        user = self.users.find_one({"_id" : self.user})
 
-    users.insert_one(
-        {
-            "_id" : user,
-            "digest" : digest,
-            "salt" : salt,
-            "quota" : DEFAULT_QUOTA
-        }
-    )
+        if user is None:
+            return "User not found"
+
+        salt = user["salt"]
+        quota = user["quota"]
+        digest = binascii.hexlify(user["digest"])
+
+        return "_id : %s\nquota : %d\nsalt : %s\ndigest : %s" % (
+            self.user, quota, salt, digest
+        )
+
+    def create(self):
+        """Adds new user to the authentication database
+        """
+        # Abort if user already exists
+        if self.exists():
+            abort(405)
+
+        salt = _get_random_string(SALT_LEN)
+        passwd = "test"#_get_random_string(PASSWD_LEN)
+        digest = hash_passwd(passwd, salt)
+
+        self.users.insert_one(
+            {
+                "_id" : self.user,
+                "digest" : digest,
+                "salt" : salt,
+                "quota" : self.quota
+            }
+        )
+
+
+    def delete(self):
+        """Deletes existing user
+        """
+        # Abort if user does not exist
+        if not self.exists():
+            abort(404)
+
+        self.users.delete_one({"_id" : self.user})
+
+
+    def get(self):
+        """Returns existing user
+        """
+        # Abort if user does not exist
+        if not self.exists():
+            abort(404)
+
+        return self.users.find_one({"_id" : self.user})
+
+
+    def get_quota(self):
+        """Returns the quota of the user"""
+        # Abort if user does not exist
+        if not self.exists():
+            abort(404)
+
+        return self.users.find_one({"_id" : self.user})["quota"]
+
+
+    def set_quota(self, quota):
+        """Set the quota of the user"""
+        # Abort if user does not exist
+        if not self.exists():
+            abort(404)
+
+        self.users.update_one(
+            {"_id" : self.user},
+            {"$set" : {"quota" : quota}}
+        )
+
+
+    def exists(self):
+        """Check if the user is found in the db"""
+        return self.users.find({"_id" : self.user}).count() != 0
 
 
 if __name__ == "__main__":
     for i in range(10):
-        create_user(str(i))
+        User(str(i)).create()
+
+    User("5").delete()
