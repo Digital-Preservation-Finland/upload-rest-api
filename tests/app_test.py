@@ -3,7 +3,6 @@
 import os
 import shutil
 import json
-from base64 import b64encode
 
 
 def _contains_symlinks(fpath):
@@ -20,28 +19,20 @@ def _contains_symlinks(fpath):
     return False
 
 
-def _get_headers(auth="test:test"):
-    """Returns authorization header.
-
-    :param auth: String "username:password"
-    """
-    return {"Authorization": "Basic %s" % b64encode(auth)}
-
-
-def test_index(app):
+def test_index(app, auth, wrong_auth):
     """Test the application index page with correct
     and incorrect credentials.
     """
     test_client = app.test_client()
 
-    response = test_client.get("/", headers=_get_headers())
+    response = test_client.get("/", headers=auth)
     assert response.status_code == 404
 
-    response = test_client.get("/", headers=_get_headers("admin:admin"))
+    response = test_client.get("/", headers=wrong_auth)
     assert response.status_code == 401
 
 
-def test_upload(app):
+def test_upload(app, auth):
     """Test uploading a plain text file
     """
     test_client = app.test_client()
@@ -54,7 +45,7 @@ def test_upload(app):
             "/api/upload/v1/project/test.txt",
             content_type="multipart/form-data",
             data=data,
-            headers=_get_headers()
+            headers=auth
         )
 
         assert response.status_code == 200
@@ -64,7 +55,7 @@ def test_upload(app):
         assert "test" in open(fpath).read()
 
 
-def test_upload_outside_project(app):
+def test_upload_outside_project(app, auth):
     """Test uploading outside the project folder.
     """
     test_client = app.test_client()
@@ -76,13 +67,13 @@ def test_upload_outside_project(app):
             "/api/upload/v1/project/../../test.txt",
             content_type="multipart/form-data",
             data=data,
-            headers=_get_headers()
+            headers=auth
         )
 
     assert response.status_code == 404
 
 
-def test_upload_zip(app):
+def test_upload_zip(app, auth):
     """Test that uploaded zip files are extracted. No files should be
     extracted outside the project directory.
     """
@@ -96,7 +87,7 @@ def test_upload_zip(app):
             "/api/upload/v1/project/test.zip",
             content_type="multipart/form-data",
             data=data,
-            headers=_get_headers()
+            headers=auth
         )
 
     assert response.status_code == 200
@@ -116,7 +107,7 @@ def test_upload_zip(app):
     assert not _contains_symlinks(fpath)
 
 
-def test_get_file(app):
+def test_get_file(app, auth):
     """Test GET for single file
     """
     test_client = app.test_client()
@@ -131,7 +122,7 @@ def test_get_file(app):
     # GET file that exists
     response = test_client.get(
         "/api/upload/v1/project/test.txt",
-        headers=_get_headers()
+        headers=auth
     )
 
     assert response.status_code == 200
@@ -143,12 +134,12 @@ def test_get_file(app):
     # GET file that does not exist
     response = test_client.get(
         "/api/upload/v1/project/test2.txt",
-        headers=_get_headers()
+        headers=auth
     )
     assert response.status_code == 404
 
 
-def test_delete_file(app):
+def test_delete_file(app, auth):
     """Test DELETE for single file
     """
     test_client = app.test_client()
@@ -161,7 +152,7 @@ def test_delete_file(app):
     # DELETE file that exists
     response = test_client.delete(
         "/api/upload/v1/project/test.txt",
-        headers=_get_headers()
+        headers=auth
     )
 
     assert response.status_code == 200
@@ -170,12 +161,12 @@ def test_delete_file(app):
     # DELETE file that does not exist
     response = test_client.delete(
         "/api/upload/v1/project/test.txt",
-        headers=_get_headers()
+        headers=auth
     )
     assert response.status_code == 404
 
 
-def test_get_files(app):
+def test_get_files(app, auth):
     """Test GET for the whole project
     """
     test_client = app.test_client()
@@ -193,7 +184,7 @@ def test_get_files(app):
 
     response = test_client.get(
         "/api/upload/v1/project",
-        headers=_get_headers()
+        headers=auth
     )
 
     assert response.status_code == 200
@@ -203,7 +194,7 @@ def test_get_files(app):
     assert data["/project/test"] == ["test2.txt"]
 
 
-def test_delete_files(app):
+def test_delete_files(app, auth):
     """Test DELETE for the whole project
     """
     test_client = app.test_client()
@@ -216,7 +207,7 @@ def test_delete_files(app):
     # DELETE the project
     response = test_client.delete(
         "/api/upload/v1/project",
-        headers=_get_headers()
+        headers=auth
     )
 
     assert response.status_code == 200
@@ -225,6 +216,6 @@ def test_delete_files(app):
     # DELETE project that does not exist
     response = test_client.delete(
         "/api/upload/v1/project",
-        headers=_get_headers()
+        headers=auth
     )
     assert response.status_code == 404

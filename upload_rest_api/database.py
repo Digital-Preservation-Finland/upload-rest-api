@@ -48,16 +48,19 @@ class User(object):
     """Class for managing users in the database"""
 
 
-    def __init__(self, user, quota=5*1024**3):
-        """Initializing User instances"""
-        self.users = pymongo.MongoClient().authentication.users
-        self.user = user
+    def __init__(self, username, quota=5*1024**3):
+        """Initializing User instances
+
+        :param username:
+        """
+        self.users = pymongo.MongoClient().auth.users
+        self.username = username
         self.quota = quota
 
 
     def __repr__(self):
         """User instance representation"""
-        user = self.users.find_one({"_id" : self.user})
+        user = self.users.find_one({"_id" : self.username})
 
         if user is None:
             return "User not found"
@@ -67,7 +70,7 @@ class User(object):
         digest = binascii.hexlify(user["digest"])
 
         return "_id : %s\nquota : %d\nsalt : %s\ndigest : %s" % (
-            self.user, quota, salt, digest
+            self.username, quota, salt, digest
         )
 
     def create(self, password=None):
@@ -84,14 +87,14 @@ class User(object):
         if password is not None:
             passwd = password
         else:
-            passwd = get_random_string(PASSWD_LEN)
+            passwd = _get_random_string(PASSWD_LEN)
 
         salt = _get_random_string(SALT_LEN)
         digest = hash_passwd(passwd, salt)
 
         self.users.insert_one(
             {
-                "_id" : self.user,
+                "_id" : self.username,
                 "digest" : digest,
                 "salt" : salt,
                 "quota" : self.quota
@@ -106,7 +109,7 @@ class User(object):
         if not self.exists():
             abort(404)
 
-        self.users.delete_one({"_id" : self.user})
+        self.users.delete_one({"_id" : self.username})
 
 
     def get(self):
@@ -116,7 +119,7 @@ class User(object):
         if not self.exists():
             abort(404)
 
-        return self.users.find_one({"_id" : self.user})
+        return self.users.find_one({"_id" : self.username})
 
 
     def get_quota(self):
@@ -125,7 +128,7 @@ class User(object):
         if not self.exists():
             abort(404)
 
-        return self.users.find_one({"_id" : self.user})["quota"]
+        return self.users.find_one({"_id" : self.username})["quota"]
 
 
     def set_quota(self, quota):
@@ -135,14 +138,14 @@ class User(object):
             abort(404)
 
         self.users.update_one(
-            {"_id" : self.user},
+            {"_id" : self.username},
             {"$set" : {"quota" : quota}}
         )
 
 
     def exists(self):
         """Check if the user is found in the db"""
-        return self.users.find_one({"_id" : self.user}) is not None
+        return self.users.find_one({"_id" : self.username}) is not None
 
 
 if __name__ == "__main__":

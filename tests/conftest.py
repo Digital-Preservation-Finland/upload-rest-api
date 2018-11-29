@@ -4,10 +4,13 @@ import os
 import sys
 import tempfile
 import shutil
+from base64 import b64encode
 
 import pytest
+import mongobox
 
 from upload_rest_api.app import create_app
+from upload_rest_api.database import User
 
 # Prefer modules from source directory rather than from site-python
 sys.path.insert(
@@ -31,3 +34,33 @@ def app():
 
     # Cleanup
     shutil.rmtree(temp_path)
+
+
+@pytest.fixture(scope="function")
+def user():
+    """Initializes and returns User instance with db connection
+    through mongobox
+    """
+    box = mongobox.MongoBox()
+    box.start()
+
+    client = box.client()
+    client.PORT = box.port
+    client.HOST = "localhost"
+
+    test_user = User("test_user")
+    test_user.users = client.authentication.users
+
+    yield test_user
+
+    box.stop()
+
+
+@pytest.fixture(scope="function")
+def auth():
+    yield {"Authorization": "Basic %s" % b64encode("test:test")}
+
+
+@pytest.fixture(scope="function")
+def wrong_auth():
+    yield {"Authorization": "Basic %s" % b64encode("admin:test")}
