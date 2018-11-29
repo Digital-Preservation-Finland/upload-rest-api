@@ -3,6 +3,7 @@
 import os
 import shutil
 import json
+from base64 import b64encode
 
 
 def _contains_symlinks(fpath):
@@ -19,13 +20,25 @@ def _contains_symlinks(fpath):
     return False
 
 
+def _get_headers(auth="test:test"):
+    """Returns authorization header.
+
+    :param auth: String "username:password"
+    """
+    return {"Authorization": "Basic %s" % b64encode(auth)}
+
+
 def test_index(app):
-    """Test the application index page.
+    """Test the application index page with correct
+    and incorrect credentials.
     """
     test_client = app.test_client()
-    response = test_client.get("/")
 
+    response = test_client.get("/", headers=_get_headers())
     assert response.status_code == 404
+
+    response = test_client.get("/", headers=_get_headers("admin:admin"))
+    assert response.status_code == 401
 
 
 def test_upload(app):
@@ -40,7 +53,8 @@ def test_upload(app):
         response = test_client.post(
             "/api/upload/v1/project/test.txt",
             content_type="multipart/form-data",
-            data=data
+            data=data,
+            headers=_get_headers()
         )
 
         assert response.status_code == 200
@@ -61,7 +75,8 @@ def test_upload_outside_project(app):
         response = test_client.post(
             "/api/upload/v1/project/../../test.txt",
             content_type="multipart/form-data",
-            data=data
+            data=data,
+            headers=_get_headers()
         )
 
     assert response.status_code == 404
@@ -80,7 +95,8 @@ def test_upload_zip(app):
         response = test_client.post(
             "/api/upload/v1/project/test.zip",
             content_type="multipart/form-data",
-            data=data
+            data=data,
+            headers=_get_headers()
         )
 
     assert response.status_code == 200
@@ -113,7 +129,10 @@ def test_get_file(app):
     )
 
     # GET file that exists
-    response = test_client.get("/api/upload/v1/project/test.txt")
+    response = test_client.get(
+        "/api/upload/v1/project/test.txt",
+        headers=_get_headers()
+    )
 
     assert response.status_code == 200
     data = json.loads(response.data)
@@ -122,7 +141,10 @@ def test_get_file(app):
     assert data["md5"] == "150b62e4e7d58c70503bd5fc8a26463c"
 
     # GET file that does not exist
-    response = test_client.get("/api/upload/v1/project/test2.txt")
+    response = test_client.get(
+        "/api/upload/v1/project/test2.txt",
+        headers=_get_headers()
+    )
     assert response.status_code == 404
 
 
@@ -137,13 +159,19 @@ def test_delete_file(app):
     shutil.copy("tests/data/test.txt", fpath)
 
     # DELETE file that exists
-    response = test_client.delete("/api/upload/v1/project/test.txt")
+    response = test_client.delete(
+        "/api/upload/v1/project/test.txt",
+        headers=_get_headers()
+    )
 
     assert response.status_code == 200
     assert not os.path.isfile(fpath)
 
     # DELETE file that does not exist
-    response = test_client.delete("/api/upload/v1/project/test.txt")
+    response = test_client.delete(
+        "/api/upload/v1/project/test.txt",
+        headers=_get_headers()
+    )
     assert response.status_code == 404
 
 
@@ -163,7 +191,10 @@ def test_get_files(app):
         os.path.join(upload_path, "project/test/test2.txt")
     )
 
-    response = test_client.get("/api/upload/v1/project")
+    response = test_client.get(
+        "/api/upload/v1/project",
+        headers=_get_headers()
+    )
 
     assert response.status_code == 200
     data = json.loads(response.data)
@@ -183,11 +214,17 @@ def test_delete_files(app):
     shutil.copy("tests/data/test.txt", fpath)
 
     # DELETE the project
-    response = test_client.delete("/api/upload/v1/project")
+    response = test_client.delete(
+        "/api/upload/v1/project",
+        headers=_get_headers()
+    )
 
     assert response.status_code == 200
     assert not os.path.exists(os.path.split(fpath)[0])
 
     # DELETE project that does not exist
-    response = test_client.delete("/api/upload/v1/project")
+    response = test_client.delete(
+        "/api/upload/v1/project",
+        headers=_get_headers()
+    )
     assert response.status_code == 404

@@ -1,5 +1,7 @@
 """Module for authenticating users
 """
+from flask import request, abort
+
 from upload_rest_api import database as db
 
 
@@ -27,7 +29,7 @@ def _slow_equals(hash1, hash2):
     return diff == 0
 
 
-def auth_user(username, password):
+def _auth_user(username, password):
     """Authenticate user"""
     user = db.User(username)
 
@@ -44,6 +46,16 @@ def auth_user(username, password):
     return _slow_equals(digest, db.hash_passwd(password, salt))
 
 
+def authenticate():
+    """Authenticates username and password.
+
+    Returns 401 - Unauthorized access for wrong username or password
+    """
+    auth = request.authorization
+    if not auth or not _auth_user(auth.username, auth.password):
+        abort(401)
+
+
 if __name__ == "__main__":
-    for i in range(20):
-        print auth_user(str(i), "test")
+    print _auth_user("admin", "test")
+    print _auth_user("test", "test")

@@ -70,15 +70,23 @@ class User(object):
             self.user, quota, salt, digest
         )
 
-    def create(self):
-        """Adds new user to the authentication database
+    def create(self, password=None):
+        """Adds new user to the authentication database.
+        Salt is always chosen randomly, but password can be set
+        by providing to optional argument password.
+
+        :param password: Password of the created user
         """
         # Abort if user already exists
         if self.exists():
             abort(405)
 
+        if password is not None:
+            passwd = password
+        else:
+            passwd = get_random_string(PASSWD_LEN)
+
         salt = _get_random_string(SALT_LEN)
-        passwd = "test"#_get_random_string(PASSWD_LEN)
         digest = hash_passwd(passwd, salt)
 
         self.users.insert_one(
@@ -134,11 +142,8 @@ class User(object):
 
     def exists(self):
         """Check if the user is found in the db"""
-        return self.users.find({"_id" : self.user}).count() != 0
+        return self.users.find_one({"_id" : self.user}) is not None
 
 
 if __name__ == "__main__":
-    for i in range(10):
-        User(str(i)).create()
-
-    User("5").delete()
+    user = User("test").create(password="test")
