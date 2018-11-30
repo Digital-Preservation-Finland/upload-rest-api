@@ -29,9 +29,10 @@ def _slow_equals(hash1, hash2):
     return diff == 0
 
 
-def _auth_user(username, password):
+def _auth_user(username, password, user=None):
     """Authenticate user"""
-    user = db.User(username)
+    if user is None:
+        user = db.User(username)
 
     if user.exists():
         user = user.get()

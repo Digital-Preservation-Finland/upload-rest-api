@@ -42,7 +42,7 @@ def test_upload(app, auth):
         data = {"file": (test_file, "test.txt")}
 
         response = test_client.post(
-            "/api/upload/v1/project/test.txt",
+            "/api/upload/v1/test.txt",
             content_type="multipart/form-data",
             data=data,
             headers=auth
@@ -50,7 +50,7 @@ def test_upload(app, auth):
 
         assert response.status_code == 200
 
-        fpath = os.path.join(upload_path, "project/test.txt")
+        fpath = os.path.join(upload_path, "test/test.txt")
         assert os.path.isfile(fpath)
         assert "test" in open(fpath).read()
 
@@ -84,7 +84,7 @@ def test_upload_zip(app, auth):
         data = {"file": (test_file, "test.zip")}
 
         response = test_client.post(
-            "/api/upload/v1/project/test.zip",
+            "/api/upload/v1/test.zip",
             content_type="multipart/form-data",
             data=data,
             headers=auth
@@ -92,7 +92,7 @@ def test_upload_zip(app, auth):
 
     assert response.status_code == 200
 
-    fpath = os.path.join(upload_path, "project")
+    fpath = os.path.join(upload_path, "test")
     text_file = os.path.join(fpath, "test", "test.txt")
     zip_file = os.path.join(fpath, "test.zip")
 
@@ -113,27 +113,27 @@ def test_get_file(app, auth):
     test_client = app.test_client()
     upload_path = app.config.get("UPLOAD_PATH")
 
-    os.makedirs(os.path.join(upload_path, "project"))
+    os.makedirs(os.path.join(upload_path, "test"))
     shutil.copy(
         "tests/data/test.txt",
-        os.path.join(upload_path, "project/test.txt")
+        os.path.join(upload_path, "test/test.txt")
     )
 
     # GET file that exists
     response = test_client.get(
-        "/api/upload/v1/project/test.txt",
+        "/api/upload/v1/test.txt",
         headers=auth
     )
 
     assert response.status_code == 200
     data = json.loads(response.data)
 
-    assert data["file_path"] == "/project/test.txt"
+    assert data["file_path"] == "/test/test.txt"
     assert data["md5"] == "150b62e4e7d58c70503bd5fc8a26463c"
 
     # GET file that does not exist
     response = test_client.get(
-        "/api/upload/v1/project/test2.txt",
+        "/api/upload/v1/test2.txt",
         headers=auth
     )
     assert response.status_code == 404
@@ -144,14 +144,14 @@ def test_delete_file(app, auth):
     """
     test_client = app.test_client()
     upload_path = app.config.get("UPLOAD_PATH")
-    fpath = os.path.join(upload_path, "project/test.txt")
+    fpath = os.path.join(upload_path, "test/test.txt")
 
-    os.makedirs(os.path.join(upload_path, "project"))
+    os.makedirs(os.path.join(upload_path, "test"))
     shutil.copy("tests/data/test.txt", fpath)
 
     # DELETE file that exists
     response = test_client.delete(
-        "/api/upload/v1/project/test.txt",
+        "/api/upload/v1/test.txt",
         headers=auth
     )
 
@@ -160,7 +160,7 @@ def test_delete_file(app, auth):
 
     # DELETE file that does not exist
     response = test_client.delete(
-        "/api/upload/v1/project/test.txt",
+        "/api/upload/v1/test.txt",
         headers=auth
     )
     assert response.status_code == 404
@@ -172,26 +172,26 @@ def test_get_files(app, auth):
     test_client = app.test_client()
     upload_path = app.config.get("UPLOAD_PATH")
 
-    os.makedirs(os.path.join(upload_path, "project/test"))
+    os.makedirs(os.path.join(upload_path, "test/test"))
     shutil.copy(
         "tests/data/test.txt",
-        os.path.join(upload_path, "project/test1.txt")
+        os.path.join(upload_path, "test/test1.txt")
     )
     shutil.copy(
         "tests/data/test.txt",
-        os.path.join(upload_path, "project/test/test2.txt")
+        os.path.join(upload_path, "test/test/test2.txt")
     )
 
     response = test_client.get(
-        "/api/upload/v1/project",
+        "/api/upload/v1",
         headers=auth
     )
 
     assert response.status_code == 200
     data = json.loads(response.data)
 
-    assert data["/project"] == ["test1.txt"]
-    assert data["/project/test"] == ["test2.txt"]
+    assert data["/test"] == ["test1.txt"]
+    assert data["/test/test"] == ["test2.txt"]
 
 
 def test_delete_files(app, auth):
@@ -199,14 +199,14 @@ def test_delete_files(app, auth):
     """
     test_client = app.test_client()
     upload_path = app.config.get("UPLOAD_PATH")
-    fpath = os.path.join(upload_path, "project/test.txt")
+    fpath = os.path.join(upload_path, "test/test.txt")
 
-    os.makedirs(os.path.join(upload_path, "project"))
+    os.makedirs(os.path.join(upload_path, "test"))
     shutil.copy("tests/data/test.txt", fpath)
 
     # DELETE the project
     response = test_client.delete(
-        "/api/upload/v1/project",
+        "/api/upload/v1",
         headers=auth
     )
 
@@ -215,7 +215,7 @@ def test_delete_files(app, auth):
 
     # DELETE project that does not exist
     response = test_client.delete(
-        "/api/upload/v1/project",
+        "/api/upload/v1",
         headers=auth
     )
     assert response.status_code == 404

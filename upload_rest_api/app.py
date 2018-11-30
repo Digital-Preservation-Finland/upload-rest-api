@@ -24,23 +24,24 @@ def create_app():
     app.before_request(authenticate)
 
     @app.route(
-        "%s/<string:project>/<path:fpath>" % app.config.get("API_PATH"),
+        "%s/<path:fpath>" % app.config.get("API_PATH"),
         methods=["POST"]
     )
-    def upload_file(project, fpath):
+    def upload_file(fpath):
         """Save file uploaded as multipart/form-data at
-        /var/spool/uploads/organization/project/fpath
+        /var/spool/uploads/user/fpath
 
         :returns: HTTP Response
         """
         _file = request.files["file"]
+        username = request.authorization.username
 
         upload_path = app.config.get("UPLOAD_PATH")
         fpath, fname = os.path.split(fpath)
         fname = secure_filename(fname)
-        project = secure_filename(project)
+        user = secure_filename(username)
 
-        fpath = safe_join(upload_path, project, fpath)
+        fpath = safe_join(upload_path, user, fpath)
 
         # Create directory if it does not exist
         if not os.path.exists(fpath):
@@ -52,20 +53,21 @@ def create_app():
 
 
     @app.route(
-        "%s/<string:project>/<path:fpath>" % app.config.get("API_PATH"),
+        "%s/<path:fpath>" % app.config.get("API_PATH"),
         methods=["GET"]
     )
-    def get_file(project, fpath):
+    def get_file(fpath):
         """Get filepath, name and checksum.
 
         :returns: HTTP Response
         """
         fpath, fname = os.path.split(fpath)
+        username = request.authorization.username
 
         upload_path = app.config.get("UPLOAD_PATH")
         fname = secure_filename(fname)
-        project = secure_filename(project)
-        fpath = safe_join(upload_path, project, fpath, fname)
+        user = secure_filename(username)
+        fpath = safe_join(upload_path, user, fpath, fname)
 
         if not os.path.isfile(fpath):
             abort(404)
@@ -77,20 +79,21 @@ def create_app():
 
 
     @app.route(
-        "%s/<string:project>/<path:fpath>" % app.config.get("API_PATH"),
+        "%s/<path:fpath>" % app.config.get("API_PATH"),
         methods=["DELETE"]
     )
-    def delete_file(project, fpath):
+    def delete_file(fpath):
         """Get filepath, name and checksum.
 
         :returns: HTTP Response
         """
         fpath, fname = os.path.split(fpath)
+        username = request.authorization.username
 
         upload_path = app.config.get("UPLOAD_PATH")
         fname = secure_filename(fname)
-        project = secure_filename(project)
-        fpath = safe_join(upload_path, project, fpath, fname)
+        user = secure_filename(username)
+        fpath = safe_join(upload_path, user, fpath, fname)
 
         if os.path.isfile(fpath):
             os.remove(fpath)
@@ -104,16 +107,17 @@ def create_app():
 
 
     @app.route(
-        "%s/<string:project>" % app.config.get("API_PATH"),
+        "%s" % app.config.get("API_PATH"),
         methods=["GET"]
     )
-    def get_files(project):
-        """Get all files under a project
+    def get_files():
+        """Get all files of the user
 
         :return: HTTP Response
         """
+        username = request.authorization.username
         upload_path = app.config.get("UPLOAD_PATH")
-        fpath = safe_join(upload_path, secure_filename(project))
+        fpath = safe_join(upload_path, secure_filename(username))
 
         if not os.path.exists(fpath):
             abort(404)
@@ -129,16 +133,17 @@ def create_app():
 
 
     @app.route(
-        "%s/<string:project>" % app.config.get("API_PATH"),
+        "%s" % app.config.get("API_PATH"),
         methods=["DELETE"]
     )
-    def delete_files(project):
-        """Delete all files under a project
+    def delete_files():
+        """Delete all files of a user
 
         :returns: HTTPS Response
         """
+        username = request.authorization.username
         upload_path = app.config.get("UPLOAD_PATH")
-        fpath = safe_join(upload_path, secure_filename(project))
+        fpath = safe_join(upload_path, secure_filename(username))
 
         if not os.path.exists(fpath):
             abort(404)
