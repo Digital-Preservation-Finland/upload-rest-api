@@ -1,13 +1,14 @@
 """REST api for uploading files into passipservice
 """
 import os
-
 from shutil import rmtree
+
 from flask import Flask, abort, safe_join, request, jsonify
 from werkzeug.utils import secure_filename
 
-import upload as up
-from authentication import authenticate
+import upload_rest_api.upload as up
+import upload_rest_api.authentication as auth
+import upload_rest_api.database as db
 
 
 def create_app():
@@ -18,13 +19,17 @@ def create_app():
     app = Flask(__name__)
 
     app.config["UPLOAD_PATH"] = "/home/vagrant/test/rest"
-    app.config["API_PATH"] = "/api/upload/v1"
+    app.config["UPLOAD_API_PATH"] = "/api/upload/v1"
+    app.config["DB_API_PATH"] = "/api/db/v1"
+
+    app.config["MONGO_HOST"] = "localhost"
+    app.config["MONGO_PORT"] = 27017
 
     # Authenticate all requests
-    app.before_request(authenticate)
+    app.before_request(auth.authenticate)
 
     @app.route(
-        "%s/<path:fpath>" % app.config.get("API_PATH"),
+        "%s/<path:fpath>" % app.config.get("UPLOAD_API_PATH"),
         methods=["POST"]
     )
     def upload_file(fpath):
@@ -53,7 +58,7 @@ def create_app():
 
 
     @app.route(
-        "%s/<path:fpath>" % app.config.get("API_PATH"),
+        "%s/<path:fpath>" % app.config.get("UPLOAD_API_PATH"),
         methods=["GET"]
     )
     def get_file(fpath):
@@ -79,7 +84,7 @@ def create_app():
 
 
     @app.route(
-        "%s/<path:fpath>" % app.config.get("API_PATH"),
+        "%s/<path:fpath>" % app.config.get("UPLOAD_API_PATH"),
         methods=["DELETE"]
     )
     def delete_file(fpath):
@@ -107,7 +112,7 @@ def create_app():
 
 
     @app.route(
-        "%s" % app.config.get("API_PATH"),
+        "%s" % app.config.get("UPLOAD_API_PATH"),
         methods=["GET"]
     )
     def get_files():
@@ -133,13 +138,13 @@ def create_app():
 
 
     @app.route(
-        "%s" % app.config.get("API_PATH"),
+        "%s" % app.config.get("UPLOAD_API_PATH"),
         methods=["DELETE"]
     )
     def delete_files():
         """Delete all files of a user
 
-        :returns: HTTPS Response
+        :returns: HTTP Response
         """
         username = request.authorization.username
         upload_path = app.config.get("UPLOAD_PATH")
@@ -156,8 +161,65 @@ def create_app():
         return response
 
 
+    @app.route(
+        "%s/<string:username>" % app.config.get("DB_API_PATH"),
+        methods=["GET"]
+    )
+    def get_user(username):
+        """Get user username from the database.
+
+        :returns: HTTP Response
+        """
+        auth.admin_only()
+
+        user = db.User(username)
+        response = jsonify(user.get_utf8())
+        response.status_code = 200
+
+        return response
+
+
+    @app.route(
+        "%s/<string:username>" % app.config.get("DB_API_PATH"),
+        methods=["POST"]
+    )
+    def create_user(username):
+        """Create user username with random password and salt.
+
+        :returns: HTTP Response
+        """
+        auth.admin_only()
+
+        user = db.User(username)
+        passwd = user.create()
+
+        response = jsonify({"username": username, "password": passwd})
+        response.status_code = 200
+
+        return response
+
+
+    @app.route(
+        "%s/<string:username>" % app.config.get("DB_API_PATH"),
+        methods=["DELETE"]
+    )
+    def delete_user(username):
+        """Delete user username.
+
+        :returns: HTTP Response
+        """
+        auth.admin_only()
+
+        user = db.User(username)
+        passwd = user.create()
+
+        response = jsonify({"username": username, "password": passwd})
+        response.status_code = 200
+
+        return response
+
     @app.errorhandler(401)
-    def page_not_found(error):
+    def unauthorized_error(error):
         """JSON response handler for the 401 - Unauthorized errors
 
         :returns: HTTP Response

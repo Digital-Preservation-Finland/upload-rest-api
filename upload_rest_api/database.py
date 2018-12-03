@@ -8,7 +8,7 @@ from string import ascii_letters, digits
 from bson.binary import Binary
 
 import pymongo
-from flask import abort
+from flask import abort, current_app, has_request_context
 
 
 # Password vars
@@ -53,7 +53,14 @@ class User(object):
 
         :param username:
         """
-        self.users = pymongo.MongoClient().auth.users
+        host = "localhost"
+        port = 27017
+
+        if has_request_context():
+            host = current_app.config.get("MONGO_HOST", host)
+            port = current_app.config.get("MONGO_PORT", port)
+
+        self.users = pymongo.MongoClient(host, port).auth.users
         self.username = username
         self.quota = quota
 
@@ -73,12 +80,14 @@ class User(object):
             self.username, quota, salt, digest
         )
 
+
     def create(self, password=None):
         """Adds new user to the authentication database.
         Salt is always chosen randomly, but password can be set
         by providing to optional argument password.
 
         :param password: Password of the created user
+        :returns: The password
         """
         # Abort if user already exists
         if self.exists():
@@ -101,6 +110,8 @@ class User(object):
             }
         )
 
+        return passwd
+
 
     def delete(self):
         """Deletes existing user
@@ -120,6 +131,19 @@ class User(object):
             abort(404)
 
         return self.users.find_one({"_id" : self.username})
+
+
+    def get_utf8(self):
+        """Returns existing user with digest in utf8 format
+        """
+        # Abort if user does not exist
+        if not self.exists():
+            abort(404)
+
+        user = self.users.find_one({"_id": self.username})
+        user["digest"] = binascii.hexlify(user["digest"])
+
+        return user
 
 
     def get_quota(self):
@@ -149,4 +173,5 @@ class User(object):
 
 
 if __name__ == "__main__":
-    user = User("test").create(password="test")
+    User("admin").create(password="test")
+    User("test").create(password="test")
