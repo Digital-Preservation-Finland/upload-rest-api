@@ -170,8 +170,3 @@ class User(object):
     def exists(self):
         """Check if the user is found in the db"""
         return self.users.find_one({"_id" : self.username}) is not None
-
-
-if __name__ == "__main__":
-    User("admin").create(password="test")
-    User("test").create(password="test")

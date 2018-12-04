@@ -77,7 +77,7 @@ def create_app():
         if not os.path.isfile(fpath):
             abort(404)
 
-        #Show user the relative path from /var/spool/uploads/
+        # Show user the relative path from /var/spool/uploads/
         return_path = fpath[len(upload_path):]
 
         return jsonify({"file_path": return_path, "md5": up.md5_digest(fpath)})
@@ -209,14 +209,13 @@ def create_app():
         :returns: HTTP Response
         """
         auth.admin_only()
+        db.User(username).delete()
 
-        user = db.User(username)
-        passwd = user.create()
-
-        response = jsonify({"username": username, "password": passwd})
+        response = jsonify({"username": username, "status": "deleted"})
         response.status_code = 200
 
         return response
+
 
     @app.errorhandler(401)
     def unauthorized_error(error):

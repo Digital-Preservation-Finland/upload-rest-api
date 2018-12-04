@@ -64,8 +64,3 @@ def admin_only():
     """
     if request.authorization.username != "admin":
         abort(401)
-
-
-if __name__ == "__main__":
-    print _auth_user("admin", "test")
-    print _auth_user("test", "test")

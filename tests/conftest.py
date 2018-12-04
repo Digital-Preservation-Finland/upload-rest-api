@@ -18,7 +18,7 @@ sys.path.insert(
 )
 
 
-def initialize_user_db(database_fx):
+def init_db(database_fx):
     """Initialize user db to have users admin and test
     with password test.
     """
@@ -34,15 +34,15 @@ def initialize_user_db(database_fx):
     test_user.create(password="test")
 
 
-@pytest.fixture(scope="function")
+@pytest.yield_fixture(scope="function")
 def app(database_fx):
     """Creates temporary upload directory and app, which uses it.
     Temp dirs are cleaned after use.
 
     :returns: flask.Flask instance
     """
-    initialize_user_db(database_fx)
     flask_app = create_app()
+    init_db(database_fx)
     temp_path = tempfile.mkdtemp(prefix="tests.testpath.")
 
     flask_app.config["TESTING"] = True
@@ -56,7 +56,7 @@ def app(database_fx):
     shutil.rmtree(temp_path)
 
 
-@pytest.fixture(scope="session")
+@pytest.yield_fixture(scope="session")
 def database_fx():
     """Test database instance"""
     box = mongobox.MongoBox()
@@ -71,7 +71,7 @@ def database_fx():
     box.stop()
 
 
-@pytest.fixture(scope="function")
+@pytest.yield_fixture(scope="function")
 def user():
     """Initializes and returns User instance with db connection
     through mongobox
@@ -92,12 +92,18 @@ def user():
 
 
 @pytest.fixture(scope="function")
-def auth():
+def test_auth():
     """Yield correct credentials header"""
-    yield {"Authorization": "Basic %s" % b64encode("test:test")}
+    return {"Authorization": "Basic %s" % b64encode("test:test")}
+
+
+@pytest.fixture(scope="function")
+def admin_auth():
+    """Yield correct credentials header"""
+    return {"Authorization": "Basic %s" % b64encode("admin:test")}
 
 
 @pytest.fixture(scope="function")
 def wrong_auth():
     """Yield incorrect credential header"""
-    yield {"Authorization": "Basic %s" % b64encode("admin:admin")}
+    return {"Authorization": "Basic %s" % b64encode("admin:admin")}

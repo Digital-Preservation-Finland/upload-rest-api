@@ -19,22 +19,22 @@ def _contains_symlinks(fpath):
     return False
 
 
-def test_index(app, auth, wrong_auth):
+def test_index(app, test_auth, wrong_auth):
     """Test the application index page with correct
     and incorrect credentials.
     """
     test_client = app.test_client()
 
-    response = test_client.get("/", headers=auth)
+    response = test_client.get("/", headers=test_auth)
     assert response.status_code == 404
 
     response = test_client.get("/", headers=wrong_auth)
     assert response.status_code == 401
 
 
-def test_upload(app, auth):
-    """Test uploading a plain text file
-    """
+def test_upload(app, test_auth):
+    """Test uploading a plain text file"""
+
     test_client = app.test_client()
     upload_path = app.config.get("UPLOAD_PATH")
 
@@ -45,7 +45,7 @@ def test_upload(app, auth):
             "/api/upload/v1/test.txt",
             content_type="multipart/form-data",
             data=data,
-            headers=auth
+            headers=test_auth
         )
 
         assert response.status_code == 200
@@ -55,9 +55,9 @@ def test_upload(app, auth):
         assert "test" in open(fpath).read()
 
 
-def test_upload_outside_project(app, auth):
-    """Test uploading outside the project folder.
-    """
+def test_upload_outside_project(app, test_auth):
+    """Test uploading outside the project folder."""
+
     test_client = app.test_client()
 
     with open("tests/data/test.txt", "rb") as test_file:
@@ -67,13 +67,13 @@ def test_upload_outside_project(app, auth):
             "/api/upload/v1/project/../../test.txt",
             content_type="multipart/form-data",
             data=data,
-            headers=auth
+            headers=test_auth
         )
 
     assert response.status_code == 404
 
 
-def test_upload_zip(app, auth):
+def test_upload_zip(app, test_auth):
     """Test that uploaded zip files are extracted. No files should be
     extracted outside the project directory.
     """
@@ -87,7 +87,7 @@ def test_upload_zip(app, auth):
             "/api/upload/v1/test.zip",
             content_type="multipart/form-data",
             data=data,
-            headers=auth
+            headers=test_auth
         )
 
     assert response.status_code == 200
@@ -107,9 +107,9 @@ def test_upload_zip(app, auth):
     assert not _contains_symlinks(fpath)
 
 
-def test_get_file(app, auth):
-    """Test GET for single file
-    """
+def test_get_file(app, test_auth):
+    """Test GET for single file"""
+
     test_client = app.test_client()
     upload_path = app.config.get("UPLOAD_PATH")
 
@@ -122,7 +122,7 @@ def test_get_file(app, auth):
     # GET file that exists
     response = test_client.get(
         "/api/upload/v1/test.txt",
-        headers=auth
+        headers=test_auth
     )
 
     assert response.status_code == 200
@@ -134,14 +134,14 @@ def test_get_file(app, auth):
     # GET file that does not exist
     response = test_client.get(
         "/api/upload/v1/test2.txt",
-        headers=auth
+        headers=test_auth
     )
     assert response.status_code == 404
 
 
-def test_delete_file(app, auth):
-    """Test DELETE for single file
-    """
+def test_delete_file(app, test_auth):
+    """Test DELETE for single file"""
+
     test_client = app.test_client()
     upload_path = app.config.get("UPLOAD_PATH")
     fpath = os.path.join(upload_path, "test/test.txt")
@@ -152,7 +152,7 @@ def test_delete_file(app, auth):
     # DELETE file that exists
     response = test_client.delete(
         "/api/upload/v1/test.txt",
-        headers=auth
+        headers=test_auth
     )
 
     assert response.status_code == 200
@@ -161,14 +161,14 @@ def test_delete_file(app, auth):
     # DELETE file that does not exist
     response = test_client.delete(
         "/api/upload/v1/test.txt",
-        headers=auth
+        headers=test_auth
     )
     assert response.status_code == 404
 
 
-def test_get_files(app, auth):
-    """Test GET for the whole project
-    """
+def test_get_files(app, test_auth):
+    """Test GET for the whole project"""
+
     test_client = app.test_client()
     upload_path = app.config.get("UPLOAD_PATH")
 
@@ -184,7 +184,7 @@ def test_get_files(app, auth):
 
     response = test_client.get(
         "/api/upload/v1",
-        headers=auth
+        headers=test_auth
     )
 
     assert response.status_code == 200
@@ -194,9 +194,9 @@ def test_get_files(app, auth):
     assert data["/test/test"] == ["test2.txt"]
 
 
-def test_delete_files(app, auth):
-    """Test DELETE for the whole project
-    """
+def test_delete_files(app, test_auth):
+    """Test DELETE for the whole project"""
+
     test_client = app.test_client()
     upload_path = app.config.get("UPLOAD_PATH")
     fpath = os.path.join(upload_path, "test/test.txt")
@@ -207,7 +207,7 @@ def test_delete_files(app, auth):
     # DELETE the project
     response = test_client.delete(
         "/api/upload/v1",
-        headers=auth
+        headers=test_auth
     )
 
     assert response.status_code == 200
@@ -216,6 +216,77 @@ def test_delete_files(app, auth):
     # DELETE project that does not exist
     response = test_client.delete(
         "/api/upload/v1",
-        headers=auth
+        headers=test_auth
     )
     assert response.status_code == 404
+
+
+def test_db_access_test_user(app, test_auth):
+    """Test database access with some other user than admin"""
+
+    test_client = app.test_client()
+
+    response = test_client.get("/api/db/v1/user", headers=test_auth)
+    assert response.status_code == 401
+
+    response = test_client.post("/api/db/v1/user", headers=test_auth)
+    assert response.status_code == 401
+
+    response = test_client.delete("/api/db/v1/user", headers=test_auth)
+    assert response.status_code == 401
+
+
+def test_get_user(app, admin_auth):
+    """Test get_user() function"""
+
+    test_client = app.test_client()
+
+    # Existing user
+    response = test_client.get("/api/db/v1/test", headers=admin_auth)
+    data = json.loads(response.data)
+    assert data["_id"] == "test"
+    assert response.status_code == 200
+
+    # User that does not exist
+    response = test_client.get("/api/db/v1/user", headers=admin_auth)
+    assert response.status_code == 404
+
+
+def test_create_user(app, admin_auth, database_fx):
+    """Test creating a new user"""
+
+    test_client = app.test_client()
+
+    # Create user that exists
+    response = test_client.post("/api/db/v1/test", headers=admin_auth)
+    assert response.status_code == 405
+
+    # Create user that does not exist
+    response = test_client.post("/api/db/v1/user", headers=admin_auth)
+    data = json.loads(response.data)
+
+    assert response.status_code == 200
+    assert data["username"] == "user"
+    assert len(data["password"]) == 20
+
+    # Check user from database
+    users = database_fx.auth.users
+    assert users.find_one({"_id": "user"}) is not None
+
+
+def test_delete_user(app, admin_auth, database_fx):
+    """Test deleting test user"""
+
+    test_client = app.test_client()
+
+    # Delete user that does not exist
+    response = test_client.delete("/api/db/v1/test", headers=admin_auth)
+    data = json.loads(response.data)
+
+    assert response.status_code == 200
+    assert data["username"] == "test"
+    assert data["status"] == "deleted"
+
+    # Check that user was deleted from the database
+    users = database_fx.auth.users
+    assert users.find_one({"_id": "test"}) is None
