@@ -1,40 +1,14 @@
 """REST api for uploading files into passipservice
 """
 import os
-import hashlib
-import zipfile
-
 from shutil import rmtree
+
 from flask import Flask, abort, safe_join, request, jsonify
 from werkzeug.utils import secure_filename
 
-
-def _md5_digest(fpath):
-    """Return md5 digest of file fpath
-
-    :param fpath: path to file to be hashed
-    :returns: digest as a string
-    """
-    md5_hash = hashlib.md5()
-
-    with open(fpath, "rb") as _file:
-        # read the file in 1MB chunks
-        for chunk in iter(lambda: _file.read(1024 * 1024), b''):
-            md5_hash.update(chunk)
-
-    return md5_hash.hexdigest()
-
-
-def _rm_symlinks(fpath):
-    """Unlink all symlinks below fpath
-
-    :param fpath: Path to directory under which all symlinks are unlinked
-    :returns: None
-    """
-    for root, dirs, files in os.walk(fpath):
-        for _file in files:
-            if os.path.islink("%s/%s" % (root, _file)):
-                os.unlink("%s/%s" % (root, _file))
+import upload_rest_api.upload as up
+import upload_rest_api.authentication as auth
+import upload_rest_api.database as db
 
 
 def create_app():
@@ -45,26 +19,34 @@ def create_app():
     app = Flask(__name__)
 
     app.config["UPLOAD_PATH"] = "/home/vagrant/test/rest"
-    app.config["API_PATH"] = "/api/upload/v1"
+    app.config["UPLOAD_API_PATH"] = "/api/upload/v1"
+    app.config["DB_API_PATH"] = "/api/db/v1"
+
+    app.config["MONGO_HOST"] = "localhost"
+    app.config["MONGO_PORT"] = 27017
+
+    # Authenticate all requests
+    app.before_request(auth.authenticate)
 
     @app.route(
-        "%s/<string:project>/<path:fpath>" % app.config.get("API_PATH"),
+        "%s/<path:fpath>" % app.config.get("UPLOAD_API_PATH"),
         methods=["POST"]
     )
-    def upload_file(project, fpath):
+    def upload_file(fpath):
         """Save file uploaded as multipart/form-data at
-        /var/spool/uploads/organization/project/fpath
+        /var/spool/uploads/user/fpath
 
         :returns: HTTP Response
         """
         _file = request.files["file"]
+        username = request.authorization.username
 
         upload_path = app.config.get("UPLOAD_PATH")
         fpath, fname = os.path.split(fpath)
         fname = secure_filename(fname)
-        project = secure_filename(project)
+        user = secure_filename(username)
 
-        fpath = safe_join(upload_path, project, fpath)
+        fpath = safe_join(upload_path, user, fpath)
 
         # Create directory if it does not exist
         if not os.path.exists(fpath):
@@ -72,93 +54,51 @@ def create_app():
 
         fpath = safe_join(fpath, fname)
 
-        # Write the file if it does not exist already
-        if not os.path.exists(fpath):
-            _file.save(fpath)
-            status = "file created"
-        else:
-            status = "file already exists"
-
-        # Do not accept symlinks
-        if os.path.islink(fpath):
-            os.unlink(fpath)
-            status = "file not created. symlinks are not supported"
-            md5 = "none"
-        else:
-            md5 = _md5_digest(fpath)
-
-        # If zip file was uploaded extract all files
-        if zipfile.is_zipfile(fpath):
-
-            # Extract
-            with zipfile.ZipFile(fpath) as zipf:
-                fpath, fname = os.path.split(fpath)
-                zipf.extractall(fpath)
-
-            # Remove zip archive
-            os.remove("%s/%s" % (fpath, fname))
-
-            # Remove possible symlinks
-            _rm_symlinks(fpath)
-
-            status = "zip uploaded and extracted"
-
-
-        #Show user the relative path from /var/spool/uploads/
-        return_path = fpath[len(upload_path):]
-
-        response = jsonify(
-            {
-                "file_path": return_path,
-                "md5": md5,
-                "status": status
-            }
-        )
-        response.status_code = 200
-
-        return response
+        return up.save_file(_file, fpath, upload_path)
 
 
     @app.route(
-        "%s/<string:project>/<path:fpath>" % app.config.get("API_PATH"),
+        "%s/<path:fpath>" % app.config.get("UPLOAD_API_PATH"),
         methods=["GET"]
     )
-    def get_file(project, fpath):
+    def get_file(fpath):
         """Get filepath, name and checksum.
 
         :returns: HTTP Response
         """
         fpath, fname = os.path.split(fpath)
+        username = request.authorization.username
 
         upload_path = app.config.get("UPLOAD_PATH")
         fname = secure_filename(fname)
-        project = secure_filename(project)
-        fpath = safe_join(upload_path, project, fpath, fname)
+        user = secure_filename(username)
+        fpath = safe_join(upload_path, user, fpath, fname)
 
         if not os.path.isfile(fpath):
             abort(404)
 
-        #Show user the relative path from /var/spool/uploads/
+        # Show user the relative path from /var/spool/uploads/
         return_path = fpath[len(upload_path):]
 
-        return jsonify({"file_path": return_path, "md5": _md5_digest(fpath)})
+        return jsonify({"file_path": return_path, "md5": up.md5_digest(fpath)})
 
 
     @app.route(
-        "%s/<string:project>/<path:fpath>" % app.config.get("API_PATH"),
+        "%s/<path:fpath>" % app.config.get("UPLOAD_API_PATH"),
         methods=["DELETE"]
     )
-    def delete_file(project, fpath):
+    def delete_file(fpath):
         """Get filepath, name and checksum.
 
         :returns: HTTP Response
         """
         fpath, fname = os.path.split(fpath)
+        username = request.authorization.username
 
         upload_path = app.config.get("UPLOAD_PATH")
         fname = secure_filename(fname)
-        project = secure_filename(project)
-        fpath = safe_join(upload_path, project, fpath, fname)
+        user = secure_filename(username)
+        fpath = safe_join(upload_path, user, fpath, fname)
 
         if os.path.isfile(fpath):
             os.remove(fpath)
@@ -172,16 +112,17 @@ def create_app():
 
 
     @app.route(
-        "%s/<string:project>" % app.config.get("API_PATH"),
+        "%s" % app.config.get("UPLOAD_API_PATH"),
         methods=["GET"]
     )
-    def get_files(project):
-        """Get all files under a project
+    def get_files():
+        """Get all files of the user
 
         :return: HTTP Response
         """
+        username = request.authorization.username
         upload_path = app.config.get("UPLOAD_PATH")
-        fpath = safe_join(upload_path, secure_filename(project))
+        fpath = safe_join(upload_path, secure_filename(username))
 
         if not os.path.exists(fpath):
             abort(404)
@@ -197,16 +138,17 @@ def create_app():
 
 
     @app.route(
-        "%s/<string:project>" % app.config.get("API_PATH"),
+        "%s" % app.config.get("UPLOAD_API_PATH"),
         methods=["DELETE"]
     )
-    def delete_files(project):
-        """Delete all files under a project
+    def delete_files():
+        """Delete all files of a user
 
-        :returns: HTTPS Response
+        :returns: HTTP Response
         """
+        username = request.authorization.username
         upload_path = app.config.get("UPLOAD_PATH")
-        fpath = safe_join(upload_path, secure_filename(project))
+        fpath = safe_join(upload_path, secure_filename(username))
 
         if not os.path.exists(fpath):
             abort(404)
@@ -215,6 +157,74 @@ def create_app():
 
         response = jsonify({"fpath": fpath[len(upload_path):], "status": "deleted"})
         response.status_code = 200
+
+        return response
+
+
+    @app.route(
+        "%s/<string:username>" % app.config.get("DB_API_PATH"),
+        methods=["GET"]
+    )
+    def get_user(username):
+        """Get user username from the database.
+
+        :returns: HTTP Response
+        """
+        auth.admin_only()
+
+        user = db.User(username)
+        response = jsonify(user.get_utf8())
+        response.status_code = 200
+
+        return response
+
+
+    @app.route(
+        "%s/<string:username>" % app.config.get("DB_API_PATH"),
+        methods=["POST"]
+    )
+    def create_user(username):
+        """Create user username with random password and salt.
+
+        :returns: HTTP Response
+        """
+        auth.admin_only()
+
+        user = db.User(username)
+        passwd = user.create()
+
+        response = jsonify({"username": username, "password": passwd})
+        response.status_code = 200
+
+        return response
+
+
+    @app.route(
+        "%s/<string:username>" % app.config.get("DB_API_PATH"),
+        methods=["DELETE"]
+    )
+    def delete_user(username):
+        """Delete user username.
+
+        :returns: HTTP Response
+        """
+        auth.admin_only()
+        db.User(username).delete()
+
+        response = jsonify({"username": username, "status": "deleted"})
+        response.status_code = 200
+
+        return response
+
+
+    @app.errorhandler(401)
+    def unauthorized_error(error):
+        """JSON response handler for the 401 - Unauthorized errors
+
+        :returns: HTTP Response
+        """
+        response = jsonify({"code": 401, "error": str(error)})
+        response.status_code = 401
 
         return response
 

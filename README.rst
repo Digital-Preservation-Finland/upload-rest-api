@@ -19,15 +19,19 @@ Start local development/test server::
 
 POST file::
 
-    curl -F file=@path/to/file.txt localhost:5000/api/upload/v1/project/path/on/server/file.txt
+    curl -F file=@path/to/file.txt -u user:passwd localhost:5000/api/upload/v1/path/on/server/file.txt
 
 GET file::
 
-    curl localhost:5000/api/upload/v1/project/path/on/server/file.txt
+    curl -u user:passwd localhost:5000/api/upload/v1/path/on/server/file.txt
 
 DELETE file::
 
-    curl -X DELETE localhost:5000/api/upload/v1/project/path/on/server/file.txt
+    curl -X DELETE -u user:passwd localhost:5000/api/upload/v1/path/on/server/file.txt
+
+admin user can manage user database through the db API::
+
+    curl -X GET/POST/DELETE -u admin:passwd localhost:5000/api/db/v1/user
 
 Copyright
 ---------
