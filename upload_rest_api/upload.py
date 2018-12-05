@@ -2,9 +2,10 @@
 import os
 import hashlib
 import zipfile
-from shutil import rmtree
 
-from flask import jsonify
+from flask import jsonify, abort
+
+import upload_rest_api.database as db
 
 
 def md5_digest(fpath):
@@ -23,6 +24,31 @@ def md5_digest(fpath):
     return md5_hash.hexdigest()
 
 
+def request_exceeds_quota(request):
+    """Check whether the request exceeds users quota
+
+    :returns: True if the request exceeds user's quota else False
+    """
+    username = request.authorization.username
+    user = db.User(username)
+    quota = user.get_quota() - user.get_used_quota()
+
+    return quota - request.content_length < 0
+
+
+def _zipfile_exceeds_quota(zipf, username):
+    """Check whether extracting the zipfile exceeds users quota
+
+    :returns: True if the zipfile exceeds user's quota else False
+    """
+    user = db.User(username)
+    quota = user.get_quota() - user.get_used_quota()
+    uncompressed_size = sum(zinfo.file_size for zinfo in zipf.filelist)
+    print uncompressed_size
+
+    return quota - uncompressed_size < 0
+
+
 def _rm_symlinks(fpath):
     """Unlink all symlinks below fpath
 
@@ -31,11 +57,12 @@ def _rm_symlinks(fpath):
     """
     for root, dirs, files in os.walk(fpath):
         for fname in files:
-            if os.path.islink("%s/%s" % (root, fname)):
-                os.unlink("%s/%s" % (root, fname))
+            _file = os.path.join(root, fname)
+            if os.path.islink(_file):
+                os.unlink(_file)
 
 
-def save_file(_file, fpath, upload_path):
+def save_file(request, fpath, upload_path):
     """Save file _file on disk at fpath. Extract zip files
     and check that no symlinks are created.
 
@@ -44,12 +71,15 @@ def save_file(_file, fpath, upload_path):
     :param upload_path: Base bath not shown to the user
     :returns: HTTP Response
     """
+    _file = request.files["file"]
+    username = request.authorization.username
+
     # Write the file if it does not exist already
     if not os.path.exists(fpath):
         _file.save(fpath)
-        status = "file created"
+        status = "created"
     else:
-        status = "file already exists"
+        status = "already exists"
 
     # Do not accept symlinks
     if os.path.islink(fpath):
@@ -64,6 +94,10 @@ def save_file(_file, fpath, upload_path):
 
         # Extract
         with zipfile.ZipFile(fpath) as zipf:
+            # Check the uncompressed size
+            if _zipfile_exceeds_quota(zipf, username):
+                abort(413)
+
             fpath, fname = os.path.split(fpath)
             zipf.extractall(fpath)
 

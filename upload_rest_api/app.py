@@ -25,6 +25,8 @@ def create_app():
     app.config["MONGO_HOST"] = "localhost"
     app.config["MONGO_PORT"] = 27017
 
+    app.config["MAX_CONTENT_LENGTH"] = 50 * 1024**3
+
     # Authenticate all requests
     app.before_request(auth.authenticate)
 
@@ -38,15 +40,17 @@ def create_app():
 
         :returns: HTTP Response
         """
-        _file = request.files["file"]
+        if up.request_exceeds_quota(request):
+            abort(413)
+
         username = request.authorization.username
 
         upload_path = app.config.get("UPLOAD_PATH")
         fpath, fname = os.path.split(fpath)
         fname = secure_filename(fname)
-        user = secure_filename(username)
+        username = secure_filename(username)
 
-        fpath = safe_join(upload_path, user, fpath)
+        fpath = safe_join(upload_path, username, fpath)
 
         # Create directory if it does not exist
         if not os.path.exists(fpath):
@@ -54,7 +58,10 @@ def create_app():
 
         fpath = safe_join(fpath, fname)
 
-        return up.save_file(_file, fpath, upload_path)
+        response = up.save_file(request, fpath, upload_path)
+        db.update_used_quota(request)
+
+        return response
 
 
     @app.route(
@@ -102,6 +109,7 @@ def create_app():
 
         if os.path.isfile(fpath):
             os.remove(fpath)
+            db.update_used_quota(request)
         else:
             abort(404)
 
@@ -154,6 +162,7 @@ def create_app():
             abort(404)
 
         rmtree(fpath)
+        db.update_used_quota(request)
 
         response = jsonify({"fpath": fpath[len(upload_path):], "status": "deleted"})
         response.status_code = 200
@@ -249,6 +258,18 @@ def create_app():
         """
         response = jsonify({"code": 405, "error": str(error)})
         response.status_code = 405
+
+        return response
+
+
+    @app.errorhandler(413)
+    def request_entity_too_large(error):
+        """JSON response handler for the 405 - Request entity too large
+
+        :returns: HTTP Response
+        """
+        response = jsonify({"code": 413, "error": str(error)})
+        response.status_code = 413
 
         return response
 
