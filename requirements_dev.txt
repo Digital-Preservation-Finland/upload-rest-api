@@ -2,3 +2,4 @@ flask
 pymongo
 mongobox
 pytest
+pytest-cov

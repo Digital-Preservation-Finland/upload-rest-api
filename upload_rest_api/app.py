@@ -264,7 +264,7 @@ def create_app():
 
     @app.errorhandler(413)
     def request_entity_too_large(error):
-        """JSON response handler for the 405 - Request entity too large
+        """JSON response handler for the 413 - Request entity too large
 
         :returns: HTTP Response
         """

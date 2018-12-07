@@ -44,7 +44,6 @@ def _zipfile_exceeds_quota(zipf, username):
     user = db.User(username)
     quota = user.get_quota() - user.get_used_quota()
     uncompressed_size = sum(zinfo.file_size for zinfo in zipf.filelist)
-    print uncompressed_size
 
     return quota - uncompressed_size < 0
 

@@ -19,6 +19,32 @@ def _contains_symlinks(fpath):
     return False
 
 
+def _set_user_quota(users, username, quota, used_quota):
+    """Set quota and used quota of user username"""
+    users.update_one({"_id": username}, {"$set": {"quota": quota}})
+    users.update_one({"_id": username}, {"$set": {"used_quota": used_quota}})
+
+
+def _upload_file(client, url, auth, fpath):
+    """Send POST request to given URL with file fpath
+
+    :returns: HTTP response
+    """
+    path, fname = os.path.split(fpath)
+
+    with open(fpath, "rb") as test_file:
+        data = {"file": (test_file, fname)}
+
+        response = client.post(
+            url,
+            content_type="multipart/form-data",
+            data=data,
+            headers=auth
+        )
+
+    return response
+
+
 def test_index(app, test_auth, wrong_auth):
     """Test the application index page with correct
     and incorrect credentials.
@@ -38,38 +64,74 @@ def test_upload(app, test_auth):
     test_client = app.test_client()
     upload_path = app.config.get("UPLOAD_PATH")
 
-    with open("tests/data/test.txt", "rb") as test_file:
-        data = {"file": (test_file, "test.txt")}
+    response = _upload_file(
+        test_client, "/api/upload/v1/test.txt",
+        test_auth, "tests/data/test.txt"
+    )
+    assert response.status_code == 200
 
-        response = test_client.post(
-            "/api/upload/v1/test.txt",
-            content_type="multipart/form-data",
-            data=data,
-            headers=test_auth
-        )
-
-        assert response.status_code == 200
-
-        fpath = os.path.join(upload_path, "test/test.txt")
-        assert os.path.isfile(fpath)
-        assert "test" in open(fpath).read()
+    fpath = os.path.join(upload_path, "test/test.txt")
+    assert os.path.isfile(fpath)
+    assert "test" in open(fpath).read()
 
 
-def test_upload_outside_project(app, test_auth):
-    """Test uploading outside the project folder."""
+def test_upload_max_size(app, test_auth):
+    """Test uploading file larger than the supported max file size"""
+
+    # Set max upload size to 1 byte
+    app.config["MAX_CONTENT_LENGTH"] = 1
+    test_client = app.test_client()
+    upload_path = app.config.get("UPLOAD_PATH")
+
+    response = _upload_file(
+        test_client, "/api/upload/v1/test.txt",
+        test_auth, "tests/data/test.txt"
+    )
+    assert response.status_code == 413
+
+    # Check that file was not saved on the server
+    fpath = os.path.join(upload_path, "test/test.txt")
+    assert not os.path.isfile(fpath)
+
+
+def test_user_quota(app, test_auth, database_fx):
+    """Test uploading files larger than allowed by user quota"""
+    test_client = app.test_client()
+    upload_path = app.config.get("UPLOAD_PATH")
+    users = database_fx.auth.users
+
+    # Test cases for different quota and used_quota values
+    # quotas[i][0] == quota; quotas[i][1] == used_quota
+    quotas = [
+        [8, 0],       # Quota too small for the upload
+        [1024, 1018], # Not enough quota remaining for the upload
+        [1024, 1026]  # Quota already exceeded
+    ]
+
+    # Files to test the scenarios with
+    files = ["tests/data/test.txt", "tests/data/test.zip"]
+
+    for quota in quotas:
+        for _file in files:
+            _set_user_quota(users, "test", *quota)
+            response = _upload_file(
+                test_client, "/api/upload/v1/test",
+                test_auth, _file
+            )
+            assert response.status_code == 413
+
+    # Check that none of the files were actually created
+    assert not os.path.isdir(os.path.join(upload_path, "test"))
+
+
+def test_upload_outside(app, test_auth):
+    """Test uploading outside the user's dir."""
 
     test_client = app.test_client()
-
-    with open("tests/data/test.txt", "rb") as test_file:
-        data = {"file": (test_file, "test.txt")}
-
-        response = test_client.post(
-            "/api/upload/v1/project/../../test.txt",
-            content_type="multipart/form-data",
-            data=data,
-            headers=test_auth
-        )
-
+    response = _upload_file(
+        test_client, "/api/upload/v1/../test.txt",
+        test_auth, "tests/data/test.txt"
+    )
     assert response.status_code == 404
 
 
@@ -80,16 +142,10 @@ def test_upload_zip(app, test_auth):
     test_client = app.test_client()
     upload_path = app.config.get("UPLOAD_PATH")
 
-    with open("tests/data/test.zip", "rb") as test_file:
-        data = {"file": (test_file, "test.zip")}
-
-        response = test_client.post(
-            "/api/upload/v1/test.zip",
-            content_type="multipart/form-data",
-            data=data,
-            headers=test_auth
-        )
-
+    response = _upload_file(
+        test_client, "/api/upload/v1/test.zip",
+        test_auth, "tests/data/test.zip"
+    )
     assert response.status_code == 200
 
     fpath = os.path.join(upload_path, "test")
