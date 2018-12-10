@@ -1,14 +1,15 @@
 """Module for accessing user database
 """
+import os
 import hashlib
 import binascii
 import random
-
 from string import ascii_letters, digits
 from bson.binary import Binary
 
 import pymongo
-from flask import abort, current_app, has_request_context
+from flask import abort, current_app, has_request_context, safe_join
+from werkzeug.utils import secure_filename
 
 
 # Password vars
@@ -42,6 +43,30 @@ def hash_passwd(password, salt):
     """
     digest = hashlib.pbkdf2_hmac(HASH_ALG, password, salt, ITERATIONS)
     return Binary(digest)
+
+
+def get_dir_size(fpath):
+    """Returns the size of the dir fpath in bytes"""
+    size = 0
+    for root, dirs, files in os.walk(fpath):
+        for fname in files:
+            _file = os.path.join(root, fname)
+            size += os.path.getsize(_file)
+
+    return size
+
+
+def update_used_quota(request):
+    """Update used quota of the user"""
+    username = request.authorization.username
+    user = User(username)
+    path = safe_join(
+        current_app.config.get("UPLOAD_PATH"),
+        secure_filename(username)
+    )
+    size = get_dir_size(path)
+
+    user.set_used_quota(size)
 
 
 class User(object):
@@ -106,7 +131,8 @@ class User(object):
                 "_id" : self.username,
                 "digest" : digest,
                 "salt" : salt,
-                "quota" : self.quota
+                "quota" : self.quota,
+                "used_quota" : 0
             }
         )
 
@@ -147,12 +173,21 @@ class User(object):
 
 
     def get_quota(self):
-        """Returns the quota of the user"""
+        """Returns the overall quota of the user"""
         # Abort if user does not exist
         if not self.exists():
             abort(404)
 
         return self.users.find_one({"_id" : self.username})["quota"]
+
+
+    def get_used_quota(self):
+        """Returns the used quota of the user"""
+        # Abort if user does not exist
+        if not self.exists():
+            abort(404)
+
+        return self.users.find_one({"_id" : self.username})["used_quota"]
 
 
     def set_quota(self, quota):
@@ -164,6 +199,18 @@ class User(object):
         self.users.update_one(
             {"_id" : self.username},
             {"$set" : {"quota" : quota}}
+        )
+
+
+    def set_used_quota(self, used_quota):
+        """Set the used quota of the user"""
+        # Abort if user does not exist
+        if not self.exists():
+            abort(404)
+
+        self.users.update_one(
+            {"_id" : self.username},
+            {"$set" : {"used_quota" : used_quota}}
         )
 
 
