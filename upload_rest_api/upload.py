@@ -93,11 +93,14 @@ def save_file(request, fpath, upload_path):
 
         # Extract
         with zipfile.ZipFile(fpath) as zipf:
+            fpath, fname = os.path.split(fpath)
+
             # Check the uncompressed size
             if _zipfile_exceeds_quota(zipf, username):
+                # Remove zip archive and abort
+                os.remove("%s/%s" % (fpath, fname))
                 abort(413)
 
-            fpath, fname = os.path.split(fpath)
             zipf.extractall(fpath)
 
         # Remove zip archive
