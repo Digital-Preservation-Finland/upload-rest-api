@@ -4,6 +4,7 @@ periodically using cron.
 """
 import os
 import time
+from datetime import datetime
 
 
 def _is_expired(fpath, current_time, time_lim):
@@ -35,6 +36,13 @@ def _clean_empty_dirs(fpath):
             # Raise all errors except [Errno 39] Directory not empty
             if err.errno != 39:
                 raise
+
+
+def readable_timestamp(fpath):
+    """Returns last access time in human readable format:
+    YYYY-MM-DD hh:mm:ss.fraction
+    """
+    return str(datetime.fromtimestamp(os.stat(fpath).st_atime))
 
 
 def cleanup(fpath, time_lim):

@@ -9,6 +9,7 @@ from werkzeug.utils import secure_filename
 import upload_rest_api.upload as up
 import upload_rest_api.authentication as auth
 import upload_rest_api.database as db
+from upload_rest_api.dir_cleanup import readable_timestamp
 
 
 def create_app():
@@ -87,7 +88,11 @@ def create_app():
         # Show user the relative path from /var/spool/uploads/
         return_path = fpath[len(upload_path):]
 
-        return jsonify({"file_path": return_path, "md5": up.md5_digest(fpath)})
+        return jsonify({
+            "file_path": return_path,
+            "md5": up.md5_digest(fpath),
+            "timestamp": readable_timestamp(fpath)
+        })
 
 
     @app.route(
