@@ -33,12 +33,9 @@ def _upload_file(client, url, auth, fpath):
     path, fname = os.path.split(fpath)
 
     with open(fpath, "rb") as test_file:
-        data = {"file": (test_file, fname)}
-
         response = client.post(
             url,
-            content_type="multipart/form-data",
-            data=data,
+            data=test_file,
             headers=auth
         )
 
@@ -60,7 +57,6 @@ def test_index(app, test_auth, wrong_auth):
 
 def test_upload(app, test_auth):
     """Test uploading a plain text file"""
-
     test_client = app.test_client()
     upload_path = app.config.get("UPLOAD_PATH")
 
@@ -72,7 +68,7 @@ def test_upload(app, test_auth):
 
     fpath = os.path.join(upload_path, "test/test.txt")
     assert os.path.isfile(fpath)
-    assert "test" in open(fpath).read()
+    assert "test file for REST file upload\n" == open(fpath).read()
 
 
 def test_upload_max_size(app, test_auth):

@@ -61,21 +61,32 @@ def _rm_symlinks(fpath):
                 os.unlink(_file)
 
 
+def _save_stream(request, chunk_size, fpath):
+    """Save the file into fpath by reading the stream in chunks
+    of chunk_size bytes.
+    """
+    with open(fpath, "wb") as f_out:
+        while True:
+            chunk = request.stream.read(chunk_size)
+            if len(chunk) == 0:
+                return
+            f_out.write(chunk)
+
+
 def save_file(request, fpath, upload_path):
-    """Save file _file on disk at fpath. Extract zip files
+    """Save the posted file on disk at fpath by reading
+    the upload stream in 1MB chunks. Extract zip files
     and check that no symlinks are created.
 
-    :param _file: The uploaded file request.files["file"]
     :param fpath: Path where to save the file
     :param upload_path: Base bath not shown to the user
     :returns: HTTP Response
     """
-    _file = request.files["file"]
     username = request.authorization.username
 
     # Write the file if it does not exist already
     if not os.path.exists(fpath):
-        _file.save(fpath)
+        _save_stream(request, 1024*1024, fpath)
         status = "created"
     else:
         status = "already exists"
