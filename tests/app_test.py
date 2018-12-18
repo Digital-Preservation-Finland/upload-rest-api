@@ -66,7 +66,7 @@ def test_upload(app, test_auth):
 
     fpath = os.path.join(upload_path, "test/test.txt")
     assert os.path.isfile(fpath)
-    assert open(fpath).read() == "test file for REST file upload\n"
+    assert open(fpath, "rb").read() == open("tests/data/test.txt", "rb").read()
 
 
 def test_upload_max_size(app, test_auth):
