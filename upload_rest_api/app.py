@@ -2,9 +2,9 @@
 """
 import os
 from shutil import rmtree
-import werkzeug
 
 from flask import Flask, abort, safe_join, request, jsonify
+import werkzeug
 from werkzeug.utils import secure_filename
 
 import upload_rest_api.upload as up
@@ -42,9 +42,9 @@ def create_app():
 
         :returns: HTTP Response
         """
-        if up.request_exceeds_quota(request):
+        if request.content_length > app.config.get("MAX_CONTENT_LENGTH"):
             abort(413)
-        elif request.content_length > app.config.get("MAX_CONTENT_LENGTH"):
+        elif up.request_exceeds_quota(request):
             abort(413)
 
         username = request.authorization.username
@@ -144,7 +144,7 @@ def create_app():
             abort(404)
 
         file_dict = {}
-        for root, dirs, files in os.walk(fpath):
+        for root, _, files in os.walk(fpath):
             file_dict[root[len(upload_path):]] = files
 
         response = jsonify(file_dict)

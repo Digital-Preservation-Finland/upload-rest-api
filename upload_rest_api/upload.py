@@ -54,7 +54,7 @@ def _rm_symlinks(fpath):
     :param fpath: Path to directory under which all symlinks are unlinked
     :returns: None
     """
-    for root, dirs, files in os.walk(fpath):
+    for root, _, files in os.walk(fpath):
         for fname in files:
             _file = os.path.join(root, fname)
             if os.path.islink(_file):
@@ -68,8 +68,8 @@ def _save_stream(request, chunk_size, fpath):
     with open(fpath, "wb") as f_out:
         while True:
             chunk = request.stream.read(chunk_size)
-            if len(chunk) == 0:
-                return
+            if chunk == '':
+                break
             f_out.write(chunk)
 
 
