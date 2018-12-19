@@ -4,6 +4,7 @@ import os
 from shutil import rmtree
 
 from flask import Flask, abort, safe_join, request, jsonify
+import werkzeug
 from werkzeug.utils import secure_filename
 
 import upload_rest_api.upload as up
@@ -41,7 +42,9 @@ def create_app():
 
         :returns: HTTP Response
         """
-        if up.request_exceeds_quota(request):
+        if request.content_length > app.config.get("MAX_CONTENT_LENGTH"):
+            abort(413)
+        elif up.request_exceeds_quota(request):
             abort(413)
 
         username = request.authorization.username
@@ -141,7 +144,7 @@ def create_app():
             abort(404)
 
         file_dict = {}
-        for root, dirs, files in os.walk(fpath):
+        for root, _, files in os.walk(fpath):
             file_dict[root[len(upload_path):]] = files
 
         response = jsonify(file_dict)
@@ -231,56 +234,20 @@ def create_app():
         return response
 
 
-    @app.errorhandler(401)
-    def unauthorized_error(error):
-        """JSON response handler for the 401 - Unauthorized errors
+    @app.errorhandler(werkzeug.exceptions.HTTPException)
+    def http_error(error):
+        """General response handler for all werkzeug HTTPExceptions
 
         :returns: HTTP Response
         """
-        response = jsonify({"code": 401, "error": str(error)})
-        response.status_code = 401
-
-        return response
-
-
-    @app.errorhandler(404)
-    def page_not_found(error):
-        """JSON response handler for the 404 - Not found errors
-
-        :returns: HTTP Response
-        """
-        response = jsonify({"code": 404, "error": str(error)})
-        response.status_code = 404
-
-        return response
-
-
-    @app.errorhandler(405)
-    def method_not_allowed(error):
-        """JSON response handler for the 405 - Method not allowed errors
-
-        :returns: HTTP Response
-        """
-        response = jsonify({"code": 405, "error": str(error)})
-        response.status_code = 405
-
-        return response
-
-
-    @app.errorhandler(413)
-    def request_entity_too_large(error):
-        """JSON response handler for the 413 - Request entity too large
-
-        :returns: HTTP Response
-        """
-        response = jsonify({"code": 413, "error": str(error)})
-        response.status_code = 413
+        response = jsonify({"code": error.code, "error": str(error)})
+        response.status_code = error.code
 
         return response
 
 
     if __name__ == "__main__":
-        app.run(debug=True)
+        app.run()
     else:
         return app
 

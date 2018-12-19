@@ -11,7 +11,7 @@ def _contains_symlinks(fpath):
     :param fpath: Path to directory to check
     :returns: True if any symlinks are found else False
     """
-    for root, dirs, files in os.walk(fpath):
+    for root, _, files in os.walk(fpath):
         for _file in files:
             if os.path.islink("%s/%s" % (root, _file)):
                 return True
@@ -30,15 +30,10 @@ def _upload_file(client, url, auth, fpath):
 
     :returns: HTTP response
     """
-    path, fname = os.path.split(fpath)
-
     with open(fpath, "rb") as test_file:
-        data = {"file": (test_file, fname)}
-
         response = client.post(
             url,
-            content_type="multipart/form-data",
-            data=data,
+            data=test_file,
             headers=auth
         )
 
@@ -60,7 +55,6 @@ def test_index(app, test_auth, wrong_auth):
 
 def test_upload(app, test_auth):
     """Test uploading a plain text file"""
-
     test_client = app.test_client()
     upload_path = app.config.get("UPLOAD_PATH")
 
@@ -72,7 +66,7 @@ def test_upload(app, test_auth):
 
     fpath = os.path.join(upload_path, "test/test.txt")
     assert os.path.isfile(fpath)
-    assert "test" in open(fpath).read()
+    assert open(fpath, "rb").read() == open("tests/data/test.txt", "rb").read()
 
 
 def test_upload_max_size(app, test_auth):
@@ -122,6 +116,32 @@ def test_user_quota(app, test_auth, database_fx):
 
     # Check that none of the files were actually created
     assert not os.path.isdir(os.path.join(upload_path, "test"))
+
+
+def test_used_quota(app, test_auth, database_fx):
+    """Test that used quota is calculated correctly"""
+    test_client = app.test_client()
+    users = database_fx.auth.users
+
+    # Upload two 31B txt files
+    _upload_file(
+        test_client, "/api/upload/v1/test1",
+        test_auth, "tests/data/test.txt"
+    )
+    _upload_file(
+        test_client, "/api/upload/v1/test2",
+        test_auth, "tests/data/test.txt"
+    )
+    used_quota = users.find_one({"_id": "test"})["used_quota"]
+    assert used_quota == 62
+
+    # Delete one of the files
+    test_client.delete(
+        "api/upload/v1/test1",
+        headers=test_auth
+    )
+    used_quota = users.find_one({"_id": "test"})["used_quota"]
+    assert used_quota == 31
 
 
 def test_upload_outside(app, test_auth):

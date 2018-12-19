@@ -19,7 +19,7 @@ Start local development/test server::
 
 POST file::
 
-    curl -F file=@path/to/file.txt -u user:passwd localhost:5000/api/upload/v1/path/on/server/file.txt
+    curl -X POST -T path/to/file.txt -u user:passwd localhost:5000/api/upload/v1/path/on/server/file.txt
 
 GET file::
 
