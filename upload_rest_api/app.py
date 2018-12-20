@@ -10,7 +10,7 @@ from werkzeug.utils import secure_filename
 import upload_rest_api.upload as up
 import upload_rest_api.authentication as auth
 import upload_rest_api.database as db
-from upload_rest_api.dir_cleanup import readable_timestamp
+from upload_rest_api.gen_metadata import iso8601_timestamp
 
 
 def create_app():
@@ -98,7 +98,7 @@ def create_app():
         return jsonify({
             "file_path": return_path,
             "md5": up.md5_digest(fpath),
-            "timestamp": readable_timestamp(fpath)
+            "timestamp": iso8601_timestamp(fpath)
         })
 
 

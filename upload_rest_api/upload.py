@@ -1,27 +1,11 @@
 """Module for handling the file uploads"""
 import os
-import hashlib
 import zipfile
 
 from flask import jsonify, abort, request
 
 import upload_rest_api.database as db
-
-
-def md5_digest(fpath):
-    """Return md5 digest of file fpath
-
-    :param fpath: path to file to be hashed
-    :returns: digest as a string
-    """
-    md5_hash = hashlib.md5()
-
-    with open(fpath, "rb") as _file:
-        # read the file in 1MB chunks
-        for chunk in iter(lambda: _file.read(1024 * 1024), b''):
-            md5_hash.update(chunk)
-
-    return md5_hash.hexdigest()
+from upload_rest_api.gen_metadata import md5_digest
 
 
 def request_exceeds_quota():
@@ -61,7 +45,7 @@ def _rm_symlinks(fpath):
                 os.unlink(_file)
 
 
-def _save_stream(chunk_size, fpath):
+def _save_stream(fpath, chunk_size=1024*1024):
     """Save the file into fpath by reading the stream in chunks
     of chunk_size bytes.
     """
@@ -86,7 +70,7 @@ def save_file(fpath, upload_path):
 
     # Write the file if it does not exist already
     if not os.path.exists(fpath):
-        _save_stream(1024*1024, fpath)
+        _save_stream(fpath)
         status = "created"
     else:
         status = "already exists"

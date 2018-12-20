@@ -217,6 +217,15 @@ class User(object):
         )
 
 
+    def get_project(self):
+        """Get user project"""
+        # Abort if user does not exist
+        if not self.exists():
+            abort(404)
+
+        return self.users.find_one({"_id" : self.username})["project"]
+
+
     def exists(self):
         """Check if the user is found in the db"""
         return self.users.find_one({"_id" : self.username}) is not None

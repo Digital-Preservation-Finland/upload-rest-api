@@ -38,13 +38,6 @@ def _clean_empty_dirs(fpath):
                 raise
 
 
-def readable_timestamp(fpath):
-    """Returns last access time in human readable format:
-    YYYY-MM-DD hh:mm:ss.fraction
-    """
-    return str(datetime.fromtimestamp(os.stat(fpath).st_atime))
-
-
 def cleanup(fpath, time_lim):
     """Remove all files that haven't been accessed within time_lim seconds
 
