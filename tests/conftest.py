@@ -22,16 +22,16 @@ def init_db(database_fx):
     """Initialize user db to have users admin and test
     with password test.
     """
-    database_fx.drop_database("auth")
+    database_fx.drop_database("upload")
 
     admin_user = User("admin")
     test_user = User("test")
 
-    admin_user.users = database_fx.auth.users
-    test_user.users = database_fx.auth.users
+    admin_user.users = database_fx.upload.users
+    test_user.users = database_fx.upload.users
 
-    admin_user.create(password="test")
-    test_user.create(password="test")
+    admin_user.create("admin_project", password="test")
+    test_user.create("test_project", password="test")
 
 
 @pytest.yield_fixture(scope="function")

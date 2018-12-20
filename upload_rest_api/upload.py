@@ -3,7 +3,7 @@ import os
 import hashlib
 import zipfile
 
-from flask import jsonify, abort
+from flask import jsonify, abort, request
 
 import upload_rest_api.database as db
 
@@ -24,7 +24,7 @@ def md5_digest(fpath):
     return md5_hash.hexdigest()
 
 
-def request_exceeds_quota(request):
+def request_exceeds_quota():
     """Check whether the request exceeds users quota
 
     :returns: True if the request exceeds user's quota else False
@@ -61,7 +61,7 @@ def _rm_symlinks(fpath):
                 os.unlink(_file)
 
 
-def _save_stream(request, chunk_size, fpath):
+def _save_stream(chunk_size, fpath):
     """Save the file into fpath by reading the stream in chunks
     of chunk_size bytes.
     """
@@ -73,7 +73,7 @@ def _save_stream(request, chunk_size, fpath):
             f_out.write(chunk)
 
 
-def save_file(request, fpath, upload_path):
+def save_file(fpath, upload_path):
     """Save the posted file on disk at fpath by reading
     the upload stream in 1MB chunks. Extract zip files
     and check that no symlinks are created.
@@ -86,7 +86,7 @@ def save_file(request, fpath, upload_path):
 
     # Write the file if it does not exist already
     if not os.path.exists(fpath):
-        _save_stream(request, 1024*1024, fpath)
+        _save_stream(1024*1024, fpath)
         status = "created"
     else:
         status = "already exists"

@@ -20,13 +20,17 @@ def create_app():
     """
     app = Flask(__name__)
 
+    # API paths
     app.config["UPLOAD_PATH"] = "/home/vagrant/test/rest"
     app.config["UPLOAD_API_PATH"] = "/api/upload/v1"
     app.config["DB_API_PATH"] = "/api/db/v1"
 
+    # Mongo params
     app.config["MONGO_HOST"] = "localhost"
     app.config["MONGO_PORT"] = 27017
 
+    # Storage params
+    app.config["STORAGE_ID"] = "urn:uuid:f843c26d-b5f7-4c66-91e7-2e75f5377636"
     app.config["MAX_CONTENT_LENGTH"] = 50 * 1024**3
 
     # Authenticate all requests
@@ -44,7 +48,7 @@ def create_app():
         """
         if request.content_length > app.config.get("MAX_CONTENT_LENGTH"):
             abort(413)
-        elif up.request_exceeds_quota(request):
+        elif up.request_exceeds_quota():
             abort(413)
 
         username = request.authorization.username
@@ -62,8 +66,8 @@ def create_app():
 
         fpath = safe_join(fpath, fname)
 
-        response = up.save_file(request, fpath, upload_path)
-        db.update_used_quota(request)
+        response = up.save_file(fpath, upload_path)
+        db.update_used_quota()
 
         return response
 
@@ -117,7 +121,7 @@ def create_app():
 
         if os.path.isfile(fpath):
             os.remove(fpath)
-            db.update_used_quota(request)
+            db.update_used_quota()
         else:
             abort(404)
 
@@ -170,7 +174,7 @@ def create_app():
             abort(404)
 
         rmtree(fpath)
-        db.update_used_quota(request)
+        db.update_used_quota()
 
         response = jsonify({"fpath": fpath[len(upload_path):], "status": "deleted"})
         response.status_code = 200
@@ -197,10 +201,10 @@ def create_app():
 
 
     @app.route(
-        "%s/<string:username>" % app.config.get("DB_API_PATH"),
+        "%s/<string:username>/<string:project>" % app.config.get("DB_API_PATH"),
         methods=["POST"]
     )
-    def create_user(username):
+    def create_user(username, project):
         """Create user username with random password and salt.
 
         :returns: HTTP Response
@@ -208,9 +212,14 @@ def create_app():
         auth.admin_only()
 
         user = db.User(username)
-        passwd = user.create()
-
-        response = jsonify({"username": username, "password": passwd})
+        passwd = user.create(project)
+        response = jsonify(
+            {
+                "username": username,
+                "project" : project,
+                "password": passwd
+            }
+        )
         response.status_code = 200
 
         return response

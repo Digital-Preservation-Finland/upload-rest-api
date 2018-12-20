@@ -8,7 +8,7 @@ from string import ascii_letters, digits
 from bson.binary import Binary
 
 import pymongo
-from flask import abort, current_app, has_request_context, safe_join
+from flask import abort, current_app, request, has_request_context, safe_join
 from werkzeug.utils import secure_filename
 
 
@@ -56,7 +56,7 @@ def get_dir_size(fpath):
     return size
 
 
-def update_used_quota(request):
+def update_used_quota():
     """Update used quota of the user"""
     username = request.authorization.username
     user = User(username)
@@ -82,10 +82,11 @@ class User(object):
         port = 27017
 
         if has_request_context():
-            host = current_app.config.get("MONGO_HOST", host)
-            port = current_app.config.get("MONGO_PORT", port)
+            app = current_app
+            host = app.config.get("MONGO_HOST", host)
+            port = app.config.get("MONGO_PORT", port)
 
-        self.users = pymongo.MongoClient(host, port).auth.users
+        self.users = pymongo.MongoClient(host, port).upload.users
         self.username = username
         self.quota = quota
 
@@ -106,11 +107,12 @@ class User(object):
         )
 
 
-    def create(self, password=None):
-        """Adds new user to the authentication database.
-        Salt is always chosen randomly, but password can be set
+    def create(self, project, password=None):
+        """Adds new user to the database. Salt is always
+        generated randomly, but password can be set
         by providing to optional argument password.
 
+        :param project: Project the user is associated with
         :param password: Password of the created user
         :returns: The password
         """
@@ -129,6 +131,7 @@ class User(object):
         self.users.insert_one(
             {
                 "_id" : self.username,
+                "project" : project,
                 "digest" : digest,
                 "salt" : salt,
                 "quota" : self.quota,
