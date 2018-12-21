@@ -1,5 +1,6 @@
 """Module for generating basic file metadata and posting it to Metax"""
 import os
+import json
 import hashlib
 from datetime import datetime
 from uuid import uuid4
@@ -49,7 +50,7 @@ def _timestamp_now():
     return str(timestamp.replace(microsecond=0).isoformat())
 
 
-def _generate_metadata(fpath, upload_path, project, storage_id):
+def _generate_metadata(fpath, upload_path, user, project, storage_id):
     """Generate metadata in json format"""
     timestamp = iso8601_timestamp(fpath)
 
@@ -57,7 +58,7 @@ def _generate_metadata(fpath, upload_path, project, storage_id):
         "identifier" : uuid4().urn,
         "file_name" : os.path.split(fpath)[1],
         "file_format" : _get_mimetype(fpath),
-        "file_path" : "/%s%s" % (project, fpath[len(upload_path):]),
+        "file_path" : "/%s%s" % (project, fpath[len(upload_path+user)+1:]),
         "project_identifier" : project,
         "file_uploaded" : timestamp,
         "file_frozen" : timestamp,
@@ -66,25 +67,32 @@ def _generate_metadata(fpath, upload_path, project, storage_id):
             "value" : md5_digest(fpath),
             "checked" : _timestamp_now()
         },
-        "file_storage" : {
-            "identifier" : storage_id
-        }
+        "file_storage" : 2
+        # TODO: Request file storage id for tpas
+        # https://github.com/CSCfi/metax-api/blob/test/docs/source/files.rst
     }
 
     return metadata
 
 
-def post_metadata():
+def post_metadata(fpath):
     """generate and POST metadata to Metax"""
-    pass
+    app = current_app
 
+    # Metax vars
+    metax_url = app.config.get("METAX_URL")
+    metax_user = app.config.get("METAX_USER")
+    metax_password = app.config.get("METAX_PASSWORD")
+    metax_client = metax_access.Metax(metax_url, metax_user, metax_password)
 
-if __name__ == "__main__":
-    import json
-    print json.dumps(
-        _generate_metadata(
-             "/home/vagrant/test/rest/admin/asd",
-             "/home/vagrant/test/rest", "admin_project",
-             "urn:uuid:f843c26d-b5f7-4c66-91e7-2e75f5377636"
-        )
+    # _generate_metadata() vars
+    upload_path = app.config.get("UPLOAD_PATH")
+    user = request.authorization.username
+    project = db.User(user).get_project()
+    storage_id = app.config.get("STORAGE_ID")
+
+    metadata = _generate_metadata(
+        fpath, upload_path,
+        user, project, storage_id
     )
+    return metax_client.post_file(metadata).json()
