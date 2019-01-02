@@ -5,7 +5,7 @@ import zipfile
 from flask import jsonify, abort, request
 
 import upload_rest_api.database as db
-from upload_rest_api.gen_metadata import md5_digest
+import upload_rest_api.gen_metadata as gen_metadata
 
 
 def request_exceeds_quota():
@@ -38,9 +38,9 @@ def _rm_symlinks(fpath):
     :param fpath: Path to directory under which all symlinks are unlinked
     :returns: None
     """
-    for root, _, files in os.walk(fpath):
+    for dirpath, _, files in os.walk(fpath):
         for fname in files:
-            _file = os.path.join(root, fname)
+            _file = os.path.join(dirpath, fname)
             if os.path.islink(_file):
                 os.unlink(_file)
 
@@ -81,12 +81,10 @@ def save_file(fpath, upload_path):
         status = "file not created. symlinks are not supported"
         md5 = "none"
     else:
-        md5 = md5_digest(fpath)
+        md5 = gen_metadata.md5_digest(fpath)
 
     # If zip file was uploaded extract all files
     if zipfile.is_zipfile(fpath):
-
-        # Extract
         with zipfile.ZipFile(fpath) as zipf:
             fpath, fname = os.path.split(fpath)
 
@@ -98,10 +96,8 @@ def save_file(fpath, upload_path):
 
             zipf.extractall(fpath)
 
-        # Remove zip archive
+        # Remove zip archive and all created symlinks
         os.remove("%s/%s" % (fpath, fname))
-
-        # Remove possible symlinks
         _rm_symlinks(fpath)
 
         status = "zip uploaded and extracted"
@@ -109,13 +105,11 @@ def save_file(fpath, upload_path):
     #Show user the relative path from /var/spool/uploads/
     return_path = fpath[len(upload_path):]
 
-    response = jsonify(
-        {
-            "file_path": return_path,
-            "md5": md5,
-            "status": status
-        }
-    )
+    response = jsonify({
+        "file_path": return_path,
+        "md5": md5,
+        "status": status
+    })
     response.status_code = 200
 
     return response

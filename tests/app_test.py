@@ -11,9 +11,9 @@ def _contains_symlinks(fpath):
     :param fpath: Path to directory to check
     :returns: True if any symlinks are found else False
     """
-    for root, _, files in os.walk(fpath):
+    for dirpath, _, files in os.walk(fpath):
         for _file in files:
-            if os.path.islink("%s/%s" % (root, _file)):
+            if os.path.islink("%s/%s" % (dirpath, _file)):
                 return True
 
     return False

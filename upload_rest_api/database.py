@@ -48,9 +48,9 @@ def hash_passwd(password, salt):
 def get_dir_size(fpath):
     """Returns the size of the dir fpath in bytes"""
     size = 0
-    for root, dirs, files in os.walk(fpath):
+    for dirpath, _, files in os.walk(fpath):
         for fname in files:
-            _file = os.path.join(root, fname)
+            _file = os.path.join(dirpath, fname)
             size += os.path.getsize(_file)
 
     return size

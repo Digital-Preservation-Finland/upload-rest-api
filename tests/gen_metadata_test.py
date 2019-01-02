@@ -21,21 +21,22 @@ def test_gen_metadata():
     """Test that _generate_metadata() produces the correct metadata"""
     metadata = md._generate_metadata(
         "tests/data/test.txt",
-        "tests", "data",  
+        "tests", "data",
         "test_project", "pid:uuid:storage_id"
     )
 
     assert len(metadata["identifier"]) == 45
     assert metadata["file_name"] == "test.txt"
     assert metadata["file_format"] == "text/plain"
+    assert metadata["byte_size"] == 31
     assert metadata["file_path"] == "/test_project/test.txt"
     assert metadata["project_identifier"] == "test_project"
-    assert "file_uploaded" in metadata 
-    assert "file_frozen" in metadata 
-    
+    assert "file_uploaded" in metadata
+    assert "file_frozen" in metadata
+
     checksum = metadata["checksum"]
     assert checksum["algorithm"] == "md5"
     assert checksum["value"] == "150b62e4e7d58c70503bd5fc8a26463c"
     assert "checked" in checksum
-    
-    assert metadata["file_storage"] == 2
+
+    assert metadata["file_storage"] == "pid:uuid:storage_id"

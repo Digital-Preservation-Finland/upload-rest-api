@@ -1,7 +1,6 @@
 """REST api for uploading files into passipservice
 """
 import os
-import json
 from shutil import rmtree
 from ConfigParser import ConfigParser
 
@@ -33,7 +32,9 @@ def create_app():
     app.config["MONGO_PORT"] = 27017
 
     # Storage params
-    app.config["STORAGE_ID"] = "urn:uuid:f843c26d-b5f7-4c66-91e7-2e75f5377636"
+    # TODO: Request file storage id for tpas
+    # https://github.com/CSCfi/metax-api/blob/test/docs/source/files.rst
+    app.config["STORAGE_ID"] = 2
     app.config["MAX_CONTENT_LENGTH"] = 50 * 1024**3
 
     # Metax params
@@ -58,8 +59,7 @@ def create_app():
         methods=["POST"]
     )
     def upload_file(fpath):
-        """Save file uploaded as multipart/form-data at
-        /var/spool/uploads/user/fpath
+        """Save the uploaded file at /var/spool/uploads/user/fpath
 
         :returns: HTTP Response
         """
@@ -114,7 +114,7 @@ def create_app():
 
         return jsonify({
             "file_path": return_path,
-            "md5": up.md5_digest(fpath),
+            "md5": gen_metadata.md5_digest(fpath),
             "timestamp": gen_metadata.iso8601_timestamp(fpath)
         })
 
@@ -165,8 +165,8 @@ def create_app():
             abort(404, "No files found")
 
         file_dict = {}
-        for root, _, files in os.walk(fpath):
-            file_dict[root[len(upload_path):]] = files
+        for dirpath, _, files in os.walk(fpath):
+            file_dict[dirpath[len(upload_path):]] = files
 
         response = jsonify(file_dict)
         response.status_code = 200
@@ -193,7 +193,10 @@ def create_app():
         rmtree(fpath)
         db.update_used_quota()
 
-        response = jsonify({"fpath": fpath[len(upload_path):], "status": "deleted"})
+        response = jsonify({
+            "fpath": fpath[len(upload_path):],
+            "status": "deleted"
+        })
         response.status_code = 200
 
         return response
@@ -265,7 +268,7 @@ def create_app():
         methods=["POST"]
     )
     def post_metadata(fpath):
-        """Delete user username.
+        """POST file metadata to Metax
 
         :returns: HTTP Response
         """
@@ -277,10 +280,21 @@ def create_app():
         user = secure_filename(username)
         fpath = safe_join(upload_path, user, fpath, fname)
 
-        if not os.path.isfile(fpath):
-            abort(404, "File not found")
+        if os.path.isdir(fpath):
+            response = []
 
-        return jsonify(gen_metadata.post_metadata(fpath))
+            # POST metadata of all files under dir fpath
+            for dirpath, _, files in os.walk(fpath):
+                for fname in files:
+                    _file = os.path.join(dirpath, fname)
+                    response.append(gen_metadata.post_metadata(_file))
+
+        elif os.path.isfile(fpath):
+            response = gen_metadata.post_metadata(fpath)
+        else:
+            abort(404)
+
+        return jsonify(response)
 
 
     @app.errorhandler(werkzeug.exceptions.HTTPException)

@@ -1,6 +1,5 @@
 """Module for generating basic file metadata and posting it to Metax"""
 import os
-import json
 import hashlib
 from datetime import datetime
 from uuid import uuid4
@@ -58,6 +57,7 @@ def _generate_metadata(fpath, upload_path, user, project, storage_id):
         "identifier" : uuid4().urn,
         "file_name" : os.path.split(fpath)[1],
         "file_format" : _get_mimetype(fpath),
+        "byte_size" : os.stat(fpath).st_size,
         "file_path" : "/%s%s" % (project, fpath[len(upload_path+user)+1:]),
         "project_identifier" : project,
         "file_uploaded" : timestamp,
@@ -67,9 +67,7 @@ def _generate_metadata(fpath, upload_path, user, project, storage_id):
             "value" : md5_digest(fpath),
             "checked" : _timestamp_now()
         },
-        "file_storage" : 2
-        # TODO: Request file storage id for tpas
-        # https://github.com/CSCfi/metax-api/blob/test/docs/source/files.rst
+        "file_storage" : storage_id
     }
 
     return metadata
