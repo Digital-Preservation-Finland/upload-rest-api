@@ -52,13 +52,15 @@ def _timestamp_now():
 def _generate_metadata(fpath, upload_path, user, project, storage_id):
     """Generate metadata in json format"""
     timestamp = iso8601_timestamp(fpath)
+    file_path = "/%s%s" % (project, fpath[len(upload_path+user)+1:])
+    file_path = os.path.abspath(file_path)
 
     metadata = {
         "identifier" : uuid4().urn,
         "file_name" : os.path.split(fpath)[1],
         "file_format" : _get_mimetype(fpath),
         "byte_size" : os.stat(fpath).st_size,
-        "file_path" : "/%s%s" % (project, fpath[len(upload_path+user)+1:]),
+        "file_path" : file_path,
         "project_identifier" : project,
         "file_uploaded" : timestamp,
         "file_frozen" : timestamp,
