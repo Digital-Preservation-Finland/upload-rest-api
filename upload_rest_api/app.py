@@ -2,6 +2,7 @@
 """
 import os
 from shutil import rmtree
+from ConfigParser import ConfigParser
 
 from flask import Flask, abort, safe_join, request, jsonify
 import werkzeug
@@ -10,7 +11,7 @@ from werkzeug.utils import secure_filename
 import upload_rest_api.upload as up
 import upload_rest_api.authentication as auth
 import upload_rest_api.database as db
-from upload_rest_api.dir_cleanup import readable_timestamp
+import upload_rest_api.gen_metadata as gen_metadata
 
 
 def create_app():
@@ -20,14 +21,35 @@ def create_app():
     """
     app = Flask(__name__)
 
+    # API paths
     app.config["UPLOAD_PATH"] = "/home/vagrant/test/rest"
     app.config["UPLOAD_API_PATH"] = "/api/upload/v1"
     app.config["DB_API_PATH"] = "/api/db/v1"
+    app.config["METADATA_API_PATH"] = "/api/gen_metadata/v1"
 
+    # Mongo params
     app.config["MONGO_HOST"] = "localhost"
     app.config["MONGO_PORT"] = 27017
 
+    # Storage params
+    # TODO: Request file storage id for tpas
+    # https://github.com/CSCfi/metax-api/blob/test/docs/source/files.rst
+    app.config["STORAGE_ID"] = 2
     app.config["MAX_CONTENT_LENGTH"] = 50 * 1024**3
+
+    # Metax params
+    conf = ConfigParser()
+    conf.read("/etc/siptools_research.conf")
+
+    app.config["METAX_USER"] = conf.get(
+        "siptools_research", "metax_user"
+    )
+    app.config["METAX_URL"] = conf.get(
+        "siptools_research", "metax_url"
+    )
+    app.config["METAX_PASSWORD"] = conf.get(
+        "siptools_research", "metax_password"
+    )
 
     # Authenticate all requests
     app.before_request(auth.authenticate)
@@ -37,15 +59,14 @@ def create_app():
         methods=["POST"]
     )
     def upload_file(fpath):
-        """Save file uploaded as multipart/form-data at
-        /var/spool/uploads/user/fpath
+        """Save the uploaded file at /var/spool/uploads/user/fpath
 
         :returns: HTTP Response
         """
         if request.content_length > app.config.get("MAX_CONTENT_LENGTH"):
-            abort(413)
-        elif up.request_exceeds_quota(request):
-            abort(413)
+            abort(413, "Max single file size exceeded")
+        elif up.request_exceeds_quota():
+            abort(413, "Personal quota exceeded")
 
         username = request.authorization.username
 
@@ -62,8 +83,8 @@ def create_app():
 
         fpath = safe_join(fpath, fname)
 
-        response = up.save_file(request, fpath, upload_path)
-        db.update_used_quota(request)
+        response = up.save_file(fpath, upload_path)
+        db.update_used_quota()
 
         return response
 
@@ -86,15 +107,15 @@ def create_app():
         fpath = safe_join(upload_path, user, fpath, fname)
 
         if not os.path.isfile(fpath):
-            abort(404)
+            abort(404, "File not found")
 
         # Show user the relative path from /var/spool/uploads/
         return_path = fpath[len(upload_path):]
 
         return jsonify({
             "file_path": return_path,
-            "md5": up.md5_digest(fpath),
-            "timestamp": readable_timestamp(fpath)
+            "md5": gen_metadata.md5_digest(fpath),
+            "timestamp": gen_metadata.iso8601_timestamp(fpath)
         })
 
 
@@ -117,9 +138,9 @@ def create_app():
 
         if os.path.isfile(fpath):
             os.remove(fpath)
-            db.update_used_quota(request)
+            db.update_used_quota()
         else:
-            abort(404)
+            abort(404, "File not found")
 
         #Show user the relative path from /var/spool/uploads/
         return_path = fpath[len(upload_path):]
@@ -141,11 +162,11 @@ def create_app():
         fpath = safe_join(upload_path, secure_filename(username))
 
         if not os.path.exists(fpath):
-            abort(404)
+            abort(404, "No files found")
 
         file_dict = {}
-        for root, _, files in os.walk(fpath):
-            file_dict[root[len(upload_path):]] = files
+        for dirpath, _, files in os.walk(fpath):
+            file_dict[dirpath[len(upload_path):]] = files
 
         response = jsonify(file_dict)
         response.status_code = 200
@@ -167,12 +188,15 @@ def create_app():
         fpath = safe_join(upload_path, secure_filename(username))
 
         if not os.path.exists(fpath):
-            abort(404)
+            abort(404, "No files found")
 
         rmtree(fpath)
-        db.update_used_quota(request)
+        db.update_used_quota()
 
-        response = jsonify({"fpath": fpath[len(upload_path):], "status": "deleted"})
+        response = jsonify({
+            "fpath": fpath[len(upload_path):],
+            "status": "deleted"
+        })
         response.status_code = 200
 
         return response
@@ -197,10 +221,10 @@ def create_app():
 
 
     @app.route(
-        "%s/<string:username>" % app.config.get("DB_API_PATH"),
+        "%s/<string:username>/<string:project>" % app.config.get("DB_API_PATH"),
         methods=["POST"]
     )
-    def create_user(username):
+    def create_user(username, project):
         """Create user username with random password and salt.
 
         :returns: HTTP Response
@@ -208,9 +232,14 @@ def create_app():
         auth.admin_only()
 
         user = db.User(username)
-        passwd = user.create()
-
-        response = jsonify({"username": username, "password": passwd})
+        passwd = user.create(project)
+        response = jsonify(
+            {
+                "username": username,
+                "project" : project,
+                "password": passwd
+            }
+        )
         response.status_code = 200
 
         return response
@@ -232,6 +261,40 @@ def create_app():
         response.status_code = 200
 
         return response
+
+
+    @app.route(
+        "%s/<path:fpath>" % app.config.get("METADATA_API_PATH"),
+        methods=["POST"]
+    )
+    def post_metadata(fpath):
+        """POST file metadata to Metax
+
+        :returns: HTTP Response
+        """
+        fpath, fname = os.path.split(fpath)
+        username = request.authorization.username
+
+        upload_path = app.config.get("UPLOAD_PATH")
+        fname = secure_filename(fname)
+        user = secure_filename(username)
+        fpath = safe_join(upload_path, user, fpath, fname)
+
+        if os.path.isdir(fpath):
+            response = []
+
+            # POST metadata of all files under dir fpath
+            for dirpath, _, files in os.walk(fpath):
+                for fname in files:
+                    _file = os.path.join(dirpath, fname)
+                    response.append(gen_metadata.post_metadata(_file))
+
+        elif os.path.isfile(fpath):
+            response = gen_metadata.post_metadata(fpath)
+        else:
+            abort(404)
+
+        return jsonify(response)
 
 
     @app.errorhandler(werkzeug.exceptions.HTTPException)

@@ -10,7 +10,7 @@ def test_create_user(user):
     """
     db = user.users
     user.username = "test"
-    user.create()
+    user.create("test_project")
 
     user_dict = db.find_one({"_id": "test"})
 
@@ -21,11 +21,17 @@ def test_create_user(user):
     salt = user_dict["salt"]
     assert len(salt) == 20
 
+    used_quota = user_dict["used_quota"]
+    assert used_quota == 0
+
     quota = user_dict["quota"]
     assert quota == 5 * 1024**3
 
     digest = user_dict["digest"]
     assert len(digest) == 64
+
+    project = user_dict["project"]
+    assert project == "test_project"
 
 
 def test_delete_user(user):

@@ -11,9 +11,9 @@ def _contains_symlinks(fpath):
     :param fpath: Path to directory to check
     :returns: True if any symlinks are found else False
     """
-    for root, _, files in os.walk(fpath):
+    for dirpath, _, files in os.walk(fpath):
         for _file in files:
-            if os.path.islink("%s/%s" % (root, _file)):
+            if os.path.islink("%s/%s" % (dirpath, _file)):
                 return True
 
     return False
@@ -92,7 +92,7 @@ def test_user_quota(app, test_auth, database_fx):
     """Test uploading files larger than allowed by user quota"""
     test_client = app.test_client()
     upload_path = app.config.get("UPLOAD_PATH")
-    users = database_fx.auth.users
+    users = database_fx.upload.users
 
     # Test cases for different quota and used_quota values
     # quotas[i][0] == quota; quotas[i][1] == used_quota
@@ -121,7 +121,7 @@ def test_user_quota(app, test_auth, database_fx):
 def test_used_quota(app, test_auth, database_fx):
     """Test that used quota is calculated correctly"""
     test_client = app.test_client()
-    users = database_fx.auth.users
+    users = database_fx.upload.users
 
     # Upload two 31B txt files
     _upload_file(
@@ -305,7 +305,9 @@ def test_db_access_test_user(app, test_auth):
     response = test_client.get("/api/db/v1/user", headers=test_auth)
     assert response.status_code == 401
 
-    response = test_client.post("/api/db/v1/user", headers=test_auth)
+    response = test_client.post(
+        "/api/db/v1/user/user_project", headers=test_auth
+    )
     assert response.status_code == 401
 
     response = test_client.delete("/api/db/v1/user", headers=test_auth)
@@ -334,20 +336,33 @@ def test_create_user(app, admin_auth, database_fx):
     test_client = app.test_client()
 
     # Create user that exists
-    response = test_client.post("/api/db/v1/test", headers=admin_auth)
+    response = test_client.post(
+        "/api/db/v1/test/test_project", headers=admin_auth
+    )
     assert response.status_code == 405
 
     # Create user that does not exist
-    response = test_client.post("/api/db/v1/user", headers=admin_auth)
+    response = test_client.post(
+        "/api/db/v1/user/user_project", headers=admin_auth
+    )
     data = json.loads(response.data)
 
+    # Check response
     assert response.status_code == 200
     assert data["username"] == "user"
+    assert data["project"] == "user_project"
     assert len(data["password"]) == 20
 
     # Check user from database
-    users = database_fx.auth.users
-    assert users.find_one({"_id": "user"}) is not None
+    users = database_fx.upload.users
+    data = users.find_one({"_id": "user"})
+
+    assert data is not None
+    assert data["project"] == "user_project"
+    assert len(data["digest"]) == 64
+    assert len(data["salt"]) == 20
+    assert data["quota"] == 5 * 1024**3
+    assert data["used_quota"] == 0
 
 
 def test_delete_user(app, admin_auth, database_fx):
@@ -364,5 +379,5 @@ def test_delete_user(app, admin_auth, database_fx):
     assert data["status"] == "deleted"
 
     # Check that user was deleted from the database
-    users = database_fx.auth.users
+    users = database_fx.upload.users
     assert users.find_one({"_id": "test"}) is None

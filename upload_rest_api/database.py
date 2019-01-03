@@ -8,7 +8,7 @@ from string import ascii_letters, digits
 from bson.binary import Binary
 
 import pymongo
-from flask import abort, current_app, has_request_context, safe_join
+from flask import abort, current_app, request, has_request_context, safe_join
 from werkzeug.utils import secure_filename
 
 
@@ -48,15 +48,15 @@ def hash_passwd(password, salt):
 def get_dir_size(fpath):
     """Returns the size of the dir fpath in bytes"""
     size = 0
-    for root, dirs, files in os.walk(fpath):
+    for dirpath, _, files in os.walk(fpath):
         for fname in files:
-            _file = os.path.join(root, fname)
+            _file = os.path.join(dirpath, fname)
             size += os.path.getsize(_file)
 
     return size
 
 
-def update_used_quota(request):
+def update_used_quota():
     """Update used quota of the user"""
     username = request.authorization.username
     user = User(username)
@@ -82,10 +82,11 @@ class User(object):
         port = 27017
 
         if has_request_context():
-            host = current_app.config.get("MONGO_HOST", host)
-            port = current_app.config.get("MONGO_PORT", port)
+            app = current_app
+            host = app.config.get("MONGO_HOST", host)
+            port = app.config.get("MONGO_PORT", port)
 
-        self.users = pymongo.MongoClient(host, port).auth.users
+        self.users = pymongo.MongoClient(host, port).upload.users
         self.username = username
         self.quota = quota
 
@@ -106,11 +107,12 @@ class User(object):
         )
 
 
-    def create(self, password=None):
-        """Adds new user to the authentication database.
-        Salt is always chosen randomly, but password can be set
+    def create(self, project, password=None):
+        """Adds new user to the database. Salt is always
+        generated randomly, but password can be set
         by providing to optional argument password.
 
+        :param project: Project the user is associated with
         :param password: Password of the created user
         :returns: The password
         """
@@ -129,6 +131,7 @@ class User(object):
         self.users.insert_one(
             {
                 "_id" : self.username,
+                "project" : project,
                 "digest" : digest,
                 "salt" : salt,
                 "quota" : self.quota,
@@ -212,6 +215,15 @@ class User(object):
             {"_id" : self.username},
             {"$set" : {"used_quota" : used_quota}}
         )
+
+
+    def get_project(self):
+        """Get user project"""
+        # Abort if user does not exist
+        if not self.exists():
+            abort(404)
+
+        return self.users.find_one({"_id" : self.username})["project"]
 
 
     def exists(self):

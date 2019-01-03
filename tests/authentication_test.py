@@ -13,5 +13,5 @@ def test_slow_equals():
 def test_auth_user(user):
     """Test _auth_user() function
     """
-    user.create(password="test")
+    user.create("test_project", password="test")
     assert auth._auth_user("test_user", "test", user=user)
