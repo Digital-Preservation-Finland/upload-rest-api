@@ -73,15 +73,14 @@ def save_file(fpath, upload_path):
         _save_stream(fpath)
         status = "created"
     else:
-        status = "already exists"
+        abort(409, "File already exists")
 
     # Do not accept symlinks
     if os.path.islink(fpath):
         os.unlink(fpath)
-        status = "file not created. symlinks are not supported"
-        md5 = "none"
-    else:
-        md5 = gen_metadata.md5_digest(fpath)
+        abort(415, "Symlinks are not supported")
+
+    md5 = gen_metadata.md5_digest(fpath)
 
     # If zip file was uploaded extract all files
     if zipfile.is_zipfile(fpath):
@@ -92,7 +91,7 @@ def save_file(fpath, upload_path):
             if _zipfile_exceeds_quota(zipf, username):
                 # Remove zip archive and abort
                 os.remove("%s/%s" % (fpath, fname))
-                abort(413)
+                abort(413, "Personal quota exceeded")
 
             zipf.extractall(fpath)
 

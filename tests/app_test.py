@@ -68,6 +68,12 @@ def test_upload(app, test_auth):
     assert os.path.isfile(fpath)
     assert open(fpath, "rb").read() == open("tests/data/test.txt", "rb").read()
 
+    # Test that trying to upload the file again returns 409 Conflict
+    response = _upload_file(
+        test_client, "/api/upload/v1/test.txt",
+        test_auth, "tests/data/test.txt"
+    )
+    assert response.status_code == 409
 
 def test_upload_max_size(app, test_auth):
     """Test uploading file larger than the supported max file size"""

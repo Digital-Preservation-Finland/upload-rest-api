@@ -2,7 +2,6 @@
 """
 import os
 from shutil import rmtree
-from ConfigParser import ConfigParser
 
 from flask import Flask, abort, safe_join, request, jsonify
 import werkzeug
@@ -21,35 +20,8 @@ def create_app():
     """
     app = Flask(__name__)
 
-    # API paths
-    app.config["UPLOAD_PATH"] = "/home/vagrant/test/rest"
-    app.config["UPLOAD_API_PATH"] = "/api/upload/v1"
-    app.config["DB_API_PATH"] = "/api/db/v1"
-    app.config["METADATA_API_PATH"] = "/api/gen_metadata/v1"
-
-    # Mongo params
-    app.config["MONGO_HOST"] = "localhost"
-    app.config["MONGO_PORT"] = 27017
-
-    # Storage params
-    # TODO: Request file storage id for tpas
-    # https://github.com/CSCfi/metax-api/blob/test/docs/source/files.rst
-    app.config["STORAGE_ID"] = 2
-    app.config["MAX_CONTENT_LENGTH"] = 50 * 1024**3
-
-    # Metax params
-    conf = ConfigParser()
-    conf.read("/etc/siptools_research.conf")
-
-    app.config["METAX_USER"] = conf.get(
-        "siptools_research", "metax_user"
-    )
-    app.config["METAX_URL"] = conf.get(
-        "siptools_research", "metax_url"
-    )
-    app.config["METAX_PASSWORD"] = conf.get(
-        "siptools_research", "metax_password"
-    )
+    # Configure app
+    app.config.from_pyfile("/etc/upload_rest_api.conf")
 
     # Authenticate all requests
     app.before_request(auth.authenticate)
