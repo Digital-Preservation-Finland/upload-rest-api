@@ -39,13 +39,13 @@ def _get_mimetype(fpath):
 
 def iso8601_timestamp(fpath):
     """Returns last access time in ISO 8601 format"""
-    timestamp = datetime.fromtimestamp(os.stat(fpath).st_atime)
+    timestamp = datetime.utcfromtimestamp(os.stat(fpath).st_atime)
     return str(timestamp.replace(microsecond=0).isoformat())
 
 
 def _timestamp_now():
     """Returns current time in ISO 8601 format"""
-    timestamp = datetime.now()
+    timestamp = datetime.utcnow()
     return str(timestamp.replace(microsecond=0).isoformat())
 
 

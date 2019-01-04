@@ -4,7 +4,6 @@ periodically using cron.
 """
 import os
 import time
-from datetime import datetime
 
 
 def _is_expired(fpath, current_time, time_lim):
