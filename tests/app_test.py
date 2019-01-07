@@ -64,7 +64,7 @@ def test_upload(app, test_auth):
     )
     assert response.status_code == 200
 
-    fpath = os.path.join(upload_path, "test/test.txt")
+    fpath = os.path.join(upload_path, "test_project/test.txt")
     assert os.path.isfile(fpath)
     assert open(fpath, "rb").read() == open("tests/data/test.txt", "rb").read()
 
@@ -74,6 +74,7 @@ def test_upload(app, test_auth):
         test_auth, "tests/data/test.txt"
     )
     assert response.status_code == 409
+
 
 def test_upload_max_size(app, test_auth):
     """Test uploading file larger than the supported max file size"""
@@ -100,28 +101,15 @@ def test_user_quota(app, test_auth, database_fx):
     upload_path = app.config.get("UPLOAD_PATH")
     users = database_fx.upload.users
 
-    # Test cases for different quota and used_quota values
-    # quotas[i][0] == quota; quotas[i][1] == used_quota
-    quotas = [
-        [8, 0],       # Quota too small for the upload
-        [1024, 1018], # Not enough quota remaining for the upload
-        [1024, 1026]  # Quota already exceeded
-    ]
+    _set_user_quota(users, "test", 400, 0)
+    response = _upload_file(
+        test_client, "/api/upload/v1/test",
+        test_auth, "tests/data/test.zip"
+    )
+    assert response.status_code == 413
 
-    # Files to test the scenarios with
-    files = ["tests/data/test.txt", "tests/data/test.zip"]
-
-    for quota in quotas:
-        for _file in files:
-            _set_user_quota(users, "test", *quota)
-            response = _upload_file(
-                test_client, "/api/upload/v1/test",
-                test_auth, _file
-            )
-            assert response.status_code == 413
-
-    # Check that none of the files were actually created
-    assert not os.path.isdir(os.path.join(upload_path, "test"))
+    # Check that the file was not actually created
+    assert not os.path.isdir(os.path.join(upload_path, "test_project"))
 
 
 def test_used_quota(app, test_auth, database_fx):
@@ -174,7 +162,7 @@ def test_upload_zip(app, test_auth):
     )
     assert response.status_code == 200
 
-    fpath = os.path.join(upload_path, "test")
+    fpath = os.path.join(upload_path, "test_project")
     text_file = os.path.join(fpath, "test", "test.txt")
     zip_file = os.path.join(fpath, "test.zip")
 
@@ -189,16 +177,15 @@ def test_upload_zip(app, test_auth):
     assert not _contains_symlinks(fpath)
 
 
-def test_get_file(app, test_auth):
+def test_get_file(app, admin_auth, test_auth, test2_auth):
     """Test GET for single file"""
-
     test_client = app.test_client()
     upload_path = app.config.get("UPLOAD_PATH")
 
-    os.makedirs(os.path.join(upload_path, "test"))
+    os.makedirs(os.path.join(upload_path, "test_project"))
     shutil.copy(
         "tests/data/test.txt",
-        os.path.join(upload_path, "test/test.txt")
+        os.path.join(upload_path, "test_project/test.txt")
     )
 
     # GET file that exists
@@ -210,13 +197,20 @@ def test_get_file(app, test_auth):
     assert response.status_code == 200
     data = json.loads(response.data)
 
-    assert data["file_path"] == "/test/test.txt"
+    assert data["file_path"] == "/test_project/test.txt"
     assert data["md5"] == "150b62e4e7d58c70503bd5fc8a26463c"
 
-    # GET file that does not exist
+    # GET file with user test2, which is in the same project
     response = test_client.get(
-        "/api/upload/v1/test2.txt",
-        headers=test_auth
+        "/api/upload/v1/test.txt",
+        headers=test2_auth
+    )
+    assert response.status_code == 200
+
+    # GET file with user admin, which is not in the same project
+    response = test_client.get(
+        "/api/upload/v1/test.txt",
+        headers=admin_auth
     )
     assert response.status_code == 404
 
@@ -226,9 +220,9 @@ def test_delete_file(app, test_auth):
 
     test_client = app.test_client()
     upload_path = app.config.get("UPLOAD_PATH")
-    fpath = os.path.join(upload_path, "test/test.txt")
+    fpath = os.path.join(upload_path, "test_project/test.txt")
 
-    os.makedirs(os.path.join(upload_path, "test"))
+    os.makedirs(os.path.join(upload_path, "test_project"))
     shutil.copy("tests/data/test.txt", fpath)
 
     # DELETE file that exists
@@ -254,14 +248,14 @@ def test_get_files(app, test_auth):
     test_client = app.test_client()
     upload_path = app.config.get("UPLOAD_PATH")
 
-    os.makedirs(os.path.join(upload_path, "test/test"))
+    os.makedirs(os.path.join(upload_path, "test_project/test"))
     shutil.copy(
         "tests/data/test.txt",
-        os.path.join(upload_path, "test/test1.txt")
+        os.path.join(upload_path, "test_project/test1.txt")
     )
     shutil.copy(
         "tests/data/test.txt",
-        os.path.join(upload_path, "test/test/test2.txt")
+        os.path.join(upload_path, "test_project/test/test2.txt")
     )
 
     response = test_client.get(
@@ -272,8 +266,8 @@ def test_get_files(app, test_auth):
     assert response.status_code == 200
     data = json.loads(response.data)
 
-    assert data["/test"] == ["test1.txt"]
-    assert data["/test/test"] == ["test2.txt"]
+    assert data["/test_project"] == ["test1.txt"]
+    assert data["/test_project/test"] == ["test2.txt"]
 
 
 def test_delete_files(app, test_auth):
@@ -281,9 +275,9 @@ def test_delete_files(app, test_auth):
 
     test_client = app.test_client()
     upload_path = app.config.get("UPLOAD_PATH")
-    fpath = os.path.join(upload_path, "test/test.txt")
+    fpath = os.path.join(upload_path, "test_project/test.txt")
 
-    os.makedirs(os.path.join(upload_path, "test"))
+    os.makedirs(os.path.join(upload_path, "test_project"))
     shutil.copy("tests/data/test.txt", fpath)
 
     # DELETE the project

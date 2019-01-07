@@ -91,7 +91,7 @@ def save_file(fpath, upload_path):
             if _zipfile_exceeds_quota(zipf, username):
                 # Remove zip archive and abort
                 os.remove("%s/%s" % (fpath, fname))
-                abort(413, "Personal quota exceeded")
+                abort(413, "Quota exceeded")
 
             zipf.extractall(fpath)
 

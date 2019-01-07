@@ -13,6 +13,7 @@ import upload_rest_api.database as db
 import upload_rest_api.gen_metadata as gen_metadata
 
 
+
 def create_app():
     """Configure and return a Flask application instance.
 
@@ -26,36 +27,47 @@ def create_app():
     # Authenticate all requests
     app.before_request(auth.authenticate)
 
+
+    def _get_upload_path(fpath):
+        """Get upload path for current request"""
+        username = request.authorization.username
+        user = db.User(username)
+        project = user.get_project()
+
+        upload_path = app.config.get("UPLOAD_PATH")
+        fpath, fname = os.path.split(fpath)
+        fname = secure_filename(fname)
+        project = secure_filename(project)
+
+        return safe_join(upload_path, project, fpath), fname
+
+
     @app.route(
         "%s/<path:fpath>" % app.config.get("UPLOAD_API_PATH"),
         methods=["POST"]
     )
     def upload_file(fpath):
-        """Save the uploaded file at /var/spool/uploads/user/fpath
+        """Save the uploaded file at /var/spool/uploads/project/fpath
 
         :returns: HTTP Response
         """
+        # Update used_quota also at the start of the function
+        # since multiple users might by using the same project
+        db.update_used_quota()
+
         if request.content_length > app.config.get("MAX_CONTENT_LENGTH"):
             abort(413, "Max single file size exceeded")
         elif up.request_exceeds_quota():
-            abort(413, "Personal quota exceeded")
+            abort(413, "Quota exceeded")
 
-        username = request.authorization.username
-
-        upload_path = app.config.get("UPLOAD_PATH")
-        fpath, fname = os.path.split(fpath)
-        fname = secure_filename(fname)
-        username = secure_filename(username)
-
-        fpath = safe_join(upload_path, username, fpath)
+        fpath, fname = _get_upload_path(fpath)
 
         # Create directory if it does not exist
         if not os.path.exists(fpath):
             os.makedirs(fpath, 0o700)
 
         fpath = safe_join(fpath, fname)
-
-        response = up.save_file(fpath, upload_path)
+        response = up.save_file(fpath, app.config.get("UPLOAD_PATH"))
         db.update_used_quota()
 
         return response
@@ -70,19 +82,14 @@ def create_app():
 
         :returns: HTTP Response
         """
-        fpath, fname = os.path.split(fpath)
-        username = request.authorization.username
-
-        upload_path = app.config.get("UPLOAD_PATH")
-        fname = secure_filename(fname)
-        user = secure_filename(username)
-        fpath = safe_join(upload_path, user, fpath, fname)
+        fpath, fname = _get_upload_path(fpath)
+        fpath = safe_join(fpath, fname)
 
         if not os.path.isfile(fpath):
             abort(404, "File not found")
 
         # Show user the relative path from /var/spool/uploads/
-        return_path = fpath[len(upload_path):]
+        return_path = fpath[len(app.config.get("UPLOAD_PATH")):]
 
         return jsonify({
             "file_path": return_path,
@@ -100,13 +107,8 @@ def create_app():
 
         :returns: HTTP Response
         """
-        fpath, fname = os.path.split(fpath)
-        username = request.authorization.username
-
-        upload_path = app.config.get("UPLOAD_PATH")
-        fname = secure_filename(fname)
-        user = secure_filename(username)
-        fpath = safe_join(upload_path, user, fpath, fname)
+        fpath, fname = _get_upload_path(fpath)
+        fpath = safe_join(fpath, fname)
 
         if os.path.isfile(fpath):
             os.remove(fpath)
@@ -115,7 +117,7 @@ def create_app():
             abort(404, "File not found")
 
         #Show user the relative path from /var/spool/uploads/
-        return_path = fpath[len(upload_path):]
+        return_path = fpath[len(app.config.get("UPLOAD_PATH")):]
 
         return jsonify({"file_path": return_path, "status": "deleted"})
 
@@ -130,8 +132,9 @@ def create_app():
         :return: HTTP Response
         """
         username = request.authorization.username
+        project = db.User(username).get_project()
         upload_path = app.config.get("UPLOAD_PATH")
-        fpath = safe_join(upload_path, secure_filename(username))
+        fpath = safe_join(upload_path, secure_filename(project))
 
         if not os.path.exists(fpath):
             abort(404, "No files found")
@@ -156,8 +159,9 @@ def create_app():
         :returns: HTTP Response
         """
         username = request.authorization.username
+        project = db.User(username).get_project()
         upload_path = app.config.get("UPLOAD_PATH")
-        fpath = safe_join(upload_path, secure_filename(username))
+        fpath = safe_join(upload_path, secure_filename(project))
 
         if not os.path.exists(fpath):
             abort(404, "No files found")
@@ -244,13 +248,8 @@ def create_app():
 
         :returns: HTTP Response
         """
-        fpath, fname = os.path.split(fpath)
-        username = request.authorization.username
-
-        upload_path = app.config.get("UPLOAD_PATH")
-        fname = secure_filename(fname)
-        user = secure_filename(username)
-        fpath = safe_join(upload_path, user, fpath, fname)
+        fpath, fname = _get_upload_path(fpath)
+        fpath = safe_join(fpath, fname)
 
         if os.path.isdir(fpath):
             response = []
@@ -264,7 +263,7 @@ def create_app():
         elif os.path.isfile(fpath):
             response = gen_metadata.post_metadata(fpath)
         else:
-            abort(404)
+            abort(404, "File not found")
 
         return jsonify(response)
 

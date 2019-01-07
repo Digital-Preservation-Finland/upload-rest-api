@@ -60,9 +60,10 @@ def update_used_quota():
     """Update used quota of the user"""
     username = request.authorization.username
     user = User(username)
+    project = user.get_project()
     path = safe_join(
         current_app.config.get("UPLOAD_PATH"),
-        secure_filename(username)
+        secure_filename(project)
     )
     size = get_dir_size(path)
 

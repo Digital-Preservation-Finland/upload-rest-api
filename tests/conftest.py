@@ -24,14 +24,17 @@ def init_db(database_fx):
     """
     database_fx.drop_database("upload")
 
-    admin_user = User("admin")
-    test_user = User("test")
+    user = User("admin")
+    user.users = database_fx.upload.users
+    user.create("admin_project", password="test")
 
-    admin_user.users = database_fx.upload.users
-    test_user.users = database_fx.upload.users
+    # Test user
+    user.username = "test"
+    user.create("test_project", password="test")
 
-    admin_user.create("admin_project", password="test")
-    test_user.create("test_project", password="test")
+    # Test user with same project
+    user.username = "test2"
+    user.create("test_project", password="test")
 
 
 @pytest.yield_fixture(scope="function")
@@ -95,6 +98,12 @@ def user():
 def test_auth():
     """Yield correct credentials header"""
     return {"Authorization": "Basic %s" % b64encode("test:test")}
+
+
+@pytest.fixture(scope="function")
+def test2_auth():
+    """Yield correct credentials header"""
+    return {"Authorization": "Basic %s" % b64encode("test2:test")}
 
 
 @pytest.fixture(scope="function")

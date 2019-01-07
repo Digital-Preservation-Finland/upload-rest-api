@@ -5,6 +5,17 @@ import binascii
 import upload_rest_api.database as db
 
 
+def test_dir_size():
+    """Test that dir sizes are calculated correctly. Dirs that do not
+    exist should return size 0.
+    """
+    # Existing dir
+    assert db.get_dir_size("tests/data") == 530
+
+    # Non-existent dir
+    assert db.get_dir_size("tests/data/test") == 0
+
+
 def test_create_user(user):
     """Test creation of new user
     """
@@ -56,7 +67,7 @@ def test_quota(user):
 
     # Get
     assert user.get_quota() == 5 * 1024**3
-    
+
     # Set
     user.set_quota(0)
     assert db.find_one({"_id": "test_user"})["quota"] == 0
@@ -80,5 +91,5 @@ def test_get_random_string():
 def test_hash_passwd():
     """Test that salting and hashing returns the correct digest
     """
-    digest = binascii.hexlify(db.hash_passwd("test", "test")[:16]) 
+    digest = binascii.hexlify(db.hash_passwd("test", "test")[:16])
     assert digest == "8809fd1f1e620cf1156353571199e227"
