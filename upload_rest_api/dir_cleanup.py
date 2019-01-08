@@ -56,10 +56,3 @@ def cleanup(fpath, time_lim):
 
     # Remove all empty dirs
     _clean_empty_dirs(fpath)
-
-
-if __name__ == "__main__":
-    FPATH = ""
-    TIME_LIM = 24 * 60 * 60 * 14 # 14 Days
-
-    cleanup(FPATH, TIME_LIM)

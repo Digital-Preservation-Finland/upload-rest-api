@@ -22,15 +22,15 @@ def test_gen_metadata():
     metadata = md._generate_metadata(
         "tests/data/test.txt",
         "tests", "data",
-        "test_project", "pid:uuid:storage_id"
+        "pid:uuid:storage_id"
     )
 
     assert len(metadata["identifier"]) == 45
     assert metadata["file_name"] == "test.txt"
     assert metadata["file_format"] == "text/plain"
     assert metadata["byte_size"] == 31
-    assert metadata["file_path"] == "/test_project/test.txt"
-    assert metadata["project_identifier"] == "test_project"
+    assert metadata["file_path"] == "/data/test.txt"
+    assert metadata["project_identifier"] == "data"
     assert "file_uploaded" in metadata
     assert "file_frozen" in metadata
 

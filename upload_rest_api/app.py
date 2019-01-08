@@ -252,19 +252,19 @@ def create_app():
         fpath = safe_join(fpath, fname)
 
         if os.path.isdir(fpath):
-            response = []
-
             # POST metadata of all files under dir fpath
+            fpaths = []
             for dirpath, _, files in os.walk(fpath):
                 for fname in files:
-                    _file = os.path.join(dirpath, fname)
-                    response.append(gen_metadata.post_metadata(_file))
+                    fpaths.append(os.path.join(dirpath, fname))
 
         elif os.path.isfile(fpath):
-            response = gen_metadata.post_metadata(fpath)
+            fpaths = [fpath]
+
         else:
             abort(404, "File not found")
 
+        response = gen_metadata.post_metadata(fpaths)
         return jsonify(response)
 
 

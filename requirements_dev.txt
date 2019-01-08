@@ -10,4 +10,4 @@ flask
 pymongo
 file-magic
 
-git+https://gitlab.csc.fi/dpres/metax-access.git@develop#egg=metax_access
+git+https://gitlab.csc.fi/dpres/metax-access.git@TPASPKT-199#egg=metax_access

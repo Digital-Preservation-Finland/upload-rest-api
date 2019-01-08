@@ -49,10 +49,10 @@ def _timestamp_now():
     return str(timestamp.replace(microsecond=0).isoformat())
 
 
-def _generate_metadata(fpath, upload_path, user, project, storage_id):
+def _generate_metadata(fpath, upload_path, project, storage_id):
     """Generate metadata in json format"""
     timestamp = iso8601_timestamp(fpath)
-    file_path = "/%s%s" % (project, fpath[len(upload_path+user)+1:])
+    file_path = "/%s%s" % (project, fpath[len(upload_path+project)+1:])
     file_path = os.path.abspath(file_path)
 
     metadata = {
@@ -75,8 +75,12 @@ def _generate_metadata(fpath, upload_path, user, project, storage_id):
     return metadata
 
 
-def post_metadata(fpath):
-    """generate and POST metadata to Metax"""
+def post_metadata(fpaths):
+    """generate and POST metadata to Metax
+
+    :param fpaths: List of files for which to generate the metadata
+    :returns: HTTP response given by Metax
+    """
     app = current_app
 
     # Metax vars
@@ -91,8 +95,11 @@ def post_metadata(fpath):
     project = db.User(user).get_project()
     storage_id = app.config.get("STORAGE_ID")
 
-    metadata = _generate_metadata(
-        fpath, upload_path,
-        user, project, storage_id
-    )
+    metadata = []
+    for fpath in fpaths:
+        metadata.append(_generate_metadata(
+            fpath, upload_path,
+            project, storage_id
+        ))
+
     return metax_client.post_file(metadata).json()
