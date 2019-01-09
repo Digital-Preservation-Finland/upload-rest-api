@@ -136,6 +136,7 @@ def delete_metadata(project, fpaths, metax_client):
     # Generate the list of ids to remove from Metax
     file_id_list = []
     for fpath in fpaths:
-        file_id_list.append(files_dict[fpath])
+        if fpath in files_dict:
+            file_id_list.append(files_dict[fpath])
 
     return metax_client.delete_files(file_id_list)
