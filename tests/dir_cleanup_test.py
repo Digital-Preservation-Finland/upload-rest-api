@@ -3,7 +3,7 @@ import os
 import time
 import shutil
 
-from upload_rest_api.dir_cleanup import cleanup
+import upload_rest_api.dir_cleanup as clean
 
 
 def test_no_expired_files(app):
@@ -25,7 +25,7 @@ def test_no_expired_files(app):
     os.utime(fpath, (last_access, last_access))
 
     # Clean all files older than 100s
-    cleanup(upload_path, 100)
+    clean.cleanup("project", upload_path, 100, metax=False)
 
     # File was not removed
     assert os.path.isfile(fpath)
@@ -53,7 +53,7 @@ def test_expired_files(app):
     os.utime(fpath_expired, (expired_access, expired_access))
 
     # Clean all files older than 10s
-    cleanup(upload_path, 10)
+    clean.cleanup("project", upload_path, 10, metax=False)
 
     # upload_path/test/test/test.txt and its directory should be removed
     assert not os.path.isdir(os.path.join(upload_path, "test/test/"))

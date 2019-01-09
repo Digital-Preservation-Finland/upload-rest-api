@@ -1,5 +1,20 @@
 """Unit tests for metadata generation"""
+import pytest
+
 import upload_rest_api.gen_metadata as md
+
+
+@pytest.mark.parametrize(
+    "fpath,upload_path,expected",
+    [
+        ("/upload/project/fpath", "/upload", "/project/fpath"),
+        ("/test/project/fpath", "/test", "/project/fpath"),
+        ("/upload///project///fpath", "/upload", "/project/fpath")
+    ]
+)
+def test_metax_path(fpath, upload_path, expected):
+    """Test fpath is sliced properly and returns path /project/<path:fpath>"""
+    assert md.get_metax_path(fpath, upload_path) == expected
 
 
 def test_md5():

@@ -10,7 +10,7 @@ from werkzeug.utils import secure_filename
 import upload_rest_api.upload as up
 import upload_rest_api.authentication as auth
 import upload_rest_api.database as db
-import upload_rest_api.gen_metadata as gen_metadata
+import upload_rest_api.gen_metadata as md
 
 
 
@@ -93,8 +93,8 @@ def create_app():
 
         return jsonify({
             "file_path": return_path,
-            "md5": gen_metadata.md5_digest(fpath),
-            "timestamp": gen_metadata.iso8601_timestamp(fpath)
+            "md5": md.md5_digest(fpath),
+            "timestamp": md.iso8601_timestamp(fpath)
         })
 
 
@@ -119,7 +119,10 @@ def create_app():
         #Show user the relative path from /var/spool/uploads/
         return_path = fpath[len(app.config.get("UPLOAD_PATH")):]
 
-        return jsonify({"file_path": return_path, "status": "deleted"})
+        return jsonify({
+            "file_path": return_path,
+            "status": "deleted"
+        })
 
 
     @app.route(
@@ -264,7 +267,8 @@ def create_app():
         else:
             abort(404, "File not found")
 
-        response = gen_metadata.post_metadata(fpaths)
+        metax_client = md.get_metax_client()
+        response = md.post_metadata(fpaths, metax_client)
         return jsonify(response)
 
 

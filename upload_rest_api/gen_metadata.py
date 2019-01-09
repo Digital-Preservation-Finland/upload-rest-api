@@ -49,11 +49,18 @@ def _timestamp_now():
     return str(timestamp.replace(microsecond=0).isoformat())
 
 
+def get_metax_path(fpath, upload_path):
+    """Returns file_path that is stored in Metax"""
+    file_path = "/%s" % (fpath[len(upload_path)+1:])
+    file_path = os.path.abspath(file_path)
+
+    return file_path
+
+
 def _generate_metadata(fpath, upload_path, project, storage_id):
     """Generate metadata in json format"""
     timestamp = iso8601_timestamp(fpath)
-    file_path = "/%s%s" % (project, fpath[len(upload_path+project)+1:])
-    file_path = os.path.abspath(file_path)
+    file_path = get_metax_path(fpath, upload_path)
 
     metadata = {
         "identifier" : uuid4().urn,
@@ -75,19 +82,31 @@ def _generate_metadata(fpath, upload_path, project, storage_id):
     return metadata
 
 
-def post_metadata(fpaths):
+def get_metax_client(url=None, user=None, password=None):
+    """Returns the Metax client"""
+    app = current_app
+
+    # If any of the params is not provided read them from app.config
+    if url is None or user is None or password is None:
+        url = app.config.get("METAX_URL")
+        user = app.config.get("METAX_USER")
+        password = app.config.get("METAX_PASSWORD")
+
+    return metax_access.Metax(url, user, password)
+
+
+def get_files_dict(project, metax_client):
+    """Returns dict {fpath: id} of all the files of a given project"""
+    return metax_client.get_files_dict(project)
+
+
+def post_metadata(fpaths, metax_client):
     """generate and POST metadata to Metax
 
     :param fpaths: List of files for which to generate the metadata
-    :returns: HTTP response given by Metax
+    :returns: HTTP response returned by Metax
     """
     app = current_app
-
-    # Metax vars
-    metax_url = app.config.get("METAX_URL")
-    metax_user = app.config.get("METAX_USER")
-    metax_password = app.config.get("METAX_PASSWORD")
-    metax_client = metax_access.Metax(metax_url, metax_user, metax_password)
 
     # _generate_metadata() vars
     upload_path = app.config.get("UPLOAD_PATH")
@@ -103,3 +122,20 @@ def post_metadata(fpaths):
         ))
 
     return metax_client.post_file(metadata).json()
+
+
+def delete_metadata(project, fpaths, metax_client):
+    """DELETE metadata from Metax
+
+    :param project: Project identifier
+    :param fpaths: List of file_paths to remove
+    :returns: HTTP response returned by Metax
+    """
+    files_dict = metax_client.get_files_dict(project)
+
+    # Generate the list of ids to remove from Metax
+    file_id_list = []
+    for fpath in fpaths:
+        file_id_list.append(files_dict[fpath])
+
+    return metax_client.delete_files(file_id_list)
