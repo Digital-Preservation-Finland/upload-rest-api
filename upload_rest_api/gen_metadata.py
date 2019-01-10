@@ -82,61 +82,71 @@ def _generate_metadata(fpath, upload_path, project, storage_id):
     return metadata
 
 
-def get_metax_client(url=None, user=None, password=None):
-    """Returns the Metax client"""
-    app = current_app
+class MetaxClient(object):
+    """Class for handling Metax metadata"""
 
-    # If any of the params is not provided read them from app.config
-    if url is None or user is None or password is None:
-        url = app.config.get("METAX_URL")
-        user = app.config.get("METAX_USER")
-        password = app.config.get("METAX_PASSWORD")
+    def __init__(self, url=None, user=None, password=None):
+        """Init MetaxClient instances"""
 
-    return metax_access.Metax(url, user, password)
+        # If any of the params is not provided read them from app.config
+        if url is None or user is None or password is None:
+            app = current_app
+            url = app.config.get("METAX_URL")
+            user = app.config.get("METAX_USER")
+            password = app.config.get("METAX_PASSWORD")
 
+        self.client = metax_access.Metax(url, user, password)
 
-def get_files_dict(project, metax_client):
-    """Returns dict {fpath: id} of all the files of a given project"""
-    return metax_client.get_files_dict(project)
+    def get_files_dict(self, project):
+        """Returns dict {fpath: id} of all the files of a given project"""
+        return self.client.get_files_dict(project)
 
+    def post_metadata(self, fpaths):
+        """generate and POST metadata to Metax
 
-def post_metadata(fpaths, metax_client):
-    """generate and POST metadata to Metax
+        :param fpaths: List of files for which to generate the metadata
+        :returns: HTTP response returned by Metax
+        """
+        app = current_app
 
-    :param fpaths: List of files for which to generate the metadata
-    :returns: HTTP response returned by Metax
-    """
-    app = current_app
+        # _generate_metadata() vars
+        upload_path = app.config.get("UPLOAD_PATH")
+        user = request.authorization.username
+        project = db.User(user).get_project()
+        storage_id = app.config.get("STORAGE_ID")
 
-    # _generate_metadata() vars
-    upload_path = app.config.get("UPLOAD_PATH")
-    user = request.authorization.username
-    project = db.User(user).get_project()
-    storage_id = app.config.get("STORAGE_ID")
+        metadata = []
+        for fpath in fpaths:
+            metadata.append(_generate_metadata(
+                fpath, upload_path,
+                project, storage_id
+            ))
 
-    metadata = []
-    for fpath in fpaths:
-        metadata.append(_generate_metadata(
-            fpath, upload_path,
-            project, storage_id
-        ))
+        return self.client.post_file(metadata).json()
 
-    return metax_client.post_file(metadata).json()
+    def delete_metadata(self, project, fpaths):
+        """DELETE metadata from Metax
 
+        :param project: Project identifier
+        :param fpaths: List of file_paths to remove
+        :returns: HTTP response returned by Metax
+        """
+        files_dict = self.client.get_files_dict(project)
 
-def delete_metadata(project, fpaths, metax_client):
-    """DELETE metadata from Metax
+        # Generate the list of ids to remove from Metax
+        file_id_list = []
+        for fpath in fpaths:
+            if fpath in files_dict:
+                file_id_list.append(files_dict[fpath])
 
-    :param project: Project identifier
-    :param fpaths: List of file_paths to remove
-    :returns: HTTP response returned by Metax
-    """
-    files_dict = metax_client.get_files_dict(project)
+        return self.client.delete_files(file_id_list)
 
-    # Generate the list of ids to remove from Metax
-    file_id_list = []
-    for fpath in fpaths:
-        if fpath in files_dict:
-            file_id_list.append(files_dict[fpath])
+    def file_has_dataset(self, fpath, files_dict):
+        """Check if file belongs to any dataset"""
+        if fpath not in files_dict:
+            return False
 
-    return metax_client.delete_files(file_id_list)
+        file_id = files_dict[fpath]
+        datasets = self.client.get_file_datasets(file_id)
+
+        return len(datasets) != 0

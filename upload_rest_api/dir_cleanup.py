@@ -4,6 +4,7 @@ periodically using cron.
 """
 import os
 import time
+from runpy import run_path
 
 import upload_rest_api.gen_metadata as md
 
@@ -39,24 +40,29 @@ def _clean_empty_dirs(fpath):
                 raise
 
 
-def _parse_conf(fpath, params):
-    """Parse config from file fpath for parameters params"""
-    conf = {}
+def _parse_conf(fpath):
+    """Parse config from file fpath"""
+    return run_path(fpath)
 
-    with open(fpath) as _file:
-        for line in _file:
-            # Remove everything after first #
-            line = line.split("#")[0]
-            split = line.split("=")
 
-            if len(split) == 2:
-                key = split[0].strip()
-                value = split[1].strip()
+def _clean_file(_file, upload_path, fpaths, file_dict=None, metax_client=None):
+    """Remove file fpath from disk and add it to a list of files to be
+    removed from if metax_client is provided
 
-                if key in params:
-                    conf[key] = value[1:-1]
+    :param fpath: Path to where the file is stored in disk
+    :param upload_path: Base path used for uploading the files
+    :param fpaths: List files to be removed from Metax are appended
 
-    return conf
+    :returns: None
+    """
+    if metax_client is not None and file_dict is not None:
+        metax_path = md.get_metax_path(_file, upload_path)
+
+        if not metax_client.file_has_dataset(metax_path, file_dict):
+            fpaths.append(metax_path)
+            os.remove(_file)
+    else:
+        os.remove(_file)
 
 
 def cleanup(project, fpath, time_lim, metax=True):
@@ -71,37 +77,35 @@ def cleanup(project, fpath, time_lim, metax=True):
 
     :return: None
     """
+    conf = _parse_conf("/etc/upload_rest_api.conf")
     current_time = time.time()
+    metax_client = None
+    file_dict = None
     fpaths = []
 
     if metax:
-        conf = _parse_conf(
-            "/etc/upload_rest_api.conf",
-            {"UPLOAD_PATH", "METAX_URL", "METAX_USER", "METAX_PASSWORD"}
-        )
+        url = conf["METAX_URL"]
+        user = conf["METAX_USER"]
+        password = conf["METAX_PASSWORD"]
+
+        metax_client = md.MetaxClient(url=url, user=user, password=password)
+        file_dict = metax_client.get_files_dict(project)
 
     # Remove all old files
     for dirpath, _, files in os.walk(fpath):
         for fname in files:
             _file = os.path.join(dirpath, fname)
             if _is_expired(_file, current_time, time_lim):
-                os.remove(_file)
-
-                if metax:
-                    fpaths.append(md.get_metax_path(
-                        _file, conf["UPLOAD_PATH"]
-                    ))
+                _clean_file(
+                    _file, conf["UPLOAD_PATH"], fpaths,
+                    file_dict, metax_client
+                )
 
     # Remove all empty dirs
     _clean_empty_dirs(fpath)
 
     # Remove Metax file entries of deleted files
     if metax:
-        url = conf["METAX_URL"]
-        user = conf["METAX_USER"]
-        password = conf["METAX_PASSWORD"]
+        metax_client.delete_metadata(project, fpaths)
 
-        md.delete_metadata(
-            project, fpaths,
-            md.get_metax_client(url=url, user=user, password=password)
-        )
+cleanup("test_project", "/home/vagrant/test/rest/test_project", 1)

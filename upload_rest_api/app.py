@@ -267,8 +267,8 @@ def create_app():
         else:
             abort(404, "File not found")
 
-        metax_client = md.get_metax_client()
-        response = md.post_metadata(fpaths, metax_client)
+        metax_client = md.MetaxClient()
+        response = metax_client.post_metadata(fpaths)
         return jsonify(response)
 
 
