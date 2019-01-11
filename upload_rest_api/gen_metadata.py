@@ -139,14 +139,55 @@ class MetaxClient(object):
             if fpath in files_dict:
                 file_id_list.append(files_dict[fpath])
 
-        return self.client.delete_files(file_id_list)
+        return self.client.delete_files(file_id_list).json()
 
-    def file_has_dataset(self, fpath, files_dict):
+    def delete_file_metadata(self, project, fpath):
+        """Delete file metadata from Metax if file is not associated with
+        any dataset.
+        """
+        upload_path = current_app.config.get("UPLOAD_PATH")
+        files_dict = self.client.get_files_dict(project)
+        metax_path = get_metax_path(fpath, upload_path)
+
+        if metax_path not in files_dict:
+            response = "Metadata not found in Metax"
+        elif self.file_has_dataset(metax_path, files_dict):
+            response = "Metadata is part of a dataset. Metadata not removed"
+        else:
+            file_id = str(files_dict[metax_path])
+            response = self.client.delete_file(file_id).json()
+
+        return response
+
+    def delete_all_metadata(self, project, fpath):
+        """Delete all file metadata from Metax found under dir fpath, which
+        is not associated with any dataset
+        """
+        upload_path = current_app.config.get("UPLOAD_PATH")
+        files_dict = self.client.get_files_dict(project)
+        file_id_list = []
+
+        # Iterate through all files under dir fpath
+        for dirpath, _, files in os.walk(fpath):
+            for _file in files:
+                fpath = os.path.join(dirpath, _file)
+                metax_path = get_metax_path(fpath, upload_path)
+
+                # Append file id to file_id_list if file is not associated
+                # with any dataset and file metadata is in Metax
+                no_dataset = not self.file_has_dataset(metax_path, files_dict)
+                if metax_path in files_dict and no_dataset:
+                    file_id_list.append(files_dict[metax_path])
+
+        # Remove file metadata from Metax and return the response
+        return self.client.delete_files(file_id_list).json()
+
+    def file_has_dataset(self, metax_path, files_dict):
         """Check if file belongs to any dataset"""
-        if fpath not in files_dict:
+        if metax_path not in files_dict:
             return False
 
-        file_id = files_dict[fpath]
+        file_id = files_dict[metax_path]
         datasets = self.client.get_file_datasets(file_id)
 
         return len(datasets) != 0

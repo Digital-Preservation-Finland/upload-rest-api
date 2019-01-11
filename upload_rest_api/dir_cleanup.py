@@ -107,5 +107,3 @@ def cleanup(project, fpath, time_lim, metax=True):
     # Remove Metax file entries of deleted files
     if metax:
         metax_client.delete_metadata(project, fpaths)
-
-cleanup("test_project", "/home/vagrant/test/rest/test_project", 1)

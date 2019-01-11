@@ -107,6 +107,8 @@ def create_app():
 
         :returns: HTTP Response
         """
+        username = request.authorization.username
+        project = db.User(username).get_project()
         fpath, fname = _get_upload_path(fpath)
         fpath = safe_join(fpath, fname)
 
@@ -116,12 +118,18 @@ def create_app():
         else:
             abort(404, "File not found")
 
+        # Remove metadata from Metax
+        metax_response = md.MetaxClient().delete_file_metadata(
+            project, fpath
+        )
+
         #Show user the relative path from /var/spool/uploads/
         return_path = fpath[len(app.config.get("UPLOAD_PATH")):]
 
         return jsonify({
             "file_path": return_path,
-            "status": "deleted"
+            "status": "deleted",
+            "metax": metax_response
         })
 
 
@@ -169,12 +177,17 @@ def create_app():
         if not os.path.exists(fpath):
             abort(404, "No files found")
 
+        # Remove metadata from Metax
+        metax_response = md.MetaxClient().delete_all_metadata(project, fpath)
+
+        # Remove project directory and update used_quota
         rmtree(fpath)
         db.update_used_quota()
 
         response = jsonify({
             "fpath": fpath[len(upload_path):],
-            "status": "deleted"
+            "status": "deleted",
+            "metax": metax_response
         })
         response.status_code = 200
 

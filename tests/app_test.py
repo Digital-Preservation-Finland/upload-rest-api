@@ -4,6 +4,9 @@ import os
 import shutil
 import json
 
+from mock import patch
+from tests.mockup.metax import MockMetax
+
 
 def _contains_symlinks(fpath):
     """Check if fpath or any subdirectories contains symlinks
@@ -112,7 +115,8 @@ def test_user_quota(app, test_auth, database_fx):
     assert not os.path.isdir(os.path.join(upload_path, "test_project"))
 
 
-def test_used_quota(app, test_auth, database_fx):
+@patch("upload_rest_api.app.md.MetaxClient", return_value=MockMetax())
+def test_used_quota(mock_metax, app, test_auth, database_fx):
     """Test that used quota is calculated correctly"""
     test_client = app.test_client()
     users = database_fx.upload.users
@@ -215,7 +219,8 @@ def test_get_file(app, admin_auth, test_auth, test2_auth):
     assert response.status_code == 404
 
 
-def test_delete_file(app, test_auth):
+@patch("upload_rest_api.app.md.MetaxClient", return_value=MockMetax())
+def test_delete_file(mock_metax, app, test_auth):
     """Test DELETE for single file"""
 
     test_client = app.test_client()
@@ -232,6 +237,7 @@ def test_delete_file(app, test_auth):
     )
 
     assert response.status_code == 200
+    assert json.loads(response.data)["metax"] == "/test_project/test.txt"
     assert not os.path.isfile(fpath)
 
     # DELETE file that does not exist
@@ -270,7 +276,8 @@ def test_get_files(app, test_auth):
     assert data["/test_project/test"] == ["test2.txt"]
 
 
-def test_delete_files(app, test_auth):
+@patch("upload_rest_api.app.md.MetaxClient", return_value=MockMetax())
+def test_delete_files(mock_metax, app, test_auth):
     """Test DELETE for the whole project"""
 
     test_client = app.test_client()
@@ -287,6 +294,7 @@ def test_delete_files(app, test_auth):
     )
 
     assert response.status_code == 200
+    assert json.loads(response.data)["metax"] == ["/test_project/test.txt"]
     assert not os.path.exists(os.path.split(fpath)[0])
 
     # DELETE project that does not exist
