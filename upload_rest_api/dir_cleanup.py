@@ -65,7 +65,7 @@ def _clean_file(_file, upload_path, fpaths, file_dict=None, metax_client=None):
         os.remove(_file)
 
 
-def cleanup(project, fpath, time_lim, metax=True):
+def cleanup(project, fpath, upload_path, time_lim, metax=True):
     """Remove all files that haven't been accessed within time_lim seconds.
     If the removed file has a Metax file entry and metax_client is provided,
     remove the Metax file entry as well.
@@ -97,7 +97,7 @@ def cleanup(project, fpath, time_lim, metax=True):
             _file = os.path.join(dirpath, fname)
             if _is_expired(_file, current_time, time_lim):
                 _clean_file(
-                    _file, conf["UPLOAD_PATH"], fpaths,
+                    _file, upload_path, fpaths,
                     file_dict, metax_client
                 )
 
