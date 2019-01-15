@@ -297,11 +297,8 @@ def create_app():
         return response
 
 
-    if __name__ == "__main__":
-        app.run()
-    else:
-        return app
+    return app
 
 
 if __name__ == "__main__":
-    create_app()
+    create_app().run()
