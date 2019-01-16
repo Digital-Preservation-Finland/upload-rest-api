@@ -59,7 +59,7 @@ def get_dir_size(fpath):
 def update_used_quota():
     """Update used quota of the user"""
     username = request.authorization.username
-    user = User(username)
+    user = UsersDoc(username)
     project = user.get_project()
     path = safe_join(
         current_app.config.get("UPLOAD_PATH"),
@@ -70,14 +70,14 @@ def update_used_quota():
     user.set_used_quota(size)
 
 
-class User(object):
-    """Class for managing users in the database"""
+class FilesDoc(object):
+    """Class for managing files in the database"""
 
+    def __init__(self, file_identifier):
+        """Initializing FilesDoc instances
 
-    def __init__(self, username, quota=5*1024**3):
-        """Initializing User instances
-
-        :param username:
+        :param file_identifier: File identifier in Metax. Used as the primary
+                                key _id
         """
         host = "localhost"
         port = 27017
@@ -87,10 +87,28 @@ class User(object):
             host = app.config.get("MONGO_HOST", host)
             port = app.config.get("MONGO_PORT", port)
 
+        self.file_identifier = file_identifier
+        self.files = pymongo.MongoClient(host, port).upload.files
+
+
+class UsersDoc(object):
+    """Class for managing users in the database"""
+
+    def __init__(self, username, quota=5*1024**3):
+        """Initializing UsersDoc instances
+
+        :param username: Used as primary key _id
+        """
+        host = "localhost"
+        port = 27017
+
+        if has_request_context():
+            host = current_app.config.get("MONGO_HOST", host)
+            port = current_app.config.get("MONGO_PORT", port)
+
         self.users = pymongo.MongoClient(host, port).upload.users
         self.username = username
         self.quota = quota
-
 
     def __repr__(self):
         """User instance representation"""
@@ -106,7 +124,6 @@ class User(object):
         return "_id : %s\nquota : %d\nsalt : %s\ndigest : %s" % (
             self.username, quota, salt, digest
         )
-
 
     def create(self, project, password=None):
         """Adds new user to the database. Salt is always
@@ -142,7 +159,6 @@ class User(object):
 
         return passwd
 
-
     def delete(self):
         """Deletes existing user
         """
@@ -152,7 +168,6 @@ class User(object):
 
         self.users.delete_one({"_id" : self.username})
 
-
     def get(self):
         """Returns existing user
         """
@@ -161,7 +176,6 @@ class User(object):
             abort(404)
 
         return self.users.find_one({"_id" : self.username})
-
 
     def get_utf8(self):
         """Returns existing user with digest in utf8 format
@@ -175,7 +189,6 @@ class User(object):
 
         return user
 
-
     def get_quota(self):
         """Returns the overall quota of the user"""
         # Abort if user does not exist
@@ -184,7 +197,6 @@ class User(object):
 
         return self.users.find_one({"_id" : self.username})["quota"]
 
-
     def get_used_quota(self):
         """Returns the used quota of the user"""
         # Abort if user does not exist
@@ -192,7 +204,6 @@ class User(object):
             abort(404)
 
         return self.users.find_one({"_id" : self.username})["used_quota"]
-
 
     def set_quota(self, quota):
         """Set the quota of the user"""
@@ -205,7 +216,6 @@ class User(object):
             {"$set" : {"quota" : quota}}
         )
 
-
     def set_used_quota(self, used_quota):
         """Set the used quota of the user"""
         # Abort if user does not exist
@@ -217,7 +227,6 @@ class User(object):
             {"$set" : {"used_quota" : used_quota}}
         )
 
-
     def get_project(self):
         """Get user project"""
         # Abort if user does not exist
@@ -225,7 +234,6 @@ class User(object):
             abort(404)
 
         return self.users.find_one({"_id" : self.username})["project"]
-
 
     def exists(self):
         """Check if the user is found in the db"""

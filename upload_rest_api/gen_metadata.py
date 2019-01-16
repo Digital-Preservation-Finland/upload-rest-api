@@ -112,7 +112,7 @@ class MetaxClient(object):
         # _generate_metadata() vars
         upload_path = app.config.get("UPLOAD_PATH")
         user = request.authorization.username
-        project = db.User(user).get_project()
+        project = db.UsersDoc(user).get_project()
         storage_id = app.config.get("STORAGE_ID")
 
         metadata = []

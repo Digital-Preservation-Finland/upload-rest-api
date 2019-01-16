@@ -35,7 +35,7 @@ def create_app():
     def _get_upload_path(fpath):
         """Get upload path for current request"""
         username = request.authorization.username
-        user = db.User(username)
+        user = db.UsersDoc(username)
         project = user.get_project()
 
         upload_path = app.config.get("UPLOAD_PATH")
@@ -112,7 +112,7 @@ def create_app():
         :returns: HTTP Response
         """
         username = request.authorization.username
-        project = db.User(username).get_project()
+        project = db.UsersDoc(username).get_project()
         fpath, fname = _get_upload_path(fpath)
         fpath = safe_join(fpath, fname)
 
@@ -147,7 +147,7 @@ def create_app():
         :return: HTTP Response
         """
         username = request.authorization.username
-        project = db.User(username).get_project()
+        project = db.UsersDoc(username).get_project()
         upload_path = app.config.get("UPLOAD_PATH")
         fpath = safe_join(upload_path, secure_filename(project))
 
@@ -174,7 +174,7 @@ def create_app():
         :returns: HTTP Response
         """
         username = request.authorization.username
-        project = db.User(username).get_project()
+        project = db.UsersDoc(username).get_project()
         upload_path = app.config.get("UPLOAD_PATH")
         fpath = safe_join(upload_path, secure_filename(project))
 
@@ -209,7 +209,7 @@ def create_app():
         """
         auth.admin_only()
 
-        user = db.User(username)
+        user = db.UsersDoc(username)
         response = jsonify(user.get_utf8())
         response.status_code = 200
 
@@ -227,7 +227,7 @@ def create_app():
         """
         auth.admin_only()
 
-        user = db.User(username)
+        user = db.UsersDoc(username)
         passwd = user.create(project)
         response = jsonify(
             {
@@ -251,7 +251,7 @@ def create_app():
         :returns: HTTP Response
         """
         auth.admin_only()
-        db.User(username).delete()
+        db.UsersDoc(username).delete()
 
         response = jsonify({"username": username, "status": "deleted"})
         response.status_code = 200

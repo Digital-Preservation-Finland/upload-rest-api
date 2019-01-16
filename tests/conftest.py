@@ -11,7 +11,7 @@ import mongobox
 
 import upload_rest_api.app as app_module
 import upload_rest_api.database as db
-from upload_rest_api.database import User
+from upload_rest_api.database import UsersDoc
 
 # Prefer modules from source directory rather than from site-python
 sys.path.insert(
@@ -25,7 +25,7 @@ def init_db(database_fx):
     """
     database_fx.drop_database("upload")
 
-    user = User("admin")
+    user = UsersDoc("admin")
     user.users = database_fx.upload.users
     user.create("admin_project", password="test")
 
@@ -107,7 +107,7 @@ def user():
     client.PORT = box.port
     client.HOST = "localhost"
 
-    test_user = User("test_user")
+    test_user = UsersDoc("test_user")
     test_user.users = client.authentication.users
 
     yield test_user

@@ -14,7 +14,7 @@ def request_exceeds_quota():
     :returns: True if the request exceeds user's quota else False
     """
     username = request.authorization.username
-    user = db.User(username)
+    user = db.UsersDoc(username)
     quota = user.get_quota() - user.get_used_quota()
 
     return quota - request.content_length < 0
@@ -25,7 +25,7 @@ def _zipfile_exceeds_quota(zipf, username):
 
     :returns: True if the zipfile exceeds user's quota else False
     """
-    user = db.User(username)
+    user = db.UsersDoc(username)
     quota = user.get_quota() - user.get_used_quota()
     uncompressed_size = sum(zinfo.file_size for zinfo in zipf.filelist)
 

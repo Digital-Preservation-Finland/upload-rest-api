@@ -32,7 +32,7 @@ def _slow_equals(hash1, hash2):
 def _auth_user(username, password, user=None):
     """Authenticate user"""
     if user is None:
-        user = db.User(username)
+        user = db.UsersDoc(username)
 
     if user.exists():
         user = user.get()
