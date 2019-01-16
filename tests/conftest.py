@@ -10,6 +10,7 @@ import pytest
 import mongobox
 
 import upload_rest_api.app as app_module
+import upload_rest_api.database as db
 from upload_rest_api.database import User
 
 # Prefer modules from source directory rather than from site-python
@@ -35,6 +36,12 @@ def init_db(database_fx):
     # Test user with same project
     user.username = "test2"
     user.create("test_project", password="test")
+
+
+@pytest.fixture(autouse=True)
+def patch_hashing_iters(monkeypatch):
+    """Run tests with only 2000 hashing iters to avoid CPU bottlenecking"""
+    monkeypatch.setattr(db, "ITERATIONS", 2000)
 
 
 @pytest.yield_fixture(scope="function")
