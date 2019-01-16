@@ -13,6 +13,10 @@ import upload_rest_api.database as db
 import upload_rest_api.gen_metadata as md
 
 
+def configure_app(app):
+    """Read config from /etc/upload_rest_api.conf"""
+    app.config.from_pyfile("/etc/upload_rest_api.conf")
+
 
 def create_app():
     """Configure and return a Flask application instance.
@@ -22,7 +26,7 @@ def create_app():
     app = Flask(__name__)
 
     # Configure app
-    app.config.from_pyfile("/etc/upload_rest_api.conf")
+    configure_app(app)
 
     # Authenticate all requests
     app.before_request(auth.authenticate)

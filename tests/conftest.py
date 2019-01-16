@@ -9,7 +9,7 @@ from base64 import b64encode
 import pytest
 import mongobox
 
-from upload_rest_api.app import create_app
+import upload_rest_api.app as app_module
 from upload_rest_api.database import User
 
 # Prefer modules from source directory rather than from site-python
@@ -38,13 +38,27 @@ def init_db(database_fx):
 
 
 @pytest.yield_fixture(scope="function")
-def app(database_fx):
+def app(database_fx, monkeypatch):
     """Creates temporary upload directory and app, which uses it.
     Temp dirs are cleaned after use.
 
     :returns: flask.Flask instance
     """
-    flask_app = create_app()
+
+    def _configure_app(app):
+        """Test configuration for the app.
+        Reads /etc/upload_rest_api.conf if the file exists or
+        uses default params from include/etc/upload_rest_api.conf.
+        """
+        if os.path.isfile("/etc/upload_rest_api.conf"):
+            app.config.from_pyfile("/etc/upload_rest_api.conf")
+        else:
+            app.config.from_pyfile("../include/etc/upload_rest_api.conf")
+
+
+    monkeypatch.setattr(app_module, "configure_app", _configure_app)
+
+    flask_app = app_module.create_app()
     init_db(database_fx)
     temp_path = tempfile.mkdtemp(prefix="tests.testpath.")
 

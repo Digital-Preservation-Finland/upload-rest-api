@@ -40,7 +40,7 @@ def _clean_empty_dirs(fpath):
                 raise
 
 
-def _parse_conf(fpath):
+def parse_conf(fpath):
     """Parse config from file fpath"""
     return run_path(fpath)
 
@@ -77,18 +77,18 @@ def cleanup(project, fpath, upload_path, time_lim, metax=True):
 
     :return: None
     """
-    conf = _parse_conf("/etc/upload_rest_api.conf")
+    conf = parse_conf("/etc/upload_rest_api.conf")
     current_time = time.time()
     metax_client = None
     file_dict = None
     fpaths = []
 
     if metax:
-        url = conf["METAX_URL"]
-        user = conf["METAX_USER"]
-        password = conf["METAX_PASSWORD"]
-
-        metax_client = md.MetaxClient(url=url, user=user, password=password)
+        metax_client = md.MetaxClient(
+            url=conf["METAX_URL"],
+            user=conf["METAX_USER"],
+            password=conf["METAX_PASSWORD"]
+        )
         file_dict = metax_client.get_files_dict(project)
 
     # Remove all old files

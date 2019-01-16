@@ -2,14 +2,27 @@
 import os
 import time
 import shutil
+from runpy import run_path
 
 import upload_rest_api.dir_cleanup as clean
 
 
-def test_no_expired_files(app):
+def _parse_conf(fpath):
+    """Parse conf from include/etc/upload_rest_api.conf if fpath
+    doesn't exist.
+    """
+    if os.path.isfile(fpath):
+        return run_path(fpath)
+
+    return run_path("include/etc/upload_rest_api.conf")
+
+
+def test_no_expired_files(app, monkeypatch):
     """Test that files that are not too old are not removed nor
     are the access times changed by the cleanup itself.
     """
+    monkeypatch.setattr(clean, "parse_conf", _parse_conf)
+
     upload_path = app.config.get("UPLOAD_PATH")
 
     # Make test directory with test.txt file
@@ -35,9 +48,11 @@ def test_no_expired_files(app):
     assert os.stat(fpath).st_mtime == last_access
 
 
-def test_expired_files(app):
+def test_expired_files(app, monkeypatch):
     """Test that all the expired files and empty directories are removed.
     """
+    monkeypatch.setattr(clean, "parse_conf", _parse_conf)
+
     upload_path = app.config.get("UPLOAD_PATH")
 
     # Make test directories with test.txt files
