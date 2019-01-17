@@ -70,27 +70,6 @@ def update_used_quota():
     user.set_used_quota(size)
 
 
-class FilesDoc(object):
-    """Class for managing files in the database"""
-
-    def __init__(self, file_identifier):
-        """Initializing FilesDoc instances
-
-        :param file_identifier: File identifier in Metax. Used as the primary
-                                key _id
-        """
-        host = "localhost"
-        port = 27017
-
-        if has_request_context():
-            app = current_app
-            host = app.config.get("MONGO_HOST", host)
-            port = app.config.get("MONGO_PORT", port)
-
-        self.file_identifier = file_identifier
-        self.files = pymongo.MongoClient(host, port).upload.files
-
-
 class UsersDoc(object):
     """Class for managing users in the database"""
 
@@ -238,3 +217,55 @@ class UsersDoc(object):
     def exists(self):
         """Check if the user is found in the db"""
         return self.users.find_one({"_id" : self.username}) is not None
+
+
+class FilesCol(object):
+    """Class for managing files in the database"""
+
+    def __init__(self):
+        """Initializing FilesDoc instances
+
+        :param file_identifier: File identifier in Metax. Used as the primary
+                                key _id
+        """
+        host = "localhost"
+        port = 27017
+
+        if has_request_context():
+            app = current_app
+            host = app.config.get("MONGO_HOST", host)
+            port = app.config.get("MONGO_PORT", port)
+
+        self.files = pymongo.MongoClient(host, port).upload.files
+
+    def insert(self, files):
+        """Insert multiple files into the files collection.
+
+        :param files: List of dicts {"_id": identifier, "file_path": file_path}
+        :returns: Number of documents inserted
+        """
+        return len(self.files.insert_many(files).inserted_ids)
+
+    def delete(self, ids):
+        """Delete multiple documents from the files collection.
+
+        :param ids: List of identifiers to be removed
+        :returns: Number of documents deleted
+        """
+        return self.files.delete_many({"_id": {"$in": ids}}).deleted_count
+
+    def insert_one(self, document):
+        """Insert one file document.
+
+        :param document: Dict {"_id": identifier, "file_path": file_path}
+        :returns: None
+        """
+        self.files.insert_one(document)
+
+    def delete_one(self, identifier):
+        """Delete one file document.
+
+        :param identifier: _id of the document to be removed
+        :returns: Number of documents deleted
+        """
+        return self.files.delete_one({"_id": identifier}).deleted_count
