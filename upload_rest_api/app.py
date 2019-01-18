@@ -286,6 +286,12 @@ def create_app():
 
         metax_client = md.MetaxClient()
         response = metax_client.post_metadata(fpaths)
+
+        # Add created identifiers to Mongo
+        if "success" in response and len(response["success"]) > 0:
+            created_md = response["success"]
+            db.FilesCol().store_identifiers(created_md)
+
         return jsonify(response)
 
 

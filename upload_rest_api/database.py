@@ -35,6 +35,11 @@ def _get_random_string(chars):
     return passwd
 
 
+def _get_abs_path(metax_path):
+    """Returns actual path on disk from metax_path"""
+    return os.path.join(current_app.config.get("UPLOAD_PATH"), metax_path[1:])
+
+
 def hash_passwd(password, salt):
     """Salt and hash password using PBKDF2 with HMAC PRNG and SHA512 hashing
     algorithm.
@@ -232,9 +237,8 @@ class FilesCol(object):
         port = 27017
 
         if has_request_context():
-            app = current_app
-            host = app.config.get("MONGO_HOST", host)
-            port = app.config.get("MONGO_PORT", port)
+            host = current_app.config.get("MONGO_HOST", host)
+            port = current_app.config.get("MONGO_PORT", port)
 
         self.files = pymongo.MongoClient(host, port).upload.files
 
@@ -269,3 +273,19 @@ class FilesCol(object):
         :returns: Number of documents deleted
         """
         return self.files.delete_one({"_id": identifier}).deleted_count
+
+    def store_identifiers(self, file_md_list):
+        """Store file identifiers and paths on disk to Mongo.
+
+        :param file_md_list: List of created file metadata returned by Metax
+        :returns: None
+        """
+        documents = []
+
+        for file_md in file_md_list:
+            documents.append({
+                "_id": file_md["object"]["identifier"],
+                "file_path": _get_abs_path(file_md["object"]["file_path"])
+            })
+
+        self.insert(documents)

@@ -108,7 +108,7 @@ def user():
     client.HOST = "localhost"
 
     test_user = UsersDoc("test_user")
-    test_user.users = client.authentication.users
+    test_user.users = client.upload.users
 
     yield test_user
 
