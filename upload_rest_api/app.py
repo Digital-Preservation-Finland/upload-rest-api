@@ -123,9 +123,7 @@ def create_app():
             abort(404, "File not found")
 
         # Remove metadata from Metax
-        metax_response = md.MetaxClient().delete_file_metadata(
-            project, fpath
-        )
+        metax_response = md.MetaxClient().delete_file_metadata(project, fpath)
 
         #Show user the relative path from /var/spool/uploads/
         return_path = fpath[len(app.config.get("UPLOAD_PATH")):]

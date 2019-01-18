@@ -274,6 +274,11 @@ class FilesCol(object):
         """
         return self.files.delete_one({"_id": identifier}).deleted_count
 
+    def get_all_ids(self):
+        """Return a list of all identifiers stored"""
+        documents = self.files.find()
+        return [document["_id"] for document in documents]
+
     def store_identifiers(self, file_md_list):
         """Store file identifiers and paths on disk to Mongo.
 

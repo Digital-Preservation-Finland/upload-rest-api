@@ -12,7 +12,7 @@ from runpy import run_path
 import pytest
 
 from upload_rest_api.gen_metadata import MetaxClient
-import upload_rest_api.dir_cleanup as clean
+import upload_rest_api.cleanup as clean
 
 
 def _get_metax_client():
@@ -132,7 +132,7 @@ def test_gen_metadata_file(app, test_auth):
     assert len(files_dict) == 0
 
 
-def test_dir_cleanup(app, test_auth):
+def test_disk_cleanup(app, test_auth):
     """Test that cleanup script removes file metadata from Metax"""
     test_client = app.test_client()
     upload_path = app.config.get("UPLOAD_PATH")
@@ -148,7 +148,7 @@ def test_dir_cleanup(app, test_auth):
 
     # Cleanup all files
     project_dir = os.path.join(upload_path, "test_project/")
-    clean.cleanup("test_project", project_dir, upload_path, -1)
+    clean.clean_disk("test_project", project_dir, upload_path, -1)
 
     # Test that no test_project files are found in Metax
     metax_client = _get_metax_client()

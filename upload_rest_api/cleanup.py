@@ -65,7 +65,7 @@ def _clean_file(_file, upload_path, fpaths, file_dict=None, metax_client=None):
         os.remove(_file)
 
 
-def cleanup(project, fpath, upload_path, time_lim, metax=True):
+def clean_disk(project, fpath, upload_path, time_lim, metax=True):
     """Remove all files that haven't been accessed within time_lim seconds.
     If the removed file has a Metax file entry and metax_client is provided,
     remove the Metax file entry as well.
@@ -107,3 +107,23 @@ def cleanup(project, fpath, upload_path, time_lim, metax=True):
     # Remove Metax file entries of deleted files
     if metax:
         metax_client.delete_metadata(project, fpaths)
+
+
+def clean_mongo():
+    """Clean file identifiers that do not exist in Metax any more from Mongo
+    """
+    pass
+    # conf = parse_conf("/etc/upload_rest_api.conf")
+    # metax_client = Metax(
+    #     conf["METAX_URL"],
+    #     conf["METAX_USER"],
+    #     conf["METAX_PASSWORD"]
+    # )
+    # files = FilesCol()
+    # identifiers = files.get_all_ids()
+    # print metax_client.get_files(identifiers)
+    # # TODO: add get_files_by_id_list or something like that to metax_access
+
+
+# if __name__ == "__main__":
+    # clean_mongo()
