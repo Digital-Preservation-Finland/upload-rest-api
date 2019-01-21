@@ -46,7 +46,8 @@ def _upload_file(client, url, auth, fpath):
 def clean_metax():
     """DELETE all metadata from Metax that might be left from previous runs"""
     metax_client = _get_metax_client()
-    file_id_list = metax_client.get_files_dict("test_project").values()
+    files_dict = metax_client.get_files_dict("test_project")
+    file_id_list = [value["id"] for value in files_dict.values()]
     metax_client.client.delete_files(file_id_list)
 
 

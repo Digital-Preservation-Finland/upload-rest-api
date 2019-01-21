@@ -7,6 +7,7 @@ import time
 from runpy import run_path
 
 import upload_rest_api.gen_metadata as md
+import upload_rest_api.database as db
 
 
 def _is_expired(fpath, current_time, time_lim):
@@ -43,6 +44,20 @@ def _clean_empty_dirs(fpath):
 def parse_conf(fpath):
     """Parse config from file fpath"""
     return run_path(fpath)
+
+
+def _get_projects():
+    """Returns a list of all projects with files uploaded"""
+    conf = parse_conf("/etc/upload_rest_api.conf")
+    upload_path = conf["UPLOAD_PATH"]
+    dirs = []
+
+    for _dir in os.listdir(upload_path):
+        dirpath = os.path.join(upload_path, _dir)
+        if os.path.isdir(dirpath):
+            dirs.append(_dir)
+
+    return dirs
 
 
 def _clean_file(_file, upload_path, fpaths, file_dict=None, metax_client=None):
@@ -111,19 +126,27 @@ def clean_disk(project, fpath, upload_path, time_lim, metax=True):
 
 def clean_mongo():
     """Clean file identifiers that do not exist in Metax any more from Mongo
+
+    :returns: Count of cleaned Mongo documents
     """
-    pass
-    # conf = parse_conf("/etc/upload_rest_api.conf")
-    # metax_client = Metax(
-    #     conf["METAX_URL"],
-    #     conf["METAX_USER"],
-    #     conf["METAX_PASSWORD"]
-    # )
-    # files = FilesCol()
-    # identifiers = files.get_all_ids()
-    # print metax_client.get_files(identifiers)
-    # # TODO: add get_files_by_id_list or something like that to metax_access
+    files = db.FilesCol()
+    projects = _get_projects()
 
+    conf = parse_conf("/etc/upload_rest_api.conf")
+    url = conf["METAX_URL"]
+    user = conf["METAX_USER"]
+    password = conf["METAX_PASSWORD"]
 
-# if __name__ == "__main__":
-    # clean_mongo()
+    metax_ids = md.MetaxClient(url, user, password).get_all_ids(projects)
+
+    files = db.FilesCol()
+    mongo_ids = files.get_all_ids()
+    id_list = []
+
+    # Check for identifiers found in Mongo but not in Metax
+    for identifier in mongo_ids:
+        if identifier not in metax_ids:
+            id_list.append(identifier)
+
+    # Remove identifiers from mongo
+    return files.delete(id_list)

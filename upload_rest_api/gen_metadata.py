@@ -137,7 +137,7 @@ class MetaxClient(object):
         file_id_list = []
         for fpath in fpaths:
             if fpath in files_dict:
-                file_id_list.append(files_dict[fpath])
+                file_id_list.append(files_dict[fpath]["id"])
 
         return self.client.delete_files(file_id_list).json()
 
@@ -154,7 +154,7 @@ class MetaxClient(object):
         elif self.file_has_dataset(metax_path, files_dict):
             response = "Metadata is part of a dataset. Metadata not removed"
         else:
-            file_id = str(files_dict[metax_path])
+            file_id = str(files_dict[metax_path]["id"])
             response = self.client.delete_file(file_id).json()
 
         return response
@@ -177,17 +177,37 @@ class MetaxClient(object):
                 # with any dataset and file metadata is in Metax
                 no_dataset = not self.file_has_dataset(metax_path, files_dict)
                 if metax_path in files_dict and no_dataset:
-                    file_id_list.append(files_dict[metax_path])
+                    file_id_list.append(files_dict[metax_path]["id"])
 
         # Remove file metadata from Metax and return the response
         return self.client.delete_files(file_id_list).json()
+
+    def get_all_ids(self, project_list):
+        """Get a set of all identifiers of files in any of the projects in
+        project_list.
+        """
+        id_set = set()
+
+        # Iterate all projects
+        for project in project_list:
+            # Find all indentifiers in one project
+            files_dict = self.get_files_dict(project)
+            project_id_set = {
+                _file["identifier"] for _file in files_dict.values()
+            }
+
+            # Add the identifiers to id_set
+            id_set |= project_id_set
+
+        return id_set
+
 
     def file_has_dataset(self, metax_path, files_dict):
         """Check if file belongs to any dataset"""
         if metax_path not in files_dict:
             return False
 
-        file_id = files_dict[metax_path]
+        file_id = files_dict[metax_path]["id"]
         datasets = self.client.get_file_datasets(file_id)
 
         return len(datasets) != 0
