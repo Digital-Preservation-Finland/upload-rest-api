@@ -10,8 +10,10 @@ import json
 from runpy import run_path
 
 import pytest
+import pymongo
 
 from upload_rest_api.gen_metadata import MetaxClient
+import upload_rest_api.database as db
 import upload_rest_api.cleanup as clean
 
 
@@ -156,3 +158,60 @@ def test_disk_cleanup(app, test_auth):
     files_dict = metax_client.get_files_dict("test_project")
 
     assert len(files_dict) == 0
+
+
+def test_mongo_cleanup(app, test_auth, monkeypatch):
+    """Test that cleaning files from mongo deletes all files that
+    haven't been posted to Metax.
+    """
+    test_client = app.test_client()
+
+    # Mock FilesCol mongo connection
+    def _mock_init(self):
+        host = app.config.get("MONGO_HOST")
+        port = app.config.get("MONGO_PORT")
+        self.files = pymongo.MongoClient(host, port).upload.files
+
+    monkeypatch.setattr(db.FilesCol, "__init__", _mock_init)
+
+    # Mock configuration parsing
+    def _mock_conf(fpath):
+        conf = run_path(fpath)
+        conf["UPLOAD_PATH"] = app.config.get("UPLOAD_PATH")
+        return conf
+
+    monkeypatch.setattr(clean, "parse_conf", _mock_conf)
+
+    files_col = db.FilesCol()
+
+    # ----- Inserting fake identifiers to Mongo and cleaning them
+    files_col.insert([
+        {"_id": "pid:urn:1", "file_path": "1"},
+        {"_id": "pid:urn:2", "file_path": "2"}
+    ])
+    assert len(files_col.get_all_ids()) == 2
+
+    clean.clean_mongo()
+    assert len(files_col.get_all_ids()) == 0
+
+    # Upload integration.zip, which is extracted by the server
+    _upload_file(
+        test_client, "/api/upload/v1/integration.zip",
+        test_auth, "tests/data/integration.zip"
+    )
+
+    # Generate and POST metadata for all the files in test_project
+    test_client.post("/api/gen_metadata/v1/.", headers=test_auth)
+
+    # Check that generated identifiers were added to Mongo
+    assert len(files_col.get_all_ids())
+
+    # Check that generated file_paths resolve to actual files
+    for file_doc in files_col.files.find():
+        file_path = file_doc["file_path"]
+        assert os.path.isfile(file_path)
+
+    # Try to clean file documents that still exist in Metax
+    clean.clean_mongo()
+
+    assert len(files_col.get_all_ids()) == 2

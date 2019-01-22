@@ -11,12 +11,17 @@ import mongobox
 
 import upload_rest_api.app as app_module
 import upload_rest_api.database as db
-from upload_rest_api.database import UsersDoc
 
 # Prefer modules from source directory rather than from site-python
 sys.path.insert(
     0, os.path.join(os.path.abspath(os.path.dirname(__file__)), '..')
 )
+
+
+@pytest.fixture(autouse=True)
+def patch_hashing_iters(monkeypatch):
+    """Run tests with only 2000 hashing iters to avoid CPU bottlenecking"""
+    monkeypatch.setattr(db, "ITERATIONS", 2000)
 
 
 def init_db(database_fx):
@@ -25,7 +30,8 @@ def init_db(database_fx):
     """
     database_fx.drop_database("upload")
 
-    user = UsersDoc("admin")
+    # ----- users collection
+    user = db.UsersDoc("admin")
     user.users = database_fx.upload.users
     user.create("admin_project", password="test")
 
@@ -36,12 +42,6 @@ def init_db(database_fx):
     # Test user with same project
     user.username = "test2"
     user.create("test_project", password="test")
-
-
-@pytest.fixture(autouse=True)
-def patch_hashing_iters(monkeypatch):
-    """Run tests with only 2000 hashing iters to avoid CPU bottlenecking"""
-    monkeypatch.setattr(db, "ITERATIONS", 2000)
 
 
 @pytest.yield_fixture(scope="function")
@@ -97,7 +97,7 @@ def database_fx():
 
 @pytest.yield_fixture(scope="function")
 def user():
-    """Initializes and returns User instance with db connection
+    """Initializes and returns UsersDoc instance with db connection
     through mongobox
     """
     box = mongobox.MongoBox()
@@ -107,10 +107,30 @@ def user():
     client.PORT = box.port
     client.HOST = "localhost"
 
-    test_user = UsersDoc("test_user")
+    test_user = db.UsersDoc("test_user")
     test_user.users = client.upload.users
 
     yield test_user
+
+    box.stop()
+
+
+@pytest.yield_fixture(scope="function")
+def files_col():
+    """Initializes and returns FilesCol instance with db connection
+    through mongobox
+    """
+    box = mongobox.MongoBox()
+    box.start()
+
+    client = box.client()
+    client.PORT = box.port
+    client.HOST = "localhost"
+
+    files_col = db.FilesCol()
+    files_col.files = client.upload.files
+
+    yield files_col
 
     box.stop()
 

@@ -40,13 +40,13 @@ def _get_mimetype(fpath):
 def iso8601_timestamp(fpath):
     """Returns last access time in ISO 8601 format"""
     timestamp = datetime.utcfromtimestamp(os.stat(fpath).st_atime)
-    return str(timestamp.replace(microsecond=0).isoformat())
+    return str(timestamp.replace(microsecond=0).isoformat()) + "+00:00"
 
 
 def _timestamp_now():
     """Returns current time in ISO 8601 format"""
     timestamp = datetime.utcnow()
-    return str(timestamp.replace(microsecond=0).isoformat())
+    return str(timestamp.replace(microsecond=0).isoformat()) + "+00:00"
 
 
 def get_metax_path(fpath, upload_path):

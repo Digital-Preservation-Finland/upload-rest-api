@@ -59,6 +59,58 @@ def test_delete_user(user):
     assert db.find_one({"_id": "test_user2"}) is not None
 
 
+def test_get_all_ids(files_col):
+    """Test get_all_ids returns a list of all _ids in the collection
+    """
+    assert files_col.get_all_ids() == []
+
+    for i in range(10):
+        files_col.files.insert_one(
+            {"_id": "pid:urn:%s" % i, "file_path": "%s" % i}
+        )
+        assert files_col.get_all_ids() == [
+            "pid:urn:%s" % j for j in range(i+1)
+        ]
+
+
+def test_insert_and_delete_files(files_col):
+    """Test insertion and deletion of files documents
+    """
+    document = {"_id": "pid:urn:1", "file_path": "1"}
+    many_documents = [
+        {"_id": "pid:urn:2", "file_path": "2"},
+        {"_id": "pid:urn:3", "file_path": "3"}
+    ]
+
+    files_col.insert_one(document)
+    assert len(files_col.get_all_ids()) == 1
+
+    files_col.insert(many_documents)
+    assert len(files_col.get_all_ids()) == 3
+
+    files_col.delete_one("pid:urn:1")
+    assert len(files_col.get_all_ids()) == 2
+
+    files_col.delete(["pid:urn:2", "pid:urn:3"])
+    assert len(files_col.get_all_ids()) == 0
+
+
+def test_store_identifiers(files_col, monkeypatch):
+    """Test that store_identifiers writes the POSTed identifiers and
+    corresponding file_paths to Mongo.
+    """
+    monkeypatch.setattr(db, "_get_abs_path", lambda path: path)
+
+    metax_response = [
+        {"object": {"identifier": "pid:urn:1", "file_path": "1"}},
+        {"object": {"identifier": "pid:urn:2", "file_path": "2"}},
+        {"object": {"identifier": "pid:urn:3", "file_path": "3"}}
+    ]
+
+    files_col.store_identifiers(metax_response)
+    assert files_col.get_all_ids() == ["pid:urn:1", "pid:urn:2", "pid:urn:3"]
+
+
 def test_quota(user):
     """Test get_quota() and set_quota() functions
     """
