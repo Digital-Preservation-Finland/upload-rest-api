@@ -242,6 +242,10 @@ class FilesCol(object):
 
         self.files = pymongo.MongoClient(host, port).upload.files
 
+    def get_path(self, identifier):
+        """Get file_path based on _id identifier"""
+        return self.files.find_one({"_id": identifier})["file_path"]
+
     def insert(self, files):
         """Insert multiple files into the files collection.
 
