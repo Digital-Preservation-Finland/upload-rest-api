@@ -29,6 +29,9 @@ Requires:       python-pymongo
 Requires:       python-magic
 Requires:       metax-access
 BuildRequires:  python-setuptools
+BuildRequires:  pytest
+BuildRequires:  python-mongobox
+BuildRequires:  python-mock
 
 %description
 REST API for file uploads to passipservice.csc.fi
