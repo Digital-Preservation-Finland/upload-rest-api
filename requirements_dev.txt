@@ -8,6 +8,7 @@ mock
 # Install requirements
 
 flask==0.10.1
+werkzeug==0.9.1
 pymongo
 file-magic
 
