@@ -43,7 +43,10 @@ def create_app():
         fname = secure_filename(fname)
         project = secure_filename(project)
 
-        return safe_join(upload_path, project, fpath), fname
+        joined_path = safe_join(upload_path, project)
+        joined_path = safe_join(joined_path, fpath)
+
+        return joined_path, fname
 
 
     @app.route(
@@ -94,6 +97,7 @@ def create_app():
 
         # Show user the relative path from /var/spool/uploads/
         return_path = fpath[len(app.config.get("UPLOAD_PATH")):]
+        return_path = os.path.normpath(return_path)
 
         return jsonify({
             "file_path": return_path,
@@ -127,6 +131,7 @@ def create_app():
 
         #Show user the relative path from /var/spool/uploads/
         return_path = fpath[len(app.config.get("UPLOAD_PATH")):]
+        return_path = os.path.normpath(return_path)
 
         return jsonify({
             "file_path": return_path,
