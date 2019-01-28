@@ -1,0 +1,13 @@
+stages:
+  - rpm-package
+  - local-test
+
+rpm-package:
+  stage: rpm-package
+  script:
+    - 'rpm-package.sh'
+
+unit-test:
+  stage: local-test
+  script:
+    - 'unit-test.sh'
