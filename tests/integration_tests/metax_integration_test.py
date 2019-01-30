@@ -37,7 +37,7 @@ def _upload_file(client, url, auth, fpath):
     with open(fpath, "rb") as test_file:
         response = client.post(
             url,
-            data=test_file,
+            input_stream=test_file,
             headers=auth
         )
 
