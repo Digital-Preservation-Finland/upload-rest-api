@@ -6,6 +6,7 @@ from shutil import rmtree
 from flask import Flask, abort, safe_join, request, jsonify
 import werkzeug
 from werkzeug.utils import secure_filename
+from werkzeug.exceptions import NotFound
 
 import upload_rest_api.upload as up
 import upload_rest_api.authentication as auth
@@ -298,15 +299,51 @@ def create_app():
         return jsonify(response)
 
 
-    @app.errorhandler(werkzeug.exceptions.HTTPException)
-    def http_error(error):
-        """General response handler for all werkzeug HTTPExceptions
-
-        :returns: HTTP Response
-        """
+    @app.errorhandler(401)
+    def http_error_401(error):
+        """Response handler for status code 401"""
         response = jsonify({"code": error.code, "error": str(error)})
         response.status_code = error.code
+        return response
 
+
+    @app.errorhandler(404)
+    def http_error_404(error):
+        """Response handler for status code 404"""
+        response = jsonify({"code": error.code, "error": str(error)})
+        response.status_code = error.code
+        return response
+
+
+    @app.errorhandler(405)
+    def http_error_405(error):
+        """Response handler for status code 405"""
+        response = jsonify({"code": error.code, "error": str(error)})
+        response.status_code = error.code
+        return response
+
+
+    @app.errorhandler(409)
+    def http_error_409(error):
+        """Response handler for status code 409"""
+        response = jsonify({"code": error.code, "error": str(error)})
+        response.status_code = error.code
+        return response
+
+
+    @app.errorhandler(413)
+    def http_error_413(error):
+        """Response handler for status code 413"""
+        response = jsonify({"code": error.code, "error": str(error)})
+        response.status_code = error.code
+        return response
+
+
+    @app.errorhandler(500)
+    def http_error_500(error):
+        """Response handler for status code 500"""
+        response = jsonify({"code": "500", "error": "Internal server error"})
+        response.status_code = 500
         return response
 
 
