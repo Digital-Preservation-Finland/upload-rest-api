@@ -54,7 +54,7 @@ def clean_metax():
 
 
 def test_gen_metadata_root(app, test_auth):
-    """Test that calling /api/gen_metadata/v1/. produces
+    """Test that calling /metadata/v1/. produces
     correct metadata for all files of the project and
     metadata is removed when the file is removed.
     """
@@ -62,12 +62,12 @@ def test_gen_metadata_root(app, test_auth):
 
     # Upload integration.zip, which is extracted by the server
     _upload_file(
-        test_client, "/api/upload/v1/integration.zip",
+        test_client, "/files/v1/integration.zip",
         test_auth, "tests/data/integration.zip"
     )
 
     # Generate and POST metadata for all the files in test_project
-    response = test_client.post("/api/gen_metadata/v1/.", headers=test_auth)
+    response = test_client.post("/metadata/v1/.", headers=test_auth)
 
     assert response.status_code == 200
     data = json.loads(response.data)
@@ -78,7 +78,7 @@ def test_gen_metadata_root(app, test_auth):
 
     # DELETE single file
     response = test_client.delete(
-        "api/upload/v1/integration/test1/test1.txt",
+        "/files/v1/integration/test1/test1.txt",
         headers=test_auth
     )
 
@@ -103,13 +103,13 @@ def test_gen_metadata_file(app, test_auth):
 
     # Upload integration.zip, which is extracted by the server
     _upload_file(
-        test_client, "/api/upload/v1/integration.zip",
+        test_client, "/files/v1/integration.zip",
         test_auth, "tests/data/integration.zip"
     )
 
     # Generate and POST metadata for file test1.txt in test_project
     response = test_client.post(
-        "/api/gen_metadata/v1/integration/test1/test1.txt",
+        "/metadata/v1/integration/test1/test1.txt",
         headers=test_auth
     )
 
@@ -121,7 +121,7 @@ def test_gen_metadata_file(app, test_auth):
     assert len(data["success"]) == 1
 
     # DELETE whole project
-    response = test_client.delete("api/upload/v1", headers=test_auth)
+    response = test_client.delete("/files/v1", headers=test_auth)
 
     assert response.status_code == 200
     data = json.loads(response.data)
@@ -142,12 +142,12 @@ def test_disk_cleanup(app, test_auth):
 
     # Upload integration.zip, which is extracted by the server
     _upload_file(
-        test_client, "/api/upload/v1/integration.zip",
+        test_client, "/files/v1/integration.zip",
         test_auth, "tests/data/integration.zip"
     )
 
     # Generate and POST metadata for all the files in test_project
-    test_client.post("/api/gen_metadata/v1/.", headers=test_auth)
+    test_client.post("/metadata/v1/.", headers=test_auth)
 
     # Cleanup all files
     project_dir = os.path.join(upload_path, "test_project/")
@@ -196,12 +196,12 @@ def test_mongo_cleanup(app, test_auth, monkeypatch):
 
     # Upload integration.zip, which is extracted by the server
     _upload_file(
-        test_client, "/api/upload/v1/integration.zip",
+        test_client, "/files/v1/integration.zip",
         test_auth, "tests/data/integration.zip"
     )
 
     # Generate and POST metadata for all the files in test_project
-    test_client.post("/api/gen_metadata/v1/.", headers=test_auth)
+    test_client.post("/metadata/v1/.", headers=test_auth)
 
     # Check that generated identifiers were added to Mongo
     assert len(files_col.get_all_ids())
