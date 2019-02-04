@@ -13,7 +13,13 @@ install:
 
 	# Use Python setuptools
 	python ./setup.py install -O1 --prefix="${PREFIX}" --root="${DESTDIR}" --record=INSTALLED_FILES
-	cat INSTALLED_FILES | sed 's/^/\//g' >> INSTALLED_FILES
+
+	# Remove requires.txt from egg-info because it contains PEP 508 URL requirements
+	# that break siptools-research on systems that use old version of
+	# python setuptools (older than v.20.2)
+	rm ${DESTDIR}${PREFIX}/lib/python2.7/site-packages/*.egg-info/requires.txt
+	sed -i '/\.egg-info\/requires.txt$$/d' INSTALLED_FILES
+
 
 test:
 	py.test  tests/unit_tests -svvvv --junitprefix=upload_rest_api --junitxml=junit.xml \
