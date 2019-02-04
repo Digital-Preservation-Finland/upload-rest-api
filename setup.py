@@ -19,7 +19,12 @@ def main():
         dependency_links=[
             'git+https://gitlab.csc.fi/dpres/metax-access.git'
             '@develop#egg=metax-access-0.0'
-        ]
+        ],
+        entry_points={
+            "console_scripts": [
+                "filestorage-cleanup = upload_rest_api.cleanup:main"
+            ]
+        }
     )
 
 if __name__ == '__main__':

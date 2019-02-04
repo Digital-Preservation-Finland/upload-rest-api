@@ -135,8 +135,18 @@ def test_gen_metadata_file(app, test_auth):
     assert len(files_dict) == 0
 
 
-def test_disk_cleanup(app, test_auth):
+def test_disk_cleanup(app, test_auth, monkeypatch):
     """Test that cleanup script removes file metadata from Metax"""
+
+    # Mock configuration parsing
+    def _mock_conf(fpath):
+        conf = run_path(fpath)
+        conf["UPLOAD_PATH"] = app.config.get("UPLOAD_PATH")
+        conf["CLEANUP_TIMELIM"] = -1
+        return conf
+
+    monkeypatch.setattr(clean, "parse_conf", _mock_conf)
+
     test_client = app.test_client()
     upload_path = app.config.get("UPLOAD_PATH")
 
@@ -150,8 +160,7 @@ def test_disk_cleanup(app, test_auth):
     test_client.post("/metadata/v1/.", headers=test_auth)
 
     # Cleanup all files
-    project_dir = os.path.join(upload_path, "test_project/")
-    clean.clean_disk("test_project", project_dir, upload_path, -1)
+    clean.clean_disk()
 
     # Test that no test_project files are found in Metax
     metax_client = _get_metax_client()
@@ -178,6 +187,7 @@ def test_mongo_cleanup(app, test_auth, monkeypatch):
     def _mock_conf(fpath):
         conf = run_path(fpath)
         conf["UPLOAD_PATH"] = app.config.get("UPLOAD_PATH")
+        conf["CLEANUP_TIMELIM"] = -1
         return conf
 
     monkeypatch.setattr(clean, "parse_conf", _mock_conf)

@@ -5,6 +5,7 @@ periodically using cron.
 import os
 import time
 from runpy import run_path
+import argparse
 
 import upload_rest_api.gen_metadata as md
 import upload_rest_api.database as db
@@ -80,10 +81,10 @@ def _clean_file(_file, upload_path, fpaths, file_dict=None, metax_client=None):
         os.remove(_file)
 
 
-def clean_disk(project, fpath, upload_path, time_lim, metax=True):
-    """Remove all files that haven't been accessed within time_lim seconds.
-    If the removed file has a Metax file entry and metax_client is provided,
-    remove the Metax file entry as well.
+def clean_project(project, fpath, metax=True):
+    """Remove all files of a given project that haven't been accessed
+    within time_lim seconds. If the removed file has a Metax file entry and
+    metax_client is provided, remove the Metax file entry as well.
 
     :param project: Project identifier used to search files from Metax
     :param fpath: Path to the dir to cleanup
@@ -93,6 +94,9 @@ def clean_disk(project, fpath, upload_path, time_lim, metax=True):
     :return: None
     """
     conf = parse_conf("/etc/upload_rest_api.conf")
+    time_lim = conf["CLEANUP_TIMELIM"]
+    upload_path = conf["UPLOAD_PATH"]
+
     current_time = time.time()
     metax_client = None
     file_dict = None
@@ -124,6 +128,17 @@ def clean_disk(project, fpath, upload_path, time_lim, metax=True):
         metax_client.delete_metadata(project, fpaths)
 
 
+def clean_disk(metax=True):
+    """Clean all project in upload_path"""
+    conf = parse_conf("/etc/upload_rest_api.conf")
+    upload_path = conf["UPLOAD_PATH"]
+
+    projects = os.listdir(upload_path)
+    for project in projects:
+        fpath = os.path.join(upload_path, project)
+        clean_project(project, fpath, metax)
+
+
 def clean_mongo():
     """Clean file identifiers that do not exist in Metax any more from Mongo
 
@@ -150,3 +165,29 @@ def clean_mongo():
 
     # Remove identifiers from mongo
     return files.delete(id_list)
+
+
+def _parse_arguments(arguments):
+    """Parse command line arguments"""
+    parser = argparse.ArgumentParser(
+        description="Clean files from disk or identfiers from mongo."        
+    )
+    parser.add_argument("location", type=str, help="mongo or disk")
+    
+    return parser.parse_args(arguments)
+
+
+def main(arguments=None):
+    """Parse command line arguments and clean disk or mongo"""
+    args = _parse_arguments(arguments)
+
+    if args.location == "disk":
+        clean_disk()
+    elif args.location == "mongo":
+        clean_mongo()
+    else:
+        raise Exception("Unsupported location: %s" % args.location)
+
+
+if __name__ == "__main__":
+    main()
