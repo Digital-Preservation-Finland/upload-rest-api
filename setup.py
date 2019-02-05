@@ -15,10 +15,8 @@ def main():
             "pymongo",
             "file-magic",
             "metax_access",
-        ],
-        dependency_links=[
-            'git+https://gitlab.csc.fi/dpres/metax-access.git'
-            '@develop#egg=metax-access-0.0'
+            "metax_access@git+https://gitlab.csc.fi/dpres/metax-access.git"
+            "@develop"
         ],
         entry_points={
             "console_scripts": [
