@@ -298,3 +298,32 @@ class FilesCol(object):
             })
 
         self.insert(documents)
+
+
+def init_db():
+    """Initialize database by creating the admin user."""
+    user = UsersDoc("admin")
+    if user.exists():
+        print "Database already initialized"
+        return
+
+    # Create admin user
+    password = user.create("admin_project")
+
+    # Read conf file
+    with open("/etc/upload_rest_api.conf", "r") as conf_file:
+        lines = conf_file.readlines()
+
+    # Write new conf file
+    with open("/etc/upload_rest_api.conf", "w") as conf_file:
+        for line in lines:
+            if not line.startswith('admin_password = "'):
+                conf_file.write(line)
+
+        conf_file.write('ADMIN_PASSWORD = "%s"' % password)
+
+    print "Database initialized"
+
+
+if __name__ == "__main__":
+    init_db()

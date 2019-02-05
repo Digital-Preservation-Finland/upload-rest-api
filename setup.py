@@ -22,7 +22,8 @@ def main():
         ],
         entry_points={
             "console_scripts": [
-                "filestorage-cleanup = upload_rest_api.cleanup:main"
+                "filestorage-cleanup = upload_rest_api.cleanup:main",
+                "filestorage-init = upload_rest_api.database:init_db"
             ]
         }
     )

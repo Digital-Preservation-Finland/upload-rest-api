@@ -170,10 +170,10 @@ def clean_mongo():
 def _parse_arguments(arguments):
     """Parse command line arguments"""
     parser = argparse.ArgumentParser(
-        description="Clean files from disk or identfiers from mongo."        
+        description="Clean files from disk or identfiers from mongo."
     )
     parser.add_argument("location", type=str, help="mongo or disk")
-    
+
     return parser.parse_args(arguments)
 
 
