@@ -91,7 +91,7 @@ def clean_project(project, fpath, metax=True):
     :param time_lim: Time limit in seconds
     :param metax: Boolean. if True metadata is removed also from Metax
 
-    :return: None
+    :returns: Number of deleted files
     """
     conf = parse_conf("/etc/upload_rest_api.conf")
     time_lim = conf["CLEANUP_TIMELIM"]
@@ -101,6 +101,7 @@ def clean_project(project, fpath, metax=True):
     metax_client = None
     file_dict = None
     fpaths = []
+    deleted_count = 0
 
     if metax:
         metax_client = md.MetaxClient(
@@ -119,6 +120,7 @@ def clean_project(project, fpath, metax=True):
                     _file, upload_path, fpaths,
                     file_dict, metax_client
                 )
+                deleted_count += 1
 
     # Remove all empty dirs
     _clean_empty_dirs(fpath)
@@ -127,16 +129,24 @@ def clean_project(project, fpath, metax=True):
     if metax:
         metax_client.delete_metadata(project, fpaths)
 
+    return deleted_count
+
 
 def clean_disk(metax=True):
-    """Clean all project in upload_path"""
+    """Clean all project in upload_path
+
+    :returns: Count of deleted files
+    """
     conf = parse_conf("/etc/upload_rest_api.conf")
     upload_path = conf["UPLOAD_PATH"]
+    deleted_count = 0
 
     projects = os.listdir(upload_path)
     for project in projects:
         fpath = os.path.join(upload_path, project)
-        clean_project(project, fpath, metax)
+        deleted_count += clean_project(project, fpath, metax)
+
+    return deleted_count
 
 
 def clean_mongo():
@@ -182,11 +192,13 @@ def main(arguments=None):
     args = _parse_arguments(arguments)
 
     if args.location == "disk":
-        clean_disk()
+        deleted_count = clean_disk()
     elif args.location == "mongo":
-        clean_mongo()
+        deleted_count = clean_mongo()
     else:
         raise Exception("Unsupported location: %s" % args.location)
+
+    print "Cleaned %d files" % deleted_count
 
 
 if __name__ == "__main__":
