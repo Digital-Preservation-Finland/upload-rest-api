@@ -63,7 +63,8 @@ def _get_projects():
 
 def _clean_file(_file, upload_path, fpaths, file_dict=None, metax_client=None):
     """Remove file fpath from disk and add it to a list of files to be
-    removed from if metax_client is provided
+    removed from if metax_client is provided and file is not associated
+    with any datasets.
 
     :param fpath: Path to where the file is stored in disk
     :param upload_path: Base path used for uploading the files

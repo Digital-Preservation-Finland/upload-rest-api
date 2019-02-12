@@ -53,11 +53,20 @@ def clean_metax():
     metax_client.client.delete_files(file_id_list)
 
 
-def test_gen_metadata_root(app, test_auth):
+@pytest.mark.parametrize("dataset", [True, False])
+def test_gen_metadata_root(app, dataset, test_auth, monkeypatch):
     """Test that calling /metadata/v1/. produces
     correct metadata for all files of the project and
     metadata is removed when the file is removed.
     """
+    if dataset:
+        # Mock file_has_dataset to always return True
+        monkeypatch.setattr(
+            MetaxClient,
+            "file_has_dataset",
+            lambda a, b, c: True
+        )
+
     test_client = app.test_client()
 
     # Upload integration.zip, which is extracted by the server
@@ -85,20 +94,36 @@ def test_gen_metadata_root(app, test_auth):
     assert response.status_code == 200
     data = json.loads(response.data)
 
-    assert data["metax"]["deleted_files_count"] == 1
+    if dataset:
+        assert data["metax"].startswith("Metadata is part of a dataset")
+    else:
+        assert data["metax"]["deleted_files_count"] == 1
 
     # Test that test1.txt was removed from Metax but test2.txt is still there
     metax_client = _get_metax_client()
     files_dict = metax_client.get_files_dict("test_project")
 
-    assert len(files_dict) == 1
+    if dataset:
+        assert len(files_dict) == 2
+    else:
+        assert len(files_dict) == 1
+
     assert "/test_project/integration/test2/test2.txt" in files_dict
 
 
-def test_gen_metadata_file(app, test_auth):
+@pytest.mark.parametrize("dataset", [True, False])
+def test_gen_metadata_file(app, dataset, test_auth, monkeypatch):
     """Test that generating metadata for a single file works and the metadata
     is removed when project is deleted.
     """
+    if dataset:
+        # Mock file_has_dataset to always return True
+        monkeypatch.setattr(
+            MetaxClient,
+            "file_has_dataset",
+            lambda a, b, c: True
+        )
+
     test_client = app.test_client()
 
     # Upload integration.zip, which is extracted by the server
@@ -126,17 +151,26 @@ def test_gen_metadata_file(app, test_auth):
     assert response.status_code == 200
     data = json.loads(response.data)
 
-    assert data["metax"]["deleted_files_count"] == 1
+    if dataset:
+        assert data["metax"]["detail"] == "Received empty list of identifiers"
+    else:
+        assert data["metax"]["deleted_files_count"] == 1
 
     # Test that no test_project files are found in Metax
     metax_client = _get_metax_client()
     files_dict = metax_client.get_files_dict("test_project")
 
-    assert len(files_dict) == 0
+    if dataset:
+        assert len(files_dict) == 1
+    else:
+        assert len(files_dict) == 0
 
 
-def test_disk_cleanup(app, test_auth, monkeypatch):
-    """Test that cleanup script removes file metadata from Metax"""
+@pytest.mark.parametrize("dataset", [True, False])
+def test_disk_cleanup(app, dataset, test_auth, monkeypatch):
+    """Test that cleanup script removes file metadata from Metax if it is
+    not associated with any dataset.
+    """
 
     # Mock configuration parsing
     def _mock_conf(fpath):
@@ -146,6 +180,14 @@ def test_disk_cleanup(app, test_auth, monkeypatch):
         return conf
 
     monkeypatch.setattr(clean, "parse_conf", _mock_conf)
+
+    if dataset:
+        # Mock file_has_dataset to always return True
+        monkeypatch.setattr(
+            MetaxClient,
+            "file_has_dataset",
+            lambda a, b, c: True
+        )
 
     test_client = app.test_client()
     upload_path = app.config.get("UPLOAD_PATH")
@@ -166,7 +208,10 @@ def test_disk_cleanup(app, test_auth, monkeypatch):
     metax_client = _get_metax_client()
     files_dict = metax_client.get_files_dict("test_project")
 
-    assert len(files_dict) == 0
+    if dataset:
+        assert len(files_dict) == 2
+    else:
+        assert len(files_dict) == 0
 
 
 def test_mongo_cleanup(app, test_auth, monkeypatch):
