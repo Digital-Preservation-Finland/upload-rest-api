@@ -114,8 +114,9 @@ Metadata can be generated for all files with command::
     curl https://passipservice.csc.fi/filestorage/api/metadata/v1/* -X POST -u username:password | jq
 
 Server returns `failed` and `success` lists. Success list contains all the
-successfully created file metadata failed list all the metadata that couldn't
-be posted to Metax and the error codes.
+generated metadata that was successfully posted to Metax. Failed list
+contains all the metadata that couldn't be posted to Metax and the
+corresponding error codes.
 
 DELETE files
 ~~~~~~~~~~~~
