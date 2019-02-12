@@ -90,7 +90,7 @@ request to :code:`/filestorage/api/files/v1`::
 
     curl https://passipservice.csc.fi/filestorage/api/files/v1 -u username:password | jq
 
-Notice that now the project is prepended to the path. To get more info request
+The project is prepended to the path. To get more info request
 an individual file with e.g.
 
 ::
@@ -108,7 +108,40 @@ the files in Qvain. This can be done be sending a POST request to
 :code:`/filestorage/api/metadata/v1/path/to/file/or/dir`. If the path
 resolves to a directory, all metadata is generated and posted to Metax
 recursively for all the files in that directory and all the subdirectories.
-If the path resolves to a file, metadata in generated for only that file.
+If the path resolves to a file, metadata is generated for only that file.
 Metadata can be generated for all files with command::
 
     curl https://passipservice.csc.fi/filestorage/api/metadata/v1/* -X POST -u username:password | jq
+
+Server returns `failed` and `success` lists. Success list contains all the
+successfully created file metadata failed list all the metadata that couldn't
+be posted to Metax and the error codes.
+
+DELETE files
+~~~~~~~~~~~~
+
+Files that were uploaded to sipservice can also be deleted. This deletes
+the files from passipservice and file metadata from Metax, if it is not
+associated with any dataset. Delete can be requested for the whole project
+or a single file similar to the GET shown earlier. Following command deletes
+all the files::
+
+    curl https://passipservice.csc.fi/filestorage/api/files/v1 -X DELETE -u username:password | jq
+
+Files can be deleted from passipservice after the dataset has been accepted
+for digital preservation. All the files will automatically be cleaned after
+30 days based on the timestamp returned by
+:code:`GET /filestorage/api/v1/path/to/file`.
+
+Summary
+~~~~~~~
+
+Basic workflow for uploading the files and generating the metadata is as
+follows:
+
+    - Make a zip archive of the files: :code:`zip -r files.zip directory/`
+    - Send the zip archive to passipservice:
+      :code:`/filestorage/api/files/v1 -X POST -T files.zip`
+    - Make sure the checksums match: :code:`md5sum files.zip`
+    - Generate file metadata for all the files:
+      :code:`/filestorage/api/metadata/v1/* -X POST`
