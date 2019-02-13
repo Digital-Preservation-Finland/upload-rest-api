@@ -19,28 +19,28 @@ Start local development/test server::
 
 POST file::
 
-    curl -X POST -T path/to/file.txt -u user:passwd localhost:5000/api/upload/v1/path/on/server/file.txt
+    curl -X POST -T path/to/file.txt -u user:passwd localhost:5000/files/v1/path/on/server/file.txt
 
 GET file::
 
-    curl -u user:passwd localhost:5000/api/upload/v1/path/on/server/file.txt
+    curl -u user:passwd localhost:5000/files/v1/path/on/server/file.txt
 
 DELETE file::
 
-    curl -X DELETE -u user:passwd localhost:5000/api/upload/v1/path/on/server/file.txt
+    curl -X DELETE -u user:passwd localhost:5000/files/v1/path/on/server/file.txt
 
 admin user can manage user database through the db API::
 
-    curl -X GET/POST/DELETE -u admin:passwd localhost:5000/api/db/v1/user
+    curl -X GET/POST/DELETE -u admin:passwd localhost:5000/db/v1/user
 
 POST file metadata to Metax::
 
-    curl -X POST -u user:passwd localhost:5000/api/gen_metadata/v1/path/to/file/or/dir
+    curl -X POST -u user:passwd localhost:5000/metadata/v1/path/to/file/or/dir
 
 If the given path resolves to a directory, all files inside the directory and its
 subdirectories are posted to Metax. POST metadata of all uploaded files to Metax::
 
-    curl -X POST -u user:passwd localhost:5000/api/gen_metadata/v1/.
+    curl -X POST -u user:passwd localhost:5000/metadata/v1/*
 
 Copyright
 ---------
