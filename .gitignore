@@ -1,6 +1,7 @@
 .venv/
 venv/
 test/
+rpmbuild/
 *.pyc
 __pycache__
 *.swp
