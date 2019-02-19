@@ -351,7 +351,7 @@ def test_create_user(app, admin_auth, database_fx):
     response = test_client.post(
         "/db/v1/test/test_project", headers=admin_auth
     )
-    assert response.status_code == 405
+    assert response.status_code == 409
 
     # Create user that does not exist
     response = test_client.post(

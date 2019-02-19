@@ -4,32 +4,16 @@ querying and deleting files from the server.
 import os
 from shutil import rmtree
 
-from flask import Blueprint, abort, safe_join, request, jsonify, current_app
+from flask import Blueprint, safe_join, request, jsonify, current_app
 from werkzeug.utils import secure_filename
 
 import upload_rest_api.upload as up
 import upload_rest_api.database as db
 import upload_rest_api.gen_metadata as md
+import upload_rest_api.utils as utils
 
 
 FILES_API_V1 = Blueprint("files_v1", __name__, url_prefix="/files/v1")
-
-
-def _get_upload_path(fpath):
-    """Get upload path for current request"""
-    username = request.authorization.username
-    user = db.UsersDoc(username)
-    project = user.get_project()
-
-    upload_path = current_app.config.get("UPLOAD_PATH")
-    fpath, fname = os.path.split(fpath)
-    fname = secure_filename(fname)
-    project = secure_filename(project)
-
-    joined_path = safe_join(upload_path, project)
-    joined_path = safe_join(joined_path, fpath)
-
-    return joined_path, fname
 
 
 @FILES_API_V1.route("/<path:fpath>", methods=["POST"])
@@ -43,18 +27,27 @@ def upload_file(fpath):
     db.update_used_quota()
 
     if request.content_length > current_app.config.get("MAX_CONTENT_LENGTH"):
-        abort(413, "Max single file size exceeded")
+        return utils.make_response(413, "Max single file size exceeded")
     elif up.request_exceeds_quota():
-        abort(413, "Quota exceeded")
+        return utils.make_response(413, "Quota exceeded")
 
-    fpath, fname = _get_upload_path(fpath)
+    fpath, fname = utils.get_upload_path(fpath)
 
     # Create directory if it does not exist
     if not os.path.exists(fpath):
         os.makedirs(fpath, 0o700)
 
     fpath = safe_join(fpath, fname)
-    response = up.save_file(fpath, current_app.config.get("UPLOAD_PATH"))
+
+    try:
+        response = up.save_file(fpath, current_app.config.get("UPLOAD_PATH"))
+    except up.OverwriteError as error:
+        return utils.make_response(409, str(error))
+    except up.SymlinkError as error:
+        return utils.make_response(419, str(error))
+    except up.QuotaError as error:
+        return utils.make_response(413, str(error))
+
     db.update_used_quota()
 
     return response
@@ -66,11 +59,11 @@ def get_file(fpath):
 
     :returns: HTTP Response
     """
-    fpath, fname = _get_upload_path(fpath)
+    fpath, fname = utils.get_upload_path(fpath)
     fpath = safe_join(fpath, fname)
 
     if not os.path.isfile(fpath):
-        abort(404, "File not found")
+        return utils.make_response(404, "File not found")
 
     # Show user the relative path from /var/spool/uploads/
     return_path = fpath[len(current_app.config.get("UPLOAD_PATH")):]
@@ -91,14 +84,14 @@ def delete_file(fpath):
     """
     username = request.authorization.username
     project = db.UsersDoc(username).get_project()
-    fpath, fname = _get_upload_path(fpath)
+    fpath, fname = utils.get_upload_path(fpath)
     fpath = safe_join(fpath, fname)
 
     if os.path.isfile(fpath):
         os.remove(fpath)
         db.update_used_quota()
     else:
-        abort(404, "File not found")
+        return utils.make_response(404, "File not found")
 
     # Remove metadata from Metax
     metax_response = md.MetaxClient().delete_file_metadata(project, fpath)
@@ -126,7 +119,7 @@ def get_files():
     fpath = safe_join(upload_path, secure_filename(project))
 
     if not os.path.exists(fpath):
-        abort(404, "No files found")
+        return utils.make_response(404, "No files found")
 
     file_dict = {}
     for dirpath, _, files in os.walk(fpath):
@@ -150,7 +143,7 @@ def delete_files():
     fpath = safe_join(upload_path, secure_filename(project))
 
     if not os.path.exists(fpath):
-        abort(404, "No files found")
+        return utils.make_response(404, "No files found")
 
     # Remove metadata from Metax
     metax_response = md.MetaxClient().delete_all_metadata(project, fpath)

@@ -1,6 +1,6 @@
 """REST api for uploading files into passipservice
 """
-from flask import Flask, jsonify
+from flask import Flask
 
 import upload_rest_api.authentication as auth
 

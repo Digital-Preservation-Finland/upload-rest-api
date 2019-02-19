@@ -4,6 +4,7 @@ from flask import Blueprint, jsonify
 
 import upload_rest_api.authentication as auth
 import upload_rest_api.database as db
+import upload_rest_api.utils as utils
 
 
 DB_API_V1 = Blueprint("db_v1", __name__, url_prefix="/db/v1")
@@ -16,10 +17,13 @@ def get_user(username):
     :returns: HTTP Response
     """
     auth.admin_only()
-
     user = db.UsersDoc(username)
-    response = jsonify(user.get_utf8())
-    response.status_code = 200
+
+    try:
+        response = jsonify(user.get_utf8())
+        response.status_code = 200
+    except db.UserNotFoundError as error:
+        return utils.make_response(404, str(error))
 
     return response
 
@@ -31,9 +35,13 @@ def create_user(username, project):
     :returns: HTTP Response
     """
     auth.admin_only()
-
     user = db.UsersDoc(username)
-    passwd = user.create(project)
+
+    try:
+        passwd = user.create(project)
+    except db.UserExistsError as error:
+        return utils.make_response(409, str(error))
+
     response = jsonify(
         {
             "username": username,
@@ -53,7 +61,11 @@ def delete_user(username):
     :returns: HTTP Response
     """
     auth.admin_only()
-    db.UsersDoc(username).delete()
+
+    try:
+        db.UsersDoc(username).delete()
+    except db.UserNotFoundError as error:
+        return utils.make_response(404, str(error))
 
     response = jsonify({"username": username, "status": "deleted"})
     response.status_code = 200

@@ -2,7 +2,7 @@
 import os
 import zipfile
 
-from flask import jsonify, abort, request
+from flask import jsonify, request
 
 import upload_rest_api.database as db
 import upload_rest_api.gen_metadata as gen_metadata
@@ -57,6 +57,21 @@ def _save_stream(fpath, chunk_size=1024*1024):
             f_out.write(chunk)
 
 
+class OverwriteError(Exception):
+    """Exception for trying to overwrite a existing file"""
+    pass
+
+
+class SymlinkError(Exception):
+    """Exception for trying to create a symlink"""
+    pass
+
+
+class QuotaError(Exception):
+    """Exception for exceeding to quota"""
+    pass
+
+
 def save_file(fpath, upload_path):
     """Save the posted file on disk at fpath by reading
     the upload stream in 1MB chunks. Extract zip files
@@ -73,12 +88,12 @@ def save_file(fpath, upload_path):
         _save_stream(fpath)
         status = "created"
     else:
-        abort(409, "File already exists")
+        raise OverwriteError("File already exists")
 
     # Do not accept symlinks
     if os.path.islink(fpath):
         os.unlink(fpath)
-        abort(415, "Symlinks are not supported")
+        raise SymlinkError("Symlinks are not supported")
 
     md5 = gen_metadata.md5_digest(fpath)
 
@@ -89,9 +104,9 @@ def save_file(fpath, upload_path):
 
             # Check the uncompressed size
             if _zipfile_exceeds_quota(zipf, username):
-                # Remove zip archive and abort
+                # Remove zip archive and raise an exception
                 os.remove("%s/%s" % (fpath, fname))
-                abort(413, "Quota exceeded")
+                raise QuotaError("Quota exceeded")
 
             zipf.extractall(fpath)
 

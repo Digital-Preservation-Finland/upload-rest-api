@@ -8,7 +8,7 @@ from string import ascii_letters, digits
 from bson.binary import Binary
 
 import pymongo
-from flask import abort, current_app, request, has_request_context, safe_join
+from flask import current_app, request, has_request_context, safe_join
 from werkzeug.utils import secure_filename
 
 
@@ -75,6 +75,16 @@ def update_used_quota():
     user.set_used_quota(size)
 
 
+class UserExistsError(Exception):
+    """Exception for trying to create a user, which already exists"""
+    pass
+
+
+class UserNotFoundError(Exception):
+    """Exception for querying a user, which does not exist"""
+    pass
+
+
 class UsersDoc(object):
     """Class for managing users in the database"""
 
@@ -118,9 +128,9 @@ class UsersDoc(object):
         :param password: Password of the created user
         :returns: The password
         """
-        # Abort if user already exists
+        # Raise exception if user already exists
         if self.exists():
-            abort(405)
+            raise UserExistsError("User '%s' already exists" % self.username)
 
         if password is not None:
             passwd = password
@@ -146,27 +156,27 @@ class UsersDoc(object):
     def delete(self):
         """Deletes existing user
         """
-        # Abort if user does not exist
+        # Raise exception if user does not exist
         if not self.exists():
-            abort(404)
+            raise UserNotFoundError("User '%s' not found" % self.username)
 
         self.users.delete_one({"_id" : self.username})
 
     def get(self):
         """Returns existing user
         """
-        # Abort if user does not exist
+        # Raise exception if user does not exist
         if not self.exists():
-            abort(404)
+            raise UserNotFoundError("User '%s' not found" % self.username)
 
         return self.users.find_one({"_id" : self.username})
 
     def get_utf8(self):
         """Returns existing user with digest in utf8 format
         """
-        # Abort if user does not exist
+        # Raise exception if user does not exist
         if not self.exists():
-            abort(404)
+            raise UserNotFoundError("User '%s' not found" % self.username)
 
         user = self.users.find_one({"_id": self.username})
         user["digest"] = binascii.hexlify(user["digest"])
@@ -175,25 +185,25 @@ class UsersDoc(object):
 
     def get_quota(self):
         """Returns the overall quota of the user"""
-        # Abort if user does not exist
+        # Raise exception if user does not exist
         if not self.exists():
-            abort(404)
+            raise UserNotFoundError("User '%s' not found" % self.username)
 
         return self.users.find_one({"_id" : self.username})["quota"]
 
     def get_used_quota(self):
         """Returns the used quota of the user"""
-        # Abort if user does not exist
+        # Raise exception if user does not exist
         if not self.exists():
-            abort(404)
+            raise UserNotFoundError("User '%s' not found" % self.username)
 
         return self.users.find_one({"_id" : self.username})["used_quota"]
 
     def set_quota(self, quota):
         """Set the quota of the user"""
-        # Abort if user does not exist
+        # Raise exception if user does not exist
         if not self.exists():
-            abort(404)
+            raise UserNotFoundError("User '%s' not found" % self.username)
 
         self.users.update_one(
             {"_id" : self.username},
@@ -202,9 +212,9 @@ class UsersDoc(object):
 
     def set_used_quota(self, used_quota):
         """Set the used quota of the user"""
-        # Abort if user does not exist
+        # Raise exception if user does not exist
         if not self.exists():
-            abort(404)
+            raise UserNotFoundError("User '%s' not found" % self.username)
 
         self.users.update_one(
             {"_id" : self.username},
@@ -213,9 +223,9 @@ class UsersDoc(object):
 
     def get_project(self):
         """Get user project"""
-        # Abort if user does not exist
+        # Raise exception if user does not exist
         if not self.exists():
-            abort(404)
+            raise UserNotFoundError("User '%s' not found" % self.username)
 
         return self.users.find_one({"_id" : self.username})["project"]
 

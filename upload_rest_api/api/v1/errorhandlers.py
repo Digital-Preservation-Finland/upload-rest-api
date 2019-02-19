@@ -1,16 +1,12 @@
 """API v1 error handlers"""
-from flask import jsonify
+import upload_rest_api.utils as utils
 
 
 def http_error_generic(error):
     """Generic HTTP error handler"""
-    response = jsonify({"code": error.code, "error": str(error)})
-    response.status_code = error.code
-    return response
+    return utils.make_response(error.code, str(error))
 
 
 def http_error_500(error):
     """Error handler for status code 500"""
-    response = jsonify({"code": 500, "error": "Internal server error"})
-    response.status_code = 500
-    return response
+    return utils.make_response(500, "Internal server error")

@@ -2,31 +2,14 @@
 """
 import os
 
-from flask import Blueprint, current_app, abort, safe_join, request, jsonify
-from werkzeug.utils import secure_filename
+from flask import Blueprint, safe_join, jsonify
 
 import upload_rest_api.database as db
 import upload_rest_api.gen_metadata as md
+import upload_rest_api.utils as utils
 
 
 METADATA_API_V1 = Blueprint("metadata_v1", __name__, url_prefix="/metadata/v1")
-
-
-def _get_upload_path(fpath):
-    """Get upload path for current request"""
-    username = request.authorization.username
-    user = db.UsersDoc(username)
-    project = user.get_project()
-
-    upload_path = current_app.config.get("UPLOAD_PATH")
-    fpath, fname = os.path.split(fpath)
-    fname = secure_filename(fname)
-    project = secure_filename(project)
-
-    joined_path = safe_join(upload_path, project)
-    joined_path = safe_join(joined_path, fpath)
-
-    return joined_path, fname
 
 
 @METADATA_API_V1.route("/<path:fpath>", methods=["POST"])
@@ -35,7 +18,7 @@ def post_metadata(fpath):
 
     :returns: HTTP Response
     """
-    fpath, fname = _get_upload_path(fpath)
+    fpath, fname = utils.get_upload_path(fpath)
     fpath = safe_join(fpath, fname)
 
     if os.path.isdir(fpath):
@@ -49,7 +32,7 @@ def post_metadata(fpath):
         fpaths = [fpath]
 
     else:
-        abort(404, "File not found")
+        return utils.make_response(404, "File not found")
 
     metax_client = md.MetaxClient()
     response = metax_client.post_metadata(fpaths)
