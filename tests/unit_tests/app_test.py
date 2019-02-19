@@ -4,7 +4,7 @@ import os
 import shutil
 import json
 
-from mock import patch
+import upload_rest_api.gen_metadata as md
 from tests.mockup.metax import MockMetax
 
 
@@ -115,9 +115,11 @@ def test_user_quota(app, test_auth, database_fx):
     assert not os.path.isdir(os.path.join(upload_path, "test_project"))
 
 
-@patch("upload_rest_api.app.md.MetaxClient", return_value=MockMetax())
-def test_used_quota(mock_metax, app, test_auth, database_fx):
+def test_used_quota(app, test_auth, database_fx, monkeypatch):
     """Test that used quota is calculated correctly"""
+    # Mock Metax
+    monkeypatch.setattr(md, "MetaxClient", lambda: MockMetax())
+
     test_client = app.test_client()
     users = database_fx.upload.users
 
@@ -219,9 +221,10 @@ def test_get_file(app, admin_auth, test_auth, test2_auth):
     assert response.status_code == 404
 
 
-@patch("upload_rest_api.app.md.MetaxClient", return_value=MockMetax())
-def test_delete_file(mock_metax, app, test_auth):
+def test_delete_file(app, test_auth, monkeypatch):
     """Test DELETE for single file"""
+    # Mock Metax
+    monkeypatch.setattr(md, "MetaxClient", lambda: MockMetax())
 
     test_client = app.test_client()
     upload_path = app.config.get("UPLOAD_PATH")
@@ -276,9 +279,10 @@ def test_get_files(app, test_auth):
     assert data["/test_project/test"] == ["test2.txt"]
 
 
-@patch("upload_rest_api.app.md.MetaxClient", return_value=MockMetax())
-def test_delete_files(mock_metax, app, test_auth):
+def test_delete_files(app, test_auth, monkeypatch):
     """Test DELETE for the whole project"""
+    # Mock Metax
+    monkeypatch.setattr(md, "MetaxClient", lambda: MockMetax())
 
     test_client = app.test_client()
     upload_path = app.config.get("UPLOAD_PATH")
