@@ -23,6 +23,7 @@ def create_app():
     # Authenticate all requests
     app.before_request(auth.authenticate)
 
+    # Register all blueprints
     from upload_rest_api.api.v1.files import FILES_API_V1
     from upload_rest_api.api.v1.db import DB_API_V1
     from upload_rest_api.api.v1.metadata import METADATA_API_V1
@@ -30,53 +31,13 @@ def create_app():
     app.register_blueprint(DB_API_V1)
     app.register_blueprint(METADATA_API_V1)
 
-    @app.errorhandler(401)
-    def http_error_401(error):
-        """Response handler for status code 401"""
-        response = jsonify({"code": error.code, "error": str(error)})
-        response.status_code = error.code
-        return response
+    # Register error handlers
+    from upload_rest_api.api.v1.errorhandlers import http_error_generic
+    for status_code in [401, 404, 405, 409, 413]:
+        app.register_error_handler(status_code, http_error_generic)
 
-
-    @app.errorhandler(404)
-    def http_error_404(error):
-        """Response handler for status code 404"""
-        response = jsonify({"code": error.code, "error": str(error)})
-        response.status_code = error.code
-        return response
-
-
-    @app.errorhandler(405)
-    def http_error_405(error):
-        """Response handler for status code 405"""
-        response = jsonify({"code": error.code, "error": str(error)})
-        response.status_code = error.code
-        return response
-
-
-    @app.errorhandler(409)
-    def http_error_409(error):
-        """Response handler for status code 409"""
-        response = jsonify({"code": error.code, "error": str(error)})
-        response.status_code = error.code
-        return response
-
-
-    @app.errorhandler(413)
-    def http_error_413(error):
-        """Response handler for status code 413"""
-        response = jsonify({"code": error.code, "error": str(error)})
-        response.status_code = error.code
-        return response
-
-
-    @app.errorhandler(500)
-    def http_error_500(error):
-        """Response handler for status code 500"""
-        response = jsonify({"code": "500", "error": "Internal server error"})
-        response.status_code = 500
-        return response
-
+    from upload_rest_api.api.v1.errorhandlers import http_error_500
+    app.register_error_handler(500, http_error_500)
 
     return app
 
