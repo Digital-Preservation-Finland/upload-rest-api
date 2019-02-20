@@ -24,6 +24,19 @@ def get_upload_path(fpath):
     return joined_path, fname
 
 
+def get_return_path(fpath):
+    """Splice upload_path and project from fpath and return the path
+    shown to the user and POSTed to Metax.
+    """
+    username = request.authorization.username
+    user = db.UsersDoc(username)
+    project = user.get_project()
+    upload_path = current_app.config.get("UPLOAD_PATH")
+    base_path = safe_join(upload_path, project)
+
+    return os.path.normpath(fpath[len(base_path):])
+
+
 def make_response(status_code, message):
     """Returns jsonified default error message"""
     response = jsonify({"code": status_code, "error": message})

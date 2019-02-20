@@ -203,7 +203,7 @@ def test_get_file(app, admin_auth, test_auth, test2_auth):
     assert response.status_code == 200
     data = json.loads(response.data)
 
-    assert data["file_path"] == "/test_project/test.txt"
+    assert data["file_path"] == "/test.txt"
     assert data["md5"] == "150b62e4e7d58c70503bd5fc8a26463c"
 
     # GET file with user test2, which is in the same project
@@ -275,8 +275,8 @@ def test_get_files(app, test_auth):
     assert response.status_code == 200
     data = json.loads(response.data)
 
-    assert data["/test_project"] == ["test1.txt"]
-    assert data["/test_project/test"] == ["test2.txt"]
+    assert data["/"] == ["test1.txt"]
+    assert data["/test"] == ["test2.txt"]
 
 
 def test_delete_files(app, test_auth, monkeypatch):

@@ -65,12 +65,8 @@ def get_file(fpath):
     if not os.path.isfile(fpath):
         return utils.make_response(404, "File not found")
 
-    # Show user the relative path from /var/spool/uploads/
-    return_path = fpath[len(current_app.config.get("UPLOAD_PATH")):]
-    return_path = os.path.normpath(return_path)
-
     return jsonify({
-        "file_path": return_path,
+        "file_path": utils.get_return_path(fpath),
         "md5": md.md5_digest(fpath),
         "timestamp": md.iso8601_timestamp(fpath)
     })
@@ -96,12 +92,8 @@ def delete_file(fpath):
     # Remove metadata from Metax
     metax_response = md.MetaxClient().delete_file_metadata(project, fpath)
 
-    #Show user the relative path from /var/spool/uploads/
-    return_path = fpath[len(current_app.config.get("UPLOAD_PATH")):]
-    return_path = os.path.normpath(return_path)
-
     return jsonify({
-        "file_path": return_path,
+        "file_path": utils.get_return_path(fpath),
         "status": "deleted",
         "metax": metax_response
     })
@@ -123,7 +115,10 @@ def get_files():
 
     file_dict = {}
     for dirpath, _, files in os.walk(fpath):
-        file_dict[dirpath[len(upload_path):]] = files
+        file_dict[utils.get_return_path(dirpath)] = files
+
+    if "." in file_dict:
+        file_dict["/"] = file_dict.pop(".")
 
     response = jsonify(file_dict)
     response.status_code = 200
