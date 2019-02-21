@@ -108,7 +108,7 @@ def test_gen_metadata_root(app, dataset, test_auth, monkeypatch):
     else:
         assert len(files_dict) == 1
 
-    assert "/test_project/integration/test2/test2.txt" in files_dict
+    assert "/integration/test2/test2.txt" in files_dict
 
 
 @pytest.mark.parametrize("dataset", [True, False])
