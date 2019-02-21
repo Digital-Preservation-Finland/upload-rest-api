@@ -46,10 +46,10 @@ POST files
 Let's upload files :code:`data/test1/file_?.txt`
 to passipservice. This can be done by sending a POST request to
 :code:`/filestorage/api/files/v1/path/to/the/file`, where
-:code:`/path/to/the/file` is the relative path to the file from your project
-directory on the server. The project will be automatically prepended to the
-path and thus does not need to be provided when sending requests to the API.
-The two files can be uploaded with commands::
+:code:`/path/to/the/file` is the path to the file on the server relative to
+your project directory. It is later used as the file_path attribute in the file
+metadata in Metax and thus can be used to define the directory structure of
+the files in the dataset. Now, let's upload the two files with commands::
 
     curl https://passipservice.csc.fi/filestorage/api/files/v1/data/test1/file_1.txt -X POST -T data/test1/file_1.txt -u username:password | jq
     curl https://passipservice.csc.fi/filestorage/api/files/v1/data/test1/file_2.txt -X POST -T data/test1/file_2.txt -u username:password | jq
