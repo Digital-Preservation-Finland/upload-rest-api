@@ -90,15 +90,11 @@ request to :code:`/filestorage/api/files/v1`::
 
     curl https://passipservice.csc.fi/filestorage/api/files/v1 -u username:password | jq
 
-The project is prepended to the path. To get more info request
-an individual file with e.g.
+To get more info request an individual file with e.g.
 
 ::
 
     curl https://passipservice.csc.fi/filestorage/api/files/v1/data/test1/file_1.txt -u username:password | jq
-
-Notice that now you should use the same path you used to upload the file
-i.e. not prepend the project to the requested path.
 
 POST file metadata
 ~~~~~~~~~~~~~~~~~~
