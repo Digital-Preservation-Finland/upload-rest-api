@@ -7,9 +7,9 @@ import upload_rest_api.gen_metadata as md
 @pytest.mark.parametrize(
     "fpath,upload_path,expected",
     [
-        ("/upload/project/fpath", "/upload", "/project/fpath"),
-        ("/test/project/fpath", "/test", "/project/fpath"),
-        ("/upload///project///fpath", "/upload", "/project/fpath")
+        ("/upload/project/fpath", "/upload", "/fpath"),
+        ("/test/project/fpath", "/test", "/fpath"),
+        ("/upload///project///fpath", "/upload", "/fpath")
     ]
 )
 def test_metax_path(fpath, upload_path, expected):
@@ -44,7 +44,7 @@ def test_gen_metadata():
     assert metadata["file_name"] == "test.txt"
     assert metadata["file_format"] == "text/plain"
     assert metadata["byte_size"] == 31
-    assert metadata["file_path"] == "/data/test.txt"
+    assert metadata["file_path"] == "/test.txt"
     assert metadata["project_identifier"] == "data"
     assert "file_uploaded" in metadata
     assert "file_frozen" in metadata

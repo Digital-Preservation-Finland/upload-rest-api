@@ -240,7 +240,7 @@ def test_delete_file(app, test_auth, monkeypatch):
     )
 
     assert response.status_code == 200
-    assert json.loads(response.data)["metax"] == "/test_project/test.txt"
+    assert json.loads(response.data)["metax"] == "/test.txt"
     assert not os.path.isfile(fpath)
 
     # DELETE file that does not exist
@@ -298,7 +298,7 @@ def test_delete_files(app, test_auth, monkeypatch):
     )
 
     assert response.status_code == 200
-    assert json.loads(response.data)["metax"] == ["/test_project/test.txt"]
+    assert json.loads(response.data)["metax"] == ["/test.txt"]
     assert not os.path.exists(os.path.split(fpath)[0])
 
     # DELETE project that does not exist

@@ -53,8 +53,9 @@ def get_metax_path(fpath, upload_path):
     """Returns file_path that is stored in Metax"""
     file_path = "/%s" % (fpath[len(upload_path)+1:])
     file_path = os.path.abspath(file_path)
+    project = file_path.split("/")[1]
 
-    return file_path
+    return file_path[len(project)+1:]
 
 
 def _generate_metadata(fpath, upload_path, project, storage_id):
