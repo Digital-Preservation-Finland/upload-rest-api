@@ -81,7 +81,6 @@ def test_upload(app, test_auth):
 
 def test_upload_max_size(app, test_auth):
     """Test uploading file larger than the supported max file size"""
-
     # Set max upload size to 1 byte
     app.config["MAX_CONTENT_LENGTH"] = 1
     test_client = app.test_client()
@@ -146,12 +145,12 @@ def test_used_quota(app, test_auth, database_fx, monkeypatch):
 
 def test_upload_outside(app, test_auth):
     """Test uploading outside the user's dir."""
-
     test_client = app.test_client()
     response = _upload_file(
         test_client, "/files/v1/../test.txt",
         test_auth, "tests/data/test.txt"
     )
+
     assert response.status_code == 404
 
 
@@ -253,7 +252,6 @@ def test_delete_file(app, test_auth, monkeypatch):
 
 def test_get_files(app, test_auth):
     """Test GET for the whole project"""
-
     test_client = app.test_client()
     upload_path = app.config.get("UPLOAD_PATH")
 
@@ -311,7 +309,6 @@ def test_delete_files(app, test_auth, monkeypatch):
 
 def test_db_access_test_user(app, test_auth):
     """Test database access with some other user than admin"""
-
     test_client = app.test_client()
 
     response = test_client.get("/db/v1/user", headers=test_auth)
@@ -328,7 +325,6 @@ def test_db_access_test_user(app, test_auth):
 
 def test_get_user(app, admin_auth):
     """Test get_user() function"""
-
     test_client = app.test_client()
 
     # Existing user
@@ -342,9 +338,17 @@ def test_get_user(app, admin_auth):
     assert response.status_code == 404
 
 
+def test_get_all_users(app, admin_auth):
+    """Test get_all_users() function"""
+    test_client = app.test_client()
+
+    response = test_client.get("/db/v1", headers=admin_auth)
+    data = json.loads(response.data)
+    assert data["users"] == ["admin", "test", "test2"]
+
+
 def test_create_user(app, admin_auth, database_fx):
     """Test creating a new user"""
-
     test_client = app.test_client()
 
     # Create user that exists
@@ -379,7 +383,6 @@ def test_create_user(app, admin_auth, database_fx):
 
 def test_delete_user(app, admin_auth, database_fx):
     """Test deleting test user"""
-
     test_client = app.test_client()
 
     # Delete user that does not exist

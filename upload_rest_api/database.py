@@ -75,6 +75,24 @@ def update_used_quota():
     user.set_used_quota(size)
 
 
+def get_mongo_client():
+    """Returns a MongoClient instance"""
+    host = "localhost"
+    port = 27017
+
+    if has_request_context():
+        host = current_app.config.get("MONGO_HOST", host)
+        port = current_app.config.get("MONGO_PORT", port)
+
+    return pymongo.MongoClient(host, port)
+
+
+def get_all_users():
+    """Returns a list of all the users in upload.users collection"""
+    users = get_mongo_client().upload.users
+    return sorted(users.find().distinct("_id"))
+
+
 class UserExistsError(Exception):
     """Exception for trying to create a user, which already exists"""
     pass
@@ -93,14 +111,7 @@ class UsersDoc(object):
 
         :param username: Used as primary key _id
         """
-        host = "localhost"
-        port = 27017
-
-        if has_request_context():
-            host = current_app.config.get("MONGO_HOST", host)
-            port = current_app.config.get("MONGO_PORT", port)
-
-        self.users = pymongo.MongoClient(host, port).upload.users
+        self.users = get_mongo_client().upload.users
         self.username = username
         self.quota = quota
 
@@ -238,19 +249,8 @@ class FilesCol(object):
     """Class for managing files in the database"""
 
     def __init__(self):
-        """Initializing FilesDoc instances
-
-        :param file_identifier: File identifier in Metax. Used as the primary
-                                key _id
-        """
-        host = "localhost"
-        port = 27017
-
-        if has_request_context():
-            host = current_app.config.get("MONGO_HOST", host)
-            port = current_app.config.get("MONGO_PORT", port)
-
-        self.files = pymongo.MongoClient(host, port).upload.files
+        """Initializing FilesDoc instances"""
+        self.files = get_mongo_client().upload.files
 
     def get_path(self, identifier):
         """Get file_path based on _id identifier"""
