@@ -338,13 +338,16 @@ def test_get_user(app, admin_auth):
     assert response.status_code == 404
 
 
-def test_get_all_users(app, admin_auth):
+def test_get_all_users(app, admin_auth, test_auth):
     """Test get_all_users() function"""
     test_client = app.test_client()
 
     response = test_client.get("/db/v1", headers=admin_auth)
     data = json.loads(response.data)
     assert data["users"] == ["admin", "test", "test2"]
+
+    response = test_client.get("/db/v1", headers=test_auth)
+    assert response.status_code == 401
 
 
 def test_create_user(app, admin_auth, database_fx):
