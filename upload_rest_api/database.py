@@ -256,6 +256,15 @@ class FilesCol(object):
         """Get file_path based on _id identifier"""
         return self.files.find_one({"_id": identifier})["file_path"]
 
+    def get_identifier(self, fpath):
+        """Get file_identifier based on file_path"""
+        _file = self.files.find_one({"file_path": fpath})
+
+        if _file is None:
+            return "None"
+
+        return _file["_id"]
+
     def insert(self, files):
         """Insert multiple files into the files collection.
 

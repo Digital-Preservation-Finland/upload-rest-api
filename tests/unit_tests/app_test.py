@@ -204,6 +204,7 @@ def test_get_file(app, admin_auth, test_auth, test2_auth):
 
     assert data["file_path"] == "/test.txt"
     assert data["md5"] == "150b62e4e7d58c70503bd5fc8a26463c"
+    assert data["metax_identifier"] == "None"
 
     # GET file with user test2, which is in the same project
     response = test_client.get(

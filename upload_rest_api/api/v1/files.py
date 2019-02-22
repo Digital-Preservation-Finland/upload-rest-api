@@ -67,6 +67,7 @@ def get_file(fpath):
 
     return jsonify({
         "file_path": utils.get_return_path(fpath),
+        "metax_identifier": db.FilesCol().get_identifier(fpath),
         "md5": md.md5_digest(fpath),
         "timestamp": md.iso8601_timestamp(fpath)
     })
