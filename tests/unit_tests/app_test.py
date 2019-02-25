@@ -252,7 +252,7 @@ def test_delete_file(app, test_auth, monkeypatch):
 
 
 def test_get_files(app, test_auth):
-    """Test GET for the whole project"""
+    """Test GET for the whole project and a single directory"""
     test_client = app.test_client()
     upload_path = app.config.get("UPLOAD_PATH")
 
@@ -266,6 +266,7 @@ def test_get_files(app, test_auth):
         os.path.join(upload_path, "test_project/test/test2.txt")
     )
 
+    # GET whole project
     response = test_client.get(
         "/files/v1",
         headers=test_auth
@@ -277,20 +278,43 @@ def test_get_files(app, test_auth):
     assert data["/"] == ["test1.txt"]
     assert data["/test"] == ["test2.txt"]
 
+    # GET single directory
+    response = test_client.get(
+        "/files/v1/test/",
+        headers=test_auth
+    )
+
+    assert response.status_code == 200
+    data = json.loads(response.data)
+
+    assert data["file_path"]["/test"] == ["test2.txt"]
+
 
 def test_delete_files(app, test_auth, monkeypatch):
-    """Test DELETE for the whole project"""
+    """Test DELETE for the whole project and a single dir"""
     # Mock Metax
     monkeypatch.setattr(md, "MetaxClient", lambda: MockMetax())
 
     test_client = app.test_client()
     upload_path = app.config.get("UPLOAD_PATH")
-    fpath = os.path.join(upload_path, "test_project/test.txt")
+    test_path_1 = os.path.join(upload_path, "test_project/test.txt")
+    test_path_2 = os.path.join(upload_path, "test_project/test/test.txt")
 
-    os.makedirs(os.path.join(upload_path, "test_project"))
-    shutil.copy("tests/data/test.txt", fpath)
+    os.makedirs(os.path.join(upload_path, "test_project", "test/"))
+    shutil.copy("tests/data/test.txt", test_path_1)
+    shutil.copy("tests/data/test.txt", test_path_2)
 
-    # DELETE the project
+    # DELETE single directory
+    response = test_client.delete(
+        "/files/v1/test",
+        headers=test_auth
+    )
+
+    assert response.status_code == 200
+    assert json.loads(response.data)["metax"] == ["/test/test.txt"]
+    assert not os.path.exists(os.path.split(test_path_2)[0])
+
+    # DELETE the whole project
     response = test_client.delete(
         "/files/v1",
         headers=test_auth
@@ -298,7 +322,7 @@ def test_delete_files(app, test_auth, monkeypatch):
 
     assert response.status_code == 200
     assert json.loads(response.data)["metax"] == ["/test.txt"]
-    assert not os.path.exists(os.path.split(fpath)[0])
+    assert not os.path.exists(os.path.split(test_path_1)[0])
 
     # DELETE project that does not exist
     response = test_client.delete(
