@@ -16,6 +16,19 @@ import upload_rest_api.utils as utils
 FILES_API_V1 = Blueprint("files_v1", __name__, url_prefix="/files/v1")
 
 
+def _get_dir_tree(fpath):
+    """Returns with dir tree from fpath as a dict"""
+    file_dict = {}
+    for dirpath, _, files in os.walk(fpath):
+        file_dict[utils.get_return_path(dirpath)] = files
+
+    if "." in file_dict:
+        file_dict["/"] = file_dict.pop(".")
+
+    return file_dict
+
+
+
 @FILES_API_V1.route("/<path:fpath>", methods=["POST"])
 def upload_file(fpath):
     """Save the uploaded file at /var/spool/uploads/project/fpath
@@ -54,7 +67,7 @@ def upload_file(fpath):
 
 
 @FILES_API_V1.route("/<path:fpath>", methods=["GET"])
-def get_file(fpath):
+def get_path(fpath):
     """Get filepath, name and checksum.
 
     :returns: HTTP Response
@@ -62,20 +75,29 @@ def get_file(fpath):
     fpath, fname = utils.get_upload_path(fpath)
     fpath = safe_join(fpath, fname)
 
-    if not os.path.isfile(fpath):
+    if os.path.isfile(fpath):
+        response = jsonify({
+            "file_path": utils.get_return_path(fpath),
+            "metax_identifier": db.FilesCol().get_identifier(fpath),
+            "md5": md.md5_digest(fpath),
+            "timestamp": md.iso8601_timestamp(fpath)
+        })
+
+    elif os.path.isdir(fpath):
+        dir_tree = _get_dir_tree(fpath)
+        response = jsonify(dict(file_path=dir_tree))
+
+    else:
         return utils.make_response(404, "File not found")
 
-    return jsonify({
-        "file_path": utils.get_return_path(fpath),
-        "metax_identifier": db.FilesCol().get_identifier(fpath),
-        "md5": md.md5_digest(fpath),
-        "timestamp": md.iso8601_timestamp(fpath)
-    })
+    response.status_code = 200
+    return response
 
 
 @FILES_API_V1.route("/<path:fpath>", methods=["DELETE"])
-def delete_file(fpath):
-    """Get filepath, name and checksum.
+def delete_path(fpath):
+    """Delete fpath under user's project. If fpath resolves to a directory,
+    the whole directory is recursively removed.
 
     :returns: HTTP Response
     """
@@ -85,13 +107,17 @@ def delete_file(fpath):
     fpath = safe_join(fpath, fname)
 
     if os.path.isfile(fpath):
+        # Remove metadata from Metax
+        metax_response = md.MetaxClient().delete_file_metadata(project, fpath)
         os.remove(fpath)
-        db.update_used_quota()
+    elif os.path.isdir(fpath):
+        # Remove all file metadata of files under dir fpath from Metax
+        metax_response = md.MetaxClient().delete_all_metadata(project, fpath)
+        rmtree(fpath)
     else:
         return utils.make_response(404, "File not found")
 
-    # Remove metadata from Metax
-    metax_response = md.MetaxClient().delete_file_metadata(project, fpath)
+    db.update_used_quota()
 
     return jsonify({
         "file_path": utils.get_return_path(fpath),
@@ -114,16 +140,8 @@ def get_files():
     if not os.path.exists(fpath):
         return utils.make_response(404, "No files found")
 
-    file_dict = {}
-    for dirpath, _, files in os.walk(fpath):
-        file_dict[utils.get_return_path(dirpath)] = files
-
-    if "." in file_dict:
-        file_dict["/"] = file_dict.pop(".")
-
-    response = jsonify(file_dict)
+    response = jsonify(_get_dir_tree(fpath))
     response.status_code = 200
-
     return response
 
 
