@@ -37,7 +37,14 @@ def _get_random_string(chars):
 
 def _get_abs_path(metax_path):
     """Returns actual path on disk from metax_path"""
-    return os.path.join(current_app.config.get("UPLOAD_PATH"), metax_path[1:])
+    username = request.authorization.username
+    project = UsersDoc(username).get_project()
+
+    return os.path.join(
+        current_app.config.get("UPLOAD_PATH"),
+        project,
+        metax_path[1:]
+    )
 
 
 def hash_passwd(password, salt):

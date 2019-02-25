@@ -190,7 +190,6 @@ def test_disk_cleanup(app, dataset, test_auth, monkeypatch):
         )
 
     test_client = app.test_client()
-    upload_path = app.config.get("UPLOAD_PATH")
 
     # Upload integration.zip, which is extracted by the server
     _upload_file(
@@ -259,7 +258,7 @@ def test_mongo_cleanup(app, test_auth, monkeypatch):
     test_client.post("/metadata/v1/.", headers=test_auth)
 
     # Check that generated identifiers were added to Mongo
-    assert len(files_col.get_all_ids())
+    assert len(files_col.get_all_ids()) == 2
 
     # Check that generated file_paths resolve to actual files
     for file_doc in files_col.files.find():
