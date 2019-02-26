@@ -45,14 +45,14 @@ POST files
 
 Let's upload files :code:`data/test1/file_?.txt`
 to passipservice. This can be done by sending a POST request to
-:code:`/filestorage/api/files/v1/path/to/the/file`, where
+:code:`/filestorage/api/v1/files/path/to/the/file`, where
 :code:`/path/to/the/file` is the path to the file on the server relative to
 your project directory. It is later used as the file_path attribute in the file
 metadata in Metax and thus can be used to define the directory structure of
 the files in the dataset. Now, let's upload the two files with commands::
 
-    curl https://passipservice.csc.fi/filestorage/api/files/v1/data/test1/file_1.txt -X POST -T data/test1/file_1.txt -u username:password | jq
-    curl https://passipservice.csc.fi/filestorage/api/files/v1/data/test1/file_2.txt -X POST -T data/test1/file_2.txt -u username:password | jq
+    curl https://passipservice.csc.fi/filestorage/api/v1/files/data/test1/file_1.txt -X POST -T data/test1/file_1.txt -u username:password | jq
+    curl https://passipservice.csc.fi/filestorage/api/v1/files/data/test1/file_2.txt -X POST -T data/test1/file_2.txt -u username:password | jq
 
 Here, flags :code:`-X` and :code:`-T` define request method and the actual data
 sent respectively. Without any flags provided, :code:`curl` sends a GET request
@@ -75,7 +75,7 @@ directory with command::
 
 Upload the zip archive to the server::
 
-    curl https://passipservice.csc.fi/filestorage/api/files/v1/test2.zip -X POST -T test2.zip -u username:password | jq
+    curl https://passipservice.csc.fi/filestorage/api/v1/files/test2.zip -X POST -T test2.zip -u username:password | jq
 
 Again, it is recommended to check that the checksums match with command::
 
@@ -86,28 +86,28 @@ GET files
 
 Now that all the test files have been uploaded to the server let's check some
 of them. All directories and filenames can be requested by sending a GET
-request to :code:`/filestorage/api/files/v1`::
+request to :code:`/filestorage/api/v1/files`::
 
-    curl https://passipservice.csc.fi/filestorage/api/files/v1 -u username:password | jq
+    curl https://passipservice.csc.fi/filestorage/api/v1/files -u username:password | jq
 
 To get more info request an individual file with e.g.
 
 ::
 
-    curl https://passipservice.csc.fi/filestorage/api/files/v1/data/test1/file_1.txt -u username:password | jq
+    curl https://passipservice.csc.fi/filestorage/api/v1/files/data/test1/file_1.txt -u username:password | jq
 
 POST file metadata
 ~~~~~~~~~~~~~~~~~~
 
 Finally, you need to POST file metadata to Metax to be able the access
 the files in Qvain. This can be done be sending a POST request to
-:code:`/filestorage/api/metadata/v1/path/to/file/or/dir`. If the path
+:code:`/filestorage/api/v1/metadata/path/to/file/or/dir`. If the path
 resolves to a directory, all metadata is generated and posted to Metax
 recursively for all the files in that directory and all the subdirectories.
 If the path resolves to a file, metadata is generated for only that file.
 Metadata can be generated for all files with command::
 
-    curl https://passipservice.csc.fi/filestorage/api/metadata/v1/* -X POST -u username:password | jq
+    curl https://passipservice.csc.fi/filestorage/api/v1/metadata/* -X POST -u username:password | jq
 
 Server returns `failed` and `success` lists. Success list contains all the
 generated metadata that was successfully posted to Metax. Failed list
@@ -123,12 +123,12 @@ associated with any dataset. Delete can be requested for the whole project
 or a single file similar to the GET shown earlier. Following command deletes
 all the files::
 
-    curl https://passipservice.csc.fi/filestorage/api/files/v1 -X DELETE -u username:password | jq
+    curl https://passipservice.csc.fi/filestorage/api/v1/files -X DELETE -u username:password | jq
 
 Files can be deleted from passipservice after the dataset has been accepted
 for digital preservation. All the files will automatically be cleaned after
 30 days based on the timestamp returned by
-:code:`GET /filestorage/api/v1/path/to/file`.
+:code:`GET /filestorage/api/v1/files/path/to/the/file`.
 
 Summary
 ~~~~~~~
@@ -138,7 +138,7 @@ follows:
 
     - Make a zip archive of the files: :code:`zip -r files.zip directory/`
     - Send the zip archive to passipservice:
-      :code:`/filestorage/api/files/v1 -X POST -T files.zip`
+      :code:`/filestorage/api/v1/files/path/to/the/dir -X POST -T files.zip`
     - Make sure the checksums match: :code:`md5sum files.zip`
     - Generate file metadata for all the files:
-      :code:`/filestorage/api/metadata/v1/* -X POST`
+      :code:`/filestorage/api/v1/metadata/* -X POST`
