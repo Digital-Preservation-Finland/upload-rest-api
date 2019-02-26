@@ -9,7 +9,7 @@ import upload_rest_api.gen_metadata as md
 import upload_rest_api.utils as utils
 
 
-METADATA_API_V1 = Blueprint("metadata_v1", __name__, url_prefix="/metadata/v1")
+METADATA_API_V1 = Blueprint("metadata_v1", __name__, url_prefix="/v1/metadata")
 
 
 @METADATA_API_V1.route("/<path:fpath>", methods=["POST"])

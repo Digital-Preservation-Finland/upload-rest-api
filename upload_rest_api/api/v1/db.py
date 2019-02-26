@@ -7,7 +7,7 @@ import upload_rest_api.database as db
 import upload_rest_api.utils as utils
 
 
-DB_API_V1 = Blueprint("db_v1", __name__, url_prefix="/db/v1")
+DB_API_V1 = Blueprint("db_v1", __name__, url_prefix="/v1/users")
 
 
 @DB_API_V1.route("", methods=["GET"])

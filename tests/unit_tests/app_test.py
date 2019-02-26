@@ -62,7 +62,7 @@ def test_upload(app, test_auth):
     upload_path = app.config.get("UPLOAD_PATH")
 
     response = _upload_file(
-        test_client, "/files/v1/test.txt",
+        test_client, "/v1/files/test.txt",
         test_auth, "tests/data/test.txt"
     )
     assert response.status_code == 200
@@ -73,7 +73,7 @@ def test_upload(app, test_auth):
 
     # Test that trying to upload the file again returns 409 Conflict
     response = _upload_file(
-        test_client, "/files/v1/test.txt",
+        test_client, "/v1/files/test.txt",
         test_auth, "tests/data/test.txt"
     )
     assert response.status_code == 409
@@ -87,7 +87,7 @@ def test_upload_max_size(app, test_auth):
     upload_path = app.config.get("UPLOAD_PATH")
 
     response = _upload_file(
-        test_client, "/files/v1/test.txt",
+        test_client, "/v1/files/test.txt",
         test_auth, "tests/data/test.txt"
     )
     assert response.status_code == 413
@@ -105,7 +105,7 @@ def test_user_quota(app, test_auth, database_fx):
 
     _set_user_quota(users, "test", 400, 0)
     response = _upload_file(
-        test_client, "/files/v1/test",
+        test_client, "/v1/files/test",
         test_auth, "tests/data/test.zip"
     )
     assert response.status_code == 413
@@ -124,11 +124,11 @@ def test_used_quota(app, test_auth, database_fx, monkeypatch):
 
     # Upload two 31B txt files
     _upload_file(
-        test_client, "/files/v1/test1",
+        test_client, "/v1/files/test1",
         test_auth, "tests/data/test.txt"
     )
     _upload_file(
-        test_client, "/files/v1/test2",
+        test_client, "/v1/files/test2",
         test_auth, "tests/data/test.txt"
     )
     used_quota = users.find_one({"_id": "test"})["used_quota"]
@@ -136,7 +136,7 @@ def test_used_quota(app, test_auth, database_fx, monkeypatch):
 
     # Delete one of the files
     test_client.delete(
-        "/files/v1/test1",
+        "/v1/files/test1",
         headers=test_auth
     )
     used_quota = users.find_one({"_id": "test"})["used_quota"]
@@ -147,7 +147,7 @@ def test_upload_outside(app, test_auth):
     """Test uploading outside the user's dir."""
     test_client = app.test_client()
     response = _upload_file(
-        test_client, "/files/v1/../test.txt",
+        test_client, "/v1/files/../test.txt",
         test_auth, "tests/data/test.txt"
     )
 
@@ -162,7 +162,7 @@ def test_upload_zip(app, test_auth):
     upload_path = app.config.get("UPLOAD_PATH")
 
     response = _upload_file(
-        test_client, "/files/v1/test.zip",
+        test_client, "/v1/files/test.zip",
         test_auth, "tests/data/test.zip"
     )
     assert response.status_code == 200
@@ -195,7 +195,7 @@ def test_get_file(app, admin_auth, test_auth, test2_auth):
 
     # GET file that exists
     response = test_client.get(
-        "/files/v1/test.txt",
+        "/v1/files/test.txt",
         headers=test_auth
     )
 
@@ -208,14 +208,14 @@ def test_get_file(app, admin_auth, test_auth, test2_auth):
 
     # GET file with user test2, which is in the same project
     response = test_client.get(
-        "/files/v1/test.txt",
+        "/v1/files/test.txt",
         headers=test2_auth
     )
     assert response.status_code == 200
 
     # GET file with user admin, which is not in the same project
     response = test_client.get(
-        "/files/v1/test.txt",
+        "/v1/files/test.txt",
         headers=admin_auth
     )
     assert response.status_code == 404
@@ -235,7 +235,7 @@ def test_delete_file(app, test_auth, monkeypatch):
 
     # DELETE file that exists
     response = test_client.delete(
-        "/files/v1/test.txt",
+        "/v1/files/test.txt",
         headers=test_auth
     )
 
@@ -245,7 +245,7 @@ def test_delete_file(app, test_auth, monkeypatch):
 
     # DELETE file that does not exist
     response = test_client.delete(
-        "/files/v1/test.txt",
+        "/v1/files/test.txt",
         headers=test_auth
     )
     assert response.status_code == 404
@@ -268,7 +268,7 @@ def test_get_files(app, test_auth):
 
     # GET whole project
     response = test_client.get(
-        "/files/v1",
+        "/v1/files",
         headers=test_auth
     )
 
@@ -280,7 +280,7 @@ def test_get_files(app, test_auth):
 
     # GET single directory
     response = test_client.get(
-        "/files/v1/test/",
+        "/v1/files/test/",
         headers=test_auth
     )
 
@@ -306,7 +306,7 @@ def test_delete_files(app, test_auth, monkeypatch):
 
     # DELETE single directory
     response = test_client.delete(
-        "/files/v1/test",
+        "/v1/files/test",
         headers=test_auth
     )
 
@@ -316,7 +316,7 @@ def test_delete_files(app, test_auth, monkeypatch):
 
     # DELETE the whole project
     response = test_client.delete(
-        "/files/v1",
+        "/v1/files",
         headers=test_auth
     )
 
@@ -326,7 +326,7 @@ def test_delete_files(app, test_auth, monkeypatch):
 
     # DELETE project that does not exist
     response = test_client.delete(
-        "/files/v1",
+        "/v1/files",
         headers=test_auth
     )
     assert response.status_code == 404
@@ -336,15 +336,15 @@ def test_db_access_test_user(app, test_auth):
     """Test database access with some other user than admin"""
     test_client = app.test_client()
 
-    response = test_client.get("/db/v1/user", headers=test_auth)
+    response = test_client.get("/v1/users/user", headers=test_auth)
     assert response.status_code == 401
 
     response = test_client.post(
-        "/db/v1/user/user_project", headers=test_auth
+        "/v1/users/user/user_project", headers=test_auth
     )
     assert response.status_code == 401
 
-    response = test_client.delete("/db/v1/user", headers=test_auth)
+    response = test_client.delete("/v1/users/user", headers=test_auth)
     assert response.status_code == 401
 
 
@@ -353,13 +353,13 @@ def test_get_user(app, admin_auth):
     test_client = app.test_client()
 
     # Existing user
-    response = test_client.get("/db/v1/test", headers=admin_auth)
+    response = test_client.get("/v1/users/test", headers=admin_auth)
     data = json.loads(response.data)
     assert data["_id"] == "test"
     assert response.status_code == 200
 
     # User that does not exist
-    response = test_client.get("/db/v1/user", headers=admin_auth)
+    response = test_client.get("/v1/users/user", headers=admin_auth)
     assert response.status_code == 404
 
 
@@ -367,11 +367,11 @@ def test_get_all_users(app, admin_auth, test_auth):
     """Test get_all_users() function"""
     test_client = app.test_client()
 
-    response = test_client.get("/db/v1", headers=admin_auth)
+    response = test_client.get("/v1/users", headers=admin_auth)
     data = json.loads(response.data)
     assert data["users"] == ["admin", "test", "test2"]
 
-    response = test_client.get("/db/v1", headers=test_auth)
+    response = test_client.get("/v1/users", headers=test_auth)
     assert response.status_code == 401
 
 
@@ -381,13 +381,13 @@ def test_create_user(app, admin_auth, database_fx):
 
     # Create user that exists
     response = test_client.post(
-        "/db/v1/test/test_project", headers=admin_auth
+        "/v1/users/test/test_project", headers=admin_auth
     )
     assert response.status_code == 409
 
     # Create user that does not exist
     response = test_client.post(
-        "/db/v1/user/user_project", headers=admin_auth
+        "/v1/users/user/user_project", headers=admin_auth
     )
     data = json.loads(response.data)
 
@@ -414,7 +414,7 @@ def test_delete_user(app, admin_auth, database_fx):
     test_client = app.test_client()
 
     # Delete user that does not exist
-    response = test_client.delete("/db/v1/test", headers=admin_auth)
+    response = test_client.delete("/v1/users/test", headers=admin_auth)
     data = json.loads(response.data)
 
     assert response.status_code == 200

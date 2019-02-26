@@ -13,7 +13,7 @@ import upload_rest_api.gen_metadata as md
 import upload_rest_api.utils as utils
 
 
-FILES_API_V1 = Blueprint("files_v1", __name__, url_prefix="/files/v1")
+FILES_API_V1 = Blueprint("files_v1", __name__, url_prefix="/v1/files")
 
 
 def _get_dir_tree(fpath):
