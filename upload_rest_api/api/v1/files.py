@@ -53,7 +53,7 @@ def upload_file(fpath):
     fpath = safe_join(fpath, fname)
 
     try:
-        response = up.save_file(fpath, current_app.config.get("UPLOAD_PATH"))
+        response = up.save_file(fpath)
     except up.OverwriteError as error:
         return utils.make_response(409, str(error))
     except up.SymlinkError as error:

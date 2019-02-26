@@ -6,6 +6,7 @@ from flask import jsonify, request
 
 import upload_rest_api.database as db
 import upload_rest_api.gen_metadata as gen_metadata
+import upload_rest_api.utils as utils
 
 
 def request_exceeds_quota():
@@ -72,7 +73,7 @@ class QuotaError(Exception):
     pass
 
 
-def save_file(fpath, upload_path):
+def save_file(fpath):
     """Save the posted file on disk at fpath by reading
     the upload stream in 1MB chunks. Extract zip files
     and check that no symlinks are created.
@@ -117,7 +118,7 @@ def save_file(fpath, upload_path):
         status = "zip uploaded and extracted"
 
     #Show user the relative path from /var/spool/uploads/
-    return_path = fpath[len(upload_path):]
+    return_path = utils.get_return_path(fpath)
 
     response = jsonify({
         "file_path": return_path,
