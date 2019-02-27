@@ -33,6 +33,15 @@ def _zipfile_exceeds_quota(zipf, username):
     return quota - uncompressed_size < 0
 
 
+def _zipfile_overwrites(fpath, namelist):
+    """Check if writing files specified in namelist overwrites anything."""
+    for name in namelist:
+        if os.path.exists(os.path.join(fpath, name)):
+            return True
+
+    return False
+
+
 def _rm_symlinks(fpath):
     """Unlink all symlinks below fpath
 
@@ -109,7 +118,13 @@ def save_file(fpath):
                 os.remove("%s/%s" % (fpath, fname))
                 raise QuotaError("Quota exceeded")
 
-            zipf.extractall(fpath)
+            # Check that extracting the zipfile will not overwrite anything
+            if _zipfile_overwrites(fpath, zipf.namelist()):
+                # Remove zip archive and raise an excepti<on
+                os.remove("%s/%s" % (os.path.split(fpath)[0], fname))
+                raise OverwriteError("Extracting zip archive overwrites files")
+
+            zipf.extractall(os.path.split(fpath)[0])
 
         # Remove zip archive and all created symlinks
         os.remove("%s/%s" % (fpath, fname))
@@ -117,11 +132,8 @@ def save_file(fpath):
 
         status = "zip uploaded and extracted"
 
-    #Show user the relative path from /var/spool/uploads/
-    return_path = utils.get_return_path(fpath)
-
     response = jsonify({
-        "file_path": return_path,
+        "file_path": utils.get_return_path(fpath),
         "md5": md5,
         "status": status
     })

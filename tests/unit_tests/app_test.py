@@ -181,6 +181,14 @@ def test_upload_zip(app, test_auth):
     # no symlinks are created
     assert not _contains_symlinks(fpath)
 
+    # Trying to upload same zip again should return 409 - Conflict
+    response = _upload_file(
+        test_client, "/v1/files/test.zip",
+        test_auth, "tests/data/test.zip"
+    )
+    assert response.status_code == 409
+
+
 
 def test_get_file(app, admin_auth, test_auth, test2_auth):
     """Test GET for single file"""
