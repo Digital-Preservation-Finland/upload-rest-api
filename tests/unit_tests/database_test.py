@@ -126,13 +126,13 @@ def test_quota(user):
 
 
 def test_get_random_string():
-    """Test that _get_random_string() returns random strings
+    """Test that get_random_string() returns random strings
     of given lenght with only ascii letters and digits
     """
     strings = set()
 
     for _ in range(1000):
-        string = db._get_random_string(20)
+        string = db.get_random_string(20)
 
         assert len(string) == 20
         assert re.match("^[A-Za-z0-9_-]*$", string)

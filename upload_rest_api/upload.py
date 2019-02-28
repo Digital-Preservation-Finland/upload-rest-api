@@ -42,6 +42,18 @@ def _zipfile_overwrites(fpath, namelist):
     return False
 
 
+def _get_tempfile_name(fpath):
+    """Returns a tempfile name that doesn't exist in fpath."""
+    filename = db.get_random_string(10)
+    filepath = os.path.join(fpath, filename)
+
+    while os.path.exists(filepath):
+        filename = db.get_random_string(10)
+        filepath = os.path.join(fpath, filename)
+
+    return filename
+
+
 def _rm_symlinks(fpath):
     """Unlink all symlinks below fpath
 
@@ -120,7 +132,7 @@ def save_file(fpath):
 
             # Check that extracting the zipfile will not overwrite anything
             if _zipfile_overwrites(fpath, zipf.namelist()):
-                # Remove zip archive and raise an excepti<on
+                # Remove zip archive and raise an exception
                 os.remove("%s/%s" % (os.path.split(fpath)[0], fname))
                 raise OverwriteError("Extracting zip archive overwrites files")
 

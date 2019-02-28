@@ -189,7 +189,6 @@ def test_upload_zip(app, test_auth):
     assert response.status_code == 409
 
 
-
 def test_get_file(app, admin_auth, test_auth, test2_auth):
     """Test GET for single file"""
     test_client = app.test_client()

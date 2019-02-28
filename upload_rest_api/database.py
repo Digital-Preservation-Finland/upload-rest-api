@@ -21,7 +21,7 @@ ITERATIONS = 200000
 HASH_ALG = "sha512"
 
 
-def _get_random_string(chars):
+def get_random_string(chars):
     """Generate and return random string of given number of
     ascii letters or digits.
 
@@ -153,9 +153,9 @@ class UsersDoc(object):
         if password is not None:
             passwd = password
         else:
-            passwd = _get_random_string(PASSWD_LEN)
+            passwd = get_random_string(PASSWD_LEN)
 
-        salt = _get_random_string(SALT_LEN)
+        salt = get_random_string(SALT_LEN)
         digest = hash_passwd(passwd, salt)
 
         self.users.insert_one(
