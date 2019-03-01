@@ -56,7 +56,7 @@ the files in the dataset. Now, let's upload the two files with commands::
 
 Here, flags :code:`-X` and :code:`-T` define request method and the actual data
 sent respectively. Without any flags provided, :code:`curl` sends a GET request
-by default. The aforementioned commands should return, file_path, md5 checksum
+by default. The aforementioned commands should return file_path, md5 checksum
 and status. Checksums of the sent files should always be checked to make sure
 the files were not corrupted during the transfer. Checksums returned by the
 server should always match the local checksums, which can be calculated with
@@ -75,11 +75,21 @@ directory with command::
 
 Upload the zip archive to the server::
 
-    curl https://passipservice.csc.fi/filestorage/api/v1/files/test2.zip -X POST -T test2.zip -u username:password | jq
+    curl https://passipservice.csc.fi/filestorage/api/v1/files/ -X POST -T test2.zip -u username:password | jq
 
 Again, it is recommended to check that the checksums match with command::
 
     md5sum test2.zip
+
+The zip archive is extracted and removed by the server. The archive is
+extracted in the uploaded directory and returns :code:`409: Conflict`, if
+extracting the archive would overwrite files in the server. Note that POST
+request to :code:`/filestorage/api/v1/dir` uploads the archive to a file
+named dir in the root of the project and extracts it there. However,
+POST request to :code:`/filestorage/api/v1/dir/` uploads it to the
+directory dir. Same syntax can be used to upload any files and the files will
+be written to :code:`/dir/filename` where filename is the name of the file
+provided to the flag -T.
 
 GET files
 ~~~~~~~~~
@@ -90,7 +100,7 @@ request to :code:`/filestorage/api/v1/files`::
 
     curl https://passipservice.csc.fi/filestorage/api/v1/files -u username:password | jq
 
-To get more info request an individual file with e.g.
+GET more info request an individual file with e.g.
 
 ::
 
@@ -119,9 +129,9 @@ DELETE files
 
 Files that were uploaded to sipservice can also be deleted. This deletes
 the files from passipservice and file metadata from Metax, if it is not
-associated with any dataset. Delete can be requested for the whole project
-or a single file similar to the GET shown earlier. Following command deletes
-all the files::
+associated with any dataset. Delete can be requested for the whole project,
+a single directory or a single file similar to the GET request shown earlier.
+Following command deletes all the files::
 
     curl https://passipservice.csc.fi/filestorage/api/v1/files -X DELETE -u username:password | jq
 
@@ -138,7 +148,7 @@ follows:
 
     - Make a zip archive of the files: :code:`zip -r files.zip directory/`
     - Send the zip archive to passipservice:
-      :code:`/filestorage/api/v1/files/path/to/the/dir -X POST -T files.zip`
+      :code:`/filestorage/api/v1/files/path/to/the/dir/ -X POST -T files.zip`
     - Make sure the checksums match: :code:`md5sum files.zip`
     - Generate file metadata for all the files:
       :code:`/filestorage/api/v1/metadata/* -X POST`
