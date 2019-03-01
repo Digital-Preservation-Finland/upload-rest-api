@@ -76,7 +76,7 @@ def test_gen_metadata_root(app, dataset, test_auth, monkeypatch):
     )
 
     # Generate and POST metadata for all the files in test_project
-    response = test_client.post("/v1/metadata/.", headers=test_auth)
+    response = test_client.post("/v1/metadata/*", headers=test_auth)
 
     assert response.status_code == 200
     data = json.loads(response.data)
@@ -198,7 +198,7 @@ def test_disk_cleanup(app, dataset, test_auth, monkeypatch):
     )
 
     # Generate and POST metadata for all the files in test_project
-    test_client.post("/v1/metadata/.", headers=test_auth)
+    test_client.post("/v1/metadata/*", headers=test_auth)
 
     # Cleanup all files
     clean.clean_disk()
@@ -255,7 +255,7 @@ def test_mongo_cleanup(app, test_auth, monkeypatch):
     )
 
     # Generate and POST metadata for all the files in test_project
-    test_client.post("/v1/metadata/.", headers=test_auth)
+    test_client.post("/v1/metadata/*", headers=test_auth)
 
     # Check that generated identifiers were added to Mongo
     assert len(files_col.get_all_ids()) == 2

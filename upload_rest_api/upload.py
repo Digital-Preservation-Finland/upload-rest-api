@@ -42,18 +42,6 @@ def _zipfile_overwrites(fpath, namelist):
     return False
 
 
-def _get_tempfile_name(fpath):
-    """Returns a tempfile name that doesn't exist in fpath."""
-    filename = db.get_random_string(10)
-    filepath = os.path.join(fpath, filename)
-
-    while os.path.exists(filepath):
-        filename = db.get_random_string(10)
-        filepath = os.path.join(fpath, filename)
-
-    return filename
-
-
 def _rm_symlinks(fpath):
     """Unlink all symlinks below fpath
 
@@ -122,25 +110,25 @@ def save_file(fpath):
     # If zip file was uploaded extract all files
     if zipfile.is_zipfile(fpath):
         with zipfile.ZipFile(fpath) as zipf:
-            fpath, fname = os.path.split(fpath)
+            dir_path = os.path.split(fpath)[0]
 
             # Check the uncompressed size
             if _zipfile_exceeds_quota(zipf, username):
                 # Remove zip archive and raise an exception
-                os.remove("%s/%s" % (fpath, fname))
+                os.remove(fpath)
                 raise QuotaError("Quota exceeded")
 
             # Check that extracting the zipfile will not overwrite anything
-            if _zipfile_overwrites(fpath, zipf.namelist()):
+            if _zipfile_overwrites(dir_path, zipf.namelist()):
                 # Remove zip archive and raise an exception
-                os.remove("%s/%s" % (os.path.split(fpath)[0], fname))
+                os.remove(fpath)
                 raise OverwriteError("Extracting zip archive overwrites files")
 
-            zipf.extractall(os.path.split(fpath)[0])
+            zipf.extractall(dir_path)
 
         # Remove zip archive and all created symlinks
-        os.remove("%s/%s" % (fpath, fname))
-        _rm_symlinks(fpath)
+        os.remove(fpath)
+        _rm_symlinks(dir_path)
 
         status = "zip uploaded and extracted"
 
