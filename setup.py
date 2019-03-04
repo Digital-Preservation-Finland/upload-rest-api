@@ -14,7 +14,6 @@ def main():
             "flask",
             "pymongo",
             "file-magic",
-            "metax_access",
             "metax_access@git+https://gitlab.csc.fi/dpres/metax-access.git"
             "@develop"
         ],
