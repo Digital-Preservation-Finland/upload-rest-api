@@ -100,7 +100,7 @@ request to :code:`/filestorage/api/v1/files`::
 
     curl https://passipservice.csc.fi/filestorage/api/v1/files -u username:password | jq
 
-GET more info request an individual file with e.g.
+GET more info about an individual file with e.g.
 
 ::
 
