@@ -123,7 +123,8 @@ def save_file(fpath):
                 # Remove zip archive and raise an exception
                 os.remove(fpath)
                 raise OverwriteError(
-                    "Zip extraction error: trying to overwrite existing files"
+                    "Zip extraction error: "
+                    "overwriting existing files not allowed"
                 )
 
             zipf.extractall(dir_path)
