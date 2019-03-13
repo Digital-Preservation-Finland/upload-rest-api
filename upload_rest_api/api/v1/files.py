@@ -39,6 +39,11 @@ def upload_file(fpath):
     # since multiple users might by using the same project
     db.update_used_quota()
 
+    # Check that Content-Length header is provided
+    if request.content_length is None:
+        return utils.make_response(400, "Missing Content-Length header")
+
+    # Check user quota
     if request.content_length > current_app.config.get("MAX_CONTENT_LENGTH"):
         return utils.make_response(413, "Max single file size exceeded")
     elif up.request_exceeds_quota():
