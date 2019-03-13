@@ -14,6 +14,7 @@ import upload_rest_api.utils as utils
 
 
 FILES_API_V1 = Blueprint("files_v1", __name__, url_prefix="/v1/files")
+SUPPORTED_TYPES = ("application/octet-stream",)
 
 
 def _get_dir_tree(fpath):
@@ -42,6 +43,13 @@ def upload_file(fpath):
     # Check that Content-Length header is provided
     if request.content_length is None:
         return utils.make_response(400, "Missing Content-Length header")
+
+    # Check that Content-Type is supported if the header is provided
+    content_type = request.content_type
+    if content_type and content_type not in SUPPORTED_TYPES:
+        return utils.make_response(
+            415, "Unsupported Content-Type: %s" % content_type
+        )
 
     # Check user quota
     if request.content_length > current_app.config.get("MAX_CONTENT_LENGTH"):
