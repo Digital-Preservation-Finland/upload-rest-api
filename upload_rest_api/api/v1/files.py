@@ -61,7 +61,7 @@ def upload_file(fpath):
 
     # Create directory if it does not exist
     if not os.path.exists(fpath):
-        os.makedirs(fpath, 0o700)
+        os.makedirs(fpath)
 
     fpath = safe_join(fpath, fname)
 

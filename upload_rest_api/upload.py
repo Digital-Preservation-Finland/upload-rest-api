@@ -66,6 +66,8 @@ def _save_stream(fpath, chunk_size=1024*1024):
                 break
             f_out.write(chunk)
 
+    os.chmod(fpath, 0o664)
+
 
 class OverwriteError(Exception):
     """Exception for trying to overwrite a existing file"""
