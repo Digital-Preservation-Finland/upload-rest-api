@@ -42,10 +42,11 @@ def _zipfile_overwrites(fpath, namelist):
     return False
 
 
-def _rm_symlinks(fpath):
-    """Unlink all symlinks below fpath
+def _process_extracted_files(fpath):
+    """Unlink all symlinks below fpath and change the mode of all other
+    regular files to 0o664.
 
-    :param fpath: Path to directory under which all symlinks are unlinked
+    :param fpath: Path to the directory to be processed
     :returns: None
     """
     for dirpath, _, files in os.walk(fpath):
@@ -53,6 +54,8 @@ def _rm_symlinks(fpath):
             _file = os.path.join(dirpath, fname)
             if os.path.islink(_file):
                 os.unlink(_file)
+            elif os.path.isfile(_file):
+                os.chmod(_file, 0o664)
 
 
 def _save_stream(fpath, chunk_size=1024*1024):
@@ -133,7 +136,7 @@ def save_file(fpath):
 
         # Remove zip archive and all created symlinks
         os.remove(fpath)
-        _rm_symlinks(dir_path)
+        _process_extracted_files(dir_path)
 
         status = "zip uploaded and extracted"
 
