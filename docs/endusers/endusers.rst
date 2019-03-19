@@ -1,9 +1,22 @@
 passipservice filestorage API
 =============================
 
-filestorage API can be used to upload files directly to passipservice server
-and generate the basic file metadata. This document is a hands-on tutorial,
-which demonstrates how to use the interface.
+This document is a hands-on tutorial, which demonstrates how to use the
+passipservice filestorage API. filestorage API can be used to upload files
+to passipservice server. The files are temporarily stored there and used in
+the creation of submission information packages, which can be transferred to
+digital preservation.
+
+Basic workflow for uploading files to passipservice is as follows:
+
+    - Make a zip archive of the files: :code:`zip -r files.zip directory/`
+    - Send the zip archive to passipservice:
+      :code:`/filestorage/api/v1/files/path/to/the/dir/ -X POST -T files.zip`
+    - Make sure the checksums match: :code:`md5sum files.zip`
+    - Generate file metadata for all the files:
+      :code:`/filestorage/api/v1/metadata/* -X POST`
+
+These steps are explained in more detail in the following chapters.
 
 Installation
 ------------
@@ -18,7 +31,7 @@ curl and jq are installed by running the following command in terminal::
     sudo yum install curl jq
 
 If you choose not to install jq, ignore all pipes to jq for the remainder of
-this tutorial i.e. strip "| jq" from all the commands. Finally, let's make
+this tutorial i.e. strip "| jq" from all the commands. Finally, let's create
 some fake data that we want to upload to the filestorage::
 
     mkdir -p data/test1 data/test2
@@ -139,16 +152,3 @@ Files can be deleted from passipservice after the dataset has been accepted
 for digital preservation. All the files will automatically be cleaned after
 30 days based on the timestamp returned by
 :code:`GET /filestorage/api/v1/files/path/to/the/file`.
-
-Summary
-~~~~~~~
-
-Basic workflow for uploading the files and generating the metadata is as
-follows:
-
-    - Make a zip archive of the files: :code:`zip -r files.zip directory/`
-    - Send the zip archive to passipservice:
-      :code:`/filestorage/api/v1/files/path/to/the/dir/ -X POST -T files.zip`
-    - Make sure the checksums match: :code:`md5sum files.zip`
-    - Generate file metadata for all the files:
-      :code:`/filestorage/api/v1/metadata/* -X POST`
