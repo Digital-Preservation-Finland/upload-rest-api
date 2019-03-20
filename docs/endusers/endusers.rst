@@ -5,9 +5,8 @@ This document is a hands-on tutorial, which demonstrates how to use the
 passipservice filestorage API. filestorage API can be used to upload files
 to passipservice server. The files are temporarily stored there and used in
 the creation of submission information packages, which can be transferred to
-digital preservation.
-
-Basic workflow for uploading files to passipservice is as follows:
+digital preservation. Basic workflow for uploading files to passipservice is
+as follows:
 
     - Make a zip archive of the files: :code:`zip -r files.zip directory/`
     - Send the zip archive to passipservice:
@@ -22,47 +21,61 @@ Installation
 ------------
 
 Using the interface only requires you to able to make HTTP requests and as such
-doesn't need any special software. In this tutorial command-line tool :code:`curl`
-is used to make the HTTP requests, which is pre-installed on most Linux
-distributions. Optionally, :code:`jq` can also be installed, which parses the json
-responses sent by the server and makes them more human-readable. Check that
-curl and jq are installed by running the following command in terminal::
+doesn't need any special software. In this tutorial command-line tool
+:code:`curl` is used to make the HTTP requests, which is pre-installed on most
+Linux distributions. Optionally, :code:`jq` can also be installed, which parses
+the json responses sent by the server and makes them more human-readable. Check
+that curl and jq are installed by running the following command in terminal::
 
     sudo yum install curl jq
 
 If you choose not to install jq, ignore all pipes to jq for the remainder of
-this tutorial i.e. strip "| jq" from all the commands. Finally, let's create
-some fake data that we want to upload to the filestorage::
+this tutorial i.e. strip "| jq" from all the commands.
+
+Usage
+-----
+
+The following chapters go over the whole upload process. Let's start by testing
+the connection to the API. Root of the API is located at
+:code:`https://passipservice.csc.fi/filestorage/api/`. Check your connection
+to the API by sending a GET request to the root::
+
+    curl https://passipservice.csc.fi/filestorage/api/ -u username:password | jq
+
+Succesful request returns::
+
+    {
+        "code": 404,
+        "error": "404: Not Found"
+    },
+
+since no functionality is defined for the root of the API. If the server
+returns :code:`401: Unauthorized`, the provided credentials
+:code:`username:password` were mistyped or the user does not exist.
+
+POST files
+~~~~~~~~~~
+
+Next, let's actually upload files to passipservice. Let's begin by creating
+fake data with commands::
 
     mkdir -p data/test1 data/test2
     echo "This is test file 1" > data/test1/file_1.txt
     echo "This is test file 2" > data/test1/file_2.txt
     for i in {00..99}; do echo $i > data/test2/$i.txt; done
 
-Usage
------
+This creates directories :code:`data/test1/` and :code:`data/test2/`, which
+contain 2 and 100 test files respectively. Let's first look how individual
+files can be uploaded by uploading the files in directory :code:`data/test1/`
+and then how the whole directory :code:`data/test2/` can be uploaded.
 
-filestorage API can be accessed at
-:code:`https://passipservice.csc.fi/filestorage/api/`. Check your connection
-to the API by sending a GET request to the root of API::
-
-    curl https://passipservice.csc.fi/filestorage/api/ -u username:password | jq
-
-If the server returns :code:`401: Unauthorized` the provided credentials
-:code:`username:password` were mistyped or the user does not exist. Server
-should return :code:`404: Not found`, since no functionality is defined for the
-root of the filestorage API.
-
-POST files
-~~~~~~~~~~
-
-Let's upload files :code:`data/test1/file_?.txt`
-to passipservice. This can be done by sending a POST request to
+Files can be uploaded to passipservice by sending a POST request to
 :code:`/filestorage/api/v1/files/path/to/the/file`, where
 :code:`/path/to/the/file` is the path to the file on the server relative to
 your project directory. It is later used as the file_path attribute in the file
 metadata in Metax and thus can be used to define the directory structure of
-the files in the dataset. Now, let's upload the two files with commands::
+the files in the dataset. Files :code:`data/test1/file_?.txt` can be uploaded
+with commands::
 
     curl https://passipservice.csc.fi/filestorage/api/v1/files/data/test1/file_1.txt -X POST -T data/test1/file_1.txt -u username:password | jq
     curl https://passipservice.csc.fi/filestorage/api/v1/files/data/test1/file_2.txt -X POST -T data/test1/file_2.txt -u username:password | jq
@@ -70,7 +83,15 @@ the files in the dataset. Now, let's upload the two files with commands::
 Here, flags :code:`-X` and :code:`-T` define request method and the actual data
 sent respectively. Without any flags provided, :code:`curl` sends a GET request
 by default. The aforementioned commands should return file_path, md5 checksum
-and status. Checksums of the sent files should always be checked to make sure
+and status::
+
+    {
+        "file_path": "/data/test1/file_1.txt",
+        "md5": "7dbdc7a8126dcbb55dd383fab5c2d6f8",
+        "status": "created"
+    }
+
+Checksums of the uploaded files should always be checked to make sure
 the files were not corrupted during the transfer. Checksums returned by the
 server should always match the local checksums, which can be calculated with
 command md5sum::
@@ -108,8 +129,8 @@ GET files
 ~~~~~~~~~
 
 Now that all the test files have been uploaded to the server let's check some
-of them. All directories and filenames can be requested by sending a GET
-request to :code:`/filestorage/api/v1/files`::
+of them. A list of all the directories and filenames can be requested by
+sending a GET request to :code:`/filestorage/api/v1/files`::
 
     curl https://passipservice.csc.fi/filestorage/api/v1/files -u username:password | jq
 
@@ -119,11 +140,21 @@ GET more info about an individual file with e.g.
 
     curl https://passipservice.csc.fi/filestorage/api/v1/files/data/test1/file_1.txt -u username:password | jq
 
+This should return a response like::
+
+    {
+        "file_path": "/data/test1/file_1.txt",
+        "md5": "7dbdc7a8126dcbb55dd383fab5c2d6f8",
+        "metax_identifier": "None",
+        "timestamp": "2019-03-20T14:23:30+00:00"
+    }
+
+
 POST file metadata
 ~~~~~~~~~~~~~~~~~~
 
 Finally, you need to POST file metadata to Metax to be able the access
-the files in Qvain. This can be done be sending a POST request to
+the files in Qvain. This can be done by sending a POST request to
 :code:`/filestorage/api/v1/metadata/path/to/file/or/dir`. If the path
 resolves to a directory, all metadata is generated and posted to Metax
 recursively for all the files in that directory and all the subdirectories.
@@ -135,7 +166,38 @@ Metadata can be generated for all files with command::
 Server returns `failed` and `success` lists. Success list contains all the
 generated metadata that was successfully posted to Metax. Failed list
 contains all the metadata that couldn't be posted to Metax and the
-corresponding error codes.
+corresponding error codes. An example response for the metadata generation
+looks like::
+
+        {
+          "failed": [],
+          "success": [
+            {
+              "object": {
+                "byte_size": 20,
+                "checksum_algorithm": "md5",
+                "checksum_checked": "2019-03-20T14:37:25+00:00",
+                "checksum_value": "7dbdc7a8126dcbb55dd383fab5c2d6f8",
+                "date_created": "2019-03-20 14:37:25+00:00",
+                "file_format": "text/plain",
+                "file_frozen": "2019-03-20T14:23:30+00:00",
+                "file_name": "file_1.txt",
+                "file_path": "/data/test1/file_1.txt",
+                "file_storage": {
+                  "id": 4
+                },
+                "file_uploaded": "2019-03-20T14:23:30+00:00",
+                "identifier": "urn:uuid:f7b4913c-7172-44ea-913b-9fa3a426c93d",
+                "parent_directory": {
+                  "id": 1560
+                },
+                "project_identifier": "test_project",
+                "service_created": "tpas"
+              }
+            }
+          ]
+        }
+
 
 DELETE files
 ~~~~~~~~~~~~
