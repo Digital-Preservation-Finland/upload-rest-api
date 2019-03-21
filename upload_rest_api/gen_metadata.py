@@ -180,6 +180,9 @@ class MetaxClient(object):
                 if metax_path in files_dict and no_dataset:
                     file_id_list.append(files_dict[metax_path]["id"])
 
+        if not file_id_list:
+            return {"deleted_files_count": 0}
+
         # Remove file metadata from Metax and return the response
         return self.client.delete_files(file_id_list).json()
 

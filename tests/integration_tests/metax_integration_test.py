@@ -152,7 +152,7 @@ def test_gen_metadata_file(app, dataset, test_auth, monkeypatch):
     data = json.loads(response.data)
 
     if dataset:
-        assert data["metax"]["detail"] == "Received empty list of identifiers"
+        assert data["metax"]["deleted_files_count"] == 0
     else:
         assert data["metax"]["deleted_files_count"] == 1
 
