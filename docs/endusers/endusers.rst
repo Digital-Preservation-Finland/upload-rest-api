@@ -1,5 +1,5 @@
-passipservice filestorage API
-=============================
+filestorage API User Guide
+==========================
 
 This document is a hands-on tutorial, which demonstrates how to use the
 passipservice filestorage API. filestorage API can be used to upload files
