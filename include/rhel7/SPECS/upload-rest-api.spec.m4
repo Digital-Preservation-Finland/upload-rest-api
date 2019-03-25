@@ -57,6 +57,7 @@ usermod -aG %{user_group} %{user_name}
 rm -rf $RPM_BUILD_ROOT
 make install PREFIX="%{_prefix}" DESTDIR="%{buildroot}"
 mkdir -p %{buildroot}/var/spool/upload
+mkdir -p %{buildroot}/var/log/upload_rest_api
 
 %post
 chown %{user_name}:%{user_group} /var/lib/%{user_name}
@@ -69,6 +70,7 @@ rm -rf $RPM_BUILD_ROOT
 %defattr(-,root,root,-)
 %config(noreplace) /etc/upload_rest_api.conf
 %attr(-,upload_rest_api,upload_rest_api) /var/spool/upload
+%attr(-,upload_rest_api,upload_rest_api) /var/log/upload_rest_api
 
 # TODO: For now changelog must be last, because it is generated automatically
 # from git log command. Appending should be fixed to happen only after %changelog macro

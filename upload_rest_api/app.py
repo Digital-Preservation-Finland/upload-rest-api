@@ -1,5 +1,8 @@
 """REST api for uploading files into passipservice
 """
+import logging
+import logging.handlers
+
 from flask import Flask
 
 import upload_rest_api.authentication as auth
@@ -10,7 +13,7 @@ def configure_app(app):
     app.config.from_pyfile("/etc/upload_rest_api.conf")
 
 
-def create_app():
+def create_app(testing=False):
     """Configure and return a Flask application instance.
 
     :returns: Instance of flask.Flask()
@@ -22,6 +25,18 @@ def create_app():
 
     # Authenticate all requests
     app.before_request(auth.authenticate)
+
+    # Add logger
+    if not testing:
+        file_handler = logging.handlers.RotatingFileHandler(
+            "/var/log/upload_rest_api/upload_rest_api.log",
+            maxBytes=10*1024*1024, backupCount=5
+        )
+        file_handler.setLevel(logging.WARNING)
+        file_handler.setFormatter(
+            logging.Formatter("\n[%(asctime)s - %(levelname)s]\n%(message)s")
+        )
+        app.logger.addHandler(file_handler)
 
     # Register all blueprints
     from upload_rest_api.api.v1.files import FILES_API_V1
@@ -43,4 +58,4 @@ def create_app():
 
 
 if __name__ == "__main__":
-    create_app().run(debug=True)
+    create_app(testing=True).run(debug=True)
