@@ -28,9 +28,9 @@ def create_app(testing=False):
 
     # Add logger
     if not testing:
-        file_handler = logging.handlers.RotatingFileHandler(
+        file_handler = logging.handlers.TimedRotatingFileHandler(
             "/var/log/upload_rest_api/upload_rest_api.log",
-            maxBytes=10*1024*1024, backupCount=5
+            when="midnight", backupCount=6
         )
         file_handler.setLevel(logging.WARNING)
         file_handler.setFormatter(
