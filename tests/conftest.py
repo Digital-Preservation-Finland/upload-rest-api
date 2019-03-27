@@ -65,7 +65,7 @@ def app(database_fx, monkeypatch):
 
     monkeypatch.setattr(app_module, "configure_app", _configure_app)
 
-    flask_app = app_module.create_app(testing=True)
+    flask_app = app_module.create_app()
     init_db(database_fx)
     temp_path = tempfile.mkdtemp(prefix="tests.testpath.")
 
