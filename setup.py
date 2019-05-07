@@ -14,8 +14,10 @@ def main():
             "flask",
             "pymongo",
             "file-magic",
-            "metax_access@git+https://gitlab.csc.fi/dpres/metax-access.git"
-            "@develop"
+            "metax_access@git+https://gitlab.csc.fi/dpres/"
+            "metax-access.git@develop",
+            "archive_helpers@git+https://gitlab.csc.fi/dpres/"
+            "archive-helpers.git@develop"
         ],
         entry_points={
             "console_scripts": [

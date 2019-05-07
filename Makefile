@@ -22,7 +22,8 @@ install:
 
 
 test:
-	py.test  tests/unit_tests -svvvv --junitprefix=upload_rest_api --junitxml=junit.xml \
+	py.test  tests/unit_tests -v \
+	    --junitprefix=upload_rest_api --junitxml=junit.xml
 
 coverage:
 	py.test tests --cov=upload_rest_api --cov-report=html
