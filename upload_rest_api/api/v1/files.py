@@ -7,6 +7,10 @@ from shutil import rmtree
 from flask import Blueprint, safe_join, request, jsonify, current_app
 from werkzeug.utils import secure_filename
 
+from archive_helpers.extract import (
+    MemberNameError, MemberOverwriteError, MemberTypeError
+)
+
 import upload_rest_api.upload as up
 import upload_rest_api.database as db
 import upload_rest_api.gen_metadata as md
@@ -67,10 +71,12 @@ def upload_file(fpath):
 
     try:
         response = up.save_file(fpath)
-    except up.OverwriteError as error:
+    except (MemberOverwriteError, up.OverwriteError) as error:
         return utils.make_response(409, str(error))
-    except up.SymlinkError as error:
-        return utils.make_response(419, str(error))
+    except MemberTypeError as error:
+        return utils.make_response(415, str(error))
+    except MemberNameError as error:
+        return utils.make_response(400, str(error))
     except up.QuotaError as error:
         return utils.make_response(413, str(error))
 

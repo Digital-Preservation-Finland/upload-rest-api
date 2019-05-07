@@ -4,6 +4,8 @@ import os
 import shutil
 import json
 
+import pytest
+
 import upload_rest_api.gen_metadata as md
 from tests.mockup.metax import MockMetax
 
@@ -103,9 +105,9 @@ def test_user_quota(app, test_auth, database_fx):
     upload_path = app.config.get("UPLOAD_PATH")
     users = database_fx.upload.users
 
-    _set_user_quota(users, "test", 400, 0)
+    _set_user_quota(users, "test", 200, 0)
     response = _upload_file(
-        test_client, "/v1/files/test",
+        test_client, "/v1/files/test.zip",
         test_auth, "tests/data/test.zip"
     )
     assert response.status_code == 413
@@ -154,39 +156,71 @@ def test_upload_outside(app, test_auth):
     assert response.status_code == 404
 
 
-def test_upload_zip(app, test_auth):
-    """Test that uploaded zip files are extracted. No files should be
+@pytest.mark.parametrize("archive", [
+    "tests/data/test.zip",
+    "tests/data/test.tar.gz"
+])
+def test_upload_archive(archive, app, test_auth):
+    """Test that uploaded arhive is extracted. No files should be
     extracted outside the project directory.
     """
     test_client = app.test_client()
     upload_path = app.config.get("UPLOAD_PATH")
 
     response = _upload_file(
-        test_client, "/v1/files/test.zip",
-        test_auth, "tests/data/test.zip"
+        test_client, "/v1/files/archive", test_auth, archive
     )
     assert response.status_code == 200
 
     fpath = os.path.join(upload_path, "test_project")
     text_file = os.path.join(fpath, "test", "test.txt")
-    zip_file = os.path.join(fpath, "test.zip")
+    archive_file = os.path.join(fpath, os.path.split(archive)[1])
 
     # test.txt is correctly extracted
     assert os.path.isfile(text_file)
     assert "test" in open(text_file).read()
 
-    # zip file is removed
-    assert not os.path.isfile(zip_file)
-
-    # no symlinks are created
-    assert not _contains_symlinks(fpath)
+    # archive file is removed
+    assert not os.path.isfile(archive_file)
 
     # Trying to upload same zip again should return 409 - Conflict
     response = _upload_file(
         test_client, "/v1/files/test.zip",
         test_auth, "tests/data/test.zip"
     )
+
+    data = json.loads(response.data)
     assert response.status_code == 409
+    assert data["error"] == "File 'test/test.txt' already exists"
+
+
+@pytest.mark.parametrize("archive", [
+    "tests/data/symlink.zip",
+    "tests/data/symlink.tar.gz"
+])
+def test_upload_invalid_archive(archive, app, test_auth):
+    """Test that trying to upload a archive with symlinks return 413
+    and doesn't create any files.
+    """
+    test_client = app.test_client()
+    upload_path = app.config.get("UPLOAD_PATH")
+
+    response = _upload_file(
+        test_client, "/v1/files/archive", test_auth, archive
+    )
+    data = json.loads(response.data)
+    assert response.status_code == 415
+    assert data["error"] == "File 'test/link' has unsupported type: SYM"
+
+    fpath = os.path.join(upload_path, "test_project")
+    text_file = os.path.join(fpath, "test", "test.txt")
+    archive_file = os.path.join(fpath, os.path.split(archive)[1])
+
+    # test.txt is not extracted
+    assert not os.path.isfile(text_file)
+
+    # archive file is removed
+    assert not os.path.isfile(archive_file)
 
 
 def test_get_file(app, admin_auth, test_auth, test2_auth):

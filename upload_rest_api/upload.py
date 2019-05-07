@@ -1,8 +1,14 @@
 """Module for handling the file uploads"""
 import os
+import tarfile
 import zipfile
 
 from flask import jsonify, request
+
+from archive_helpers.extract import extract
+from archive_helpers.extract import (
+    MemberNameError, MemberOverwriteError, MemberTypeError
+)
 
 import upload_rest_api.database as db
 import upload_rest_api.gen_metadata as gen_metadata
@@ -21,25 +27,23 @@ def request_exceeds_quota():
     return quota - request.content_length < 0
 
 
-def _zipfile_exceeds_quota(zipf, username):
-    """Check whether extracting the zipfile exceeds users quota
+def _archive_exceeds_quota(archive_path, username):
+    """Check whether extracting the archive exceeds users quota.
 
-    :returns: True if the zipfile exceeds user's quota else False
+    :returns: True if the archive exceeds user's quota else False
     """
+    is_tar = tarfile.is_tarfile(archive_path)
     user = db.UsersDoc(username)
     quota = user.get_quota() - user.get_used_quota()
-    uncompressed_size = sum(zinfo.file_size for zinfo in zipf.filelist)
 
-    return quota - uncompressed_size < 0
+    if is_tar:
+        with tarfile.open(archive_path) as archive:
+            size = sum(memb.size for memb in archive)
+    else:
+        with zipfile.ZipFile(archive_path) as archive:
+            size = sum(memb.file_size for memb in archive.filelist)
 
-
-def _zipfile_overwrites(fpath, namelist):
-    """Check if writing files specified in namelist overwrites anything."""
-    for name in namelist:
-        if os.path.exists(os.path.join(fpath, name)):
-            return True
-
-    return False
+    return quota - size < 0
 
 
 def _process_extracted_files(fpath):
@@ -77,11 +81,6 @@ class OverwriteError(Exception):
     pass
 
 
-class SymlinkError(Exception):
-    """Exception for trying to create a symlink"""
-    pass
-
-
 class QuotaError(Exception):
     """Exception for exceeding to quota"""
     pass
@@ -105,40 +104,30 @@ def save_file(fpath):
     else:
         raise OverwriteError("File already exists")
 
-    # Do not accept symlinks
-    if os.path.islink(fpath):
-        os.unlink(fpath)
-        raise SymlinkError("Symlinks are not supported")
-
     md5 = gen_metadata.md5_digest(fpath)
 
-    # If zip file was uploaded extract all files
-    if zipfile.is_zipfile(fpath):
-        with zipfile.ZipFile(fpath) as zipf:
-            dir_path = os.path.split(fpath)[0]
+    # If zip or tar file was uploaded, extract all files
+    if zipfile.is_zipfile(fpath) or tarfile.is_tarfile(fpath):
+        dir_path = os.path.split(fpath)[0]
 
-            # Check the uncompressed size
-            if _zipfile_exceeds_quota(zipf, username):
-                # Remove zip archive and raise an exception
-                os.remove(fpath)
-                raise QuotaError("Quota exceeded")
+        # Check the uncompressed size
+        if _archive_exceeds_quota(fpath, username):
+            # Remove the archive and raise an exception
+            os.remove(fpath)
+            raise QuotaError("Quota exceeded")
 
-            # Check that extracting the zipfile will not overwrite anything
-            if _zipfile_overwrites(dir_path, zipf.namelist()):
-                # Remove zip archive and raise an exception
-                os.remove(fpath)
-                raise OverwriteError(
-                    "Zip extraction error: "
-                    "overwriting existing files not allowed"
-                )
+        try:
+            extract(fpath, dir_path)
+        except (MemberNameError, MemberTypeError, MemberOverwriteError):
+            # Remove the archive and raise the exception
+            os.remove(fpath)
+            raise
 
-            zipf.extractall(dir_path)
-
-        # Remove zip archive and all created symlinks
+        # Remove archive and all created symlinks
         os.remove(fpath)
         _process_extracted_files(dir_path)
 
-        status = "zip uploaded and extracted"
+        status = "archive uploaded and extracted"
 
     response = jsonify({
         "file_path": utils.get_return_path(fpath),

@@ -39,7 +39,7 @@ def create_app():
 
     # Register error handlers
     from upload_rest_api.api.v1.errorhandlers import http_error_generic
-    for status_code in [401, 404, 405, 409, 413]:
+    for status_code in [400, 401, 404, 405, 409, 413, 415]:
         app.register_error_handler(status_code, http_error_generic)
 
     from upload_rest_api.api.v1.errorhandlers import http_error_500

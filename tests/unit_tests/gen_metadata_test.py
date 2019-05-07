@@ -23,7 +23,7 @@ def test_md5():
     digest2 = "40c6cadaffe26738f84732d0fdd09ce4"
 
     assert md.md5_digest("tests/data/test.txt") == digest1
-    assert md.md5_digest("tests/data/test.zip") == digest2
+    assert md.md5_digest("tests/data/symlink.zip") == digest2
 
 
 def test_mimetype():
