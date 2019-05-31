@@ -5,3 +5,4 @@ rpmbuild/
 *.pyc
 __pycache__
 *.swp
+junit.xml
