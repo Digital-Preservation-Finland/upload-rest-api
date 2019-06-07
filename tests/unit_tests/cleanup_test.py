@@ -85,3 +85,29 @@ def test_expired_files(app, monkeypatch):
 
     # upload_path/test/test.txt should not be removed
     assert os.path.isfile(fpath)
+
+
+def test_ida_cleanup(app):
+    """Test that all the expired files are removed from ida_files.
+    """
+    upload_path = app.config.get("UPLOAD_PATH")
+
+    # Create the files to be cleaned
+    fpath = os.path.join(upload_path, "identifier1")
+    fpath_expired = os.path.join(upload_path, "identifier2")
+
+    shutil.copy("tests/data/test.txt", fpath)
+    shutil.copy("tests/data/test.txt", fpath_expired)
+
+    current_time = time.time()
+    expired_access = int(current_time - (60*60*24*14 + 1))
+    os.utime(fpath_expired, (expired_access, expired_access))
+
+    # Clean all files older than two weeks
+    clean.clean_ida(ida_files_path=upload_path)
+
+    # upload_path/identifier1 should not be removed
+    assert os.path.isfile(fpath)
+
+    # upload_path/identifier2 should be removed
+    assert not os.path.isfile(fpath_expired)

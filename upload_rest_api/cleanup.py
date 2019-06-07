@@ -150,13 +150,12 @@ def clean_disk(metax=True):
     return deleted_count
 
 
-def clean_ida():
-    """Remove all files from /var/spool/siptools_research/ida_files
-    that haven't been accessed in two weeks.
+def clean_ida(ida_files_path="/var/spool/siptools_research/ida_files"):
+    """Remove all files from ida_files_path that haven't been accessed in
+    two weeks.
 
     :returns: Count of deleted files
     """
-    ida_files_path = "/var/spool/siptools_research/ida_files"
     current_time = time.time()
     time_lim = 60*60*24*14
     deleted_count = 0
