@@ -220,7 +220,7 @@ def main(arguments=None):
     elif args.location == "ida_files":
         deleted_count = clean_ida()
     else:
-        raise Exception("Unsupported location: %s" % args.location)
+        raise ValueError("Unsupported location: %s" % args.location)
 
     print "Cleaned %d files" % deleted_count
 
