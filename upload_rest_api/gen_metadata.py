@@ -64,20 +64,20 @@ def _generate_metadata(fpath, upload_path, project, storage_id):
     file_path = get_metax_path(fpath, upload_path)
 
     metadata = {
-        "identifier" : uuid4().urn,
-        "file_name" : os.path.split(fpath)[1],
-        "file_format" : _get_mimetype(fpath),
-        "byte_size" : os.stat(fpath).st_size,
-        "file_path" : file_path,
-        "project_identifier" : project,
-        "file_uploaded" : timestamp,
-        "file_frozen" : timestamp,
-        "checksum" : {
-            "algorithm" : "md5",
-            "value" : md5_digest(fpath),
-            "checked" : _timestamp_now()
+        "identifier": uuid4().urn,
+        "file_name": os.path.split(fpath)[1],
+        "file_format": _get_mimetype(fpath),
+        "byte_size": os.stat(fpath).st_size,
+        "file_path": file_path,
+        "project_identifier": project,
+        "file_uploaded": timestamp,
+        "file_frozen": timestamp,
+        "checksum": {
+            "algorithm": "md5",
+            "value": md5_digest(fpath),
+            "checked": _timestamp_now()
         },
-        "file_storage" : storage_id
+        "file_storage": storage_id
     }
 
     return metadata
@@ -204,7 +204,6 @@ class MetaxClient(object):
             id_set |= project_id_set
 
         return id_set
-
 
     def file_has_dataset(self, metax_path, files_dict):
         """Check if file belongs to any dataset"""
