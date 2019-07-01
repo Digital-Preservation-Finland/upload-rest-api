@@ -71,6 +71,7 @@ def _generate_metadata(fpath, upload_path, project, storage_id):
         "file_path": file_path,
         "project_identifier": project,
         "file_uploaded": timestamp,
+        "file_modified": timestamp,
         "file_frozen": timestamp,
         "checksum": {
             "algorithm": "md5",

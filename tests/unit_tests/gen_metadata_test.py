@@ -47,6 +47,7 @@ def test_gen_metadata():
     assert metadata["file_path"] == "/test.txt"
     assert metadata["project_identifier"] == "data"
     assert "file_uploaded" in metadata
+    assert "file_modified" in metadata
     assert "file_frozen" in metadata
 
     checksum = metadata["checksum"]
