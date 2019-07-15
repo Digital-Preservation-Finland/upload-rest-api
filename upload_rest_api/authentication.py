@@ -1,10 +1,13 @@
 """Module for authenticating users
 """
+from __future__ import unicode_literals
+
 from hmac import compare_digest
 
 from flask import request, abort
 
 from upload_rest_api import database as db
+from upload_rest_api.database import UserNotFoundError
 
 
 def _auth_user(username, password, user=None):
@@ -12,9 +15,9 @@ def _auth_user(username, password, user=None):
     if user is None:
         user = db.UsersDoc(username)
 
-    if user.exists():
+    try:
         user = user.get()
-    else:
+    except UserNotFoundError:
         # Calculate digest even if user does not exist to avoid
         # leaking information about which users exist
         return compare_digest("hash"*16, db.hash_passwd("passwd", "salt"))

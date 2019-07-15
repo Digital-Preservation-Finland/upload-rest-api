@@ -1,4 +1,6 @@
 """upload-rest-api utility functions"""
+from __future__ import unicode_literals
+
 import os
 
 from flask import request, current_app, jsonify, safe_join

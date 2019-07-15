@@ -9,11 +9,13 @@ def main():
     setup(
         name='upload-rest-api',
         packages=find_packages(exclude=['tests', 'tests.*']),
+        include_package_data=True,
         version=get_version(),
         install_requires=[
             "flask",
             "pymongo",
             "file-magic",
+            "six",
             "metax_access@git+https://gitlab.csc.fi/dpres/"
             "metax-access.git@develop",
             "archive_helpers@git+https://gitlab.csc.fi/dpres/"
@@ -26,6 +28,7 @@ def main():
             ]
         }
     )
+
 
 if __name__ == '__main__':
     main()

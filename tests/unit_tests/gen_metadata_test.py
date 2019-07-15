@@ -1,4 +1,6 @@
 """Unit tests for metadata generation"""
+from __future__ import unicode_literals
+
 import pytest
 
 import upload_rest_api.gen_metadata as md

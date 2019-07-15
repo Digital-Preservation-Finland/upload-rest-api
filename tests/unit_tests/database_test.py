@@ -1,4 +1,6 @@
 """Unit tests for database module"""
+from __future__ import unicode_literals
+
 import re
 import binascii
 
@@ -144,4 +146,4 @@ def test_hash_passwd():
     """Test that salting and hashing returns the correct digest
     """
     digest = binascii.hexlify(db.hash_passwd("test", "test")[:16])
-    assert digest == "4b119f6da6890ed1cc68d5b3adf7d053"
+    assert digest == b"4b119f6da6890ed1cc68d5b3adf7d053"

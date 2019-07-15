@@ -2,13 +2,16 @@
 been accessed within given time frame. This script can be set to run
 periodically using cron.
 """
+from __future__ import unicode_literals
+
+import argparse
+import errno
 import os
 import time
 from runpy import run_path
-import argparse
 
-import upload_rest_api.gen_metadata as md
 import upload_rest_api.database as db
+import upload_rest_api.gen_metadata as md
 
 
 def _is_expired(fpath, current_time, time_lim):
@@ -38,7 +41,7 @@ def _clean_empty_dirs(fpath):
             os.rmdir(dirpath)
         except OSError as err:
             # Raise all errors except [Errno 39] Directory not empty
-            if err.errno != 39:
+            if err.errno != errno.ENOTEMPTY:
                 raise
 
 
@@ -222,7 +225,7 @@ def main(arguments=None):
     else:
         raise ValueError("Unsupported location: %s" % args.location)
 
-    print "Cleaned %d files" % deleted_count
+    print("Cleaned %d files" % deleted_count)
 
 
 if __name__ == "__main__":

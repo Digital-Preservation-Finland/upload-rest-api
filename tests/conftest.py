@@ -1,4 +1,5 @@
 """Configure py.test default values and functionality"""
+from __future__ import unicode_literals
 
 import os
 import sys
@@ -138,22 +139,30 @@ def files_col():
 @pytest.fixture(scope="function")
 def test_auth():
     """Yield correct credentials header"""
-    return {"Authorization": "Basic %s" % b64encode("test:test")}
+    return {
+        "Authorization": "Basic %s" % b64encode(b"test:test").decode("utf-8")
+    }
 
 
 @pytest.fixture(scope="function")
 def test2_auth():
     """Yield correct credentials header"""
-    return {"Authorization": "Basic %s" % b64encode("test2:test")}
+    return {
+        "Authorization": "Basic %s" % b64encode(b"test2:test").decode("utf-8")
+    }
 
 
 @pytest.fixture(scope="function")
 def admin_auth():
     """Yield correct credentials header"""
-    return {"Authorization": "Basic %s" % b64encode("admin:test")}
+    return {
+        "Authorization": "Basic %s" % b64encode(b"admin:test").decode("utf-8")
+    }
 
 
 @pytest.fixture(scope="function")
 def wrong_auth():
     """Yield incorrect credential header"""
-    return {"Authorization": "Basic %s" % b64encode("admin:admin")}
+    return {
+        "Authorization": "Basic %s" % b64encode(b"admin:admin").decode("utf-8")
+    }

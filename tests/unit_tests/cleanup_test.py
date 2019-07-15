@@ -1,4 +1,6 @@
 """Unit tests for the cleanup.py script"""
+from __future__ import unicode_literals
+
 import os
 import time
 import shutil

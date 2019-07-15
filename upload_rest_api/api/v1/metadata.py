@@ -1,5 +1,7 @@
 """REST api for uploading files into passipservice
 """
+from __future__ import unicode_literals
+
 import os
 
 from flask import Blueprint, safe_join, jsonify

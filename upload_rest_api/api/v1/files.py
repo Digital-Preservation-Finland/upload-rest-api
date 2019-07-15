@@ -1,6 +1,8 @@
 """/filestorage/api/files/v1 endpoints. Functionality for uploading,
 querying and deleting files from the server.
 """
+from __future__ import unicode_literals
+
 import os
 from shutil import rmtree
 
@@ -31,7 +33,6 @@ def _get_dir_tree(fpath):
         file_dict["/"] = file_dict.pop(".")
 
     return file_dict
-
 
 
 @FILES_API_V1.route("/<path:fpath>", methods=["POST"])

@@ -1,14 +1,17 @@
 """Module for generating basic file metadata and posting it to Metax"""
-import os
+from __future__ import unicode_literals
+
 import hashlib
+import os
 from datetime import datetime
 from uuid import uuid4
 
-import magic
-from flask import current_app, request
+import six
 
+import magic
 import metax_access
 import upload_rest_api.database as db
+from flask import current_app, request
 
 
 def md5_digest(fpath):
@@ -34,19 +37,19 @@ def _get_mimetype(fpath):
     mimetype = _magic.file(fpath)
     _magic.close()
 
-    return mimetype
+    return six.text_type(mimetype)
 
 
 def iso8601_timestamp(fpath):
     """Returns last access time in ISO 8601 format"""
     timestamp = datetime.utcfromtimestamp(os.stat(fpath).st_atime)
-    return str(timestamp.replace(microsecond=0).isoformat()) + "+00:00"
+    return "{}+00:00".format(timestamp.replace(microsecond=0).isoformat())
 
 
 def _timestamp_now():
     """Returns current time in ISO 8601 format"""
     timestamp = datetime.utcnow()
-    return str(timestamp.replace(microsecond=0).isoformat()) + "+00:00"
+    return "{}+00:00".format(timestamp.replace(microsecond=0).isoformat())
 
 
 def get_metax_path(fpath, upload_path):
@@ -64,8 +67,8 @@ def _generate_metadata(fpath, upload_path, project, storage_id):
     file_path = get_metax_path(fpath, upload_path)
 
     metadata = {
-        "identifier": uuid4().urn,
-        "file_name": os.path.split(fpath)[1],
+        "identifier": six.text_type(uuid4().urn),
+        "file_name": six.text_type(os.path.split(fpath)[1]),
         "file_format": _get_mimetype(fpath),
         "byte_size": os.stat(fpath).st_size,
         "file_path": file_path,
@@ -156,7 +159,7 @@ class MetaxClient(object):
         elif self.file_has_dataset(metax_path, files_dict):
             response = "Metadata is part of a dataset. Metadata not removed"
         else:
-            file_id = str(files_dict[metax_path]["id"])
+            file_id = six.text_type(files_dict[metax_path]["id"])
             response = self.client.delete_file(file_id).json()
 
         return response

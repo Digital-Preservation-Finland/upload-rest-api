@@ -1,16 +1,19 @@
 """Module for accessing user database
 """
-import os
-import hashlib
+from __future__ import unicode_literals
+
 import binascii
+import hashlib
+import io
+import os
 import random
+import six
 from string import ascii_letters, digits
-from bson.binary import Binary
 
 import pymongo
-from flask import current_app, request, has_request_context, safe_join
+from bson.binary import Binary
+from flask import current_app, has_request_context, request, safe_join
 from werkzeug.utils import secure_filename
-
 
 # Password vars
 PASSWD_LEN = 20
@@ -53,7 +56,8 @@ def hash_passwd(password, salt):
 
     :returns: hexadecimal representation of the 512 bit digest
     """
-    digest = hashlib.pbkdf2_hmac(HASH_ALG, password, salt, ITERATIONS)
+    digest = hashlib.pbkdf2_hmac(
+        HASH_ALG, password.encode("utf-8"), salt.encode("utf-8"), ITERATIONS)
     return Binary(digest)
 
 
@@ -134,7 +138,7 @@ class UsersDoc(object):
         digest = binascii.hexlify(user["digest"])
 
         return "_id : %s\nquota : %d\nsalt : %s\ndigest : %s" % (
-            self.username, quota, salt, digest
+            self.username, quota, salt, digest.decode("utf-8")
         )
 
     def create(self, project, password=None):
@@ -197,7 +201,7 @@ class UsersDoc(object):
             raise UserNotFoundError("User '%s' not found" % self.username)
 
         user = self.users.find_one({"_id": self.username})
-        user["digest"] = binascii.hexlify(user["digest"])
+        user["digest"] = binascii.hexlify(user["digest"]).decode("utf-8")
 
         return user
 
@@ -330,25 +334,25 @@ def init_db():
     """Initialize database by creating the admin user."""
     user = UsersDoc("admin")
     if user.exists():
-        print "Database already initialized"
+        print("Database already initialized")
         return
 
     # Create admin user
     password = user.create("admin_project")
 
     # Read conf file
-    with open("/etc/upload_rest_api.conf", "r") as conf_file:
+    with io.open("/etc/upload_rest_api.conf", "rt") as conf_file:
         lines = conf_file.readlines()
 
     # Write new conf file
-    with open("/etc/upload_rest_api.conf", "w") as conf_file:
+    with io.open("/etc/upload_rest_api.conf", "wt") as conf_file:
         for line in lines:
             if not line.startswith('admin_password = "'):
                 conf_file.write(line)
 
         conf_file.write('ADMIN_PASSWORD = "%s"' % password)
 
-    print "Database initialized"
+    print("Database initialized")
 
 
 if __name__ == "__main__":

@@ -1,11 +1,13 @@
 """REST api for uploading files into passipservice
 """
-from flask import Blueprint, jsonify
+from __future__ import unicode_literals
+
+import six
 
 import upload_rest_api.authentication as auth
 import upload_rest_api.database as db
 import upload_rest_api.utils as utils
-
+from flask import Blueprint, jsonify
 
 DB_API_V1 = Blueprint("db_v1", __name__, url_prefix="/v1/users")
 
@@ -38,7 +40,7 @@ def get_user(username):
         response = jsonify(user.get_utf8())
         response.status_code = 200
     except db.UserNotFoundError as error:
-        return utils.make_response(404, str(error))
+        return utils.make_response(404, six.text_type(error))
 
     return response
 
@@ -55,12 +57,12 @@ def create_user(username, project):
     try:
         passwd = user.create(project)
     except db.UserExistsError as error:
-        return utils.make_response(409, str(error))
+        return utils.make_response(409, six.text_type(error))
 
     response = jsonify(
         {
             "username": username,
-            "project" : project,
+            "project": project,
             "password": passwd
         }
     )
@@ -80,7 +82,7 @@ def delete_user(username):
     try:
         db.UsersDoc(username).delete()
     except db.UserNotFoundError as error:
-        return utils.make_response(404, str(error))
+        return utils.make_response(404, six.text_type(error))
 
     response = jsonify({"username": username, "status": "deleted"})
     response.status_code = 200

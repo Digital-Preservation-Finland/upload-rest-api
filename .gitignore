@@ -1,8 +1,10 @@
 .venv/
-venv/
+venv*/
 test/
 rpmbuild/
 *.pyc
 __pycache__
 *.swp
+*.egg-info
 junit.xml
+.tox

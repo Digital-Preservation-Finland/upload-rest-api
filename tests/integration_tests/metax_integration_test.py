@@ -5,6 +5,8 @@ deleted.
 These tests require the METAX_URL, METAX_USER and METAX_PASSWORD to be defined
 in /etc/upload_rest_api.conf.
 """
+from __future__ import unicode_literals
+
 import os
 import json
 from runpy import run_path

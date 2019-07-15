@@ -11,3 +11,26 @@ unit-test:
   stage: local-test
   script:
     - 'unit-test.sh'
+
+unit-test-python27:
+  stage: local-test
+  tags:
+    - docker
+  script:
+    - 'unit-test-virtualenv.sh'
+  allow_failure: true
+  except:
+    - master
+
+unit-test-python36:
+  stage: local-test
+  tags:
+    - docker
+  script:
+    - 'unit-test-virtualenv.sh python36'
+  allow_failure: true
+  except:
+    - master
+
+variables:
+  ANSIBLE_REPOSITORY: ansible-preservation-system

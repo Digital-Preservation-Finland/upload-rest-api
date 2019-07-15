@@ -1,4 +1,6 @@
 """Module for handling the file uploads"""
+from __future__ import unicode_literals
+
 import os
 import tarfile
 import zipfile
@@ -69,7 +71,7 @@ def _save_stream(fpath, chunk_size=1024*1024):
     with open(fpath, "wb") as f_out:
         while True:
             chunk = request.stream.read(chunk_size)
-            if chunk == '':
+            if chunk == b'':
                 break
             f_out.write(chunk)
 

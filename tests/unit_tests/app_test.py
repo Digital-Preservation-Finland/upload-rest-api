@@ -1,11 +1,12 @@
 """Tests for ``upload_rest_api.app`` module"""
+from __future__ import unicode_literals
 
+import io
+import json
 import os
 import shutil
-import json
 
 import pytest
-
 import upload_rest_api.gen_metadata as md
 from tests.mockup.metax import MockMetax
 
@@ -119,7 +120,7 @@ def test_user_quota(app, test_auth, database_fx):
 def test_used_quota(app, test_auth, database_fx, monkeypatch):
     """Test that used quota is calculated correctly"""
     # Mock Metax
-    monkeypatch.setattr(md, "MetaxClient", lambda: MockMetax())
+    monkeypatch.setattr(md, "MetaxClient", MockMetax)
 
     test_client = app.test_client()
     users = database_fx.upload.users
@@ -178,7 +179,7 @@ def test_upload_archive(archive, app, test_auth):
 
     # test.txt is correctly extracted
     assert os.path.isfile(text_file)
-    assert "test" in open(text_file).read()
+    assert "test" in io.open(text_file, "rt").read()
 
     # archive file is removed
     assert not os.path.isfile(archive_file)
@@ -265,7 +266,7 @@ def test_get_file(app, admin_auth, test_auth, test2_auth):
 def test_delete_file(app, test_auth, monkeypatch):
     """Test DELETE for single file"""
     # Mock Metax
-    monkeypatch.setattr(md, "MetaxClient", lambda: MockMetax())
+    monkeypatch.setattr(md, "MetaxClient", MockMetax)
 
     test_client = app.test_client()
     upload_path = app.config.get("UPLOAD_PATH")
@@ -334,7 +335,7 @@ def test_get_files(app, test_auth):
 def test_delete_files(app, test_auth, monkeypatch):
     """Test DELETE for the whole project and a single dir"""
     # Mock Metax
-    monkeypatch.setattr(md, "MetaxClient", lambda: MockMetax())
+    monkeypatch.setattr(md, "MetaxClient", MockMetax)
 
     test_client = app.test_client()
     upload_path = app.config.get("UPLOAD_PATH")

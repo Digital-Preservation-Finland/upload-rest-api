@@ -1,4 +1,6 @@
 """Unit tests for module authentication"""
+from __future__ import unicode_literals
+
 import upload_rest_api.authentication as auth
 
 

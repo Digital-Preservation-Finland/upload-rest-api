@@ -1,5 +1,7 @@
 """REST api for uploading files into passipservice
 """
+from __future__ import unicode_literals
+
 import logging
 
 from flask import Flask
