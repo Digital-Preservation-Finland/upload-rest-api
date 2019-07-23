@@ -124,7 +124,7 @@ class UsersDoc(object):
 
     def __repr__(self):
         """User instance representation"""
-        user = self.users.find_one({"_id" : self.username})
+        user = self.users.find_one({"_id": self.username})
 
         if user is None:
             return "User not found"
@@ -160,12 +160,12 @@ class UsersDoc(object):
 
         self.users.insert_one(
             {
-                "_id" : self.username,
-                "project" : project,
-                "digest" : digest,
-                "salt" : salt,
-                "quota" : self.quota,
-                "used_quota" : 0
+                "_id": self.username,
+                "project": project,
+                "digest": digest,
+                "salt": salt,
+                "quota": self.quota,
+                "used_quota": 0
             }
         )
 
@@ -178,7 +178,7 @@ class UsersDoc(object):
         if not self.exists():
             raise UserNotFoundError("User '%s' not found" % self.username)
 
-        self.users.delete_one({"_id" : self.username})
+        self.users.delete_one({"_id": self.username})
 
     def get(self):
         """Returns existing user
@@ -187,7 +187,7 @@ class UsersDoc(object):
         if not self.exists():
             raise UserNotFoundError("User '%s' not found" % self.username)
 
-        return self.users.find_one({"_id" : self.username})
+        return self.users.find_one({"_id": self.username})
 
     def get_utf8(self):
         """Returns existing user with digest in utf8 format
@@ -207,7 +207,7 @@ class UsersDoc(object):
         if not self.exists():
             raise UserNotFoundError("User '%s' not found" % self.username)
 
-        return self.users.find_one({"_id" : self.username})["quota"]
+        return self.users.find_one({"_id": self.username})["quota"]
 
     def get_used_quota(self):
         """Returns the used quota of the user"""
@@ -215,7 +215,7 @@ class UsersDoc(object):
         if not self.exists():
             raise UserNotFoundError("User '%s' not found" % self.username)
 
-        return self.users.find_one({"_id" : self.username})["used_quota"]
+        return self.users.find_one({"_id": self.username})["used_quota"]
 
     def set_quota(self, quota):
         """Set the quota of the user"""
@@ -224,8 +224,8 @@ class UsersDoc(object):
             raise UserNotFoundError("User '%s' not found" % self.username)
 
         self.users.update_one(
-            {"_id" : self.username},
-            {"$set" : {"quota" : quota}}
+            {"_id": self.username},
+            {"$set": {"quota": quota}}
         )
 
     def set_used_quota(self, used_quota):
@@ -235,8 +235,8 @@ class UsersDoc(object):
             raise UserNotFoundError("User '%s' not found" % self.username)
 
         self.users.update_one(
-            {"_id" : self.username},
-            {"$set" : {"used_quota" : used_quota}}
+            {"_id": self.username},
+            {"$set": {"used_quota": used_quota}}
         )
 
     def get_project(self):
@@ -245,11 +245,11 @@ class UsersDoc(object):
         if not self.exists():
             raise UserNotFoundError("User '%s' not found" % self.username)
 
-        return self.users.find_one({"_id" : self.username})["project"]
+        return self.users.find_one({"_id": self.username})["project"]
 
     def exists(self):
         """Check if the user is found in the db"""
-        return self.users.find_one({"_id" : self.username}) is not None
+        return self.users.find_one({"_id": self.username}) is not None
 
 
 class FilesCol(object):
