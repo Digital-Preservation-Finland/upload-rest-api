@@ -84,7 +84,7 @@ def test_gen_metadata_root(app, dataset, test_auth, monkeypatch):
     data = json.loads(response.data)
 
     # All metadata POSTs succeeded
-    assert len(data["failed"]) == 0
+    assert not data["failed"]
     assert len(data["success"]) == 2
 
     # DELETE single file
@@ -145,7 +145,7 @@ def test_gen_metadata_file(app, dataset, test_auth, monkeypatch):
     data = json.loads(response.data)
 
     # All metadata POSTs succeeded
-    assert len(data["failed"]) == 0
+    assert not data["failed"]
     assert len(data["success"]) == 1
 
     # DELETE whole project
@@ -166,7 +166,7 @@ def test_gen_metadata_file(app, dataset, test_auth, monkeypatch):
     if dataset:
         assert len(files_dict) == 1
     else:
-        assert len(files_dict) == 0
+        assert not files_dict
 
 
 @pytest.mark.parametrize("dataset", [True, False])
@@ -218,7 +218,7 @@ def test_disk_cleanup(app, dataset, test_auth, monkeypatch):
     if dataset:
         assert len(files_dict) == 2
     else:
-        assert len(files_dict) == 0
+        assert not files_dict
 
 
 def test_mongo_cleanup(app, test_auth, monkeypatch):
@@ -260,7 +260,7 @@ def test_mongo_cleanup(app, test_auth, monkeypatch):
     assert len(files_col.get_all_ids()) == 2
 
     clean.clean_mongo()
-    assert len(files_col.get_all_ids()) == 0
+    assert not files_col.get_all_ids()
 
     # Upload integration.zip, which is extracted by the server
     _upload_file(
