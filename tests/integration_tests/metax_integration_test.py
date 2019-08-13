@@ -8,6 +8,7 @@ in /etc/upload_rest_api.conf.
 from __future__ import unicode_literals
 
 import os
+import getpass
 import json
 from runpy import run_path
 
@@ -19,17 +20,15 @@ import upload_rest_api.database as db
 import upload_rest_api.cleanup as clean
 
 
-def _get_metax_client():
-    """Reads metax params from /etc/upload_rest_api.conf and initializes a
-    MetaxClient instance
-    """
-    conf = run_path("/etc/upload_rest_api.conf")
-    url = conf["METAX_URL"]
-    user = conf["METAX_USER"]
-    password = conf["METAX_PASSWORD"]
+URL = "https://metax-test.csc.fi"
+USER = "tpas"
 
-    return MetaxClient(url, user, password)
-
+if os.path.isfile("/etc/upload_rest_api.conf"):
+    PASSWORD = run_path("/etc/upload_rest_api.conf")["METAX_PASSWORD"]
+else:
+    PASSWORD = getpass.getpass(
+        prompt="https://metax-test.csc.fi password for user tpas: "
+    )
 
 def _upload_file(client, url, auth, fpath):
     """Send POST request to given URL with file fpath
@@ -49,7 +48,7 @@ def _upload_file(client, url, auth, fpath):
 @pytest.fixture(autouse=True)
 def clean_metax():
     """DELETE all metadata from Metax that might be left from previous runs"""
-    metax_client = _get_metax_client()
+    metax_client = MetaxClient(URL, USER, PASSWORD)
     files_dict = metax_client.get_files_dict("test_project")
     file_id_list = [value["id"] for value in files_dict.values()]
     metax_client.client.delete_files(file_id_list)
@@ -69,6 +68,7 @@ def test_gen_metadata_root(app, dataset, test_auth, monkeypatch):
             lambda a, b, c: True
         )
 
+    app.config["METAX_PASSWORD"] = PASSWORD
     test_client = app.test_client()
 
     # Upload integration.zip, which is extracted by the server
@@ -102,7 +102,7 @@ def test_gen_metadata_root(app, dataset, test_auth, monkeypatch):
         assert data["metax"]["deleted_files_count"] == 1
 
     # Test that test1.txt was removed from Metax but test2.txt is still there
-    metax_client = _get_metax_client()
+    metax_client = MetaxClient(URL, USER, PASSWORD)
     files_dict = metax_client.get_files_dict("test_project")
 
     if dataset:
@@ -126,6 +126,7 @@ def test_gen_metadata_file(app, dataset, test_auth, monkeypatch):
             lambda a, b, c: True
         )
 
+    app.config["METAX_PASSWORD"] = PASSWORD
     test_client = app.test_client()
 
     # Upload integration.zip, which is extracted by the server
@@ -159,7 +160,7 @@ def test_gen_metadata_file(app, dataset, test_auth, monkeypatch):
         assert data["metax"]["deleted_files_count"] == 1
 
     # Test that no test_project files are found in Metax
-    metax_client = _get_metax_client()
+    metax_client = MetaxClient(URL, USER, PASSWORD)
     files_dict = metax_client.get_files_dict("test_project")
 
     if dataset:
@@ -173,12 +174,16 @@ def test_disk_cleanup(app, dataset, test_auth, monkeypatch):
     """Test that cleanup script removes file metadata from Metax if it is
     not associated with any dataset.
     """
-
     # Mock configuration parsing
     def _mock_conf(fpath):
+        if not os.path.isfile(fpath):
+            fpath = "include/etc/upload_rest_api.conf"
+
         conf = run_path(fpath)
+        conf["METAX_PASSWORD"] = PASSWORD
         conf["UPLOAD_PATH"] = app.config.get("UPLOAD_PATH")
         conf["CLEANUP_TIMELIM"] = -1
+
         return conf
 
     monkeypatch.setattr(clean, "parse_conf", _mock_conf)
@@ -191,6 +196,7 @@ def test_disk_cleanup(app, dataset, test_auth, monkeypatch):
             lambda a, b, c: True
         )
 
+    app.config["METAX_PASSWORD"] = PASSWORD
     test_client = app.test_client()
 
     # Upload integration.zip, which is extracted by the server
@@ -206,7 +212,7 @@ def test_disk_cleanup(app, dataset, test_auth, monkeypatch):
     clean.clean_disk()
 
     # Test that no test_project files are found in Metax
-    metax_client = _get_metax_client()
+    metax_client = MetaxClient(URL, USER, PASSWORD)
     files_dict = metax_client.get_files_dict("test_project")
 
     if dataset:
@@ -219,6 +225,7 @@ def test_mongo_cleanup(app, test_auth, monkeypatch):
     """Test that cleaning files from mongo deletes all files that
     haven't been posted to Metax.
     """
+    app.config["METAX_PASSWORD"] = PASSWORD
     test_client = app.test_client()
 
     # Mock FilesCol mongo connection
@@ -231,9 +238,14 @@ def test_mongo_cleanup(app, test_auth, monkeypatch):
 
     # Mock configuration parsing
     def _mock_conf(fpath):
+        if not os.path.isfile(fpath):
+            fpath = "include/etc/upload_rest_api.conf"
+
         conf = run_path(fpath)
+        conf["METAX_PASSWORD"] = PASSWORD
         conf["UPLOAD_PATH"] = app.config.get("UPLOAD_PATH")
         conf["CLEANUP_TIMELIM"] = -1
+
         return conf
 
     monkeypatch.setattr(clean, "parse_conf", _mock_conf)
