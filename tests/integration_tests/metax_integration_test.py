@@ -12,6 +12,7 @@ import getpass
 import json
 from runpy import run_path
 
+import requests.exceptions
 import pytest
 import pymongo
 
@@ -52,7 +53,14 @@ def clean_metax():
     metax_client = MetaxClient(URL, USER, PASSWORD)
     files_dict = metax_client.get_files_dict("test_project")
     file_id_list = [value["id"] for value in files_dict.values()]
-    metax_client.client.delete_files(file_id_list)
+    try:
+        metax_client.client.delete_files(file_id_list)
+    except requests.exceptions.HTTPError as exception:
+        if exception.response.json()['detail'] \
+                == "Received empty list of identifiers":
+            pass
+        else:
+            raise
 
 
 @pytest.mark.parametrize("dataset", [True, False])

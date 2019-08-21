@@ -6,6 +6,7 @@ import os
 from datetime import datetime
 from uuid import uuid4
 
+import requests.exceptions
 import six
 
 import magic
@@ -127,7 +128,10 @@ class MetaxClient(object):
                 project, storage_id
             ))
 
-        return self.client.post_file(metadata).json()
+        try:
+            return self.client.post_file(metadata)
+        except requests.exceptions.HTTPError as exception:
+            return exception.response.json()
 
     def delete_metadata(self, project, fpaths):
         """DELETE metadata from Metax
@@ -144,7 +148,10 @@ class MetaxClient(object):
             if fpath in files_dict:
                 file_id_list.append(files_dict[fpath]["id"])
 
-        return self.client.delete_files(file_id_list).json()
+        try:
+            return self.client.delete_files(file_id_list)
+        except requests.exceptions.HTTPError as exception:
+            return exception.response.json()
 
     def delete_file_metadata(self, project, fpath):
         """Delete file metadata from Metax if file is not associated with
@@ -160,7 +167,7 @@ class MetaxClient(object):
             response = "Metadata is part of a dataset. Metadata not removed"
         else:
             file_id = six.text_type(files_dict[metax_path]["id"])
-            response = self.client.delete_file(file_id).json()
+            response = self.client.delete_file(file_id)
 
         return response
 
@@ -188,7 +195,7 @@ class MetaxClient(object):
             return {"deleted_files_count": 0}
 
         # Remove file metadata from Metax and return the response
-        return self.client.delete_files(file_id_list).json()
+        return self.client.delete_files(file_id_list)
 
     def get_all_ids(self, project_list):
         """Get a set of all identifiers of files in any of the projects in
