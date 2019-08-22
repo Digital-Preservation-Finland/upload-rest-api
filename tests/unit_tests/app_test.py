@@ -466,3 +466,49 @@ def test_delete_user(app, admin_auth, database_fx):
     # Check that user was deleted from the database
     users = database_fx.upload.users
     assert users.find_one({"_id": "test"}) is None
+
+
+def test_post_metadata(app, test_auth, requests_mock):
+    """Test posting file metadata to Metax"""
+    test_client = app.test_client()
+
+    # Upload file to test instance
+    _upload_file(
+        test_client, "/v1/files/foo", test_auth, "tests/data/test.txt"
+    )
+
+    # Mock Metax HTTP response
+    requests_mock.post("https://metax-test.csc.fi/rest/v1/files/",
+                       json={"foo": "bar"})
+
+    response = test_client.post("/v1/metadata/foo", headers=test_auth)
+    assert response.status_code == 200
+    assert response.data == '{\n  "foo": "bar"\n}'
+
+
+def test_post_metadata_failure(app, test_auth, requests_mock):
+    """Try to post file metadata to Metax when the metadata already exists. API
+    should return HTTP response with status code 200, and the error message
+    from Metax.
+    """
+    test_client = app.test_client()
+
+    # Upload file to test instance
+    _upload_file(
+        test_client, "/v1/files/foo", test_auth, "tests/data/test.txt"
+    )
+
+    # Mock Metax HTTP response
+    response_json = {
+        "file_path": ["a file with path /foo already exists in project bar"],
+        "identifier": ["a file with given identifier already exists"],
+        "error_identifier": "2019-08-23T12:46:11-971d8a58"
+    }
+    requests_mock.post("https://metax-test.csc.fi/rest/v1/files/",
+                       status_code=200,
+                       json=response_json)
+
+    response = test_client.post("/v1/metadata/foo", headers=test_auth)
+    assert response.status_code == 200
+    assert json.loads(response.data)["file_path"] \
+        == ["a file with path /foo already exists in project bar"]

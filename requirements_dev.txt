@@ -4,6 +4,7 @@ mongobox
 pytest
 pytest-cov
 mock
+requests-mock
 
 # Install requirements
 
