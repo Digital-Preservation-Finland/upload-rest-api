@@ -63,7 +63,6 @@ def app(database_fx, monkeypatch):
         else:
             app.config.from_pyfile("../include/etc/upload_rest_api.conf")
 
-
     monkeypatch.setattr(app_module, "configure_app", _configure_app)
 
     flask_app = app_module.create_app()

@@ -30,6 +30,7 @@ else:
         prompt="https://metax-test.csc.fi password for user tpas: "
     )
 
+
 def _upload_file(client, url, auth, fpath):
     """Send POST request to given URL with file fpath
 
