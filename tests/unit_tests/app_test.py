@@ -7,8 +7,6 @@ import os
 import shutil
 
 import pytest
-import upload_rest_api.gen_metadata as md
-from tests.mockup.metax import MockMetax
 
 
 def _contains_symlinks(fpath):
@@ -117,10 +115,12 @@ def test_user_quota(app, test_auth, database_fx):
     assert not os.path.isdir(os.path.join(upload_path, "test_project"))
 
 
-def test_used_quota(app, test_auth, database_fx, monkeypatch):
+def test_used_quota(app, test_auth, database_fx, requests_mock):
     """Test that used quota is calculated correctly"""
     # Mock Metax
-    monkeypatch.setattr(md, "MetaxClient", MockMetax)
+    requests_mock.get("https://metax-test.csc.fi/rest/v1/files/",
+                      json={'next': None, 'results': []})
+
 
     test_client = app.test_client()
     users = database_fx.upload.users
@@ -263,10 +263,20 @@ def test_get_file(app, admin_auth, test_auth, test2_auth):
     assert response.status_code == 404
 
 
-def test_delete_file(app, test_auth, monkeypatch):
+def test_delete_file(app, test_auth, requests_mock):
     """Test DELETE for single file"""
     # Mock Metax
-    monkeypatch.setattr(md, "MetaxClient", MockMetax)
+    requests_mock.get("https://metax-test.csc.fi/rest/v1/files/",
+                      json={'next': None,
+                            'results': [{'id': 'foo',
+                                         'identifier': 'foo',
+                                         'file_path': '/test.txt'}]})
+
+    requests_mock.post("https://metax-test.csc.fi/rest/v1/files/datasets",
+                       json={})
+
+    requests_mock.delete("https://metax-test.csc.fi/rest/v1/files/foo",
+                         json='/test.txt')
 
     test_client = app.test_client()
     upload_path = app.config.get("UPLOAD_PATH")
@@ -332,10 +342,31 @@ def test_get_files(app, test_auth):
     assert data["file_path"]["/test"] == ["test2.txt"]
 
 
-def test_delete_files(app, test_auth, monkeypatch):
+def test_delete_files(app, test_auth, requests_mock):
     """Test DELETE for the whole project and a single dir"""
     # Mock Metax
-    monkeypatch.setattr(md, "MetaxClient", MockMetax)
+    requests_mock.get("https://metax-test.csc.fi/rest/v1/files/",
+                      json={
+                          'next': None,
+                          'results': [
+                              {
+                                  'id': 'foo',
+                                  'identifier': 'foo',
+                                  'file_path': '/test.txt'
+                              },
+                              {
+                                  'id': 'bar',
+                                  'identifier': 'bar',
+                                  'file_path': '/test/test.txt'
+                              }
+                          ]
+                      })
+
+    requests_mock.post("https://metax-test.csc.fi/rest/v1/files/datasets",
+                       json={})
+
+    requests_mock.delete("https://metax-test.csc.fi/rest/v1/files",
+                         json=['/test/test.txt'])
 
     test_client = app.test_client()
     upload_path = app.config.get("UPLOAD_PATH")
@@ -357,6 +388,8 @@ def test_delete_files(app, test_auth, monkeypatch):
     assert not os.path.exists(os.path.split(test_path_2)[0])
 
     # DELETE the whole project
+    requests_mock.delete("https://metax-test.csc.fi/rest/v1/files",
+                         json=['/test.txt'])
     response = test_client.delete(
         "/v1/files",
         headers=test_auth
