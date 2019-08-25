@@ -56,8 +56,8 @@ def clean_metax():
     try:
         metax_client.client.delete_files(file_id_list)
     except requests.exceptions.HTTPError as exception:
-        if exception.response.json()['detail'] \
-                == "Received empty list of identifiers":
+        detail = exception.response.json()['detail']
+        if detail == "Received empty list of identifiers":
             pass
         else:
             raise
