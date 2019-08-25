@@ -538,7 +538,7 @@ def test_post_metadata_failure(app, test_auth, requests_mock):
         "error_identifier": "2019-08-23T12:46:11-971d8a58"
     }
     requests_mock.post("https://metax-test.csc.fi/rest/v1/files/",
-                       status_code=200,
+                       status_code=400,
                        json=response_json)
 
     response = test_client.post("/v1/metadata/foo", headers=test_auth)
