@@ -37,11 +37,16 @@ def post_metadata(fpath):
         return utils.make_response(404, "File not found")
 
     metax_client = md.MetaxClient()
-    response = metax_client.post_metadata(fpaths)
+    response, status_code = metax_client.post_metadata(fpaths)
 
     # Add created identifiers to Mongo
     if "success" in response and len(response["success"]) > 0:
         created_md = response["success"]
         db.FilesCol().store_identifiers(created_md)
 
-    return jsonify(response)
+    # Create upload-rest-api response
+    upload_response = {"code": status_code, "metax_response": response}
+    upload_response = jsonify(upload_response)
+    upload_response.status_code = status_code
+
+    return upload_response

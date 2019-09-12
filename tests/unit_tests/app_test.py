@@ -516,7 +516,10 @@ def test_post_metadata(app, test_auth, requests_mock):
 
     response = test_client.post("/v1/metadata/foo", headers=test_auth)
     assert response.status_code == 200
-    assert response.data == '{\n  "foo": "bar"\n}'
+    assert json.loads(response.data) == {
+        "code": 200,
+        "metax_response": {"foo": "bar"}
+    }
 
 
 def test_post_metadata_failure(app, test_auth, requests_mock):
@@ -542,6 +545,8 @@ def test_post_metadata_failure(app, test_auth, requests_mock):
                        json=response_json)
 
     response = test_client.post("/v1/metadata/foo", headers=test_auth)
-    assert response.status_code == 200
-    assert json.loads(response.data)["file_path"] \
-        == ["a file with path /foo already exists in project bar"]
+    assert response.status_code == 400
+    assert json.loads(response.data) == {
+        "code": 400,
+        "metax_response": response_json
+    }

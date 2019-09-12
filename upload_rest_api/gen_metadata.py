@@ -8,11 +8,11 @@ from uuid import uuid4
 
 import requests.exceptions
 import six
-
 import magic
+from flask import current_app, request
+
 import metax_access
 import upload_rest_api.database as db
-from flask import current_app, request
 
 
 def md5_digest(fpath):
@@ -129,9 +129,10 @@ class MetaxClient(object):
             ))
 
         try:
-            return self.client.post_file(metadata)
+            return self.client.post_file(metadata), 200
         except requests.exceptions.HTTPError as exception:
-            return exception.response.json()
+            response = exception.response
+            return response.json(), response.status_code
 
     def delete_metadata(self, project, fpaths):
         """DELETE metadata from Metax
@@ -149,9 +150,10 @@ class MetaxClient(object):
                 file_id_list.append(files_dict[fpath]["id"])
 
         try:
-            return self.client.delete_files(file_id_list)
+            return self.client.delete_files(file_id_list), 200
         except requests.exceptions.HTTPError as exception:
-            return exception.response.json()
+            response = exception.response
+            return response.json(), response.status_code
 
     def delete_file_metadata(self, project, fpath):
         """Delete file metadata from Metax if file is not associated with

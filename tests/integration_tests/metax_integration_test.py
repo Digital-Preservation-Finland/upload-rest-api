@@ -91,10 +91,11 @@ def test_gen_metadata_root(app, dataset, test_auth, monkeypatch):
 
     assert response.status_code == 200
     data = json.loads(response.data)
+    metax_response = data["metax_response"]
 
     # All metadata POSTs succeeded
-    assert not data["failed"]
-    assert len(data["success"]) == 2
+    assert not metax_response["failed"]
+    assert len(metax_response["success"]) == 2
 
     # DELETE single file
     response = test_client.delete(
@@ -152,10 +153,11 @@ def test_gen_metadata_file(app, dataset, test_auth, monkeypatch):
 
     assert response.status_code == 200
     data = json.loads(response.data)
+    metax_response = data["metax_response"]
 
     # All metadata POSTs succeeded
-    assert not data["failed"]
-    assert len(data["success"]) == 1
+    assert not metax_response["failed"]
+    assert len(metax_response["success"]) == 1
 
     # DELETE whole project
     response = test_client.delete("/v1/files", headers=test_auth)
