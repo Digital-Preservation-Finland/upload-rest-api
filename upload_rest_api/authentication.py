@@ -20,7 +20,7 @@ def _auth_user(username, password, user=None):
     except UserNotFoundError:
         # Calculate digest even if user does not exist to avoid
         # leaking information about which users exist
-        return compare_digest("hash"*16, db.hash_passwd("passwd", "salt"))
+        return compare_digest(b"hash"*16, db.hash_passwd("passwd", "salt"))
 
     salt = user["salt"]
     digest = user["digest"]

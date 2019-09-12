@@ -8,4 +8,12 @@ def test_auth_user(user):
     """Test _auth_user() function
     """
     user.create("test_project", password="test")
+    # pylint: disable=protected-access
     assert auth._auth_user("test_user", "test", user=user)
+
+
+def test_user_not_found(user):
+    """Test _auth_user() function for user that is not found from database.
+    """
+    # pylint: disable=protected-access
+    assert auth._auth_user("test_user", "test", user=user) is False
