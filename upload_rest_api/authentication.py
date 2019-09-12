@@ -10,10 +10,9 @@ from upload_rest_api import database as db
 from upload_rest_api.database import UserNotFoundError
 
 
-def _auth_user(username, password, user=None):
+def _auth_user(username, password):
     """Authenticate user"""
-    if user is None:
-        user = db.UsersDoc(username)
+    user = db.UsersDoc(username)
 
     try:
         user = user.get()

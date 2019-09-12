@@ -1,19 +1,35 @@
 """Unit tests for module authentication"""
 from __future__ import unicode_literals
 
+import mongomock
+import pytest
+
 import upload_rest_api.authentication as auth
+import upload_rest_api.database
 
 
-def test_auth_user(user):
-    """Test _auth_user() function
+@pytest.mark.parametrize(
+    ('user', 'password', 'result'),
+    [
+        ('test_user', 'test_password', True),
+        ('test_user', 'false_password', False),
+        ('false_user', 'test_password', False)
+    ]
+)
+def test_auth_user(user, password, result, monkeypatch):
+    """Test _auth_user() function with different username-password combinations.
+
+    :param user: username of user
+    :param password: password of user
+    :param bool result: Excepted result of authentication
     """
-    user.create("test_project", password="test")
-    # pylint: disable=protected-access
-    assert auth._auth_user("test_user", "test", user=user)
+    # Mock pymongo MongoClient
+    mongoclient = mongomock.MongoClient()
+    monkeypatch.setattr('pymongo.MongoClient', lambda *args: mongoclient)
 
+    # Create one test user to database
+    usersdoc = upload_rest_api.database.UsersDoc('test_user')
+    usersdoc.create('test_project', 'test_password')
 
-def test_user_not_found(user):
-    """Test _auth_user() function for user that is not found from database.
-    """
     # pylint: disable=protected-access
-    assert auth._auth_user("test_user", "test", user=user) is False
+    assert auth._auth_user(user, password) is result

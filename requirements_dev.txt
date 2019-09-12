@@ -1,6 +1,7 @@
 # Testing requirements
 
 mongobox
+mongomock
 pytest
 pytest-cov
 mock

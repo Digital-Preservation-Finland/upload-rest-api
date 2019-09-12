@@ -33,6 +33,7 @@ Requires:       archive-helpers
 BuildRequires:  python-setuptools
 BuildRequires:  pytest
 BuildRequires:  python-mongobox
+BuildRequires:  python-mongomock
 BuildRequires:  python-mock
 
 %description
