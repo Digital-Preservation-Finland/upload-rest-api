@@ -121,7 +121,6 @@ def test_used_quota(app, test_auth, database_fx, requests_mock):
     requests_mock.get("https://metax-test.csc.fi/rest/v1/files/",
                       json={'next': None, 'results': []})
 
-
     test_client = app.test_client()
     users = database_fx.upload.users
 

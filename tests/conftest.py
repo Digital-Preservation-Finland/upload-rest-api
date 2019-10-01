@@ -53,17 +53,12 @@ def app(database_fx, monkeypatch):
     :returns: flask.Flask instance
     """
 
-    def _configure_app(app):
-        """Test configuration for the app.
-        Reads /etc/upload_rest_api.conf if the file exists or
-        uses default params from include/etc/upload_rest_api.conf.
-        """
-        if os.path.isfile("/etc/upload_rest_api.conf"):
-            app.config.from_pyfile("/etc/upload_rest_api.conf")
-        else:
-            app.config.from_pyfile("../include/etc/upload_rest_api.conf")
-
-    monkeypatch.setattr(app_module, "configure_app", _configure_app)
+    # Patch app to use default configuration file instead of global
+    # configuration file (/etc/upload_rest_api.conf)
+    def _mock_configure_app(app):
+        """Read default configuration file"""
+        app.config.from_pyfile("../include/etc/upload_rest_api.conf")
+    monkeypatch.setattr(app_module, "configure_app", _mock_configure_app)
 
     flask_app = app_module.create_app()
     init_db(database_fx)
