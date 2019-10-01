@@ -35,6 +35,7 @@ BuildRequires:  pytest
 BuildRequires:  python-mongobox
 BuildRequires:  python-mongomock
 BuildRequires:  python-mock
+BuildRequires:  mongodb-org
 
 %description
 REST API for file uploads to passipservice.csc.fi
