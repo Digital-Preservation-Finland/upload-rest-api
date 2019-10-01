@@ -33,4 +33,4 @@ unit-test-python36:
     - master
 
 variables:
-  ANSIBLE_REPOSITORY: ansible-preservation-system
+  ANSIBLE_REPOSITORY: ansible-fairdata-pas
