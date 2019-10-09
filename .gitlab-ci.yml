@@ -31,6 +31,3 @@ unit-test-python36:
   allow_failure: true
   except:
     - master
-
-variables:
-  ANSIBLE_REPOSITORY: ansible-fairdata-pas
