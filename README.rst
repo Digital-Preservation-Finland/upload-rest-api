@@ -1,6 +1,6 @@
-upload-rest-api
-===============
-REST API for file uploads to passipservice.csc.fi.
+Pre-ingest filestorage
+======================
+Temporary filestorage service for datasets to be packaged by packaging service. Provides REST API for file uploads and technical metadata generation.
 
 Usage
 -----
