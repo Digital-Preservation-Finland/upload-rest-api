@@ -256,6 +256,32 @@ class UsersDoc(object):
         return self.users.find_one({"_id": self.username}) is not None
 
 
+class ChecksumsCol(object):
+    """Class for managing checksums in the database"""
+
+    def __init__(self):
+        """Initializing FilesDoc instances"""
+        self.checksums = get_mongo_client().upload.checksums
+
+    def insert_one(self, filepath, checksum):
+        """Insert a single checksum doc"""
+        self.checksums.insert_one({"_id": filepath, "checksum": checksum})
+
+    def insert(self, checksums):
+        """Insert multiple checksum docs"""
+        self.checksums.insert(checksums)
+
+    def delete_one(self, filepath):
+        """Delete a single checksum doc"""
+        self.checksums.delete_one({"_id": filepath})
+
+    def delete(self, filepaths):
+        """Delete multiple checksum docs"""
+        return self.checksums.delete_many(
+            {"_id": {"$in": filepaths}}
+        ).deleted_count
+
+
 class FilesCol(object):
     """Class for managing files in the database"""
 
