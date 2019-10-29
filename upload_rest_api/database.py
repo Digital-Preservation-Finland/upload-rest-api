@@ -1,13 +1,13 @@
 """Module for accessing user database
 """
 from __future__ import unicode_literals
+from __future__ import print_function
 
 import binascii
 import hashlib
 import io
 import os
 import random
-import six
 from string import ascii_letters, digits
 
 import pymongo
