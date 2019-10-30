@@ -64,6 +64,39 @@ def _process_extracted_files(fpath):
                 os.chmod(_file, 0o664)
 
 
+def _get_archive_checksums(archive, extract_path):
+    """Calculate md5 checksums of all archive members and return a list of
+    dicts::
+
+        {
+            "_id": filpath,
+            "checksum": md5 digest
+        }
+
+    :param archive: Path to the extracted archive
+    :param extract_path: Path to the dir where the archive was extracted
+    :returns: A list of checksum dicts
+    """
+    is_tar = tarfile.is_tarfile(archive)
+    if is_tar:
+        with tarfile.open(archive) as tarf:
+            files = [member.name for member in tarf]
+    else:
+        with zipfile.ZipFile(archive) as zipf:
+            files = [member.filename for member in zipf.infolist()]
+
+    checksums = []
+    for _file in files:
+        fpath = os.path.abspath(os.path.join(extract_path, _file))
+        if os.path.isfile(fpath):
+            checksums.append({
+                "_id": fpath,
+                "checksum": gen_metadata.md5_digest(fpath)
+            })
+
+    return checksums
+
+
 def _save_stream(fpath, chunk_size=1024*1024):
     """Save the file into fpath by reading the stream in chunks
     of chunk_size bytes.
@@ -125,11 +158,18 @@ def save_file(fpath):
             os.remove(fpath)
             raise
 
+        # Add checksums of the extracted files to mongo
+        db.ChecksumsCol().insert(_get_archive_checksums(fpath, dir_path))
+
         # Remove archive and all created symlinks
         os.remove(fpath)
         _process_extracted_files(dir_path)
 
         status = "archive uploaded and extracted"
+
+    else:
+        # Add file checksum to mongo
+        db.ChecksumsCol().insert_one(os.path.abspath(fpath), md5)
 
     response = jsonify({
         "file_path": utils.get_return_path(fpath),
