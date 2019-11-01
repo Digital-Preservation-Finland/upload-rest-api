@@ -281,6 +281,17 @@ class ChecksumsCol(object):
             {"_id": {"$in": filepaths}}
         ).deleted_count
 
+    def delete_dir(self, dirpath):
+        """Delete all file checksums found under dirpath"""
+        filepaths = []
+        for _dir, _, files in os.walk(dirpath):
+            for _file in files:
+                fpath = os.path.join(_dir, _file)
+                fpath = os.path.abspath(fpath)
+                filepaths.append(fpath)
+
+        self.delete(filepaths)
+
 
 class FilesCol(object):
     """Class for managing files in the database"""

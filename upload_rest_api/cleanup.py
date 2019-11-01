@@ -3,6 +3,7 @@ been accessed within given time frame. This script can be set to run
 periodically using cron.
 """
 from __future__ import unicode_literals
+from __future__ import print_function
 
 import argparse
 import errno
@@ -105,7 +106,7 @@ def clean_project(project, fpath, metax=True):
     metax_client = None
     file_dict = None
     fpaths = []
-    deleted_count = 0
+    deleted_files = []
 
     if metax:
         metax_client = md.MetaxClient(
@@ -124,16 +125,19 @@ def clean_project(project, fpath, metax=True):
                     _file, upload_path, fpaths,
                     file_dict, metax_client
                 )
-                deleted_count += 1
+                deleted_files.append(_file)
 
     # Remove all empty dirs
     _clean_empty_dirs(fpath)
 
-    # Remove Metax file entries of deleted files
+    # Clean checksums of the deleted files from mongo
+    db.ChecksumsCol().delete(deleted_files)
+
+    # Remove Metax entries of deleted files that are not part of any datasets
     if metax:
         metax_client.delete_metadata(project, fpaths)
 
-    return deleted_count
+    return len(deleted_files)
 
 
 def clean_disk(metax=True):

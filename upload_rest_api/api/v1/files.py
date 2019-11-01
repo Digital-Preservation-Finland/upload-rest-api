@@ -129,11 +129,17 @@ def delete_path(fpath):
     if os.path.isfile(fpath):
         # Remove metadata from Metax
         metax_response = md.MetaxClient().delete_file_metadata(project, fpath)
+        # Remove checksum from mongo
+        db.ChecksumsCol().delete_one(os.path.abspath(fpath))
         os.remove(fpath)
+
     elif os.path.isdir(fpath):
         # Remove all file metadata of files under dir fpath from Metax
         metax_response = md.MetaxClient().delete_all_metadata(project, fpath)
+        # Remove checksum from mongo
+        db.ChecksumsCol().delete_dir(fpath)
         rmtree(fpath)
+
     else:
         return utils.make_response(404, "File not found")
 
@@ -181,6 +187,9 @@ def delete_files():
 
     # Remove metadata from Metax
     metax_response = md.MetaxClient().delete_all_metadata(project, fpath)
+
+    # Remove checksum from mongo
+    db.ChecksumsCol().delete_dir(fpath)
 
     # Remove project directory and update used_quota
     rmtree(fpath)
