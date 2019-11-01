@@ -292,6 +292,10 @@ class ChecksumsCol(object):
 
         self.delete(filepaths)
 
+    def get_checksum(self, filepath):
+        """Get checksum of a single file"""
+        return self.checksums.find_one({"_id": filepath})["checksum"]
+
 
 class FilesCol(object):
     """Class for managing files in the database"""

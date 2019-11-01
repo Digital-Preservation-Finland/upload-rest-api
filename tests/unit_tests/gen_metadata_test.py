@@ -4,6 +4,7 @@ from __future__ import unicode_literals
 import pytest
 
 import upload_rest_api.gen_metadata as md
+import upload_rest_api.database as db
 
 
 @pytest.mark.parametrize(
@@ -34,12 +35,17 @@ def test_mimetype():
     assert md._get_mimetype("tests/data/test.zip") == "application/zip"
 
 
-def test_gen_metadata():
+def test_gen_metadata(monkeypatch):
     """Test that _generate_metadata() produces the correct metadata"""
+    monkeypatch.setattr(
+        db.ChecksumsCol, "get_checksum",
+        lambda self, filepath: "150b62e4e7d58c70503bd5fc8a26463c"
+    )
     metadata = md._generate_metadata(
         "tests/data/test.txt",
         "tests", "data",
-        "pid:uuid:storage_id"
+        "pid:uuid:storage_id",
+        db.ChecksumsCol()
     )
 
     assert len(metadata["identifier"]) == 45

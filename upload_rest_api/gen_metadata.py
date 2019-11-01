@@ -62,7 +62,7 @@ def get_metax_path(fpath, upload_path):
     return file_path[len(project)+1:]
 
 
-def _generate_metadata(fpath, upload_path, project, storage_id):
+def _generate_metadata(fpath, upload_path, project, storage_id, checksums):
     """Generate metadata in json format"""
     timestamp = iso8601_timestamp(fpath)
     file_path = get_metax_path(fpath, upload_path)
@@ -79,7 +79,7 @@ def _generate_metadata(fpath, upload_path, project, storage_id):
         "file_frozen": timestamp,
         "checksum": {
             "algorithm": "md5",
-            "value": md5_digest(fpath),
+            "value": checksums.get_checksum(os.path.abspath(fpath)),
             "checked": _timestamp_now()
         },
         "file_storage": storage_id
@@ -121,11 +121,12 @@ class MetaxClient(object):
         project = db.UsersDoc(user).get_project()
         storage_id = app.config.get("STORAGE_ID")
 
+        checksums = db.ChecksumsCol()
         metadata = []
         for fpath in fpaths:
             metadata.append(_generate_metadata(
                 fpath, upload_path,
-                project, storage_id
+                project, storage_id, checksums
             ))
 
         try:
