@@ -99,7 +99,7 @@ def get_path(fpath):
         response = jsonify({
             "file_path": utils.get_return_path(fpath),
             "metax_identifier": db.FilesCol().get_identifier(fpath),
-            "md5": md.md5_digest(fpath),
+            "md5": db.ChecksumsCol().get_checksum(os.path.abspath(fpath)),
             "timestamp": md.iso8601_timestamp(fpath)
         })
 

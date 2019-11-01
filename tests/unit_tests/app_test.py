@@ -57,10 +57,11 @@ def test_index(app, test_auth, wrong_auth):
     assert response.status_code == 401
 
 
-def test_upload(app, test_auth):
+def test_upload(app, test_auth, database_fx):
     """Test uploading a plain text file"""
     test_client = app.test_client()
     upload_path = app.config.get("UPLOAD_PATH")
+    checksums = database_fx.upload.checksums
 
     response = _upload_file(
         test_client, "/v1/files/test.txt",
@@ -71,6 +72,10 @@ def test_upload(app, test_auth):
     fpath = os.path.join(upload_path, "test_project/test.txt")
     assert os.path.isfile(fpath)
     assert open(fpath, "rb").read() == open("tests/data/test.txt", "rb").read()
+
+    # Check that the uploaded files checksum was added to mongo
+    checksum = checksums.find_one({"_id": fpath})["checksum"]
+    assert checksum == "150b62e4e7d58c70503bd5fc8a26463c"
 
     # Test that trying to upload the file again returns 409 Conflict
     response = _upload_file(
@@ -160,12 +165,13 @@ def test_upload_outside(app, test_auth):
     "tests/data/test.zip",
     "tests/data/test.tar.gz"
 ])
-def test_upload_archive(archive, app, test_auth):
+def test_upload_archive(archive, app, test_auth, database_fx):
     """Test that uploaded arhive is extracted. No files should be
     extracted outside the project directory.
     """
     test_client = app.test_client()
     upload_path = app.config.get("UPLOAD_PATH")
+    checksums = database_fx.upload.checksums
 
     response = _upload_file(
         test_client, "/v1/files/archive", test_auth, archive
@@ -183,6 +189,11 @@ def test_upload_archive(archive, app, test_auth):
     # archive file is removed
     assert not os.path.isfile(archive_file)
 
+    # checksum is added to mongo
+    assert checksums.find().count() == 1
+    checksum = checksums.find_one({"_id": text_file})["checksum"]
+    assert checksum == "150b62e4e7d58c70503bd5fc8a26463c"
+
     # Trying to upload same zip again should return 409 - Conflict
     response = _upload_file(
         test_client, "/v1/files/test.zip",
@@ -198,12 +209,13 @@ def test_upload_archive(archive, app, test_auth):
     "tests/data/symlink.zip",
     "tests/data/symlink.tar.gz"
 ])
-def test_upload_invalid_archive(archive, app, test_auth):
+def test_upload_invalid_archive(archive, app, test_auth, database_fx):
     """Test that trying to upload a archive with symlinks return 413
     and doesn't create any files.
     """
     test_client = app.test_client()
     upload_path = app.config.get("UPLOAD_PATH")
+    checksums = database_fx.upload.checksums
 
     response = _upload_file(
         test_client, "/v1/files/archive", test_auth, archive
@@ -222,17 +234,21 @@ def test_upload_invalid_archive(archive, app, test_auth):
     # archive file is removed
     assert not os.path.isfile(archive_file)
 
+    # no checksums are added to mongo
+    assert checksums.find().count() == 0
 
-def test_get_file(app, admin_auth, test_auth, test2_auth):
+
+def test_get_file(app, admin_auth, test_auth, test2_auth, database_fx):
     """Test GET for single file"""
     test_client = app.test_client()
     upload_path = app.config.get("UPLOAD_PATH")
 
     os.makedirs(os.path.join(upload_path, "test_project"))
-    shutil.copy(
-        "tests/data/test.txt",
-        os.path.join(upload_path, "test_project/test.txt")
-    )
+    fpath = os.path.join(upload_path, "test_project/test.txt")
+    shutil.copy("tests/data/test.txt", fpath)
+    database_fx.upload.checksums.insert_one({
+        "_id": fpath, "checksum": "150b62e4e7d58c70503bd5fc8a26463c"
+    })
 
     # GET file that exists
     response = test_client.get(
@@ -262,7 +278,7 @@ def test_get_file(app, admin_auth, test_auth, test2_auth):
     assert response.status_code == 404
 
 
-def test_delete_file(app, test_auth, requests_mock):
+def test_delete_file(app, test_auth, requests_mock, database_fx):
     """Test DELETE for single file"""
     # Mock Metax
     requests_mock.get("https://metax-test.csc.fi/rest/v1/files/",
@@ -283,6 +299,7 @@ def test_delete_file(app, test_auth, requests_mock):
 
     os.makedirs(os.path.join(upload_path, "test_project"))
     shutil.copy("tests/data/test.txt", fpath)
+    database_fx.upload.checksums.insert_one({"_id": fpath, "checksum": "foo"})
 
     # DELETE file that exists
     response = test_client.delete(
@@ -293,6 +310,7 @@ def test_delete_file(app, test_auth, requests_mock):
     assert response.status_code == 200
     assert json.loads(response.data)["metax"] == "/test.txt"
     assert not os.path.isfile(fpath)
+    assert database_fx.upload.checksums.find().count() == 0
 
     # DELETE file that does not exist
     response = test_client.delete(
@@ -341,7 +359,7 @@ def test_get_files(app, test_auth):
     assert data["file_path"]["/test"] == ["test2.txt"]
 
 
-def test_delete_files(app, test_auth, requests_mock):
+def test_delete_files(app, test_auth, requests_mock, database_fx):
     """Test DELETE for the whole project and a single dir"""
     # Mock Metax
     requests_mock.get("https://metax-test.csc.fi/rest/v1/files/",
@@ -375,6 +393,11 @@ def test_delete_files(app, test_auth, requests_mock):
     os.makedirs(os.path.join(upload_path, "test_project", "test/"))
     shutil.copy("tests/data/test.txt", test_path_1)
     shutil.copy("tests/data/test.txt", test_path_2)
+    checksums = database_fx.upload.checksums
+    checksums.insert_many([
+        {"_id": test_path_1, "checksum": "foo"},
+        {"_id": test_path_2, "checksum": "foo"},
+    ])
 
     # DELETE single directory
     response = test_client.delete(
@@ -385,6 +408,7 @@ def test_delete_files(app, test_auth, requests_mock):
     assert response.status_code == 200
     assert json.loads(response.data)["metax"] == ["/test/test.txt"]
     assert not os.path.exists(os.path.split(test_path_2)[0])
+    assert checksums.find().count() == 1
 
     # DELETE the whole project
     requests_mock.delete("https://metax-test.csc.fi/rest/v1/files",
@@ -397,6 +421,7 @@ def test_delete_files(app, test_auth, requests_mock):
     assert response.status_code == 200
     assert json.loads(response.data)["metax"] == ["/test.txt"]
     assert not os.path.exists(os.path.split(test_path_1)[0])
+    assert checksums.find().count() == 0
 
     # DELETE project that does not exist
     response = test_client.delete(

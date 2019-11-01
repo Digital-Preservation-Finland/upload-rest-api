@@ -6,7 +6,18 @@ import time
 import shutil
 from runpy import run_path
 
+import pytest
+import mongomock
+
 import upload_rest_api.cleanup as clean
+
+
+@pytest.fixture(autouse=True)
+def mock_mongo(monkeypatch):
+    """Patch pymongo.MongoClient() with mock client"""
+    mongoclient = mongomock.MongoClient()
+    monkeypatch.setattr('pymongo.MongoClient', lambda *args: mongoclient)
+    return mongoclient
 
 
 def test_no_expired_files(app, monkeypatch):
@@ -50,7 +61,7 @@ def test_no_expired_files(app, monkeypatch):
     assert os.stat(fpath).st_mtime == last_access
 
 
-def test_expired_files(app, monkeypatch):
+def test_expired_files(app, mock_mongo, monkeypatch):
     """Test that all the expired files and empty directories are removed.
     """
     def _parse_conf(fpath):
@@ -75,6 +86,13 @@ def test_expired_files(app, monkeypatch):
     shutil.copy("tests/data/test.txt", fpath)
     shutil.copy("tests/data/test.txt", fpath_expired)
 
+    # Add checksums to mongo
+    checksums = mock_mongo.upload.checksums
+    checksums.insert_many([
+        {"_id": fpath, "checksum": "foo"},
+        {"_id": fpath_expired, "checksum": "foo"}
+    ])
+
     current_time = time.time()
     expired_access = int(current_time - 100)
     os.utime(fpath_expired, (expired_access, expired_access))
@@ -84,6 +102,10 @@ def test_expired_files(app, monkeypatch):
 
     # upload_path/test/test/test.txt and its directory should be removed
     assert not os.path.isdir(os.path.join(upload_path, "test/test/"))
+
+    # fpath_expired checksum should be removed
+    assert checksums.find({"_id": fpath_expired}).count() == 0
+    assert checksums.find({"_id": fpath}).count() == 1
 
     # upload_path/test/test.txt should not be removed
     assert os.path.isfile(fpath)

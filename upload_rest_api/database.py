@@ -269,7 +269,7 @@ class ChecksumsCol(object):
 
     def insert(self, checksums):
         """Insert multiple checksum docs"""
-        self.checksums.insert(checksums)
+        self.checksums.insert_many(checksums)
 
     def delete_one(self, filepath):
         """Delete a single checksum doc"""
