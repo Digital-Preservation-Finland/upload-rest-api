@@ -57,11 +57,11 @@ def test_index(app, test_auth, wrong_auth):
     assert response.status_code == 401
 
 
-def test_upload(app, test_auth, database_fx):
+def test_upload(app, test_auth, mock_mongo):
     """Test uploading a plain text file"""
     test_client = app.test_client()
     upload_path = app.config.get("UPLOAD_PATH")
-    checksums = database_fx.upload.checksums
+    checksums = mock_mongo.upload.checksums
 
     response = _upload_file(
         test_client, "/v1/files/test.txt",
@@ -103,11 +103,11 @@ def test_upload_max_size(app, test_auth):
     assert not os.path.isfile(fpath)
 
 
-def test_user_quota(app, test_auth, database_fx):
+def test_user_quota(app, test_auth, mock_mongo):
     """Test uploading files larger than allowed by user quota"""
     test_client = app.test_client()
     upload_path = app.config.get("UPLOAD_PATH")
-    users = database_fx.upload.users
+    users = mock_mongo.upload.users
 
     _set_user_quota(users, "test", 200, 0)
     response = _upload_file(
@@ -120,14 +120,14 @@ def test_user_quota(app, test_auth, database_fx):
     assert not os.path.isdir(os.path.join(upload_path, "test_project"))
 
 
-def test_used_quota(app, test_auth, database_fx, requests_mock):
+def test_used_quota(app, test_auth, mock_mongo, requests_mock):
     """Test that used quota is calculated correctly"""
     # Mock Metax
     requests_mock.get("https://metax-test.csc.fi/rest/v1/files/",
                       json={'next': None, 'results': []})
 
     test_client = app.test_client()
-    users = database_fx.upload.users
+    users = mock_mongo.upload.users
 
     # Upload two 31B txt files
     _upload_file(
@@ -165,13 +165,13 @@ def test_upload_outside(app, test_auth):
     "tests/data/test.zip",
     "tests/data/test.tar.gz"
 ])
-def test_upload_archive(archive, app, test_auth, database_fx):
+def test_upload_archive(archive, app, test_auth, mock_mongo):
     """Test that uploaded arhive is extracted. No files should be
     extracted outside the project directory.
     """
     test_client = app.test_client()
     upload_path = app.config.get("UPLOAD_PATH")
-    checksums = database_fx.upload.checksums
+    checksums = mock_mongo.upload.checksums
 
     response = _upload_file(
         test_client, "/v1/files/archive", test_auth, archive
@@ -209,13 +209,13 @@ def test_upload_archive(archive, app, test_auth, database_fx):
     "tests/data/symlink.zip",
     "tests/data/symlink.tar.gz"
 ])
-def test_upload_invalid_archive(archive, app, test_auth, database_fx):
+def test_upload_invalid_archive(archive, app, test_auth, mock_mongo):
     """Test that trying to upload a archive with symlinks return 413
     and doesn't create any files.
     """
     test_client = app.test_client()
     upload_path = app.config.get("UPLOAD_PATH")
-    checksums = database_fx.upload.checksums
+    checksums = mock_mongo.upload.checksums
 
     response = _upload_file(
         test_client, "/v1/files/archive", test_auth, archive
@@ -238,7 +238,7 @@ def test_upload_invalid_archive(archive, app, test_auth, database_fx):
     assert checksums.count() == 0
 
 
-def test_get_file(app, admin_auth, test_auth, test2_auth, database_fx):
+def test_get_file(app, admin_auth, test_auth, test2_auth, mock_mongo):
     """Test GET for single file"""
     test_client = app.test_client()
     upload_path = app.config.get("UPLOAD_PATH")
@@ -246,7 +246,7 @@ def test_get_file(app, admin_auth, test_auth, test2_auth, database_fx):
     os.makedirs(os.path.join(upload_path, "test_project"))
     fpath = os.path.join(upload_path, "test_project/test.txt")
     shutil.copy("tests/data/test.txt", fpath)
-    database_fx.upload.checksums.insert_one({
+    mock_mongo.upload.checksums.insert_one({
         "_id": fpath, "checksum": "150b62e4e7d58c70503bd5fc8a26463c"
     })
 
@@ -278,7 +278,7 @@ def test_get_file(app, admin_auth, test_auth, test2_auth, database_fx):
     assert response.status_code == 404
 
 
-def test_delete_file(app, test_auth, requests_mock, database_fx):
+def test_delete_file(app, test_auth, requests_mock, mock_mongo):
     """Test DELETE for single file"""
     # Mock Metax
     requests_mock.get("https://metax-test.csc.fi/rest/v1/files/",
@@ -299,7 +299,7 @@ def test_delete_file(app, test_auth, requests_mock, database_fx):
 
     os.makedirs(os.path.join(upload_path, "test_project"))
     shutil.copy("tests/data/test.txt", fpath)
-    database_fx.upload.checksums.insert_one({"_id": fpath, "checksum": "foo"})
+    mock_mongo.upload.checksums.insert_one({"_id": fpath, "checksum": "foo"})
 
     # DELETE file that exists
     response = test_client.delete(
@@ -310,7 +310,7 @@ def test_delete_file(app, test_auth, requests_mock, database_fx):
     assert response.status_code == 200
     assert json.loads(response.data)["metax"] == "/test.txt"
     assert not os.path.isfile(fpath)
-    assert database_fx.upload.checksums.count() == 0
+    assert mock_mongo.upload.checksums.count() == 0
 
     # DELETE file that does not exist
     response = test_client.delete(
@@ -359,7 +359,7 @@ def test_get_files(app, test_auth):
     assert data["file_path"]["/test"] == ["test2.txt"]
 
 
-def test_delete_files(app, test_auth, requests_mock, database_fx):
+def test_delete_files(app, test_auth, requests_mock, mock_mongo):
     """Test DELETE for the whole project and a single dir"""
     # Mock Metax
     requests_mock.get("https://metax-test.csc.fi/rest/v1/files/",
@@ -393,7 +393,7 @@ def test_delete_files(app, test_auth, requests_mock, database_fx):
     os.makedirs(os.path.join(upload_path, "test_project", "test/"))
     shutil.copy("tests/data/test.txt", test_path_1)
     shutil.copy("tests/data/test.txt", test_path_2)
-    checksums = database_fx.upload.checksums
+    checksums = mock_mongo.upload.checksums
     checksums.insert_many([
         {"_id": test_path_1, "checksum": "foo"},
         {"_id": test_path_2, "checksum": "foo"},
@@ -474,7 +474,7 @@ def test_get_all_users(app, admin_auth, test_auth):
     assert response.status_code == 401
 
 
-def test_create_user(app, admin_auth, database_fx):
+def test_create_user(app, admin_auth, mock_mongo):
     """Test creating a new user"""
     test_client = app.test_client()
 
@@ -497,7 +497,7 @@ def test_create_user(app, admin_auth, database_fx):
     assert len(data["password"]) == 20
 
     # Check user from database
-    users = database_fx.upload.users
+    users = mock_mongo.upload.users
     data = users.find_one({"_id": "user"})
 
     assert data is not None
@@ -508,7 +508,7 @@ def test_create_user(app, admin_auth, database_fx):
     assert data["used_quota"] == 0
 
 
-def test_delete_user(app, admin_auth, database_fx):
+def test_delete_user(app, admin_auth, mock_mongo):
     """Test deleting test user"""
     test_client = app.test_client()
 
@@ -521,7 +521,7 @@ def test_delete_user(app, admin_auth, database_fx):
     assert data["status"] == "deleted"
 
     # Check that user was deleted from the database
-    users = database_fx.upload.users
+    users = mock_mongo.upload.users
     assert users.find_one({"_id": "test"}) is None
 
 

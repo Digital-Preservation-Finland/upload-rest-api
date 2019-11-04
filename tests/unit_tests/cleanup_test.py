@@ -6,18 +6,7 @@ import time
 import shutil
 from runpy import run_path
 
-import pytest
-import mongomock
-
 import upload_rest_api.cleanup as clean
-
-
-@pytest.fixture(autouse=True)
-def mock_mongo(monkeypatch):
-    """Patch pymongo.MongoClient() with mock client"""
-    mongoclient = mongomock.MongoClient()
-    monkeypatch.setattr('pymongo.MongoClient', lambda *args: mongoclient)
-    return mongoclient
 
 
 def test_no_expired_files(app, monkeypatch):
