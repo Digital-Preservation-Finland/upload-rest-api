@@ -34,11 +34,10 @@ def _archive_exceeds_quota(archive_path, username):
 
     :returns: True if the archive exceeds user's quota else False
     """
-    is_tar = tarfile.is_tarfile(archive_path)
     user = db.UsersDoc(username)
     quota = user.get_quota() - user.get_used_quota()
 
-    if is_tar:
+    if tarfile.is_tarfile(archive_path):
         with tarfile.open(archive_path) as archive:
             size = sum(memb.size for memb in archive)
     else:
@@ -77,8 +76,7 @@ def _get_archive_checksums(archive, extract_path):
     :param extract_path: Path to the dir where the archive was extracted
     :returns: A list of checksum dicts
     """
-    is_tar = tarfile.is_tarfile(archive)
-    if is_tar:
+    if tarfile.is_tarfile(archive):
         with tarfile.open(archive) as tarf:
             files = [member.name for member in tarf]
     else:

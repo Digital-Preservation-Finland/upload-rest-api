@@ -104,8 +104,8 @@ def test_expired_files(app, mock_mongo, monkeypatch):
     assert not os.path.isdir(os.path.join(upload_path, "test/test/"))
 
     # fpath_expired checksum should be removed
-    assert checksums.find({"_id": fpath_expired}).count() == 0
-    assert checksums.find({"_id": fpath}).count() == 1
+    assert checksums.count({"_id": fpath_expired}) == 0
+    assert checksums.count({"_id": fpath}) == 1
 
     # upload_path/test/test.txt should not be removed
     assert os.path.isfile(fpath)
