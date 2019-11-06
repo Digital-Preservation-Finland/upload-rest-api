@@ -340,7 +340,12 @@ def test_get_files(app, test_auth):
         "/v1/files",
         headers=test_auth
     )
+    response_trailing_slash = test_client.get(
+        "/v1/files/",
+        headers=test_auth
+    )
 
+    assert response.data == response_trailing_slash.data
     assert response.status_code == 200
     data = json.loads(response.data)
 

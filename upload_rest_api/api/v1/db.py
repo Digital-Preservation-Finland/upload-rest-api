@@ -3,16 +3,16 @@
 from __future__ import unicode_literals
 
 import six
+from flask import Blueprint, jsonify
 
 import upload_rest_api.authentication as auth
 import upload_rest_api.database as db
 import upload_rest_api.utils as utils
-from flask import Blueprint, jsonify
 
 DB_API_V1 = Blueprint("db_v1", __name__, url_prefix="/v1/users")
 
 
-@DB_API_V1.route("", methods=["GET"])
+@DB_API_V1.route("", methods=["GET"], strict_slashes=False)
 def get_all_users():
     """Get list of all usernames from the database.
 

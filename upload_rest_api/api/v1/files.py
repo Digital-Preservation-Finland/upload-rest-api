@@ -152,7 +152,7 @@ def delete_path(fpath):
     })
 
 
-@FILES_API_V1.route("", methods=["GET"])
+@FILES_API_V1.route("", methods=["GET"], strict_slashes=False)
 def get_files():
     """Get all files of the user
 
@@ -171,7 +171,7 @@ def get_files():
     return response
 
 
-@FILES_API_V1.route("", methods=["DELETE"])
+@FILES_API_V1.route("", methods=["DELETE"], strict_slashes=False)
 def delete_files():
     """Delete all files of a user
 
