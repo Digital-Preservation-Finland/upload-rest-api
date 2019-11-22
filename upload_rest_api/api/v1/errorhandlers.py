@@ -10,7 +10,9 @@ from flask import current_app
 def http_error_generic(error):
     """Generic HTTP error handler"""
     current_app.logger.error(error, exc_info=True)
-    return utils.make_response(error.code, six.text_type(error))
+    code = error.code
+    message = "Page not found" if code == 404 else six.text_type(error)
+    return utils.make_response(code, message)
 
 
 def http_error_500(error):
