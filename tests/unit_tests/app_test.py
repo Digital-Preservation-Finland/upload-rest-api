@@ -174,7 +174,7 @@ def test_upload_archive(archive, app, test_auth, mock_mongo):
     checksums = mock_mongo.upload.checksums
 
     response = _upload_file(
-        test_client, "/v1/files/archive", test_auth, archive
+        test_client, "/v1/files/archive?extract=true", test_auth, archive
     )
     assert response.status_code == 200
 
@@ -196,7 +196,7 @@ def test_upload_archive(archive, app, test_auth, mock_mongo):
 
     # Trying to upload same zip again should return 409 - Conflict
     response = _upload_file(
-        test_client, "/v1/files/test.zip",
+        test_client, "/v1/files/test.zip?extract=true",
         test_auth, "tests/data/test.zip"
     )
 
@@ -218,7 +218,7 @@ def test_upload_invalid_archive(archive, app, test_auth, mock_mongo):
     checksums = mock_mongo.upload.checksums
 
     response = _upload_file(
-        test_client, "/v1/files/archive", test_auth, archive
+        test_client, "/v1/files/archive?extract=true", test_auth, archive
     )
     data = json.loads(response.data)
     assert response.status_code == 415

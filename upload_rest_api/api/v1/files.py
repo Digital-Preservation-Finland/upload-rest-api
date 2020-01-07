@@ -69,9 +69,11 @@ def upload_file(fpath):
         os.makedirs(fpath)
 
     fpath = safe_join(fpath, fname)
+    extract = request.args.get("extract", default="false")
+    extract = True if extract == "true" else False
 
     try:
-        response = up.save_file(fpath)
+        response = up.save_file(fpath, extract_archives=extract)
     except (MemberOverwriteError, up.OverwriteError) as error:
         return utils.make_response(409, str(error))
     except MemberTypeError as error:

@@ -119,13 +119,14 @@ class QuotaError(Exception):
     pass
 
 
-def save_file(fpath):
+def save_file(fpath, extract_archives=False):
     """Save the posted file on disk at fpath by reading
     the upload stream in 1MB chunks. Extract zip files
     and check that no symlinks are created.
 
     :param fpath: Path where to save the file
-    :param upload_path: Base bath not shown to the user
+    :param extract_archives: Defines wheter or not tar and zip archives are
+                             extracted
     :returns: HTTP Response
     """
     username = request.authorization.username
@@ -140,7 +141,8 @@ def save_file(fpath):
     md5 = gen_metadata.md5_digest(fpath)
 
     # If zip or tar file was uploaded, extract all files
-    if zipfile.is_zipfile(fpath) or tarfile.is_tarfile(fpath):
+    is_archive = zipfile.is_zipfile(fpath) or tarfile.is_tarfile(fpath)
+    if is_archive and extract_archives:
         dir_path = os.path.split(fpath)[0]
 
         # Check the uncompressed size

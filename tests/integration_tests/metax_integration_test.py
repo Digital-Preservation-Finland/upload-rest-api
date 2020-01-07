@@ -82,7 +82,7 @@ def test_gen_metadata_root(app, dataset, test_auth, monkeypatch):
 
     # Upload integration.zip, which is extracted by the server
     _upload_file(
-        test_client, "/v1/files/integration.zip",
+        test_client, "/v1/files/integration.zip?extract=true",
         test_auth, "tests/data/integration.zip"
     )
 
@@ -141,7 +141,7 @@ def test_gen_metadata_file(app, dataset, test_auth, monkeypatch):
 
     # Upload integration.zip, which is extracted by the server
     _upload_file(
-        test_client, "/v1/files/integration.zip",
+        test_client, "/v1/files/integration.zip?extract=true",
         test_auth, "tests/data/integration.zip"
     )
 
@@ -212,7 +212,7 @@ def test_disk_cleanup(app, dataset, test_auth, monkeypatch):
 
     # Upload integration.zip, which is extracted by the server
     _upload_file(
-        test_client, "/v1/files/integration.zip",
+        test_client, "/v1/files/integration.zip?extract=true",
         test_auth, "tests/data/integration.zip"
     )
 
@@ -275,7 +275,7 @@ def test_mongo_cleanup(app, test_auth, monkeypatch):
 
     # Upload integration.zip, which is extracted by the server
     _upload_file(
-        test_client, "/v1/files/integration.zip",
+        test_client, "/v1/files/integration.zip?extract=true",
         test_auth, "tests/data/integration.zip"
     )
 
