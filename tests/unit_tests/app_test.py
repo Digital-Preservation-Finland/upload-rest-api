@@ -166,7 +166,7 @@ def test_upload_outside(app, test_auth):
     "tests/data/test.tar.gz"
 ])
 def test_upload_archive(archive, app, test_auth, mock_mongo):
-    """Test that uploaded arhive is extracted. No files should be
+    """Test that uploaded archive is extracted. No files should be
     extracted outside the project directory.
     """
     test_client = app.test_client()
@@ -203,6 +203,40 @@ def test_upload_archive(archive, app, test_auth, mock_mongo):
     data = json.loads(response.data)
     assert response.status_code == 409
     assert data["error"] == "File 'test/test.txt' already exists"
+
+
+@pytest.mark.parametrize("query_params", [
+    "?extract=false",
+    "?extract=foo",
+    ""
+])
+def test_upload_archive_extract_false(query_params, app, test_auth, mock_mongo):
+    """Test that uploaded archive is not extracted without ?extract=true.
+    """
+    test_client = app.test_client()
+    upload_path = app.config.get("UPLOAD_PATH")
+    checksums = mock_mongo.upload.checksums
+
+    response = _upload_file(
+        test_client, "/v1/files/archive.zip" + query_params,
+        test_auth, "tests/data/test.zip"
+    )
+    assert response.status_code == 200
+
+    fpath = os.path.join(upload_path, "test_project")
+    text_file = os.path.join(fpath, "test", "test.txt")
+    archive_file = os.path.join(fpath, "archive.zip")
+
+    # test.txt is not extracted
+    assert not os.path.isfile(text_file)
+
+    # archive file is uploaded
+    assert os.path.isfile(archive_file)
+
+    # checksum is added to mongo
+    assert checksums.count() == 1
+    checksum = checksums.find_one({"_id": archive_file})["checksum"]
+    assert checksum == "9cc7252c6628ce1bde964b25ef65d0ba"
 
 
 @pytest.mark.parametrize("archive", [
