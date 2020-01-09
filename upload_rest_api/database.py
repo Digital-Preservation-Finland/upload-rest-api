@@ -381,16 +381,8 @@ def init_db():
     # Create admin user
     password = user.create("admin_project")
 
-    # Read conf file
-    with io.open("/etc/upload_rest_api.conf", "rt") as conf_file:
-        lines = conf_file.readlines()
-
-    # Write new conf file
-    with io.open("/etc/upload_rest_api.conf", "wt") as conf_file:
-        for line in lines:
-            if not line.startswith('admin_password = "'):
-                conf_file.write(line)
-
+    # Write new admin conf file
+    with io.open("/etc/upload_rest_api_admin.conf", "wt") as conf_file:
         conf_file.write('ADMIN_PASSWORD = "%s"' % password)
 
     print("Database initialized")
