@@ -381,9 +381,12 @@ def init_db():
     # Create admin user
     password = user.create("admin_project")
 
-    # Write new admin conf file
-    with io.open("/etc/upload_rest_api_admin.conf", "wt") as conf_file:
-        conf_file.write('ADMIN_PASSWORD = "%s"' % password)
+    if not os.path.isdir("/usr/share/upload-rest-api"):
+        os.mkdir("/usr/share/upload-rest-api")
+
+    # Write admin password to a file
+    with io.open("/usr/share/upload-rest-api/admin_password", "wt") as _file:
+        _file.write(password)
 
     print("Database initialized")
 
