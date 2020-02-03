@@ -157,27 +157,6 @@ def clean_disk(metax=True):
     return deleted_count
 
 
-def clean_ida(ida_files_path="/var/spool/siptools_research/ida_files"):
-    """Remove all files from ida_files_path that haven't been accessed in
-    two weeks.
-
-    :returns: Count of deleted files
-    """
-    current_time = time.time()
-    time_lim = 60*60*24*14
-    deleted_count = 0
-
-    # Remove all old files
-    for dirpath, _, files in os.walk(ida_files_path):
-        for fname in files:
-            _file = os.path.join(dirpath, fname)
-            if _is_expired(_file, current_time, time_lim):
-                os.remove(_file)
-                deleted_count += 1
-
-    return deleted_count
-
-
 def clean_mongo():
     """Clean file identifiers that do not exist in Metax any more from Mongo
 
@@ -211,7 +190,7 @@ def _parse_arguments(arguments):
     parser = argparse.ArgumentParser(
         description="Clean files from disk or identfiers from mongo."
     )
-    parser.add_argument("location", type=str, help="mongo, disk or ida_files")
+    parser.add_argument("location", type=str, help="mongo or disk")
 
     return parser.parse_args(arguments)
 
@@ -224,8 +203,6 @@ def main(arguments=None):
         deleted_count = clean_disk()
     elif args.location == "mongo":
         deleted_count = clean_mongo()
-    elif args.location == "ida_files":
-        deleted_count = clean_ida()
     else:
         raise ValueError("Unsupported location: %s" % args.location)
 
