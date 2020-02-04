@@ -1,4 +1,4 @@
-"""/filestorage/api/files/v1 endpoints. Functionality for uploading,
+"""/files/v1 endpoints. Functionality for uploading,
 querying and deleting files from the server.
 """
 from __future__ import unicode_literals
