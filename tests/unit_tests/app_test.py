@@ -210,7 +210,8 @@ def test_upload_archive(archive, app, test_auth, mock_mongo):
     "?extract=foo",
     ""
 ])
-def test_upload_archive_extract_false(query_params, app, test_auth, mock_mongo):
+def test_upload_archive_extract_false(query_params, app,
+                                      test_auth, mock_mongo):
     """Test that uploaded archive is not extracted without ?extract=true.
     """
     test_client = app.test_client()
@@ -468,6 +469,68 @@ def test_delete_files(app, test_auth, requests_mock, mock_mongo):
         headers=test_auth
     )
     assert response.status_code == 404
+
+
+def test_delete_metadata(app, test_auth, requests_mock, mock_mongo):
+    """Test DELETE metadata for a directory and a single dir"""
+    # Mock Metax
+    requests_mock.get("https://metax-test.csc.fi/rest/v1/files/",
+                      json={
+                          'next': None,
+                          'results': [
+                              {
+                                  'id': 'foo',
+                                  'identifier': 'foo',
+                                  'file_path': '/test.txt'
+                              },
+                              {
+                                  'id': 'bar',
+                                  'identifier': 'bar',
+                                  'file_path': '/test/test.txt'
+                              }
+                          ]
+                      })
+
+    requests_mock.post("https://metax-test.csc.fi/rest/v1/files/datasets",
+                       json=['dataset_preferred_identifier'])
+    requests_mock.get("https://metax-test.csc.fi/rest/v1/datasets?"
+                      "preferred_identifier=dataset_preferred_identifier",
+                      json={"preservation_state": 75})
+    adapter = requests_mock.delete("https://metax-test.csc.fi/rest/v1/files",
+                                   json={"deleted_files_count": 1})
+    requests_mock.delete("https://metax-test.csc.fi/rest/v1/files/foo",
+                         json={})
+
+    test_client = app.test_client()
+    upload_path = app.config.get("UPLOAD_PATH")
+    test_path_1 = os.path.join(upload_path, "test_project/test.txt")
+    test_path_2 = os.path.join(upload_path, "test_project/test/test.txt")
+
+    os.makedirs(os.path.join(upload_path, "test_project", "test/"))
+    shutil.copy("tests/data/test.txt", test_path_1)
+    shutil.copy("tests/data/test.txt", test_path_2)
+    checksums = mock_mongo.upload.checksums
+    checksums.insert_many([
+        {"_id": test_path_1, "checksum": "foo"},
+        {"_id": test_path_2, "checksum": "foo"},
+    ])
+
+    # DELETE metadata for single directory
+    response = test_client.delete(
+        "/v1/metadata/test",
+        headers=test_auth
+    )
+    assert json.loads(response.data)["metax"] == {"deleted_files_count": 1}
+    assert json.loads(response.data)["status"] == "metadata deleted"
+    assert adapter.last_request.json() == ['bar']
+
+    # DELETE metadata for single file
+    response = test_client.delete(
+        "/v1/metadata/test.txt",
+        headers=test_auth
+    )
+    assert json.loads(response.data)["metax"] == {}
+    assert json.loads(response.data)["status"] == "metadata deleted"
 
 
 def test_db_access_test_user(app, test_auth):
