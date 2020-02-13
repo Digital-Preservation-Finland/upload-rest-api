@@ -15,6 +15,8 @@ from metax_access import (Metax, DS_STATE_ACCEPTED_TO_DIGITAL_PRESERVATION,
                           DS_STATE_IN_DIGITAL_PRESERVATION)
 import upload_rest_api.database as db
 
+PAS_FILE_STORAGE_ID = "urn:nbn:fi:att:file-storage-pas"
+
 
 def md5_digest(fpath):
     """Return md5 digest of file fpath
@@ -103,6 +105,8 @@ class MetaxClient(object):
             password = app.config.get("METAX_PASSWORD")
 
         self.client = Metax(url, user, password)
+        # dataset_id => preservation_state dict
+        self.dataset_cache = {}
 
     def get_files_dict(self, project):
         """Returns dict {fpath: id} of all the files of a given project"""
@@ -159,19 +163,24 @@ class MetaxClient(object):
 
     def delete_file_metadata(self, project, fpath, force=False):
         """Delete file metadata from Metax if file is not associated with
-        any dataset.
+        any dataset. If force parameter is True metadata is deleted if the
+        file belongs to a dataset not accepted to preservation.
         """
+        self.dataset_cache.clear()
         upload_path = current_app.config.get("UPLOAD_PATH")
         files_dict = self.client.get_files_dict(project)
         metax_path = get_metax_path(fpath, upload_path)
 
         if metax_path not in files_dict:
             response = "Metadata not found in Metax"
+        elif files_dict[metax_path]["storage_identifier"] != \
+                PAS_FILE_STORAGE_ID:
+            response = "Incorrect file storage. Metadata not removed"
         elif not force and self.file_has_dataset(metax_path, files_dict):
             response = "Metadata is part of a dataset. Metadata not removed"
         elif force and self.file_has_accepted_dataset(metax_path, files_dict):
             response = ("Metadata is part of an accepted dataset. Metadata not"
-                        "removed")
+                        " removed")
         else:
             file_id = six.text_type(files_dict[metax_path]["id"])
             response = self.client.delete_file(file_id)
@@ -180,8 +189,11 @@ class MetaxClient(object):
 
     def delete_all_metadata(self, project, fpath, force=False):
         """Delete all file metadata from Metax found under dir fpath, which
-        is not associated with any dataset
+        is not associated with any dataset and is stored in PAS file storage.
+        If force parameter is True metadata is deleted if file belongs to a
+        dataset not accepted to preservation.
         """
+        self.dataset_cache.clear()
         upload_path = current_app.config.get("UPLOAD_PATH")
         files_dict = self.client.get_files_dict(project)
         file_id_list = []
@@ -191,16 +203,20 @@ class MetaxClient(object):
             for _file in files:
                 fpath = os.path.join(dirpath, _file)
                 metax_path = get_metax_path(fpath, upload_path)
-
+                if metax_path not in files_dict:
+                    continue
+                storage_id = files_dict[metax_path]["storage_identifier"]
+                if storage_id != PAS_FILE_STORAGE_ID:
+                    continue
                 # Append file id to file_id_list if file is not associated
                 # with any dataset and file metadata is in Metax
-                if not force:
-                    no_dataset = not self.file_has_dataset(metax_path,
-                                                           files_dict)
-                else:
+                if force:
                     no_dataset = not self.file_has_accepted_dataset(metax_path,
                                                                     files_dict)
-                if metax_path in files_dict and no_dataset:
+                else:
+                    no_dataset = not self.file_has_dataset(metax_path,
+                                                           files_dict)
+                if no_dataset:
                     file_id_list.append(files_dict[metax_path]["id"])
 
         if not file_id_list:
@@ -237,15 +253,20 @@ class MetaxClient(object):
         return len(datasets) != 0
 
     def file_has_accepted_dataset(self, metax_path, files_dict):
-        """Check if file belongs to any dataset having preservation_state
-        greater or equal than DS_STATE_ACCEPTED_TO_DIGITAL_PRESERVATION"""
+        """Check if file belongs to dataset accepted to preservation"""
         if metax_path in files_dict:
             file_id = files_dict[metax_path]["id"]
             dataset_ids = self.client.get_file_datasets(file_id)
             for dataset_id in dataset_ids:
-                dataset = self.client.query_datasets(
-                    {'preferred_identifier': dataset_id}
-                )
-                if DS_STATE_ACCEPTED_TO_DIGITAL_PRESERVATION <= dataset['preservation_state'] <= DS_STATE_IN_DIGITAL_PRESERVATION:
+                if dataset_id not in self.dataset_cache:
+                    dataset = self.client.query_datasets(
+                        {'preferred_identifier': dataset_id}
+                    )
+                    self.dataset_cache[dataset_id] = \
+                        dataset['preservation_state']
+                dataset_state = self.dataset_cache[dataset_id]
+                if (DS_STATE_ACCEPTED_TO_DIGITAL_PRESERVATION <=
+                        dataset_state <=
+                        DS_STATE_IN_DIGITAL_PRESERVATION):
                     return True
         return False

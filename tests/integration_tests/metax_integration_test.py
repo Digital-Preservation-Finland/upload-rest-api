@@ -20,7 +20,6 @@ from upload_rest_api.gen_metadata import MetaxClient
 import upload_rest_api.database as db
 import upload_rest_api.cleanup as clean
 
-
 URL = "https://metax-test.csc.fi"
 USER = "tpas"
 
@@ -180,6 +179,78 @@ def test_gen_metadata_file(app, dataset, test_auth, monkeypatch):
         assert not files_dict
 
 
+@pytest.mark.parametrize("accepted_dataset", [True, False])
+def test_delete_metadata(app, accepted_dataset, test_auth):
+    """Verifies that metadata is 1) deleted for a file belonging to a
+    dataset not accepted to preservation and is 2) not deleted when file
+    belongs to dataset accepted to preservation
+    """
+
+    app.config["METAX_PASSWORD"] = PASSWORD
+    test_client = app.test_client()
+
+    # Upload integration.zip, which is extracted by the server
+    _upload_file(
+        test_client, "/v1/files/integration.zip?extract=true",
+        test_auth, "tests/data/integration.zip"
+    )
+
+    # Generate and POST metadata for file test1.txt in test_project
+    response = test_client.post(
+        "/v1/metadata/integration/test1/test1.txt",
+        headers=test_auth
+    )
+    assert response.status_code == 200
+    data = json.loads(response.data)
+    metax_response = data["metax_response"]
+
+    # All metadata POSTs succeeded
+    assert not metax_response["failed"]
+    assert len(metax_response["success"]) == 1
+
+    # Create dataset
+    file_metadata = metax_response["success"][0]["object"]
+    file_block = _create_dataset_file_block(file_metadata)
+    dataset_id = _create_dataset_with_file(accepted_dataset,
+                                           file_block)['identifier']
+
+    # Delete metadata for file test1.txt in test_project
+    response = test_client.delete(
+        "/v1/metadata/integration/test1/test1.txt",
+        headers=test_auth
+    )
+    assert response.status_code == 200
+    data = json.loads(response.data)
+    if accepted_dataset:
+        assert data["metax"] == ("Metadata is part of an accepted dataset."
+                                 " Metadata not removed")
+    else:
+        assert data["metax"]["deleted_files_count"] == 1
+    assert data["status"] == "metadata deleted"
+    metax_client = MetaxClient(URL, USER, PASSWORD)
+    files_dict = metax_client.get_files_dict("test_project")
+    if accepted_dataset:
+        assert len(files_dict) == 1
+    else:
+        assert not files_dict
+
+    # DELETE whole project
+    response = test_client.delete("/v1/files", headers=test_auth)
+    assert response.status_code == 200
+
+    # Test that no test_project files are found in Metax
+    files_dict = metax_client.get_files_dict("test_project")
+    if accepted_dataset:
+        assert len(files_dict) == 1
+    else:
+        assert not files_dict
+
+    response = requests.delete("%s/rest/datasets/%s" % (URL, dataset_id),
+                               auth=(USER, PASSWORD),
+                               verify=False)
+    assert response.status_code == 204
+
+
 @pytest.mark.parametrize("dataset", [True, False])
 def test_disk_cleanup(app, dataset, test_auth, monkeypatch):
     """Test that cleanup script removes file metadata from Metax if it is
@@ -294,3 +365,81 @@ def test_mongo_cleanup(app, test_auth, monkeypatch):
     clean.clean_mongo()
 
     assert len(files_col.get_all_ids()) == 2
+
+
+def _create_dataset_with_file(accepted_dataset, dataset_file_data_block):
+    """ Creates a dataset into Metax"""
+    resp = requests.get(
+        "%s/rpc/datasets/get_minimal_dataset_template?type=service" % URL,
+        verify=False
+    )
+    if resp.status_code != 200:
+        raise Exception('Error retrieving dataset template from metax: %s'
+                        % str(resp.content))
+    try:
+        dataset = resp.json()
+    except Exception:
+        raise Exception("Error retrieving dataset template from metax: %s"
+                        % str(resp.content))
+
+    dataset["research_dataset"]['files'] = []
+    dataset["research_dataset"]['directories'] = []
+    dataset["data_catalog"] = "urn:nbn:fi:att:data-catalog-pas"
+    dataset["research_dataset"]["publisher"] = {
+        "name": {
+            "fi": "School services, ARTS",
+            "und": "School services, ARTS"
+        },
+        "@type": "Organization",
+        "homepage": {
+            "title": {
+                "en": "Publisher website",
+                "fi": "Julkaisijan kotisivu"
+            },
+            "identifier": "http://www.publisher.fi/"
+        },
+        "identifier": "http://uri.suomi.fi/codelist/fairdata/organization",
+    }
+    dataset['research_dataset']['title']['en'] = (
+        "Upload-rest-api Integration Test Dataset")
+    dataset['research_dataset']['issued'] = "1997-02-21"
+    dataset['research_dataset']['files'] = [dataset_file_data_block]
+    if accepted_dataset:
+        dataset["preservation_state"] = 120
+    resp = requests.post("%s/rest/datasets" % URL,
+                         headers={'Content-Type': 'application/json'},
+                         json=dataset,
+                         auth=(USER, PASSWORD),
+                         verify=False)
+    if resp.status_code != 201:
+        raise Exception('Metax create dataset fails: ' + str(resp.json()))
+    return resp.json()
+
+
+def _create_dataset_file_block(file_metadata):
+    return {
+        "title": "Title for " + file_metadata["file_path"],
+        "identifier": file_metadata["identifier"],
+        "file_type": {
+            "in_scheme": ("http://uri.suomi.fi/codelist/"
+                          "fairdata/file_type"),
+            "identifier": ("http://uri.suomi.fi/codelist/fairdata/"
+                           "file_type/code/image"),
+            "pref_label": {
+                "en": "Text",
+                "fi": "Teksti",
+                "und": "Teksti"
+            }
+        },
+        "use_category": {
+            "in_scheme": ("http://uri.suomi.fi/codelist/fairdata/"
+                          "use_category"),
+            "identifier": ("http://uri.suomi.fi/codelist/fairdata/"
+                           "use_category/code/source"),
+            "pref_label": {
+                "en": "Source material",
+                "fi": "Lahdeaineisto",
+                "und": "Lahdeaineisto"
+            }
+        }
+    }

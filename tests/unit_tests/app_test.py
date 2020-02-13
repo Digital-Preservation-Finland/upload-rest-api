@@ -315,12 +315,22 @@ def test_get_file(app, admin_auth, test_auth, test2_auth, mock_mongo):
 
 def test_delete_file(app, test_auth, requests_mock, mock_mongo):
     """Test DELETE for single file"""
+    resp_str = """{
+                    "next": null,
+                    "results": [
+                        {
+                            "id": "foo",
+                            "identifier": "foo",
+                            "file_path": "/test.txt",
+                            "file_storage": {
+                                "identifier": "urn:nbn:fi:att:file-storage-pas"
+                            }
+                        }
+                    ]
+                  }"""
     # Mock Metax
     requests_mock.get("https://metax-test.csc.fi/rest/v1/files/",
-                      json={'next': None,
-                            'results': [{'id': 'foo',
-                                         'identifier': 'foo',
-                                         'file_path': '/test.txt'}]})
+                      json=json.loads(resp_str))
 
     requests_mock.post("https://metax-test.csc.fi/rest/v1/files/datasets",
                        json={})
@@ -401,23 +411,30 @@ def test_get_files(app, test_auth):
 
 def test_delete_files(app, test_auth, requests_mock, mock_mongo):
     """Test DELETE for the whole project and a single dir"""
+    resp_str = """{
+                  "next": null,
+                  "results": [
+                      {
+                          "id": "foo",
+                          "identifier": "foo",
+                          "file_path": "/test.txt",
+                          "file_storage": {
+                              "identifier": "urn:nbn:fi:att:file-storage-pas"
+                            }
+                      },
+                      {
+                          "id": "bar",
+                          "identifier": "bar",
+                          "file_path": "/test/test.txt",
+                          "file_storage": {
+                              "identifier": "urn:nbn:fi:att:file-storage-pas"
+                            }
+                      }
+                  ]
+            }"""
     # Mock Metax
     requests_mock.get("https://metax-test.csc.fi/rest/v1/files/",
-                      json={
-                          'next': None,
-                          'results': [
-                              {
-                                  'id': 'foo',
-                                  'identifier': 'foo',
-                                  'file_path': '/test.txt'
-                              },
-                              {
-                                  'id': 'bar',
-                                  'identifier': 'bar',
-                                  'file_path': '/test/test.txt'
-                              }
-                          ]
-                      })
+                      json=json.loads(resp_str))
 
     requests_mock.post("https://metax-test.csc.fi/rest/v1/files/datasets",
                        json={})
@@ -474,27 +491,33 @@ def test_delete_files(app, test_auth, requests_mock, mock_mongo):
 def test_delete_metadata(app, test_auth, requests_mock, mock_mongo):
     """Test DELETE metadata for a directory and a single dir"""
     # Mock Metax
+    resp_str = """{
+                  "next": null,
+                  "results": [
+                      {
+                          "id": "foo",
+                          "identifier": "foo",
+                          "file_path": "/test.txt",
+                          "file_storage": {
+                              "identifier": "urn:nbn:fi:att:file-storage-pas"
+                            }
+                      },
+                      {
+                          "id": "bar",
+                          "identifier": "bar",
+                          "file_path": "/test/test.txt",
+                          "file_storage": {
+                              "identifier": "urn:nbn:fi:att:file-storage-pas"
+                            }
+                      }
+                  ]
+                  }"""
     requests_mock.get("https://metax-test.csc.fi/rest/v1/files/",
-                      json={
-                          'next': None,
-                          'results': [
-                              {
-                                  'id': 'foo',
-                                  'identifier': 'foo',
-                                  'file_path': '/test.txt'
-                              },
-                              {
-                                  'id': 'bar',
-                                  'identifier': 'bar',
-                                  'file_path': '/test/test.txt'
-                              }
-                          ]
-                      })
-
+                      json=json.loads(resp_str))
     requests_mock.post("https://metax-test.csc.fi/rest/v1/files/datasets",
-                       json=['dataset_preferred_identifier'])
+                       json=['dataset&preferred&identifier'])
     requests_mock.get("https://metax-test.csc.fi/rest/v1/datasets?"
-                      "preferred_identifier=dataset_preferred_identifier",
+                      "preferred_identifier=dataset%26preferred%26identifier",
                       json={"preservation_state": 75})
     adapter = requests_mock.delete("https://metax-test.csc.fi/rest/v1/files",
                                    json={"deleted_files_count": 1})
@@ -530,6 +553,78 @@ def test_delete_metadata(app, test_auth, requests_mock, mock_mongo):
         headers=test_auth
     )
     assert json.loads(response.data)["metax"] == {}
+    assert json.loads(response.data)["status"] == "metadata deleted"
+
+
+def test_delete_metadata_dataset_accepted(app, test_auth, requests_mock,
+                                          mock_mongo):
+    """Test DELETE metadata for a directory and a single dir"""
+    # Mock Metax
+    resp_str = """{
+                  "next": null,
+                  "results": [
+                      {
+                          "id": "foo",
+                          "identifier": "foo",
+                          "file_path": "/test.txt",
+                          "file_storage": {
+                              "identifier": "urn:nbn:fi:att:file-storage-pas"
+                            }
+                      },
+                      {
+                          "id": "bar",
+                          "identifier": "bar",
+                          "file_path": "/test/test.txt",
+                          "file_storage": {
+                              "identifier": "urn:nbn:fi:att:file-storage-pas"
+                            }
+                      }
+                  ]
+              }"""
+    requests_mock.get("https://metax-test.csc.fi/rest/v1/files/",
+                      json=json.loads(resp_str))
+
+    requests_mock.post("https://metax-test.csc.fi/rest/v1/files/datasets",
+                       json=['dataset_preferred_identifier'])
+    requests_mock.get("https://metax-test.csc.fi/rest/v1/datasets?"
+                      "preferred_identifier=dataset_preferred_identifier",
+                      json={"preservation_state": 80})
+    adapter = requests_mock.delete("https://metax-test.csc.fi/rest/v1/files",
+                                   json={"deleted_files_count": 0})
+    requests_mock.delete("https://metax-test.csc.fi/rest/v1/files/foo",
+                         json={})
+
+    test_client = app.test_client()
+    upload_path = app.config.get("UPLOAD_PATH")
+    test_path_1 = os.path.join(upload_path, "test_project/test.txt")
+    test_path_2 = os.path.join(upload_path, "test_project/test/test.txt")
+
+    os.makedirs(os.path.join(upload_path, "test_project", "test/"))
+    shutil.copy("tests/data/test.txt", test_path_1)
+    shutil.copy("tests/data/test.txt", test_path_2)
+    checksums = mock_mongo.upload.checksums
+    checksums.insert_many([
+        {"_id": test_path_1, "checksum": "foo"},
+        {"_id": test_path_2, "checksum": "foo"},
+    ])
+
+    # DELETE metadata for single directory
+    response = test_client.delete(
+        "/v1/metadata/test",
+        headers=test_auth
+    )
+    assert json.loads(response.data)["metax"] == {"deleted_files_count": 0}
+    assert json.loads(response.data)["status"] == "metadata deleted"
+    assert adapter.last_request is None
+
+    # DELETE metadata for single file
+    response = test_client.delete(
+        "/v1/metadata/test.txt",
+        headers=test_auth
+    )
+    assert json.loads(response.data)["metax"] == ("Metadata is part of an "
+                                                  "accepted dataset. Metadata"
+                                                  " not removed")
     assert json.loads(response.data)["status"] == "metadata deleted"
 
 
