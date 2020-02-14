@@ -42,6 +42,15 @@ subdirectories are posted to Metax. POST metadata of all uploaded files to Metax
 
     curl -X POST -u user:passwd localhost:5000/v1/metadata/*
 
+DELETE file metadata from Metax::
+
+    curl -X DELETE -u user:passwd localhost:5000/v1/metadata/<path-to-file-or-dir>
+
+If the given path resolves to a directory, all files inside the directory and its
+subdirectories are deleted from Metax. Delete metadata of all uploaded files from Metax::
+
+    curl -X DELETE -u user:passwd localhost:5000/v1/metadata/*
+
 Copyright
 ---------
 Copyright (C) 2018 CSC - IT Center for Science Ltd.
