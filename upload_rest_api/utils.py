@@ -44,8 +44,3 @@ def make_response(status_code, message):
     response = jsonify({"code": status_code, "error": message})
     response.status_code = status_code
     return response
-
-
-def get_file_path(identifier):
-    """Returns file_path based on the Metax indentifier"""
-    return db.FilesCol().get_path(identifier)
