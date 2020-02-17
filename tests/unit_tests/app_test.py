@@ -123,7 +123,8 @@ def test_user_quota(app, test_auth, mock_mongo):
 def test_used_quota(app, test_auth, mock_mongo, requests_mock):
     """Test that used quota is calculated correctly"""
     # Mock Metax
-    requests_mock.get("https://metax-test.csc.fi/rest/v1/files/",
+    requests_mock.get("https://metax-test.csc.fi/rest/v1/files?limit=10000&"
+                      "project_identifier=test_project",
                       json={'next': None, 'results': []})
 
     test_client = app.test_client()
@@ -329,7 +330,8 @@ def test_delete_file(app, test_auth, requests_mock, mock_mongo):
                     ]
                   }"""
     # Mock Metax
-    requests_mock.get("https://metax-test.csc.fi/rest/v1/files/",
+    requests_mock.get("https://metax-test.csc.fi/rest/v1/files?limit=10000&"
+                      "project_identifier=test_project",
                       json=json.loads(resp_str))
 
     requests_mock.post("https://metax-test.csc.fi/rest/v1/files/datasets",
@@ -433,7 +435,8 @@ def test_delete_files(app, test_auth, requests_mock, mock_mongo):
                   ]
             }"""
     # Mock Metax
-    requests_mock.get("https://metax-test.csc.fi/rest/v1/files/",
+    requests_mock.get("https://metax-test.csc.fi/rest/v1/files?limit=10000&"
+                      "project_identifier=test_project",
                       json=json.loads(resp_str))
 
     requests_mock.post("https://metax-test.csc.fi/rest/v1/files/datasets",
@@ -512,7 +515,8 @@ def test_delete_metadata(app, test_auth, requests_mock, mock_mongo):
                       }
                   ]
                   }"""
-    requests_mock.get("https://metax-test.csc.fi/rest/v1/files/",
+    requests_mock.get("https://metax-test.csc.fi/rest/v1/files?limit=10000&"
+                      "project_identifier=test_project",
                       json=json.loads(resp_str))
     requests_mock.post("https://metax-test.csc.fi/rest/v1/files/datasets",
                        json=['dataset&preferred&identifier'])
@@ -581,7 +585,8 @@ def test_delete_metadata_dataset_accepted(app, test_auth, requests_mock,
                       }
                   ]
               }"""
-    requests_mock.get("https://metax-test.csc.fi/rest/v1/files/",
+    requests_mock.get("https://metax-test.csc.fi/rest/v1/files?limit=10000&"
+                      "project_identifier=test_project",
                       json=json.loads(resp_str))
 
     requests_mock.post("https://metax-test.csc.fi/rest/v1/files/datasets",
