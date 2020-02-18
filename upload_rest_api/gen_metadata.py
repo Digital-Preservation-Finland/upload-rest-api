@@ -173,19 +173,23 @@ class MetaxClient(object):
 
         if metax_path not in files_dict:
             response = "Metadata not found in Metax"
+            status_code = 404
         elif files_dict[metax_path]["storage_identifier"] != \
                 PAS_FILE_STORAGE_ID:
             response = "Incorrect file storage. Metadata not removed"
+            status_code = 400
         elif not force and self.file_has_dataset(metax_path, files_dict):
             response = "Metadata is part of a dataset. Metadata not removed"
         elif force and self.file_has_accepted_dataset(metax_path, files_dict):
             response = ("Metadata is part of an accepted dataset. Metadata not"
                         " removed")
+            status_code = 400
         else:
             file_id = six.text_type(files_dict[metax_path]["id"])
             response = self.client.delete_file(file_id)
+            status_code = 200
 
-        return response
+        return status_code, response
 
     def delete_all_metadata(self, project, fpath, force=False):
         """Delete all file metadata from Metax found under dir fpath, which
@@ -197,7 +201,7 @@ class MetaxClient(object):
         upload_path = current_app.config.get("UPLOAD_PATH")
         files_dict = self.client.get_files_dict(project)
         file_id_list = []
-
+        status_code = 200
         # Iterate through all files under dir fpath
         for dirpath, _, files in os.walk(fpath):
             for _file in files:
@@ -218,11 +222,14 @@ class MetaxClient(object):
                                                            files_dict)
                 if no_dataset:
                     file_id_list.append(files_dict[metax_path]["id"])
+                else:
+                    status_code = 400
 
         if not file_id_list:
-            return {"deleted_files_count": 0}
+            return status_code, {"deleted_files_count": 0}
         # Remove file metadata from Metax and return the response
-        return self.client.delete_files(file_id_list)
+        response = self.client.delete_files(file_id_list)
+        return 200, response
 
     def get_all_ids(self, project_list):
         """Get a set of all identifiers of files in any of the projects in

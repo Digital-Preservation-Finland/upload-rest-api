@@ -66,19 +66,23 @@ def delete_metadata(fpath):
     fpath = safe_join(fpath, fname)
     if os.path.isfile(fpath):
         # Remove metadata from Metax
-        metax_response = md.MetaxClient().delete_file_metadata(project, fpath,
-                                                               force=True)
-
+        status_code, response = md.MetaxClient().delete_file_metadata(
+            project, fpath, force=True
+        )
     elif os.path.isdir(fpath):
         # Remove all file metadata of files under dir fpath from Metax
-        metax_response = md.MetaxClient().delete_all_metadata(project, fpath,
-                                                              force=True)
-
+        status_code, response = md.MetaxClient().delete_all_metadata(
+            project, fpath, force=True
+        )
     else:
         return utils.make_response(404, "File not found")
 
+    if 200 <= status_code < 300:
+        status = "metadata deleted"
+    else:
+        status = str(status_code)
     return jsonify({
         "file_path": utils.get_return_path(fpath),
-        "status": "metadata deleted",
-        "metax": metax_response
+        "status": status,
+        "metax": response
     })

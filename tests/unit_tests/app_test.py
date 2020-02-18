@@ -547,6 +547,7 @@ def test_delete_metadata(app, test_auth, requests_mock, mock_mongo):
         "/v1/metadata/test",
         headers=test_auth
     )
+    assert json.loads(response.data)["file_path"] == "/test"
     assert json.loads(response.data)["metax"] == {"deleted_files_count": 1}
     assert json.loads(response.data)["status"] == "metadata deleted"
     assert adapter.last_request.json() == ['bar']
@@ -556,13 +557,16 @@ def test_delete_metadata(app, test_auth, requests_mock, mock_mongo):
         "/v1/metadata/test.txt",
         headers=test_auth
     )
+    assert json.loads(response.data)["file_path"] == "/test.txt"
     assert json.loads(response.data)["metax"] == {}
     assert json.loads(response.data)["status"] == "metadata deleted"
 
 
 def test_delete_metadata_dataset_accepted(app, test_auth, requests_mock,
                                           mock_mongo):
-    """Test DELETE metadata for a directory and a single dir"""
+    """Test DELETE metadata for a directory and a single file when
+    dataset state is accepted to digital preservation.
+    """
     response = {
         "next": None,
         "results": [
@@ -618,8 +622,9 @@ def test_delete_metadata_dataset_accepted(app, test_auth, requests_mock,
         "/v1/metadata/test",
         headers=test_auth
     )
+    assert json.loads(response.data)["file_path"] == "/test"
     assert json.loads(response.data)["metax"] == {"deleted_files_count": 0}
-    assert json.loads(response.data)["status"] == "metadata deleted"
+    assert json.loads(response.data)["status"] == "400"
     assert adapter.last_request is None
 
     # DELETE metadata for single file
@@ -630,7 +635,7 @@ def test_delete_metadata_dataset_accepted(app, test_auth, requests_mock,
     assert json.loads(response.data)["metax"] == ("Metadata is part of an "
                                                   "accepted dataset. Metadata"
                                                   " not removed")
-    assert json.loads(response.data)["status"] == "metadata deleted"
+    assert json.loads(response.data)["status"] == "400"
 
 
 def test_db_access_test_user(app, test_auth):
