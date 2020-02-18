@@ -316,23 +316,23 @@ def test_get_file(app, admin_auth, test_auth, test2_auth, mock_mongo):
 
 def test_delete_file(app, test_auth, requests_mock, mock_mongo):
     """Test DELETE for single file"""
-    resp_str = """{
-                    "next": null,
-                    "results": [
-                        {
-                            "id": "foo",
-                            "identifier": "foo",
-                            "file_path": "/test.txt",
-                            "file_storage": {
-                                "identifier": "urn:nbn:fi:att:file-storage-pas"
-                            }
-                        }
-                    ]
-                  }"""
+    response = {
+        "next": None,
+        "results": [
+            {
+                "id": "foo",
+                "identifier": "foo",
+                "file_path": "/test.txt",
+                "file_storage": {
+                    "identifier": "urn:nbn:fi:att:file-storage-pas"
+                }
+            }
+        ]
+    }
     # Mock Metax
     requests_mock.get("https://metax-test.csc.fi/rest/v1/files?limit=10000&"
                       "project_identifier=test_project",
-                      json=json.loads(resp_str))
+                      json=json.loads(json.dumps(response)))
 
     requests_mock.post("https://metax-test.csc.fi/rest/v1/files/datasets",
                        json={})
@@ -413,31 +413,31 @@ def test_get_files(app, test_auth):
 
 def test_delete_files(app, test_auth, requests_mock, mock_mongo):
     """Test DELETE for the whole project and a single dir"""
-    resp_str = """{
-                  "next": null,
-                  "results": [
-                      {
-                          "id": "foo",
-                          "identifier": "foo",
-                          "file_path": "/test.txt",
-                          "file_storage": {
-                              "identifier": "urn:nbn:fi:att:file-storage-pas"
-                            }
-                      },
-                      {
-                          "id": "bar",
-                          "identifier": "bar",
-                          "file_path": "/test/test.txt",
-                          "file_storage": {
-                              "identifier": "urn:nbn:fi:att:file-storage-pas"
-                            }
-                      }
-                  ]
-            }"""
+    response = {
+        "next": None,
+        "results": [
+            {
+                "id": "foo",
+                "identifier": "foo",
+                "file_path": "/test.txt",
+                "file_storage": {
+                    "identifier": "urn:nbn:fi:att:file-storage-pas"
+                }
+            },
+            {
+                "id": "bar",
+                "identifier": "bar",
+                "file_path": "/test/test.txt",
+                "file_storage": {
+                    "identifier": "urn:nbn:fi:att:file-storage-pas"
+                }
+            }
+        ]
+    }
     # Mock Metax
     requests_mock.get("https://metax-test.csc.fi/rest/v1/files?limit=10000&"
                       "project_identifier=test_project",
-                      json=json.loads(resp_str))
+                      json=json.loads(json.dumps(response)))
 
     requests_mock.post("https://metax-test.csc.fi/rest/v1/files/datasets",
                        json={})
@@ -493,31 +493,31 @@ def test_delete_files(app, test_auth, requests_mock, mock_mongo):
 
 def test_delete_metadata(app, test_auth, requests_mock, mock_mongo):
     """Test DELETE metadata for a directory and a single dir"""
+    response = {
+        "next": None,
+        "results": [
+            {
+                "id": "foo",
+                "identifier": "foo",
+                "file_path": "/test.txt",
+                "file_storage": {
+                    "identifier": "urn:nbn:fi:att:file-storage-pas"
+                }
+            },
+            {
+                "id": "bar",
+                "identifier": "bar",
+                "file_path": "/test/test.txt",
+                "file_storage": {
+                    "identifier": "urn:nbn:fi:att:file-storage-pas"
+                }
+            }
+        ]
+    }
     # Mock Metax
-    resp_str = """{
-                  "next": null,
-                  "results": [
-                      {
-                          "id": "foo",
-                          "identifier": "foo",
-                          "file_path": "/test.txt",
-                          "file_storage": {
-                              "identifier": "urn:nbn:fi:att:file-storage-pas"
-                            }
-                      },
-                      {
-                          "id": "bar",
-                          "identifier": "bar",
-                          "file_path": "/test/test.txt",
-                          "file_storage": {
-                              "identifier": "urn:nbn:fi:att:file-storage-pas"
-                            }
-                      }
-                  ]
-                  }"""
     requests_mock.get("https://metax-test.csc.fi/rest/v1/files?limit=10000&"
                       "project_identifier=test_project",
-                      json=json.loads(resp_str))
+                      json=json.loads(json.dumps(response)))
     requests_mock.post("https://metax-test.csc.fi/rest/v1/files/datasets",
                        json=['dataset&preferred&identifier'])
     requests_mock.get("https://metax-test.csc.fi/rest/v1/datasets?"
@@ -563,31 +563,31 @@ def test_delete_metadata(app, test_auth, requests_mock, mock_mongo):
 def test_delete_metadata_dataset_accepted(app, test_auth, requests_mock,
                                           mock_mongo):
     """Test DELETE metadata for a directory and a single dir"""
+    response = {
+        "next": None,
+        "results": [
+            {
+                "id": "foo",
+                "identifier": "foo",
+                "file_path": "/test.txt",
+                "file_storage": {
+                    "identifier": "urn:nbn:fi:att:file-storage-pas"
+                }
+            },
+            {
+                "id": "bar",
+                "identifier": "bar",
+                "file_path": "/test/test.txt",
+                "file_storage": {
+                    "identifier": "urn:nbn:fi:att:file-storage-pas"
+                }
+            }
+        ]
+    }
     # Mock Metax
-    resp_str = """{
-                  "next": null,
-                  "results": [
-                      {
-                          "id": "foo",
-                          "identifier": "foo",
-                          "file_path": "/test.txt",
-                          "file_storage": {
-                              "identifier": "urn:nbn:fi:att:file-storage-pas"
-                            }
-                      },
-                      {
-                          "id": "bar",
-                          "identifier": "bar",
-                          "file_path": "/test/test.txt",
-                          "file_storage": {
-                              "identifier": "urn:nbn:fi:att:file-storage-pas"
-                            }
-                      }
-                  ]
-              }"""
     requests_mock.get("https://metax-test.csc.fi/rest/v1/files?limit=10000&"
                       "project_identifier=test_project",
-                      json=json.loads(resp_str))
+                      json=json.loads(json.dumps(response)))
 
     requests_mock.post("https://metax-test.csc.fi/rest/v1/files/datasets",
                        json=['dataset_preferred_identifier'])
