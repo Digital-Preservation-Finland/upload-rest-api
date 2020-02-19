@@ -28,6 +28,7 @@ Requires:       python-flask
 Requires:       python-pymongo
 Requires:       python-magic
 Requires:       python-six
+Requires:       python-futures
 Requires:       metax-access
 Requires:       archive-helpers
 BuildRequires:  python-setuptools

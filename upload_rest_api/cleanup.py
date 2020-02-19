@@ -161,7 +161,6 @@ def clean_mongo():
 
     :returns: Count of cleaned Mongo documents
     """
-    files = db.FilesCol()
     projects = _get_projects()
 
     conf = parse_conf("/etc/upload_rest_api.conf")

@@ -2,9 +2,11 @@
 """
 from __future__ import unicode_literals
 
+import os
 import logging
 
 from flask import Flask
+from concurrent.futures import ThreadPoolExecutor
 
 import upload_rest_api.authentication as auth
 
@@ -16,6 +18,9 @@ LOGGER = logging.getLogger(__name__)
 def configure_app(app):
     """Read config from /etc/upload_rest_api.conf"""
     app.config.from_pyfile("/etc/upload_rest_api.conf")
+    app.config["EXTRACT_EXECUTOR"] = ThreadPoolExecutor(max_workers=5)
+    if not os.path.exists(app.config["UPLOAD_PATH"]):
+        os.makedirs(app.config["UPLOAD_PATH"])
 
 
 def create_app():
@@ -34,8 +39,10 @@ def create_app():
     # Register all blueprints
     from upload_rest_api.api.v1.files import FILES_API_V1
     from upload_rest_api.api.v1.metadata import METADATA_API_V1
+    from upload_rest_api.api.v1.queue import TASK_STATUS_API_V1
     app.register_blueprint(FILES_API_V1)
     app.register_blueprint(METADATA_API_V1)
+    app.register_blueprint(TASK_STATUS_API_V1)
 
     # Register error handlers
     from upload_rest_api.api.v1.errorhandlers import http_error_generic

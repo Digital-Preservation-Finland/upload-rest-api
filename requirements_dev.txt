@@ -13,6 +13,7 @@ werkzeug==0.9.1
 pymongo
 file-magic
 six
+futures
 
 git+https://gitlab.csc.fi/dpres/metax-access.git@develop#egg=metax_access
 git+https://gitlab.csc.fi/dpres/archive-helpers.git@develop#egg=archive_helpers

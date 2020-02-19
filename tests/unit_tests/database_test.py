@@ -12,7 +12,7 @@ def test_dir_size():
     exist should return size 0.
     """
     # Existing dir
-    assert db.get_dir_size("tests/data") == 2156
+    assert db.get_dir_size("tests/data") == 2848
 
     # Non-existent dir
     assert db.get_dir_size("tests/data/test") == 0
@@ -101,7 +101,8 @@ def test_store_identifiers(files_col, monkeypatch):
     """Test that store_identifiers writes the POSTed identifiers and
     corresponding file_paths to Mongo.
     """
-    monkeypatch.setattr(db, "_get_abs_path", lambda path: path)
+    monkeypatch.setattr(db, "_get_abs_path",
+                        lambda path, _root_path, _username: path)
 
     metax_response = [
         {"object": {"identifier": "pid:urn:1", "file_path": "1"}},
@@ -109,7 +110,7 @@ def test_store_identifiers(files_col, monkeypatch):
         {"object": {"identifier": "pid:urn:3", "file_path": "3"}}
     ]
 
-    files_col.store_identifiers(metax_response)
+    files_col.store_identifiers(metax_response, "/tmp", "user")
     assert files_col.get_all_ids() == ["pid:urn:1", "pid:urn:2", "pid:urn:3"]
 
 
@@ -147,3 +148,44 @@ def test_hash_passwd():
     """
     digest = binascii.hexlify(db.hash_passwd("test", "test")[:16])
     assert digest == b"4b119f6da6890ed1cc68d5b3adf7d053"
+
+
+def test_async_task_creation(tasks_col):
+    """Test creation of tasks documents"""
+    task_id_1 = tasks_col.create("test_project")
+    task_id_2 = tasks_col.create("test_project")
+    assert task_id_1 != task_id_2
+    assert tasks_col.find("test_project", "pending").count() == 2
+
+
+def test_async_task_update(tasks_col):
+    """Test update of tasks documents"""
+    task_id_1 = tasks_col.create("test_project")
+    tasks_col.update_status(task_id_1, "done")
+    assert tasks_col.find("test_project", "done").count() == 1
+    assert tasks_col.find("test_project", "pending").count() == 0
+
+    task = tasks_col.get(task_id_1)
+    assert task["status"] == "done"
+    assert "message" not in task
+    tasks_col.update_message(task_id_1, "Message")
+    tasks_col.update_md5(task_id_1, "123456789")
+    task = tasks_col.get(task_id_1)
+    assert task["status"] == "done"
+    assert task["message"] == "Message"
+    assert task["md5"] == "123456789"
+
+
+def test_async_task_delete(tasks_col):
+    """Test deletion of tasks documents"""
+    task_id_1 = tasks_col.create("test_user_1")
+    task_id_2 = tasks_col.create("test_user_2")
+    assert tasks_col.delete_one(task_id_1) == 1
+    assert tasks_col.delete_one(task_id_2) == 1
+    assert tasks_col.delete_one(task_id_1) == 0
+    assert tasks_col.delete_one(task_id_2) == 0
+    assert tasks_col.delete([task_id_2, task_id_2]) == 0
+
+    task_id_1 = tasks_col.create("test_user_1")
+    task_id_2 = tasks_col.create("test_user_2")
+    assert tasks_col.delete([task_id_1, task_id_2]) == 2

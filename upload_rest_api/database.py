@@ -7,11 +7,14 @@ import binascii
 import hashlib
 import os
 import random
+from runpy import run_path
 from string import ascii_letters, digits
 
 import pymongo
 from bson.binary import Binary
-from flask import current_app, has_request_context, request, safe_join
+from bson.objectid import ObjectId
+
+from flask import safe_join
 from werkzeug.utils import secure_filename
 
 # Password vars
@@ -37,13 +40,12 @@ def get_random_string(chars):
     return passwd
 
 
-def _get_abs_path(metax_path):
+def _get_abs_path(metax_path, root_upload_path, username):
     """Returns actual path on disk from metax_path"""
-    username = request.authorization.username
     project = UsersDoc(username).get_project()
 
     return os.path.join(
-        current_app.config.get("UPLOAD_PATH"),
+        root_upload_path,
         project,
         metax_path[1:]
     )
@@ -71,30 +73,25 @@ def get_dir_size(fpath):
     return size
 
 
-def update_used_quota():
+def update_used_quota(username, root_upload_path):
     """Update used quota of the user"""
-    username = request.authorization.username
     user = UsersDoc(username)
     project = user.get_project()
-    path = safe_join(
-        current_app.config.get("UPLOAD_PATH"),
-        secure_filename(project)
-    )
+    path = safe_join(root_upload_path, secure_filename(project))
     size = get_dir_size(path)
 
     user.set_used_quota(size)
 
 
+def parse_conf(fpath):
+    """Parse config from file fpath"""
+    return run_path(fpath)
+
+
 def get_mongo_client():
     """Returns a MongoClient instance"""
-    host = "localhost"
-    port = 27017
-
-    if has_request_context():
-        host = current_app.config.get("MONGO_HOST", host)
-        port = current_app.config.get("MONGO_PORT", port)
-
-    return pymongo.MongoClient(host, port)
+    conf = parse_conf("/etc/upload_rest_api.conf")
+    return pymongo.MongoClient(conf["MONGO_HOST"], conf["MONGO_PORT"])
 
 
 def get_all_users():
@@ -110,6 +107,11 @@ class UserExistsError(Exception):
 
 class UserNotFoundError(Exception):
     """Exception for querying a user, which does not exist"""
+    pass
+
+
+class TaskNotFoundError(Exception):
+    """Exception for querying a task, which does not exist"""
     pass
 
 
@@ -393,7 +395,7 @@ class FilesCol(object):
         documents = self.files.find()
         return [document["_id"] for document in documents]
 
-    def store_identifiers(self, file_md_list):
+    def store_identifiers(self, file_md_list, root_upload_path, username):
         """Store file identifiers and paths on disk to Mongo.
 
         :param file_md_list: List of created file metadata returned by Metax
@@ -404,7 +406,110 @@ class FilesCol(object):
         for file_md in file_md_list:
             documents.append({
                 "_id": file_md["object"]["identifier"],
-                "file_path": _get_abs_path(file_md["object"]["file_path"])
+                "file_path": _get_abs_path(file_md["object"]["file_path"],
+                                           root_upload_path, username)
             })
 
         self.insert(documents)
+
+
+class AsyncTaskCol(object):
+    """Class for asynchronous tasks in the database"""
+
+    def __init__(self):
+        """Initializing AsyncTaskColl instance"""
+        self.tasks = get_mongo_client().upload.tasks
+
+    def create(self, project):
+        """Creates one task document.
+
+        :param str project: project name
+        :returns: str: task id as string
+        """
+        return self.tasks.insert_one({"project": project,
+                                      "status": 'pending'}).inserted_id
+
+    def delete_one(self, identifier):
+        """Delete one task document.
+
+        :param identifier: _id of the document to be removed
+        :returns: Number of documents deleted
+        """
+        return self.tasks.delete_one(
+            {"_id": ObjectId(identifier)}
+        ).deleted_count
+
+    def delete(self, ids):
+        """Delete multiple documents from the tasks collection.
+
+        :param ids: List of identifiers to be removed
+        :returns: Number of documents deleted
+        """
+        objIds = []
+        for identifier in ids:
+            objIds.append(ObjectId(identifier))
+        return self.tasks.delete_many({"_id": {"$in": objIds}}).deleted_count
+
+    def find(self, project, status):
+        """Returns number of tasks for user having certain status for project.
+
+        :param str project: project name
+        :param str status: status of task
+        :returns: Found tasks
+        """
+        return self.tasks.find({"project": project, "status": status})
+
+    def get(self, task_id):
+        """Returns task document based on task_id.
+
+        :param str task_id: task identifier string
+        :returns: task document
+        """
+        return self.tasks.find_one({"_id": ObjectId(task_id)})
+
+    def update_status(self, task_id, status):
+        """Updates status of the task.
+
+        :param str task_id: task id as string
+        :param str status: new status for the task
+        """
+        if not self.exists(task_id):
+            raise TaskNotFoundError("Task '%s' not found" % task_id)
+        self.tasks.update_one(
+            {"_id": ObjectId(task_id)},
+            {"$set": {"status": status}}
+        )
+
+    def update_message(self, task_id, message):
+        """Updates message of the task.
+
+        :param str task_id: task id as string
+        :param str message: new message for the task
+        """
+        if not self.exists(task_id):
+            raise TaskNotFoundError("Task '%s' not found" % task_id)
+        self.tasks.update_one(
+            {"_id": ObjectId(task_id)},
+            {"$set": {"message": message}}
+        )
+
+    def update_md5(self, task_id, md5):
+        """Updates md5 of the task.
+
+        :param str task_id: task id as string
+        :param str md5: new md5 for the task
+        """
+        if not self.exists(task_id):
+            raise TaskNotFoundError("Task '%s' not found" % task_id)
+        self.tasks.update_one(
+            {"_id": ObjectId(task_id)},
+            {"$set": {"md5": md5}}
+        )
+
+    def exists(self, task_id):
+        """Check if the task is found in the db
+
+        :param str task_id: task id as string
+        :return True if task exists
+        """
+        return self.tasks.find_one({"_id": ObjectId(task_id)}) is not None

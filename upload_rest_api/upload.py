@@ -4,8 +4,10 @@ from __future__ import unicode_literals
 import os
 import tarfile
 import zipfile
+import json
 
-from flask import jsonify, request
+from flask import jsonify, request, current_app
+from werkzeug.utils import secure_filename
 
 from archive_helpers.extract import extract
 from archive_helpers.extract import (
@@ -15,6 +17,7 @@ from archive_helpers.extract import (
 import upload_rest_api.database as db
 import upload_rest_api.gen_metadata as gen_metadata
 import upload_rest_api.utils as utils
+from upload_rest_api.api.v1.queue import TASK_STATUS_API_V1
 
 
 def request_exceeds_quota():
@@ -119,6 +122,51 @@ class QuotaError(Exception):
     pass
 
 
+class UploadPendingError(Exception):
+    """Exception for a pending upload"""
+    pass
+
+
+@utils.run_background
+def extract_task(fpath, dir_path, task_id=None):
+    """This function calculates the checksum of the archive and extracts the
+    files into ``dir_path`` directory. Finally updates the status of the task
+    into database.
+
+    :param str fpath: file path of the archive
+    :param str dir_path: directory to where the archive will be extracted
+    :param str task_id: mongo dentifier of the task
+
+    :returns: The mongo identifier of the task
+     """
+    db.AsyncTaskCol().update_message(
+        task_id, "Uploading archive: %s" % fpath
+    )
+    md5 = gen_metadata.md5_digest(fpath)
+    try:
+        extract(fpath, dir_path, precheck=False)
+    except (MemberNameError, MemberTypeError, MemberOverwriteError) as exc:
+        # Remove the archive and set task's state
+        os.remove(fpath)
+        db.AsyncTaskCol().update_status(task_id, "error")
+        msg = {"message": str(exc)}
+        db.AsyncTaskCol().update_message(task_id, json.dumps(msg))
+    else:
+        # Add checksums of the extracted files to mongo
+        db.ChecksumsCol().insert(_get_archive_checksums(fpath,
+                                                        dir_path))
+
+        # Remove archive and all created symlinks
+        os.remove(fpath)
+        _process_extracted_files(dir_path)
+
+        db.AsyncTaskCol().update_status(task_id, "done")
+        msg = {"message": "archive uploaded and extracted",
+               "md5": md5}
+        db.AsyncTaskCol().update_message(task_id, json.dumps(msg))
+    return task_id
+
+
 def save_file(fpath, extract_archives=False):
     """Save the posted file on disk at fpath by reading
     the upload stream in 1MB chunks. Extract zip files
@@ -130,52 +178,47 @@ def save_file(fpath, extract_archives=False):
     :returns: HTTP Response
     """
     username = request.authorization.username
+    root_upload_path = current_app.config.get("UPLOAD_PATH")
 
     # Write the file if it does not exist already
     if not os.path.exists(fpath):
         _save_stream(fpath)
-        message = "created"
+        status = "created"
     else:
         raise OverwriteError("File already exists")
-
-    md5 = gen_metadata.md5_digest(fpath)
 
     # If zip or tar file was uploaded, extract all files
     is_archive = zipfile.is_zipfile(fpath) or tarfile.is_tarfile(fpath)
     if is_archive and extract_archives:
-        dir_path = os.path.split(fpath)[0]
-
+        dir_path = utils.get_project_path(username)
         # Check the uncompressed size
         if _archive_exceeds_quota(fpath, username):
             # Remove the archive and raise an exception
             os.remove(fpath)
             raise QuotaError("Quota exceeded")
-
-        try:
-            extract(fpath, dir_path)
-        except (MemberNameError, MemberTypeError, MemberOverwriteError):
-            # Remove the archive and raise the exception
-            os.remove(fpath)
-            raise
-
-        # Add checksums of the extracted files to mongo
-        db.ChecksumsCol().insert(_get_archive_checksums(fpath, dir_path))
-
-        # Remove archive and all created symlinks
-        os.remove(fpath)
-        _process_extracted_files(dir_path)
-
-        message = "archive uploaded and extracted"
-
+        task_id = extract_task(fpath, dir_path)
+        polling_url = utils.get_polling_url(TASK_STATUS_API_V1.name, task_id)
+        project = db.UsersDoc(username).get_project()
+        response = jsonify({
+            "file_path": "/" + secure_filename(project),
+            "message": "Uploading files",
+            "polling_url": polling_url,
+            "status": "pending"
+        })
+        response.headers['Location'] = polling_url
+        status_code = 202
     else:
         # Add file checksum to mongo
+        md5 = gen_metadata.md5_digest(fpath)
         db.ChecksumsCol().insert_one(os.path.abspath(fpath), md5)
+        status_code = 200
+        file_path = utils.get_return_path(fpath, root_upload_path, username)
+        response = jsonify({
+            "file_path": file_path,
+            "md5": md5,
+            "status": status
+        })
 
-    response = jsonify({
-        "file_path": utils.get_return_path(fpath),
-        "md5": md5,
-        "message": message
-    })
-    response.status_code = 200
+    response.status_code = status_code
 
     return response

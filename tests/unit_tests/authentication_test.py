@@ -1,10 +1,11 @@
 """Unit tests for module authentication"""
 from __future__ import unicode_literals
 
+from runpy import run_path
 import pytest
 
 import upload_rest_api.authentication as auth
-import upload_rest_api.database
+import upload_rest_api.database as db
 
 
 @pytest.mark.parametrize(
@@ -15,15 +16,22 @@ import upload_rest_api.database
         ('false_user', 'test_password', False)
     ]
 )
-def test_auth_user(user, password, result):
+def test_auth_user(user, password, result, monkeypatch):
     """Test _auth_user() function with different username-password combinations.
 
     :param user: username of user
     :param password: password of user
     :param bool result: Excepted result of authentication
     """
+    def _parse_conf(_fpath):
+        """Parse conf from include/etc/upload_rest_api.conf.
+        """
+        conf = run_path("include/etc/upload_rest_api.conf")
+        return conf
+
+    monkeypatch.setattr(db, "parse_conf", _parse_conf)
     # Create one test user to database
-    usersdoc = upload_rest_api.database.UsersDoc('test_user')
+    usersdoc = db.UsersDoc('test_user')
     usersdoc.create('test_project', 'test_password')
 
     # pylint: disable=protected-access

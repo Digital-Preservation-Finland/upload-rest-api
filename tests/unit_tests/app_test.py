@@ -5,8 +5,12 @@ import io
 import json
 import os
 import shutil
+import time
+from runpy import run_path
 
 import pytest
+
+import upload_rest_api.database as db
 
 
 def _contains_symlinks(fpath):
@@ -44,6 +48,13 @@ def _upload_file(client, url, auth, fpath):
     return response
 
 
+def _parse_conf(_fpath):
+    """Parse conf from include/etc/upload_rest_api.conf.
+    """
+    conf = run_path("include/etc/upload_rest_api.conf")
+    return conf
+
+
 def test_index(app, test_auth, wrong_auth):
     """Test the application index page with correct
     and incorrect credentials.
@@ -57,8 +68,9 @@ def test_index(app, test_auth, wrong_auth):
     assert response.status_code == 401
 
 
-def test_upload(app, test_auth, mock_mongo):
+def test_upload(app, test_auth, mock_mongo, monkeypatch):
     """Test uploading a plain text file"""
+    monkeypatch.setattr(db, "parse_conf", _parse_conf)
     test_client = app.test_client()
     upload_path = app.config.get("UPLOAD_PATH")
     checksums = mock_mongo.upload.checksums
@@ -158,7 +170,6 @@ def test_upload_outside(app, test_auth):
         test_client, "/v1/files/../test.txt",
         test_auth, "tests/data/test.txt"
     )
-
     assert response.status_code == 404
 
 
@@ -177,6 +188,15 @@ def test_upload_archive(archive, app, test_auth, mock_mongo):
     response = _upload_file(
         test_client, "/v1/files/archive?extract=true", test_auth, archive
     )
+    if response.status_code == 202:
+        status = "pending"
+        location = response.headers.get('Location').encode()
+        while status == "pending":
+            time.sleep(2)
+            response = test_client.get(location, headers=test_auth)
+            data = json.loads(response.data)
+            status = data['status']
+
     assert response.status_code == 200
 
     fpath = os.path.join(upload_path, "test_project")
@@ -200,10 +220,97 @@ def test_upload_archive(archive, app, test_auth, mock_mongo):
         test_client, "/v1/files/test.zip?extract=true",
         test_auth, "tests/data/test.zip"
     )
+    if response.status_code == 202:
+        status = "pending"
+        location = response.headers.get('Location').encode()
+        while status == "pending":
+            time.sleep(2)
+            response = test_client.get(location, headers=test_auth)
+            data = json.loads(response.data)
+            status = data['status']
 
     data = json.loads(response.data)
-    assert response.status_code == 409
-    assert data["error"] == "File 'test/test.txt' already exists"
+    assert response.status_code == 200
+    assert data["status"] == "error"
+    assert data["message"] == "File 'test/test.txt' already exists"
+
+
+def test_upload_archive_concurrent(app, test_auth, mock_mongo):
+    """Test that uploaded archive is extracted. No files should be
+    extracted outside the project directory.
+    """
+    test_client = app.test_client()
+    upload_path = app.config.get("UPLOAD_PATH")
+    checksums = mock_mongo.upload.checksums
+
+    response_1 = _upload_file(
+        test_client, "/v1/files/archive1?extract=true", test_auth,
+        "tests/data/test1.zip"
+    )
+    response_2 = _upload_file(
+        test_client, "/v1/files/archive2?extract=true", test_auth,
+        "tests/data/test2.zip"
+    )
+    # poll with response's polling_url
+    if response_1.status_code == 202:
+        status = "pending"
+        location = json.loads(response_1.data)["polling_url"]
+        while status == "pending":
+            time.sleep(2)
+            response_1 = test_client.get(location, headers=test_auth)
+            assert response_1.status_code == 200
+            data = json.loads(response_1.data)
+            status = data['status']
+        data = json.loads(response_1.data)
+        assert response_1.status_code == 200
+        assert data["status"] == "done"
+        assert data["message"] == "archive uploaded and extracted"
+
+        response_1 = test_client.delete(location, headers=test_auth)
+        assert response_1.status_code == 410
+
+    # poll with response's location
+    if response_2.status_code == 202:
+        status = "pending"
+        location = response_2.headers.get('Location').encode()
+        while status == "pending":
+            time.sleep(2)
+            response_2 = test_client.get(location, headers=test_auth)
+            assert response_2.status_code == 200
+            data = json.loads(response_2.data)
+            status = data['status']
+        data = json.loads(response_2.data)
+        assert response_2.status_code == 200
+        assert data["status"] == "done"
+        assert data["message"] == "archive uploaded and extracted"
+
+        response_2 = test_client.delete(location, headers=test_auth)
+        assert response_2.status_code == 410
+
+    fpath = os.path.join(upload_path, "test_project")
+
+    # test.txt files correctly extracted
+    test_1_text_file = os.path.join(fpath, "test1", "test.txt")
+    test_2_text_file = os.path.join(fpath, "test2", "test.txt")
+    assert os.path.isfile(test_1_text_file)
+    assert "test" in io.open(test_1_text_file, "rt").read()
+    assert os.path.isfile(test_2_text_file)
+    assert "test" in io.open(test_2_text_file, "rt").read()
+
+    # archive file is removed
+    archive_file1 = os.path.join(fpath,
+                                 os.path.split("tests/data/test1.zip")[1])
+    archive_file2 = os.path.join(fpath,
+                                 os.path.split("tests/data/test2.zip")[1])
+    assert not os.path.isfile(archive_file1)
+    assert not os.path.isfile(archive_file2)
+
+    # checksum is added to mongo
+    assert checksums.count() == 2
+    checksum = checksums.find_one({"_id": test_1_text_file})["checksum"]
+    assert checksum == "150b62e4e7d58c70503bd5fc8a26463c"
+    checksum = checksums.find_one({"_id": test_2_text_file})["checksum"]
+    assert checksum == "150b62e4e7d58c70503bd5fc8a26463c"
 
 
 @pytest.mark.parametrize("query_params", [
@@ -223,6 +330,11 @@ def test_upload_archive_extract_false(query_params, app,
         test_client, "/v1/files/archive.zip" + query_params,
         test_auth, "tests/data/test.zip"
     )
+    while response.status_code == 202:
+        time.sleep(2)
+        location = response.headers.get('Location').encode()
+        response = test_client.get(location, headers=test_auth)
+
     assert response.status_code == 200
 
     fpath = os.path.join(upload_path, "test_project")
@@ -247,7 +359,7 @@ def test_upload_archive_extract_false(query_params, app,
 ])
 def test_upload_invalid_archive(archive, app, test_auth, mock_mongo):
     """Test that trying to upload a archive with symlinks return 413
-    and doesn't create any files.
+    and skips them while extracting.
     """
     test_client = app.test_client()
     upload_path = app.config.get("UPLOAD_PATH")
@@ -256,16 +368,22 @@ def test_upload_invalid_archive(archive, app, test_auth, mock_mongo):
     response = _upload_file(
         test_client, "/v1/files/archive?extract=true", test_auth, archive
     )
+    while response.status_code == 202:
+        time.sleep(2)
+        location = response.headers.get('Location').encode()
+        response = test_client.get(location, headers=test_auth)
+
     data = json.loads(response.data)
-    assert response.status_code == 415
-    assert data["error"] == "File 'test/link' has unsupported type: SYM"
+    assert response.status_code == 200
+
+    assert data["message"] == "File 'test/link' has unsupported type: SYM"
 
     fpath = os.path.join(upload_path, "test_project")
     text_file = os.path.join(fpath, "test", "test.txt")
     archive_file = os.path.join(fpath, os.path.split(archive)[1])
 
-    # test.txt is not extracted
-    assert not os.path.isfile(text_file)
+    # test.txt is extracted
+    assert os.path.isfile(text_file)
 
     # archive file is removed
     assert not os.path.isfile(archive_file)
@@ -464,6 +582,14 @@ def test_delete_files(app, test_auth, requests_mock, mock_mongo):
         "/v1/files/test",
         headers=test_auth
     )
+    if response.status_code == 202:
+        status = "pending"
+        location = response.headers.get('Location').encode()
+        while status == "pending":
+            time.sleep(2)
+            response = test_client.get(location, headers=test_auth)
+            data = json.loads(response.data)
+            status = data['status']
 
     assert response.status_code == 200
     assert json.loads(response.data)["metax"] == ["/test/test.txt"]
@@ -477,6 +603,14 @@ def test_delete_files(app, test_auth, requests_mock, mock_mongo):
         "/v1/files",
         headers=test_auth
     )
+    if response.status_code == 202:
+        status = "pending"
+        location = response.headers.get('Location').encode()
+        while status == "pending":
+            time.sleep(2)
+            response = test_client.get(location, headers=test_auth)
+            data = json.loads(response.data)
+            status = data['status']
 
     assert response.status_code == 200
     assert json.loads(response.data)["metax"] == ["/test.txt"]
@@ -547,6 +681,15 @@ def test_delete_metadata(app, test_auth, requests_mock, mock_mongo):
         "/v1/metadata/test",
         headers=test_auth
     )
+    if response.status_code == 202:
+        status = "pending"
+        location = response.headers.get('Location').encode()
+        while status == "pending":
+            time.sleep(1)
+            response = test_client.get(location, headers=test_auth)
+            data = json.loads(response.data)
+            status = data['status']
+    assert response.status_code == 200
     assert json.loads(response.data)["file_path"] == "/test"
     assert json.loads(response.data)["metax"] == {"deleted_files_count": 1}
     assert adapter.last_request.json() == ['bar']
@@ -556,15 +699,25 @@ def test_delete_metadata(app, test_auth, requests_mock, mock_mongo):
         "/v1/metadata/test.txt",
         headers=test_auth
     )
+    if response.status_code == 202:
+        status = "pending"
+        location = response.headers.get('Location').encode()
+        while status == "pending":
+            time.sleep(1)
+            response = test_client.get(location, headers=test_auth)
+            data = json.loads(response.data)
+            status = data['status']
+    assert response.status_code == 200
     assert json.loads(response.data)["file_path"] == "/test.txt"
     assert json.loads(response.data)["metax"] == {}
 
 
 def test_delete_metadata_dataset_accepted(app, test_auth, requests_mock,
-                                          mock_mongo):
+                                          mock_mongo, monkeypatch):
     """Test DELETE metadata for a directory and a single file when
     dataset state is accepted to digital preservation.
     """
+    monkeypatch.setattr(db, "parse_conf", _parse_conf)
     response = {
         "next": None,
         "results": [
@@ -620,6 +773,15 @@ def test_delete_metadata_dataset_accepted(app, test_auth, requests_mock,
         "/v1/metadata/test",
         headers=test_auth
     )
+    if response.status_code == 202:
+        status = "pending"
+        location = response.headers.get('Location').encode()
+        while status == "pending":
+            time.sleep(1)
+            response = test_client.get(location, headers=test_auth)
+            data = json.loads(response.data)
+            status = data['status']
+
     assert json.loads(response.data)["file_path"] == "/test"
     assert json.loads(response.data)["metax"] == {"deleted_files_count": 0}
     assert adapter.last_request is None
@@ -629,14 +791,118 @@ def test_delete_metadata_dataset_accepted(app, test_auth, requests_mock,
         "/v1/metadata/test.txt",
         headers=test_auth
     )
+    if response.status_code == 202:
+        status = "pending"
+        location = response.headers.get('Location').encode()
+        while status == "pending":
+            time.sleep(1)
+            response = test_client.get(location, headers=test_auth)
+            data = json.loads(response.data)
+            status = data['status']
 
     response = json.loads(response.data)
     assert response["code"] == 400
     assert response["error"] == "Metadata is part of an accepted dataset"
 
 
-def test_post_metadata(app, test_auth, requests_mock):
+def test_db_access_test_user(app, test_auth):
+    """Test database access with some other user than admin"""
+    test_client = app.test_client()
+
+    response = test_client.get("/v1/users/user", headers=test_auth)
+    assert response.status_code == 401
+
+    response = test_client.post(
+        "/v1/users/user/user_project", headers=test_auth
+    )
+    assert response.status_code == 401
+
+    response = test_client.delete("/v1/users/user", headers=test_auth)
+    assert response.status_code == 401
+
+
+def test_get_user(app, admin_auth):
+    """Test get_user() function"""
+    test_client = app.test_client()
+
+    # Existing user
+    response = test_client.get("/v1/users/test", headers=admin_auth)
+    data = json.loads(response.data)
+    assert data["_id"] == "test"
+    assert response.status_code == 200
+
+    # User that does not exist
+    response = test_client.get("/v1/users/user", headers=admin_auth)
+    assert response.status_code == 404
+
+
+def test_get_all_users(app, admin_auth, test_auth):
+    """Test get_all_users() function"""
+    test_client = app.test_client()
+
+    response = test_client.get("/v1/users", headers=admin_auth)
+    data = json.loads(response.data)
+    assert data["users"] == ["admin", "test", "test2"]
+
+    response = test_client.get("/v1/users", headers=test_auth)
+    assert response.status_code == 401
+
+
+def test_create_user(app, admin_auth, mock_mongo):
+    """Test creating a new user"""
+    test_client = app.test_client()
+
+    # Create user that exists
+    response = test_client.post(
+        "/v1/users/test/test_project", headers=admin_auth
+    )
+    assert response.status_code == 409
+
+    # Create user that does not exist
+    response = test_client.post(
+        "/v1/users/user/user_project", headers=admin_auth
+    )
+    data = json.loads(response.data)
+
+    # Check response
+    assert response.status_code == 200
+    assert data["username"] == "user"
+    assert data["project"] == "user_project"
+    assert len(data["password"]) == 20
+
+    # Check user from database
+    users = mock_mongo.upload.users
+    data = users.find_one({"_id": "user"})
+
+    assert data is not None
+    assert data["project"] == "user_project"
+    assert len(data["digest"]) == 64
+    assert len(data["salt"]) == 20
+    assert data["quota"] == 5 * 1024**3
+    assert data["used_quota"] == 0
+
+
+def test_delete_user(app, admin_auth, mock_mongo):
+    """Test deleting test user"""
+    test_client = app.test_client()
+
+    # Delete user that does not exist
+    response = test_client.delete("/v1/users/test", headers=admin_auth)
+    data = json.loads(response.data)
+
+    assert response.status_code == 200
+    assert data["username"] == "test"
+    assert data["message"] == "deleted"
+
+    # Check that user was deleted from the database
+    users = mock_mongo.upload.users
+    assert users.find_one({"_id": "test"}) is None
+
+
+def test_post_metadata(app, test_auth, requests_mock, monkeypatch):
     """Test posting file metadata to Metax"""
+
+    monkeypatch.setattr(db, "parse_conf", _parse_conf)
     test_client = app.test_client()
 
     # Upload file to test instance
@@ -648,19 +914,30 @@ def test_post_metadata(app, test_auth, requests_mock):
     requests_mock.post("https://metax-test.csc.fi/rest/v1/files/",
                        json={"foo": "bar"})
 
-    response = test_client.post("/v1/metadata/foo", headers=test_auth)
+    response = test_client.post("/v1/metadata/*", headers=test_auth)
+    if response.status_code == 202:
+        status = "pending"
+        location = response.headers.get('Location').encode()
+        while status == "pending":
+            time.sleep(1)
+            response = test_client.get(location, headers=test_auth)
+            data = json.loads(response.data)
+            status = data['status']
     assert response.status_code == 200
     assert json.loads(response.data) == {
         "code": 200,
-        "metax_response": {"foo": "bar"}
+        "metax_response": {"foo": "bar"},
+        "status": "done"
     }
 
 
-def test_post_metadata_failure(app, test_auth, requests_mock):
+def test_post_metadata_failure(app, test_auth, requests_mock, monkeypatch):
     """Try to post file metadata to Metax when the metadata already exists. API
     should return HTTP response with status code 200, and the error message
     from Metax.
     """
+
+    monkeypatch.setattr(db, "parse_conf", _parse_conf)
     test_client = app.test_client()
 
     # Upload file to test instance
@@ -679,8 +956,17 @@ def test_post_metadata_failure(app, test_auth, requests_mock):
                        json=response_json)
 
     response = test_client.post("/v1/metadata/foo", headers=test_auth)
-    assert response.status_code == 400
+    if response.status_code == 202:
+        status = "pending"
+        location = response.headers.get('Location').encode()
+        while status == "pending":
+            time.sleep(1)
+            response = test_client.get(location, headers=test_auth)
+            data = json.loads(response.data)
+            status = data['status']
+    assert response.status_code == 200
     assert json.loads(response.data) == {
         "code": 400,
-        "metax_response": response_json
+        "metax_response": response_json,
+        "status": "error"
     }

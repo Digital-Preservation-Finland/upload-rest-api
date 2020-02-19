@@ -6,17 +6,26 @@ import sys
 import tempfile
 import shutil
 from base64 import b64encode
+from runpy import run_path
 
 import pytest
 import mongomock
 
 import upload_rest_api.app as app_module
 import upload_rest_api.database as db
+from concurrent.futures import ThreadPoolExecutor
 
 # Prefer modules from source directory rather than from site-python
 sys.path.insert(
     0, os.path.join(os.path.abspath(os.path.dirname(__file__)), '..')
 )
+
+
+def _parse_conf(_fpath):
+    """Parse conf from include/etc/upload_rest_api.conf.
+    """
+    conf = run_path("include/etc/upload_rest_api.conf")
+    return conf
 
 
 @pytest.fixture(autouse=True)
@@ -33,8 +42,18 @@ def mock_mongo(monkeypatch):
     return mongoclient
 
 
-def init_db(mock_mongo):
-    """Initialize user db"""
+def init_db(mock_mongo, monkeypatch):
+    """Initialize user db to have users admin and test
+    with password test.
+    """
+    def _parse_conf(_fpath):
+        """Parse conf from include/etc/upload_rest_api.conf.
+        """
+        conf = run_path("include/etc/upload_rest_api.conf")
+        return conf
+
+    monkeypatch.setattr(db, "parse_conf", _parse_conf)
+
     mock_mongo.drop_database("upload")
 
     # test user
@@ -64,14 +83,17 @@ def app(mock_mongo, monkeypatch):
     def _mock_configure_app(app):
         """Read default configuration file"""
         app.config.from_pyfile("../include/etc/upload_rest_api.conf")
+
     monkeypatch.setattr(app_module, "configure_app", _mock_configure_app)
 
     flask_app = app_module.create_app()
-    init_db(mock_mongo)
+    init_db(mock_mongo, monkeypatch)
     temp_path = tempfile.mkdtemp(prefix="tests.testpath.")
 
     flask_app.config["TESTING"] = True
     flask_app.config["UPLOAD_PATH"] = temp_path
+    flask_app.config["UPLOAD_TMP_PATH"] = os.path.join(temp_path, "tmp")
+    flask_app.config["EXTRACT_EXECUTOR"] = ThreadPoolExecutor(max_workers=2)
 
     yield flask_app
 
@@ -80,10 +102,11 @@ def app(mock_mongo, monkeypatch):
 
 
 @pytest.fixture(scope="function")
-def user(mock_mongo):
+def user(mock_mongo, monkeypatch):
     """Initializes and returns UsersDoc instance with db connection
     through mongomock
     """
+    monkeypatch.setattr(db, "parse_conf", _parse_conf)
     test_user = db.UsersDoc("test_user")
     test_user.users = mock_mongo.upload.users
 
@@ -91,14 +114,27 @@ def user(mock_mongo):
 
 
 @pytest.fixture(scope="function")
-def files_col(mock_mongo):
+def files_col(mock_mongo, monkeypatch):
     """Initializes and returns FilesCol instance with db connection
     through mongomock
     """
-    files_col = db.FilesCol()
-    files_col.files = mock_mongo.upload.files
+    monkeypatch.setattr(db, "parse_conf", _parse_conf)
+    files_coll = db.FilesCol()
+    files_coll.files = mock_mongo.upload.files
 
-    return files_col
+    return files_coll
+
+
+@pytest.fixture(scope="function")
+def tasks_col(mock_mongo, monkeypatch):
+    """Initializes and returns  instance with db connection
+    through mongomock
+    """
+    monkeypatch.setattr(db, "parse_conf", _parse_conf)
+    tasks_col = db.AsyncTaskCol()
+    tasks_col.tasks = mock_mongo.upload.tasks
+
+    return tasks_col
 
 
 @pytest.fixture(scope="function")

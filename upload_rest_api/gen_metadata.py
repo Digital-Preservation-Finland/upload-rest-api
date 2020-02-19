@@ -8,7 +8,7 @@ from uuid import uuid4
 
 import six
 import magic
-from flask import current_app, request
+from flask import current_app
 
 from metax_access import (Metax, DS_STATE_ACCEPTED_TO_DIGITAL_PRESERVATION,
                           DS_STATE_IN_DIGITAL_PRESERVATION)
@@ -55,19 +55,20 @@ def _timestamp_now():
     return "{}+00:00".format(timestamp.replace(microsecond=0).isoformat())
 
 
-def get_metax_path(fpath, upload_path):
+def get_metax_path(fpath, root_upload_path):
     """Returns file_path that is stored in Metax"""
-    file_path = "/%s" % (fpath[len(upload_path)+1:])
+    file_path = "/%s" % (fpath[len(root_upload_path)+1:])
     file_path = os.path.abspath(file_path)
     project = file_path.split("/")[1]
 
     return file_path[len(project)+1:]
 
 
-def _generate_metadata(fpath, upload_path, project, storage_id, checksums):
+def _generate_metadata(fpath, root_upload_path, project, storage_id,
+                       checksums):
     """Generate metadata in json format"""
     timestamp = iso8601_timestamp(fpath)
-    file_path = get_metax_path(fpath, upload_path)
+    file_path = get_metax_path(fpath, root_upload_path)
 
     metadata = {
         "identifier": six.text_type(uuid4().urn),
@@ -115,25 +116,24 @@ class MetaxClient(object):
         """Returns dict {fpath: id} of all the files of a given project"""
         return self.client.get_files_dict(project)
 
-    def post_metadata(self, fpaths):
+    def post_metadata(self, fpaths, root_upload_path, username, storage_id):
         """generate and POST metadata to Metax
 
         :param fpaths: List of files for which to generate the metadata
+        :param root_upload_path: root upload directory
+        :param username: current user
+        :param storage_id: pas storage identifier in Metax
         :returns: HTTP response returned by Metax
         """
-        app = current_app
 
         # _generate_metadata() vars
-        upload_path = app.config.get("UPLOAD_PATH")
-        user = request.authorization.username
-        project = db.UsersDoc(user).get_project()
-        storage_id = app.config.get("STORAGE_ID")
+        project = db.UsersDoc(username).get_project()
 
         checksums = db.ChecksumsCol()
         metadata = []
         for fpath in fpaths:
             metadata.append(_generate_metadata(
-                fpath, upload_path,
+                fpath, root_upload_path,
                 project, storage_id, checksums
             ))
 
@@ -159,15 +159,15 @@ class MetaxClient(object):
 
         return self.client.delete_files(file_id_list)
 
-    def delete_file_metadata(self, project, fpath, force=False):
+    def delete_file_metadata(self, project, fpath, root_upload_path=None,
+                             force=False):
         """Delete file metadata from Metax if file is not associated with
         any dataset. If force parameter is True metadata is deleted if the
         file belongs to a dataset not accepted to preservation.
         """
         self.dataset_cache.clear()
-        upload_path = current_app.config.get("UPLOAD_PATH")
         files_dict = self.client.get_files_dict(project)
-        metax_path = get_metax_path(fpath, upload_path)
+        metax_path = get_metax_path(fpath, root_upload_path)
 
         if metax_path not in files_dict:
             raise MetaxClientError("Metadata not found in Metax")
@@ -185,14 +185,14 @@ class MetaxClient(object):
         file_id = six.text_type(file_metadata["id"])
         return self.client.delete_file(file_id)
 
-    def delete_all_metadata(self, project, fpath, force=False):
+    def delete_all_metadata(self, project, fpath, root_upload_path,
+                            force=False):
         """Delete all file metadata from Metax found under dir fpath, which
         is not associated with any dataset and is stored in PAS file storage.
         If force parameter is True metadata is deleted if file belongs to a
         dataset not accepted to preservation.
         """
         self.dataset_cache.clear()
-        upload_path = current_app.config.get("UPLOAD_PATH")
         files_dict = self.client.get_files_dict(project)
         file_id_list = []
 
@@ -200,7 +200,7 @@ class MetaxClient(object):
         for dirpath, _, files in os.walk(fpath):
             for _file in files:
                 fpath = os.path.join(dirpath, _file)
-                metax_path = get_metax_path(fpath, upload_path)
+                metax_path = get_metax_path(fpath, root_upload_path)
                 if metax_path not in files_dict:
                     continue
                 storage_id = files_dict[metax_path]["storage_identifier"]
