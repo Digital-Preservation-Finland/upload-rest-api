@@ -332,7 +332,7 @@ def test_delete_file(app, test_auth, requests_mock, mock_mongo):
     # Mock Metax
     requests_mock.get("https://metax-test.csc.fi/rest/v1/files?limit=10000&"
                       "project_identifier=test_project",
-                      json=json.loads(json.dumps(response)))
+                      json=response)
 
     requests_mock.post("https://metax-test.csc.fi/rest/v1/files/datasets",
                        json={})
@@ -437,7 +437,7 @@ def test_delete_files(app, test_auth, requests_mock, mock_mongo):
     # Mock Metax
     requests_mock.get("https://metax-test.csc.fi/rest/v1/files?limit=10000&"
                       "project_identifier=test_project",
-                      json=json.loads(json.dumps(response)))
+                      json=response)
 
     requests_mock.post("https://metax-test.csc.fi/rest/v1/files/datasets",
                        json={})
@@ -517,7 +517,7 @@ def test_delete_metadata(app, test_auth, requests_mock, mock_mongo):
     # Mock Metax
     requests_mock.get("https://metax-test.csc.fi/rest/v1/files?limit=10000&"
                       "project_identifier=test_project",
-                      json=json.loads(json.dumps(response)))
+                      json=response)
     requests_mock.post("https://metax-test.csc.fi/rest/v1/files/datasets",
                        json=['dataset&preferred&identifier'])
     requests_mock.get("https://metax-test.csc.fi/rest/v1/datasets?"
@@ -591,7 +591,7 @@ def test_delete_metadata_dataset_accepted(app, test_auth, requests_mock,
     # Mock Metax
     requests_mock.get("https://metax-test.csc.fi/rest/v1/files?limit=10000&"
                       "project_identifier=test_project",
-                      json=json.loads(json.dumps(response)))
+                      json=response)
 
     requests_mock.post("https://metax-test.csc.fi/rest/v1/files/datasets",
                        json=['dataset_preferred_identifier'])
