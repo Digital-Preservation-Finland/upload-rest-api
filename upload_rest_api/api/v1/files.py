@@ -130,7 +130,7 @@ def delete_path(fpath):
 
     if os.path.isfile(fpath):
         # Remove metadata from Metax
-        status_code, response = md.MetaxClient().delete_file_metadata(project,
+        response, status_code = md.MetaxClient().delete_file_metadata(project,
                                                                       fpath)
         # Remove checksum from mongo
         db.ChecksumsCol().delete_one(os.path.abspath(fpath))
@@ -138,7 +138,7 @@ def delete_path(fpath):
 
     elif os.path.isdir(fpath):
         # Remove all file metadata of files under dir fpath from Metax
-        status_code, response = md.MetaxClient().delete_all_metadata(project,
+        response, status_code = md.MetaxClient().delete_all_metadata(project,
                                                                      fpath)
         # Remove checksum from mongo
         db.ChecksumsCol().delete_dir(fpath)
@@ -195,7 +195,7 @@ def delete_files():
         return utils.make_response(404, "No files found")
 
     # Remove metadata from Metax
-    status_code, response = md.MetaxClient().delete_all_metadata(project,
+    response, status_code = md.MetaxClient().delete_all_metadata(project,
                                                                  fpath)
 
     # Remove checksum from mongo

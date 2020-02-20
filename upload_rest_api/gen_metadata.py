@@ -189,7 +189,7 @@ class MetaxClient(object):
             response = self.client.delete_file(file_id)
             status_code = 200
 
-        return status_code, response
+        return response, status_code
 
     def delete_all_metadata(self, project, fpath, force=False):
         """Delete all file metadata from Metax found under dir fpath, which
@@ -226,10 +226,10 @@ class MetaxClient(object):
                     status_code = 400
 
         if not file_id_list:
-            return status_code, {"deleted_files_count": 0}
+            return {"deleted_files_count": 0}, status_code
         # Remove file metadata from Metax and return the response
         response = self.client.delete_files(file_id_list)
-        return 200, response
+        return response, 200
 
     def get_all_ids(self, project_list):
         """Get a set of all identifiers of files in any of the projects in

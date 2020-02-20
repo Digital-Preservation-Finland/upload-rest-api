@@ -66,12 +66,12 @@ def delete_metadata(fpath):
     fpath = safe_join(fpath, fname)
     if os.path.isfile(fpath):
         # Remove metadata from Metax
-        status_code, response = md.MetaxClient().delete_file_metadata(
+        response, status_code = md.MetaxClient().delete_file_metadata(
             project, fpath, force=True
         )
     elif os.path.isdir(fpath):
         # Remove all file metadata of files under dir fpath from Metax
-        status_code, response = md.MetaxClient().delete_all_metadata(
+        response, status_code = md.MetaxClient().delete_all_metadata(
             project, fpath, force=True
         )
     else:
