@@ -40,7 +40,7 @@ def post_metadata(fpath):
     response, status_code = metax_client.post_metadata(fpaths)
 
     # Add created identifiers to Mongo
-    if "success" in response and len(response["success"]) > 0:
+    if "success" in response and response["success"]:
         created_md = response["success"]
         db.FilesCol().store_identifiers(created_md)
 
@@ -80,9 +80,13 @@ def delete_metadata(fpath):
     if 200 <= status_code < 300:
         status = "metadata deleted"
     else:
-        status = str(status_code)
-    return jsonify({
+        status = "metadata not deleted"
+
+    response = jsonify({
         "file_path": utils.get_return_path(fpath),
         "status": status,
         "metax": response
     })
+    response.status_code = status_code
+
+    return response

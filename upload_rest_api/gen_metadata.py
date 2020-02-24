@@ -180,6 +180,7 @@ class MetaxClient(object):
             status_code = 400
         elif not force and self.file_has_dataset(metax_path, files_dict):
             response = "Metadata is part of a dataset. Metadata not removed"
+            status_code = 400
         elif force and self.file_has_accepted_dataset(metax_path, files_dict):
             response = ("Metadata is part of an accepted dataset. Metadata not"
                         " removed")

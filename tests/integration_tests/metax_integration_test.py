@@ -62,7 +62,10 @@ def clean_metax():
             raise
 
 
-@pytest.mark.parametrize("dataset", [True, False])
+@pytest.mark.parametrize(
+    "dataset", [True, False],
+    ids=["File has a dataset", "File has no dataset"]
+)
 def test_gen_metadata_root(app, dataset, test_auth, monkeypatch):
     """Test that calling /v1/metadata. produces
     correct metadata for all files of the project and
@@ -122,7 +125,10 @@ def test_gen_metadata_root(app, dataset, test_auth, monkeypatch):
     assert "/integration/test2/test2.txt" in files_dict
 
 
-@pytest.mark.parametrize("dataset", [True, False])
+@pytest.mark.parametrize(
+    "dataset", [True, False],
+    ids=["File has a dataset", "File has no dataset"]
+)
 def test_gen_metadata_file(app, dataset, test_auth, monkeypatch):
     """Test that generating metadata for a single file works and the metadata
     is removed when project is deleted.
@@ -179,7 +185,13 @@ def test_gen_metadata_file(app, dataset, test_auth, monkeypatch):
         assert not files_dict
 
 
-@pytest.mark.parametrize("accepted_dataset", [True, False])
+@pytest.mark.parametrize(
+    "accepted_dataset", [True, False],
+    ids=[
+        "File has a dataset with status 120",
+        "File has no dataset with status 120"
+    ]
+)
 def test_delete_metadata(app, accepted_dataset, test_auth):
     """Verifies that metadata is 1) deleted for a file belonging to a
     dataset not accepted to preservation and is 2) not deleted when file
@@ -219,14 +231,17 @@ def test_delete_metadata(app, accepted_dataset, test_auth):
         "/v1/metadata/integration/test1/test1.txt",
         headers=test_auth
     )
-    assert response.status_code == 200
     data = json.loads(response.data)
     if accepted_dataset:
         assert data["metax"] == ("Metadata is part of an accepted dataset."
                                  " Metadata not removed")
+        assert data["status"] == "metadata not deleted"
+        assert response.status_code == 400
     else:
         assert data["metax"]["deleted_files_count"] == 1
-    assert data["status"] == "metadata deleted"
+        assert data["status"] == "metadata deleted"
+        assert response.status_code == 200
+
     metax_client = MetaxClient(URL, USER, PASSWORD)
     files_dict = metax_client.get_files_dict("test_project")
     if accepted_dataset:
@@ -251,7 +266,10 @@ def test_delete_metadata(app, accepted_dataset, test_auth):
     assert response.status_code == 204
 
 
-@pytest.mark.parametrize("dataset", [True, False])
+@pytest.mark.parametrize(
+    "dataset", [True, False],
+    ids=["File has a dataset", "File has no dataset"]
+)
 def test_disk_cleanup(app, dataset, test_auth, monkeypatch):
     """Test that cleanup script removes file metadata from Metax if it is
     not associated with any dataset.
