@@ -78,13 +78,13 @@ def delete_metadata(fpath):
         return utils.make_response(404, "File not found")
 
     if 200 <= status_code < 300:
-        status = "metadata deleted"
+        message = "metadata deleted"
     else:
-        status = "metadata not deleted"
+        message = "metadata not deleted"
 
     response = jsonify({
         "file_path": utils.get_return_path(fpath),
-        "status": status,
+        "message": message,
         "metax": response
     })
     response.status_code = status_code

@@ -549,7 +549,7 @@ def test_delete_metadata(app, test_auth, requests_mock, mock_mongo):
     )
     assert json.loads(response.data)["file_path"] == "/test"
     assert json.loads(response.data)["metax"] == {"deleted_files_count": 1}
-    assert json.loads(response.data)["status"] == "metadata deleted"
+    assert json.loads(response.data)["message"] == "metadata deleted"
     assert adapter.last_request.json() == ['bar']
 
     # DELETE metadata for single file
@@ -559,7 +559,7 @@ def test_delete_metadata(app, test_auth, requests_mock, mock_mongo):
     )
     assert json.loads(response.data)["file_path"] == "/test.txt"
     assert json.loads(response.data)["metax"] == {}
-    assert json.loads(response.data)["status"] == "metadata deleted"
+    assert json.loads(response.data)["message"] == "metadata deleted"
 
 
 def test_delete_metadata_dataset_accepted(app, test_auth, requests_mock,
@@ -624,7 +624,7 @@ def test_delete_metadata_dataset_accepted(app, test_auth, requests_mock,
     )
     assert json.loads(response.data)["file_path"] == "/test"
     assert json.loads(response.data)["metax"] == {"deleted_files_count": 0}
-    assert json.loads(response.data)["status"] == "metadata not deleted"
+    assert json.loads(response.data)["message"] == "metadata not deleted"
     assert adapter.last_request is None
 
     # DELETE metadata for single file
@@ -635,7 +635,7 @@ def test_delete_metadata_dataset_accepted(app, test_auth, requests_mock,
     assert json.loads(response.data)["metax"] == ("Metadata is part of an "
                                                   "accepted dataset. Metadata"
                                                   " not removed")
-    assert json.loads(response.data)["status"] == "metadata not deleted"
+    assert json.loads(response.data)["message"] == "metadata not deleted"
 
 
 def test_db_access_test_user(app, test_auth):
@@ -725,7 +725,7 @@ def test_delete_user(app, admin_auth, mock_mongo):
 
     assert response.status_code == 200
     assert data["username"] == "test"
-    assert data["status"] == "deleted"
+    assert data["message"] == "deleted"
 
     # Check that user was deleted from the database
     users = mock_mongo.upload.users

@@ -84,7 +84,7 @@ def delete_user(username):
     except db.UserNotFoundError as error:
         return utils.make_response(404, six.text_type(error))
 
-    response = jsonify({"username": username, "status": "deleted"})
+    response = jsonify({"username": username, "message": "deleted"})
     response.status_code = 200
 
     return response

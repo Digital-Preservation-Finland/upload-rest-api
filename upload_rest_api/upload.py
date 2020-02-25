@@ -134,7 +134,7 @@ def save_file(fpath, extract_archives=False):
     # Write the file if it does not exist already
     if not os.path.exists(fpath):
         _save_stream(fpath)
-        status = "created"
+        message = "created"
     else:
         raise OverwriteError("File already exists")
 
@@ -165,7 +165,7 @@ def save_file(fpath, extract_archives=False):
         os.remove(fpath)
         _process_extracted_files(dir_path)
 
-        status = "archive uploaded and extracted"
+        message = "archive uploaded and extracted"
 
     else:
         # Add file checksum to mongo
@@ -174,7 +174,7 @@ def save_file(fpath, extract_archives=False):
     response = jsonify({
         "file_path": utils.get_return_path(fpath),
         "md5": md5,
-        "status": status
+        "message": message
     })
     response.status_code = 200
 

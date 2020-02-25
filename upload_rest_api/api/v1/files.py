@@ -130,16 +130,14 @@ def delete_path(fpath):
 
     if os.path.isfile(fpath):
         # Remove metadata from Metax
-        response, status_code = md.MetaxClient().delete_file_metadata(project,
-                                                                      fpath)
+        response, _ = md.MetaxClient().delete_file_metadata(project, fpath)
         # Remove checksum from mongo
         db.ChecksumsCol().delete_one(os.path.abspath(fpath))
         os.remove(fpath)
 
     elif os.path.isdir(fpath):
         # Remove all file metadata of files under dir fpath from Metax
-        response, status_code = md.MetaxClient().delete_all_metadata(project,
-                                                                     fpath)
+        response, _ = md.MetaxClient().delete_all_metadata(project, fpath)
         # Remove checksum from mongo
         db.ChecksumsCol().delete_dir(fpath)
         rmtree(fpath)
@@ -149,16 +147,15 @@ def delete_path(fpath):
 
     db.update_used_quota()
 
-    if 200 <= status_code < 300:
-        status = "metadata deleted"
-    else:
-        status = str(status_code)
-
-    return jsonify({
+    response = jsonify({
         "file_path": utils.get_return_path(fpath),
-        "status": status,
+        "message": "deleted",
         "metax": response
     })
+    response.status_code = 200
+
+    return response
+
 
 
 @FILES_API_V1.route("", methods=["GET"], strict_slashes=False)
@@ -195,8 +192,7 @@ def delete_files():
         return utils.make_response(404, "No files found")
 
     # Remove metadata from Metax
-    response, status_code = md.MetaxClient().delete_all_metadata(project,
-                                                                 fpath)
+    response, _ = md.MetaxClient().delete_all_metadata(project, fpath)
 
     # Remove checksum from mongo
     db.ChecksumsCol().delete_dir(fpath)
@@ -205,13 +201,9 @@ def delete_files():
     rmtree(fpath)
     db.update_used_quota()
 
-    if 200 <= status_code < 300:
-        status = "deleted"
-    else:
-        status = str(status_code)
     response = jsonify({
         "fpath": fpath[len(upload_path):],
-        "status": status,
+        "message": "deleted",
         "metax": response
     })
     response.status_code = 200
