@@ -202,7 +202,7 @@ class MetaxClient(object):
         upload_path = current_app.config.get("UPLOAD_PATH")
         files_dict = self.client.get_files_dict(project)
         file_id_list = []
-        status_code = 200
+
         # Iterate through all files under dir fpath
         for dirpath, _, files in os.walk(fpath):
             for _file in files:
@@ -223,11 +223,10 @@ class MetaxClient(object):
                                                            files_dict)
                 if no_dataset:
                     file_id_list.append(files_dict[metax_path]["id"])
-                else:
-                    status_code = 400
 
         if not file_id_list:
-            return {"deleted_files_count": 0}, status_code
+            return {"deleted_files_count": 0}, 400
+
         # Remove file metadata from Metax and return the response
         response = self.client.delete_files(file_id_list)
         return response, 200
