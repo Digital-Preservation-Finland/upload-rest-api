@@ -233,13 +233,11 @@ def test_delete_metadata(app, accepted_dataset, test_auth):
     )
     data = json.loads(response.data)
     if accepted_dataset:
-        assert data["metax"] == ("Metadata is part of an accepted dataset."
-                                 " Metadata not removed")
-        assert data["message"] == "metadata not deleted"
+        assert data["error"] == "Metadata is part of an accepted dataset"
+        assert data["code"] == 400
         assert response.status_code == 400
     else:
         assert data["metax"]["deleted_files_count"] == 1
-        assert data["message"] == "metadata deleted"
         assert response.status_code == 200
 
     metax_client = MetaxClient(URL, USER, PASSWORD)

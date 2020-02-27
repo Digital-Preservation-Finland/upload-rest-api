@@ -549,7 +549,6 @@ def test_delete_metadata(app, test_auth, requests_mock, mock_mongo):
     )
     assert json.loads(response.data)["file_path"] == "/test"
     assert json.loads(response.data)["metax"] == {"deleted_files_count": 1}
-    assert json.loads(response.data)["message"] == "metadata deleted"
     assert adapter.last_request.json() == ['bar']
 
     # DELETE metadata for single file
@@ -559,7 +558,6 @@ def test_delete_metadata(app, test_auth, requests_mock, mock_mongo):
     )
     assert json.loads(response.data)["file_path"] == "/test.txt"
     assert json.loads(response.data)["metax"] == {}
-    assert json.loads(response.data)["message"] == "metadata deleted"
 
 
 def test_delete_metadata_dataset_accepted(app, test_auth, requests_mock,
@@ -624,7 +622,6 @@ def test_delete_metadata_dataset_accepted(app, test_auth, requests_mock,
     )
     assert json.loads(response.data)["file_path"] == "/test"
     assert json.loads(response.data)["metax"] == {"deleted_files_count": 0}
-    assert json.loads(response.data)["message"] == "metadata not deleted"
     assert adapter.last_request is None
 
     # DELETE metadata for single file
@@ -632,10 +629,10 @@ def test_delete_metadata_dataset_accepted(app, test_auth, requests_mock,
         "/v1/metadata/test.txt",
         headers=test_auth
     )
-    assert json.loads(response.data)["metax"] == ("Metadata is part of an "
-                                                  "accepted dataset. Metadata"
-                                                  " not removed")
-    assert json.loads(response.data)["message"] == "metadata not deleted"
+
+    response = json.loads(response.data)
+    assert response["code"] == 400
+    assert response["error"] == "Metadata is part of an accepted dataset"
 
 
 def test_db_access_test_user(app, test_auth):

@@ -5,6 +5,7 @@ from __future__ import unicode_literals
 import os
 
 from flask import Blueprint, safe_join, jsonify, request
+from requests.exceptions import HTTPError
 
 import upload_rest_api.database as db
 import upload_rest_api.gen_metadata as md
@@ -36,8 +37,13 @@ def post_metadata(fpath):
     else:
         return utils.make_response(404, "File not found")
 
+    status_code = 200
     metax_client = md.MetaxClient()
-    response, status_code = metax_client.post_metadata(fpaths)
+    try:
+        response = metax_client.post_metadata(fpaths)
+    except HTTPError as exception:
+        response = exception.response.json()
+        status_code = exception.response.status_code
 
     # Add created identifiers to Mongo
     if "success" in response and response["success"]:
@@ -64,27 +70,28 @@ def delete_metadata(fpath):
     project = db.UsersDoc(username).get_project()
     fpath, fname = utils.get_upload_path(fpath)
     fpath = safe_join(fpath, fname)
+    client = md.MetaxClient()
+
     if os.path.isfile(fpath):
         # Remove metadata from Metax
-        response, status_code = md.MetaxClient().delete_file_metadata(
-            project, fpath, force=True
-        )
+        delete_func = client.delete_file_metadata
     elif os.path.isdir(fpath):
         # Remove all file metadata of files under dir fpath from Metax
-        response, status_code = md.MetaxClient().delete_all_metadata(
-            project, fpath, force=True
-        )
+        delete_func = client.delete_all_metadata
     else:
         return utils.make_response(404, "File not found")
 
-    if 200 <= status_code < 300:
-        message = "metadata deleted"
-    else:
-        message = "metadata not deleted"
+    status_code = 200
+    try:
+        response = delete_func(project, fpath, force=True)
+    except HTTPError as exception:
+        response = exception.response.json()
+        status_code = exception.response.status_code
+    except md.MetaxClientError as exception:
+        return utils.make_response(400, str(exception))
 
     response = jsonify({
         "file_path": utils.get_return_path(fpath),
-        "message": message,
         "metax": response
     })
     response.status_code = status_code

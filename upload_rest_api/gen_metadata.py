@@ -6,7 +6,6 @@ import os
 from datetime import datetime
 from uuid import uuid4
 
-import requests.exceptions
 import six
 import magic
 from flask import current_app, request
@@ -91,6 +90,10 @@ def _generate_metadata(fpath, upload_path, project, storage_id, checksums):
     return metadata
 
 
+class MetaxClientError(Exception):
+    """Generic error raised by MetaxClient"""
+
+
 class MetaxClient(object):
     """Class for handling Metax metadata"""
 
@@ -134,11 +137,7 @@ class MetaxClient(object):
                 project, storage_id, checksums
             ))
 
-        try:
-            return self.client.post_file(metadata), 200
-        except requests.exceptions.HTTPError as exception:
-            response = exception.response
-            return response.json(), response.status_code
+        return self.client.post_file(metadata)
 
     def delete_metadata(self, project, fpaths):
         """DELETE metadata from Metax
@@ -155,11 +154,10 @@ class MetaxClient(object):
             if fpath in files_dict:
                 file_id_list.append(files_dict[fpath]["id"])
 
-        try:
-            return self.client.delete_files(file_id_list), 200
-        except requests.exceptions.HTTPError as exception:
-            response = exception.response
-            return response.json(), response.status_code
+        if not file_id_list:
+            return {"deleted_files_count": 0}
+
+        return self.client.delete_files(file_id_list)
 
     def delete_file_metadata(self, project, fpath, force=False):
         """Delete file metadata from Metax if file is not associated with
@@ -172,25 +170,20 @@ class MetaxClient(object):
         metax_path = get_metax_path(fpath, upload_path)
 
         if metax_path not in files_dict:
-            response = "Metadata not found in Metax"
-            status_code = 404
-        elif files_dict[metax_path]["storage_identifier"] != \
-                PAS_FILE_STORAGE_ID:
-            response = "Incorrect file storage. Metadata not removed"
-            status_code = 400
-        elif not force and self.file_has_dataset(metax_path, files_dict):
-            response = "Metadata is part of a dataset. Metadata not removed"
-            status_code = 400
-        elif force and self.file_has_accepted_dataset(metax_path, files_dict):
-            response = ("Metadata is part of an accepted dataset. Metadata not"
-                        " removed")
-            status_code = 400
-        else:
-            file_id = six.text_type(files_dict[metax_path]["id"])
-            response = self.client.delete_file(file_id)
-            status_code = 200
+            raise MetaxClientError("Metadata not found in Metax")
 
-        return response, status_code
+        file_metadata = files_dict[metax_path]
+        if file_metadata["storage_identifier"] != PAS_FILE_STORAGE_ID:
+            raise MetaxClientError("Incorrect file storage")
+        elif not force and self.file_has_dataset(metax_path, files_dict):
+            raise MetaxClientError("Metadata is part of a dataset")
+        elif self.file_has_accepted_dataset(metax_path, files_dict):
+            raise MetaxClientError(
+                "Metadata is part of an accepted dataset"
+            )
+
+        file_id = six.text_type(file_metadata["id"])
+        return self.client.delete_file(file_id)
 
     def delete_all_metadata(self, project, fpath, force=False):
         """Delete all file metadata from Metax found under dir fpath, which
@@ -225,11 +218,10 @@ class MetaxClient(object):
                     file_id_list.append(files_dict[metax_path]["id"])
 
         if not file_id_list:
-            return {"deleted_files_count": 0}, 400
+            return {"deleted_files_count": 0}
 
         # Remove file metadata from Metax and return the response
-        response = self.client.delete_files(file_id_list)
-        return response, 200
+        return self.client.delete_files(file_id_list)
 
     def get_all_ids(self, project_list):
         """Get a set of all identifiers of files in any of the projects in
