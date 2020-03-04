@@ -5,7 +5,6 @@ from __future__ import print_function
 
 import binascii
 import hashlib
-import io
 import os
 import random
 from string import ascii_letters, digits
@@ -373,27 +372,3 @@ class FilesCol(object):
             })
 
         self.insert(documents)
-
-
-def init_db():
-    """Initialize database by creating the admin user."""
-    user = UsersDoc("admin")
-    if user.exists():
-        print("Database already initialized")
-        return
-
-    # Create admin user
-    password = user.create("admin_project")
-
-    if not os.path.isdir("/usr/share/upload-rest-api"):
-        os.mkdir("/usr/share/upload-rest-api")
-
-    # Write admin password to a file
-    with io.open("/usr/share/upload-rest-api/admin_password", "wt") as _file:
-        _file.write(password)
-
-    print("Database initialized")
-
-
-if __name__ == "__main__":
-    init_db()
