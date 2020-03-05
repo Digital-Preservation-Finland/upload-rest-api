@@ -191,7 +191,7 @@ def test_upload_archive(archive, app, test_auth, mock_mongo):
     assert not os.path.isfile(archive_file)
 
     # checksum is added to mongo
-    assert checksums.count() == 1
+    assert checksums.count({}) == 1
     checksum = checksums.find_one({"_id": text_file})["checksum"]
     assert checksum == "150b62e4e7d58c70503bd5fc8a26463c"
 
@@ -236,7 +236,7 @@ def test_upload_archive_extract_false(query_params, app,
     assert os.path.isfile(archive_file)
 
     # checksum is added to mongo
-    assert checksums.count() == 1
+    assert checksums.count({}) == 1
     checksum = checksums.find_one({"_id": archive_file})["checksum"]
     assert checksum == "9cc7252c6628ce1bde964b25ef65d0ba"
 
@@ -271,7 +271,7 @@ def test_upload_invalid_archive(archive, app, test_auth, mock_mongo):
     assert not os.path.isfile(archive_file)
 
     # no checksums are added to mongo
-    assert checksums.count() == 0
+    assert checksums.count({}) == 0
 
 
 def test_get_file(app, test_auth, test2_auth, test3_auth, mock_mongo):
@@ -357,7 +357,7 @@ def test_delete_file(app, test_auth, requests_mock, mock_mongo):
     assert response.status_code == 200
     assert json.loads(response.data)["metax"] == "/test.txt"
     assert not os.path.isfile(fpath)
-    assert mock_mongo.upload.checksums.count() == 0
+    assert mock_mongo.upload.checksums.count({}) == 0
 
     # DELETE file that does not exist
     response = test_client.delete(
@@ -468,7 +468,7 @@ def test_delete_files(app, test_auth, requests_mock, mock_mongo):
     assert response.status_code == 200
     assert json.loads(response.data)["metax"] == ["/test/test.txt"]
     assert not os.path.exists(os.path.split(test_path_2)[0])
-    assert checksums.count() == 1
+    assert checksums.count({}) == 1
 
     # DELETE the whole project
     requests_mock.delete("https://metax-test.csc.fi/rest/v1/files",
@@ -481,7 +481,7 @@ def test_delete_files(app, test_auth, requests_mock, mock_mongo):
     assert response.status_code == 200
     assert json.loads(response.data)["metax"] == ["/test.txt"]
     assert not os.path.exists(os.path.split(test_path_1)[0])
-    assert checksums.count() == 0
+    assert checksums.count({}) == 0
 
     # DELETE project that does not exist
     response = test_client.delete(

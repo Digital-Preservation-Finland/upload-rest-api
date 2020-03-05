@@ -5,7 +5,6 @@ periodically using cron.
 from __future__ import unicode_literals
 from __future__ import print_function
 
-import argparse
 import errno
 import os
 import time
@@ -183,31 +182,3 @@ def clean_mongo():
 
     # Remove identifiers from mongo
     return files.delete(id_list)
-
-
-def _parse_arguments(arguments):
-    """Parse command line arguments"""
-    parser = argparse.ArgumentParser(
-        description="Clean files from disk or identfiers from mongo."
-    )
-    parser.add_argument("location", type=str, help="mongo or disk")
-
-    return parser.parse_args(arguments)
-
-
-def main(arguments=None):
-    """Parse command line arguments and clean disk or mongo"""
-    args = _parse_arguments(arguments)
-
-    if args.location == "disk":
-        deleted_count = clean_disk()
-    elif args.location == "mongo":
-        deleted_count = clean_mongo()
-    else:
-        raise ValueError("Unsupported location: %s" % args.location)
-
-    print("Cleaned %d files" % deleted_count)
-
-
-if __name__ == "__main__":
-    main()
