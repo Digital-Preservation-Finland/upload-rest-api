@@ -19,6 +19,7 @@ def _parse_args():
     # Add the alternative commands
     subparsers = parser.add_subparsers(title='Available commands')
     _setup_cleanup_args(subparsers)
+    _setup_users_args(subparsers)
     _setup_create_args(subparsers)
     _setup_delete_args(subparsers)
     _setup_modify_args(subparsers)
@@ -34,6 +35,14 @@ def _setup_cleanup_args(subparsers):
     )
     parser.set_defaults(func=_cleanup)
     parser.add_argument('location', help="mongo or disk")
+
+
+def _setup_users_args(subparsers):
+    """Define users subparser and its arguments."""
+    parser = subparsers.add_parser(
+        'users', help='Print all users.'
+    )
+    parser.set_defaults(func=_users)
 
 
 def _setup_create_args(subparsers):
@@ -80,6 +89,13 @@ def _cleanup(args):
         raise ValueError("Unsupported location: %s" % args.location)
 
     print("Cleaned %d files" % deleted_count)
+
+
+def _users(args):
+    """Print all users"""
+    users = db.get_all_users()
+    for user in users:
+        print(user)
 
 
 def _create(args):
