@@ -250,6 +250,17 @@ class UsersDoc(object):
 
         return self.users.find_one({"_id": self.username})["project"]
 
+    def set_project(self, project):
+        """Set user project"""
+        # Raise exception if user does not exist
+        if not self.exists():
+            raise UserNotFoundError("User '%s' not found" % self.username)
+
+        self.users.update_one(
+            {"_id": self.username},
+            {"$set": {"project": project}}
+        )
+
     def exists(self):
         """Check if the user is found in the db"""
         return self.users.find_one({"_id": self.username}) is not None

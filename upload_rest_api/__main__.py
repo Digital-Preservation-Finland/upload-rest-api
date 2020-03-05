@@ -2,13 +2,10 @@
 from __future__ import print_function
 
 import argparse
+import json
 
+import upload_rest_api.database as db
 from upload_rest_api.cleanup import clean_disk, clean_mongo
-
-# ANSI escape sequences for different colors
-SUCCESSC = '\033[92m'
-FAILC = '\033[91m'
-ENDC = '\033[0m'
 
 
 def _parse_args():
@@ -22,6 +19,9 @@ def _parse_args():
     # Add the alternative commands
     subparsers = parser.add_subparsers(title='Available commands')
     _setup_cleanup_args(subparsers)
+    _setup_create_args(subparsers)
+    _setup_delete_args(subparsers)
+    _setup_modify_args(subparsers)
 
     # Define arguments common to all commands
     parser.add_argument(
@@ -44,6 +44,36 @@ def _setup_cleanup_args(subparsers):
     parser.add_argument('location', help="mongo or disk")
 
 
+def _setup_create_args(subparsers):
+    """Define create subparser and its arguments."""
+    parser = subparsers.add_parser(
+        'create', help='Create new user'
+    )
+    parser.set_defaults(func=_create)
+    parser.add_argument('username')
+    parser.add_argument('project')
+
+
+def _setup_delete_args(subparsers):
+    """Define delete subparser and its arguments."""
+    parser = subparsers.add_parser(
+        'delete', help='Delete an existing user'
+    )
+    parser.set_defaults(func=_delete)
+    parser.add_argument('username')
+
+
+def _setup_modify_args(subparsers):
+    """Define modify subparser and its arguments."""
+    parser = subparsers.add_parser(
+        'modify', help='Modify an existing user'
+    )
+    parser.set_defaults(func=_modify)
+    parser.add_argument('username')
+    parser.add_argument('--quota', type=int)
+    parser.add_argument('--project')
+
+
 def _cleanup(args):
     """Generate technical metadata for the dataset"""
     if args.location == "disk":
@@ -54,6 +84,38 @@ def _cleanup(args):
         raise ValueError("Unsupported location: %s" % args.location)
 
     print("Cleaned %d files" % deleted_count)
+
+
+def _create(args):
+    """Create a new user"""
+    user = db.UsersDoc(args.username)
+    passwd = user.create(args.project)
+    print("%s:%s" % (args.username, passwd))
+
+
+def _delete(args):
+    """Delete an existing user"""
+    db.UsersDoc(args.username).delete()
+    print("Deleted")
+
+
+def _modify(args):
+    """Modify an existing user"""
+    user = db.UsersDoc(args.username)
+    if args.quota:
+        user.set_quota(args.quota)
+    if args.project:
+        user.set_project(args.project)
+
+    user = user.get()
+    print(json.dumps(
+        {
+            "_id": user["_id"],
+            "quota": user["quota"],
+            "project": user["project"]
+        },
+        indent=4
+    ))
 
 
 def main():
