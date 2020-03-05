@@ -23,14 +23,6 @@ def _parse_args():
     _setup_delete_args(subparsers)
     _setup_modify_args(subparsers)
 
-    # Define arguments common to all commands
-    parser.add_argument(
-        '--config',
-        default='/etc/upload_rest_api.conf',
-        metavar='config_file',
-        help="path to configuration file"
-    )
-
     # Parse arguments and return the arguments
     return parser.parse_args()
 
