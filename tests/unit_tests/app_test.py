@@ -274,7 +274,7 @@ def test_upload_invalid_archive(archive, app, test_auth, mock_mongo):
     assert checksums.count() == 0
 
 
-def test_get_file(app, admin_auth, test_auth, test2_auth, mock_mongo):
+def test_get_file(app, test_auth, test2_auth, test3_auth, mock_mongo):
     """Test GET for single file"""
     test_client = app.test_client()
     upload_path = app.config.get("UPLOAD_PATH")
@@ -306,10 +306,10 @@ def test_get_file(app, admin_auth, test_auth, test2_auth, mock_mongo):
     )
     assert response.status_code == 200
 
-    # GET file with user admin, which is not in the same project
+    # GET file with user test3, which is not in the same project
     response = test_client.get(
         "/v1/files/test.txt",
-        headers=admin_auth
+        headers=test3_auth
     )
     assert response.status_code == 404
 
@@ -633,100 +633,6 @@ def test_delete_metadata_dataset_accepted(app, test_auth, requests_mock,
     response = json.loads(response.data)
     assert response["code"] == 400
     assert response["error"] == "Metadata is part of an accepted dataset"
-
-
-def test_db_access_test_user(app, test_auth):
-    """Test database access with some other user than admin"""
-    test_client = app.test_client()
-
-    response = test_client.get("/v1/users/user", headers=test_auth)
-    assert response.status_code == 401
-
-    response = test_client.post(
-        "/v1/users/user/user_project", headers=test_auth
-    )
-    assert response.status_code == 401
-
-    response = test_client.delete("/v1/users/user", headers=test_auth)
-    assert response.status_code == 401
-
-
-def test_get_user(app, admin_auth):
-    """Test get_user() function"""
-    test_client = app.test_client()
-
-    # Existing user
-    response = test_client.get("/v1/users/test", headers=admin_auth)
-    data = json.loads(response.data)
-    assert data["_id"] == "test"
-    assert response.status_code == 200
-
-    # User that does not exist
-    response = test_client.get("/v1/users/user", headers=admin_auth)
-    assert response.status_code == 404
-
-
-def test_get_all_users(app, admin_auth, test_auth):
-    """Test get_all_users() function"""
-    test_client = app.test_client()
-
-    response = test_client.get("/v1/users", headers=admin_auth)
-    data = json.loads(response.data)
-    assert data["users"] == ["admin", "test", "test2"]
-
-    response = test_client.get("/v1/users", headers=test_auth)
-    assert response.status_code == 401
-
-
-def test_create_user(app, admin_auth, mock_mongo):
-    """Test creating a new user"""
-    test_client = app.test_client()
-
-    # Create user that exists
-    response = test_client.post(
-        "/v1/users/test/test_project", headers=admin_auth
-    )
-    assert response.status_code == 409
-
-    # Create user that does not exist
-    response = test_client.post(
-        "/v1/users/user/user_project", headers=admin_auth
-    )
-    data = json.loads(response.data)
-
-    # Check response
-    assert response.status_code == 200
-    assert data["username"] == "user"
-    assert data["project"] == "user_project"
-    assert len(data["password"]) == 20
-
-    # Check user from database
-    users = mock_mongo.upload.users
-    data = users.find_one({"_id": "user"})
-
-    assert data is not None
-    assert data["project"] == "user_project"
-    assert len(data["digest"]) == 64
-    assert len(data["salt"]) == 20
-    assert data["quota"] == 5 * 1024**3
-    assert data["used_quota"] == 0
-
-
-def test_delete_user(app, admin_auth, mock_mongo):
-    """Test deleting test user"""
-    test_client = app.test_client()
-
-    # Delete user that does not exist
-    response = test_client.delete("/v1/users/test", headers=admin_auth)
-    data = json.loads(response.data)
-
-    assert response.status_code == 200
-    assert data["username"] == "test"
-    assert data["message"] == "deleted"
-
-    # Check that user was deleted from the database
-    users = mock_mongo.upload.users
-    assert users.find_one({"_id": "test"}) is None
 
 
 def test_post_metadata(app, test_auth, requests_mock):

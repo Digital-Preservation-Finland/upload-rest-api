@@ -34,23 +34,21 @@ def mock_mongo(monkeypatch):
 
 
 def init_db(mock_mongo):
-    """Initialize user db to have users admin and test
-    with password test.
-    """
+    """Initialize user db"""
     mock_mongo.drop_database("upload")
 
-    # ----- users collection
-    user = db.UsersDoc("admin")
+    # test user
+    user = db.UsersDoc("test")
     user.users = mock_mongo.upload.users
-    user.create("admin_project", password="test")
-
-    # Test user
-    user.username = "test"
     user.create("test_project", password="test")
 
-    # Test user with same project
+    # test2 user with same project
     user.username = "test2"
     user.create("test_project", password="test")
+
+    # test3 user with different project
+    user.username = "test3"
+    user.create("project", password="test")
 
 
 @pytest.yield_fixture(scope="function")
@@ -120,10 +118,10 @@ def test2_auth():
 
 
 @pytest.fixture(scope="function")
-def admin_auth():
+def test3_auth():
     """Return correct credentials header"""
     return {
-        "Authorization": "Basic %s" % b64encode(b"admin:test").decode("utf-8")
+        "Authorization": "Basic %s" % b64encode(b"test3:test").decode("utf-8")
     }
 
 

@@ -35,12 +35,3 @@ def authenticate():
     auth = request.authorization
     if not auth or not _auth_user(auth.username, auth.password):
         abort(401)
-
-
-def admin_only():
-    """Checks that user trying to access resource is admin
-
-    Returns 401 - Unauthorized access for wrong users
-    """
-    if request.authorization.username != "admin":
-        abort(401)
