@@ -33,10 +33,8 @@ def create_app():
 
     # Register all blueprints
     from upload_rest_api.api.v1.files import FILES_API_V1
-    from upload_rest_api.api.v1.db import DB_API_V1
     from upload_rest_api.api.v1.metadata import METADATA_API_V1
     app.register_blueprint(FILES_API_V1)
-    app.register_blueprint(DB_API_V1)
     app.register_blueprint(METADATA_API_V1)
 
     # Register error handlers
