@@ -174,6 +174,23 @@ class UsersDoc(object):
 
         return passwd
 
+    def change_password(self):
+        """Change user password
+        """
+        passwd = get_random_string(PASSWD_LEN)
+        salt = get_random_string(SALT_LEN)
+        digest = hash_passwd(passwd, salt)
+
+        self.users.update_one(
+            {"_id": self.username},
+            {"$set": {
+                "salt": salt,
+                "digest": digest
+            }}
+        )
+
+        return passwd
+
     def delete(self):
         """Deletes existing user
         """

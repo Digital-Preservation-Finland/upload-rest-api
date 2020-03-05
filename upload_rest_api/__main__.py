@@ -62,8 +62,12 @@ def _setup_modify_args(subparsers):
     )
     parser.set_defaults(func=_modify)
     parser.add_argument('username')
-    parser.add_argument('--quota', type=int)
-    parser.add_argument('--project')
+    parser.add_argument('--quota', type=int, help="Change user's quota")
+    parser.add_argument('--project', help="Change user's project")
+    parser.add_argument(
+        '--password', action="store_true", default=False,
+        help="Generate new password"
+    )
 
 
 def _cleanup(args):
@@ -98,16 +102,19 @@ def _modify(args):
         user.set_quota(args.quota)
     if args.project:
         user.set_project(args.project)
+    if args.password:
+        passwd = user.change_password()
 
     user = user.get()
-    print(json.dumps(
-        {
-            "_id": user["_id"],
-            "quota": user["quota"],
-            "project": user["project"]
-        },
-        indent=4
-    ))
+    response = {
+        "_id": user["_id"],
+        "quota": user["quota"],
+        "project": user["project"]
+    }
+    if args.password:
+        response["password"] = passwd
+
+    print(json.dumps(response, indent=4))
 
 
 def main():
