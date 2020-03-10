@@ -18,7 +18,8 @@ def _parse_args():
 
     # Add the alternative commands
     subparsers = parser.add_subparsers(title='Available commands')
-    _setup_cleanup_args(subparsers)
+    _setup_cleanup_files_args(subparsers)
+    _setup_cleanup_mongo_args(subparsers)
     _setup_get_args(subparsers)
     _setup_create_args(subparsers)
     _setup_delete_args(subparsers)
@@ -28,13 +29,20 @@ def _parse_args():
     return parser.parse_args()
 
 
-def _setup_cleanup_args(subparsers):
-    """Define cleanup subparser and its arguments."""
+def _setup_cleanup_files_args(subparsers):
+    """Define cleanup-files subparser and its arguments."""
     parser = subparsers.add_parser(
-        'cleanup', help='Clean files from disk or identfiers from mongo.'
+        'cleanup-files', help='Clean files from disk'
     )
-    parser.set_defaults(func=_cleanup)
-    parser.add_argument('location', help="mongo or disk")
+    parser.set_defaults(func=_cleanup_files)
+
+
+def _setup_cleanup_mongo_args(subparsers):
+    """Define cleanup-mongo subparser and its arguments."""
+    parser = subparsers.add_parser(
+        'cleanup-mongo', help='Clean identfiers from mongo'
+    )
+    parser.set_defaults(func=_cleanup_mongo)
 
 
 def _setup_get_args(subparsers):
@@ -66,7 +74,7 @@ def _setup_get_args(subparsers):
 def _setup_create_args(subparsers):
     """Define create subparser and its arguments."""
     parser = subparsers.add_parser(
-        'create', help='Create new user'
+        'create', help='Create a new user'
     )
     parser.set_defaults(func=_create)
     parser.add_argument('username')
@@ -97,16 +105,16 @@ def _setup_modify_args(subparsers):
     )
 
 
-def _cleanup(args):
-    """Generate technical metadata for the dataset"""
-    if args.location == "disk":
-        deleted_count = clean_disk()
-    elif args.location == "mongo":
-        deleted_count = clean_mongo()
-    else:
-        raise ValueError("Unsupported location: %s" % args.location)
-
+def _cleanup_files(args):
+    """Clean files from the disk"""
+    deleted_count = clean_disk()
     print("Cleaned %d files" % deleted_count)
+
+
+def _cleanup_mongo(args):
+    """Clean identifiers from the mongo"""
+    deleted_count = clean_mongo()
+    print("Cleaned %d identifiers" % deleted_count)
 
 
 def _get_users(args):

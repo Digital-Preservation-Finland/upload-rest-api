@@ -10,18 +10,18 @@ import upload_rest_api.database as db
 
 @mock.patch('upload_rest_api.__main__.clean_mongo')
 @mock.patch('upload_rest_api.__main__.clean_disk')
-@pytest.mark.parametrize("command", ("disk", "mongo"))
+@pytest.mark.parametrize("command", ("files", "mongo"))
 def test_cleanup(mock_clean_disk, mock_clean_mongo, command):
-    """Test that correct function is called from main function when "cleanup"
-    command is used.
+    """Test that correct function is called from main function when
+    cleanup-files or cleanup-mongo command is used.
     """
     with mock.patch.object(
         sys, 'argv',
-        ['upload-rest-api', 'cleanup', command]
+        ['upload-rest-api', 'cleanup-%s' % command]
     ):
         upload_rest_api.__main__.main()
 
-    if command == "disk":
+    if command == "files":
         mock_clean_disk.assert_called()
         mock_clean_mongo.assert_not_called()
     else:
