@@ -29,12 +29,15 @@ def test_cleanup(mock_clean_disk, mock_clean_mongo, command):
         mock_clean_mongo.assert_called()
 
 
-def test_users(mock_mongo, capsys):
-    """Test users command."""
+def test_get(mock_mongo, capsys):
+    """Test get command."""
     db.UsersDoc("test1").create("test_project")
     db.UsersDoc("test2").create("test_project")
 
-    with mock.patch.object(sys, 'argv', ['upload-rest-api', 'users']):
+    with mock.patch.object(
+        sys, 'argv',
+        ['upload-rest-api', 'get', '--users']
+    ):
         upload_rest_api.__main__.main()
 
     out, _ = capsys.readouterr()

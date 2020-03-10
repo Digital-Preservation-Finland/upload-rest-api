@@ -19,7 +19,7 @@ def _parse_args():
     # Add the alternative commands
     subparsers = parser.add_subparsers(title='Available commands')
     _setup_cleanup_args(subparsers)
-    _setup_users_args(subparsers)
+    _setup_get_args(subparsers)
     _setup_create_args(subparsers)
     _setup_delete_args(subparsers)
     _setup_modify_args(subparsers)
@@ -37,12 +37,30 @@ def _setup_cleanup_args(subparsers):
     parser.add_argument('location', help="mongo or disk")
 
 
-def _setup_users_args(subparsers):
-    """Define users subparser and its arguments."""
+def _setup_get_args(subparsers):
+    """Define get subparser and its arguments."""
     parser = subparsers.add_parser(
-        'users', help='Print all users.'
+        'get', help='Get mongo documents'
     )
-    parser.set_defaults(func=_users)
+    parser.set_defaults(func=_get)
+    parser.add_argument('--user', help="Get one user")
+    parser.add_argument(
+        '--users', action="store_true", default=False,
+        help="Get all users"
+    )
+    parser.add_argument(
+        '--identifier',
+        help="Get path based on Metax identifier"
+    )
+    parser.add_argument(
+        '--identifiers', action="store_true", default=False,
+        help="Get all Metax identifiers"
+    )
+    parser.add_argument('--checksum', help="Get one checksum")
+    parser.add_argument(
+        '--checksums', action="store_true", default=False,
+        help="Get all checksums"
+    )
 
 
 def _setup_create_args(subparsers):
@@ -91,11 +109,61 @@ def _cleanup(args):
     print("Cleaned %d files" % deleted_count)
 
 
-def _users(args):
-    """Print all users"""
-    users = db.get_all_users()
-    for user in users:
-        print(user)
+def _get_users(args):
+    """Get users from mongo"""
+    if args.users:
+        users = db.get_all_users()
+        for user in users:
+            print(user)
+    elif args.user:
+        try:
+            user = db.UsersDoc(args.user).get()
+        except db.UserNotFoundError:
+            print("User not found")
+            return
+
+        response = {
+            "_id": user["_id"],
+            "quota": user["quota"],
+            "used_quota": user["used_quota"],
+            "project": user["project"]
+        }
+        print(json.dumps(response, indent=4))
+
+
+def _get_checksums(args):
+    """Get checksums from mongo"""
+    if args.checksums:
+        checksums = db.ChecksumsCol().get_checksums()
+        for checksum in checksums:
+            print(json.dumps(checksum, indent=4))
+    elif args.checksum:
+        checksum = db.ChecksumsCol().get_checksum(args.checksum)
+        if checksum:
+            print(checksum)
+        else:
+            print("Checksum not found")
+
+
+def _get_identifiers(args):
+    """Get identifiers from mongo"""
+    if args.identifiers:
+        identifiers = db.FilesCol().get_all_ids()
+        for identifier in identifiers:
+            print(identifier)
+    elif args.identifier:
+        path = db.FilesCol().get_path(args.identifier)
+        if path:
+            print(path)
+        else:
+            print("Identifier not found")
+
+
+def _get(args):
+    """Get mongo documents"""
+    _get_users(args)
+    _get_checksums(args)
+    _get_identifiers(args)
 
 
 def _create(args):

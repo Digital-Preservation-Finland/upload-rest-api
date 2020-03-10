@@ -321,7 +321,15 @@ class ChecksumsCol(object):
 
     def get_checksum(self, filepath):
         """Get checksum of a single file"""
-        return self.checksums.find_one({"_id": filepath})["checksum"]
+        checksum = self.checksums.find_one({"_id": filepath})
+        if checksum is None:
+            return None
+
+        return checksum["checksum"]
+
+    def get_checksums(self):
+        """Get all checksums"""
+        return self.checksums.find({})
 
 
 class FilesCol(object):
