@@ -6,11 +6,8 @@ import json
 import os
 import shutil
 import time
-from runpy import run_path
 
 import pytest
-
-import upload_rest_api.database as db
 
 
 def _contains_symlinks(fpath):
@@ -46,6 +43,17 @@ def _upload_file(client, url, auth, fpath):
         )
 
     return response
+
+
+def _wait_response(test_client, response, test_auth):
+    status = "pending"
+    location = response.headers.get('Location').encode()
+    while status == "pending":
+        time.sleep(2)
+        response = test_client.get(location, headers=test_auth)
+        data = json.loads(response.data)
+        status = data['status']
+    return response, location
 
 
 def test_index(app, test_auth, wrong_auth):
@@ -181,14 +189,7 @@ def test_upload_archive(archive, app, test_auth, mock_mongo):
         test_client, "/v1/files/archive?extract=true", test_auth, archive
     )
     if response.status_code == 202:
-        status = "pending"
-        location = response.headers.get('Location').encode()
-        while status == "pending":
-            time.sleep(2)
-            response = test_client.get(location, headers=test_auth)
-            data = json.loads(response.data)
-            status = data['status']
-
+        response, _ = _wait_response(test_client, response, test_auth)
     assert response.status_code == 200
 
     fpath = os.path.join(upload_path, "test_project")
@@ -213,13 +214,7 @@ def test_upload_archive(archive, app, test_auth, mock_mongo):
         test_auth, "tests/data/test.zip"
     )
     if response.status_code == 202:
-        status = "pending"
-        location = response.headers.get('Location').encode()
-        while status == "pending":
-            time.sleep(2)
-            response = test_client.get(location, headers=test_auth)
-            data = json.loads(response.data)
-            status = data['status']
+        response, _ = _wait_response(test_client, response, test_auth)
 
     data = json.loads(response.data)
     assert response.status_code == 200
@@ -245,14 +240,8 @@ def test_upload_archive_concurrent(app, test_auth, mock_mongo):
     )
     # poll with response's polling_url
     if response_1.status_code == 202:
-        status = "pending"
-        location = json.loads(response_1.data)["polling_url"]
-        while status == "pending":
-            time.sleep(2)
-            response_1 = test_client.get(location, headers=test_auth)
-            assert response_1.status_code == 200
-            data = json.loads(response_1.data)
-            status = data['status']
+        response_1, location = _wait_response(test_client, response_1,
+                                              test_auth)
         data = json.loads(response_1.data)
         assert response_1.status_code == 200
         assert data["status"] == "done"
@@ -263,14 +252,8 @@ def test_upload_archive_concurrent(app, test_auth, mock_mongo):
 
     # poll with response's location
     if response_2.status_code == 202:
-        status = "pending"
-        location = response_2.headers.get('Location').encode()
-        while status == "pending":
-            time.sleep(2)
-            response_2 = test_client.get(location, headers=test_auth)
-            assert response_2.status_code == 200
-            data = json.loads(response_2.data)
-            status = data['status']
+        response_2, location = _wait_response(test_client, response_2,
+                                              test_auth)
         data = json.loads(response_2.data)
         assert response_2.status_code == 200
         assert data["status"] == "done"
@@ -323,10 +306,7 @@ def test_upload_archive_extract_false(query_params, app,
         test_auth, "tests/data/test.zip"
     )
     while response.status_code == 202:
-        time.sleep(2)
-        location = response.headers.get('Location').encode()
-        response = test_client.get(location, headers=test_auth)
-
+        response, _ = _wait_response(test_client, response, test_auth)
     assert response.status_code == 200
 
     fpath = os.path.join(upload_path, "test_project")
@@ -361,9 +341,7 @@ def test_upload_invalid_archive(archive, app, test_auth, mock_mongo):
         test_client, "/v1/files/archive?extract=true", test_auth, archive
     )
     while response.status_code == 202:
-        time.sleep(2)
-        location = response.headers.get('Location').encode()
-        response = test_client.get(location, headers=test_auth)
+        response, _ = _wait_response(test_client, response, test_auth)
 
     data = json.loads(response.data)
     assert response.status_code == 200
@@ -575,13 +553,7 @@ def test_delete_files(app, test_auth, requests_mock, mock_mongo):
         headers=test_auth
     )
     if response.status_code == 202:
-        status = "pending"
-        location = response.headers.get('Location').encode()
-        while status == "pending":
-            time.sleep(2)
-            response = test_client.get(location, headers=test_auth)
-            data = json.loads(response.data)
-            status = data['status']
+        response, _ = _wait_response(test_client, response, test_auth)
 
     assert response.status_code == 200
     assert json.loads(response.data)["metax"] == ["/test/test.txt"]
@@ -596,13 +568,7 @@ def test_delete_files(app, test_auth, requests_mock, mock_mongo):
         headers=test_auth
     )
     if response.status_code == 202:
-        status = "pending"
-        location = response.headers.get('Location').encode()
-        while status == "pending":
-            time.sleep(2)
-            response = test_client.get(location, headers=test_auth)
-            data = json.loads(response.data)
-            status = data['status']
+        response, _ = _wait_response(test_client, response, test_auth)
 
     assert response.status_code == 200
     assert json.loads(response.data)["metax"] == ["/test.txt"]
@@ -674,13 +640,8 @@ def test_delete_metadata(app, test_auth, requests_mock, mock_mongo):
         headers=test_auth
     )
     if response.status_code == 202:
-        status = "pending"
-        location = response.headers.get('Location').encode()
-        while status == "pending":
-            time.sleep(1)
-            response = test_client.get(location, headers=test_auth)
-            data = json.loads(response.data)
-            status = data['status']
+        response, _ = _wait_response(test_client, response, test_auth)
+
     assert response.status_code == 200
     assert json.loads(response.data)["file_path"] == "/test"
     assert json.loads(response.data)["metax"] == {"deleted_files_count": 1}
@@ -692,13 +653,8 @@ def test_delete_metadata(app, test_auth, requests_mock, mock_mongo):
         headers=test_auth
     )
     if response.status_code == 202:
-        status = "pending"
-        location = response.headers.get('Location').encode()
-        while status == "pending":
-            time.sleep(1)
-            response = test_client.get(location, headers=test_auth)
-            data = json.loads(response.data)
-            status = data['status']
+        response, _ = _wait_response(test_client, response, test_auth)
+
     assert response.status_code == 200
     assert json.loads(response.data)["file_path"] == "/test.txt"
     assert json.loads(response.data)["metax"] == {}
@@ -765,13 +721,7 @@ def test_delete_metadata_dataset_accepted(app, test_auth, requests_mock,
         headers=test_auth
     )
     if response.status_code == 202:
-        status = "pending"
-        location = response.headers.get('Location').encode()
-        while status == "pending":
-            time.sleep(1)
-            response = test_client.get(location, headers=test_auth)
-            data = json.loads(response.data)
-            status = data['status']
+        response, _ = _wait_response(test_client, response, test_auth)
 
     assert json.loads(response.data)["file_path"] == "/test"
     assert json.loads(response.data)["metax"] == {"deleted_files_count": 0}
@@ -783,13 +733,7 @@ def test_delete_metadata_dataset_accepted(app, test_auth, requests_mock,
         headers=test_auth
     )
     if response.status_code == 202:
-        status = "pending"
-        location = response.headers.get('Location').encode()
-        while status == "pending":
-            time.sleep(1)
-            response = test_client.get(location, headers=test_auth)
-            data = json.loads(response.data)
-            status = data['status']
+        response, _ = _wait_response(test_client, response, test_auth)
 
     response = json.loads(response.data)
     assert response["code"] == 400
@@ -812,13 +756,8 @@ def test_post_metadata(app, test_auth, requests_mock):
 
     response = test_client.post("/v1/metadata/*", headers=test_auth)
     if response.status_code == 202:
-        status = "pending"
-        location = response.headers.get('Location').encode()
-        while status == "pending":
-            time.sleep(1)
-            response = test_client.get(location, headers=test_auth)
-            data = json.loads(response.data)
-            status = data['status']
+        response, _ = _wait_response(test_client, response, test_auth)
+
     assert response.status_code == 200
     assert json.loads(response.data) == {
         "code": 200,
@@ -852,13 +791,8 @@ def test_post_metadata_failure(app, test_auth, requests_mock):
 
     response = test_client.post("/v1/metadata/foo", headers=test_auth)
     if response.status_code == 202:
-        status = "pending"
-        location = response.headers.get('Location').encode()
-        while status == "pending":
-            time.sleep(1)
-            response = test_client.get(location, headers=test_auth)
-            data = json.loads(response.data)
-            status = data['status']
+        response, _ = _wait_response(test_client, response, test_auth)
+
     assert response.status_code == 200
     assert json.loads(response.data) == {
         "code": 400,
