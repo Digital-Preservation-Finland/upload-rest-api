@@ -19,8 +19,6 @@ def configure_app(app):
     """Read config from /etc/upload_rest_api.conf"""
     app.config.from_pyfile("/etc/upload_rest_api.conf")
     app.config["EXTRACT_EXECUTOR"] = ThreadPoolExecutor(max_workers=5)
-    if not os.path.exists(app.config["UPLOAD_PATH"]):
-        os.makedirs(app.config["UPLOAD_PATH"])
 
 
 def create_app():

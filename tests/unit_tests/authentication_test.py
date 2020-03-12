@@ -23,13 +23,6 @@ def test_auth_user(user, password, result, monkeypatch):
     :param password: password of user
     :param bool result: Excepted result of authentication
     """
-    def _parse_conf(_fpath):
-        """Parse conf from include/etc/upload_rest_api.conf.
-        """
-        conf = run_path("include/etc/upload_rest_api.conf")
-        return conf
-
-    monkeypatch.setattr(db, "parse_conf", _parse_conf)
     # Create one test user to database
     usersdoc = db.UsersDoc('test_user')
     usersdoc.create('test_project', 'test_password')

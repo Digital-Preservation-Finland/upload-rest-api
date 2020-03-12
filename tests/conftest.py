@@ -21,11 +21,11 @@ sys.path.insert(
 )
 
 
-def _parse_conf(_fpath):
+@pytest.fixture(autouse=True)
+def parse_conf(monkeypatch):
     """Parse conf from include/etc/upload_rest_api.conf.
     """
-    conf = run_path("include/etc/upload_rest_api.conf")
-    return conf
+    monkeypatch.setattr(db, "parse_conf", lambda conf: run_path("include/etc/upload_rest_api.conf"))
 
 
 @pytest.fixture(autouse=True)
@@ -42,18 +42,10 @@ def mock_mongo(monkeypatch):
     return mongoclient
 
 
-def init_db(mock_mongo, monkeypatch):
+def init_db(mock_mongo):
     """Initialize user db to have users admin and test
     with password test.
     """
-    def _parse_conf(_fpath):
-        """Parse conf from include/etc/upload_rest_api.conf.
-        """
-        conf = run_path("include/etc/upload_rest_api.conf")
-        return conf
-
-    monkeypatch.setattr(db, "parse_conf", _parse_conf)
-
     mock_mongo.drop_database("upload")
 
     # test user
@@ -87,7 +79,7 @@ def app(mock_mongo, monkeypatch):
     monkeypatch.setattr(app_module, "configure_app", _mock_configure_app)
 
     flask_app = app_module.create_app()
-    init_db(mock_mongo, monkeypatch)
+    init_db(mock_mongo)
     temp_path = tempfile.mkdtemp(prefix="tests.testpath.")
 
     flask_app.config["TESTING"] = True
@@ -106,7 +98,6 @@ def user(mock_mongo, monkeypatch):
     """Initializes and returns UsersDoc instance with db connection
     through mongomock
     """
-    monkeypatch.setattr(db, "parse_conf", _parse_conf)
     test_user = db.UsersDoc("test_user")
     test_user.users = mock_mongo.upload.users
 
@@ -114,11 +105,10 @@ def user(mock_mongo, monkeypatch):
 
 
 @pytest.fixture(scope="function")
-def files_col(mock_mongo, monkeypatch):
+def files_col(mock_mongo):
     """Initializes and returns FilesCol instance with db connection
     through mongomock
     """
-    monkeypatch.setattr(db, "parse_conf", _parse_conf)
     files_coll = db.FilesCol()
     files_coll.files = mock_mongo.upload.files
 
@@ -126,11 +116,10 @@ def files_col(mock_mongo, monkeypatch):
 
 
 @pytest.fixture(scope="function")
-def tasks_col(mock_mongo, monkeypatch):
+def tasks_col(mock_mongo):
     """Initializes and returns  instance with db connection
     through mongomock
     """
-    monkeypatch.setattr(db, "parse_conf", _parse_conf)
     tasks_col = db.AsyncTaskCol()
     tasks_col.tasks = mock_mongo.upload.tasks
 

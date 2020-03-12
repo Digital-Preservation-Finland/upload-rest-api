@@ -48,13 +48,6 @@ def _upload_file(client, url, auth, fpath):
     return response
 
 
-def _parse_conf(_fpath):
-    """Parse conf from include/etc/upload_rest_api.conf.
-    """
-    conf = run_path("include/etc/upload_rest_api.conf")
-    return conf
-
-
 def test_index(app, test_auth, wrong_auth):
     """Test the application index page with correct
     and incorrect credentials.
@@ -68,9 +61,8 @@ def test_index(app, test_auth, wrong_auth):
     assert response.status_code == 401
 
 
-def test_upload(app, test_auth, mock_mongo, monkeypatch):
+def test_upload(app, test_auth, mock_mongo):
     """Test uploading a plain text file"""
-    monkeypatch.setattr(db, "parse_conf", _parse_conf)
     test_client = app.test_client()
     upload_path = app.config.get("UPLOAD_PATH")
     checksums = mock_mongo.upload.checksums
@@ -713,11 +705,10 @@ def test_delete_metadata(app, test_auth, requests_mock, mock_mongo):
 
 
 def test_delete_metadata_dataset_accepted(app, test_auth, requests_mock,
-                                          mock_mongo, monkeypatch):
+                                          mock_mongo):
     """Test DELETE metadata for a directory and a single file when
     dataset state is accepted to digital preservation.
     """
-    monkeypatch.setattr(db, "parse_conf", _parse_conf)
     response = {
         "next": None,
         "results": [
@@ -805,10 +796,9 @@ def test_delete_metadata_dataset_accepted(app, test_auth, requests_mock,
     assert response["error"] == "Metadata is part of an accepted dataset"
 
 
-def test_post_metadata(app, test_auth, requests_mock, monkeypatch):
+def test_post_metadata(app, test_auth, requests_mock):
     """Test posting file metadata to Metax"""
 
-    monkeypatch.setattr(db, "parse_conf", _parse_conf)
     test_client = app.test_client()
 
     # Upload file to test instance
@@ -837,13 +827,12 @@ def test_post_metadata(app, test_auth, requests_mock, monkeypatch):
     }
 
 
-def test_post_metadata_failure(app, test_auth, requests_mock, monkeypatch):
+def test_post_metadata_failure(app, test_auth, requests_mock):
     """Try to post file metadata to Metax when the metadata already exists. API
     should return HTTP response with status code 200, and the error message
     from Metax.
     """
 
-    monkeypatch.setattr(db, "parse_conf", _parse_conf)
     test_client = app.test_client()
 
     # Upload file to test instance

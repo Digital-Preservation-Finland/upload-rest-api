@@ -6,6 +6,7 @@ import pytest
 
 import upload_rest_api.gen_metadata as md
 import upload_rest_api.database as db
+from _pytest.monkeypatch import monkeypatch
 
 
 @pytest.mark.parametrize(
@@ -39,13 +40,6 @@ def test_mimetype():
 def test_gen_metadata(monkeypatch):
     """Test that _generate_metadata() produces the correct metadata"""
 
-    def _parse_conf(_fpath):
-        """Parse conf from include/etc/upload_rest_api.conf.
-        """
-        conf = run_path("include/etc/upload_rest_api.conf")
-        return conf
-
-    monkeypatch.setattr(db, "parse_conf", _parse_conf)
     monkeypatch.setattr(
         db.ChecksumsCol, "get_checksum",
         lambda self, filepath: "150b62e4e7d58c70503bd5fc8a26463c"
