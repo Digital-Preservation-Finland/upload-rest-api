@@ -43,11 +43,11 @@ def _get_dir_tree(fpath, root_upload_path, username):
 
 @utils.run_background
 def delete_task(metax_client, fpath, root_upload_path, username, task_id=None):
-    """This function creates the metadata in Metax for the file(s) denoted
-    by fpath argument
+    """Deletes files and metadata denoted by fpath directory under user's
+    project. The whole directory is recursively removed.
 
     :param MetaxClient metax_client: Metax access
-    :param str fpath: file path
+    :param str fpath: path to directory
     :param str root_upload_path: Upload root directory
     :param str username: current user
     :param str task_id: mongo dentifier of the task
