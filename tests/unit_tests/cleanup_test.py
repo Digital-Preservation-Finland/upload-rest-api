@@ -98,3 +98,37 @@ def test_expired_files(app, mock_mongo, monkeypatch):
 
     # upload_path/test/test.txt should not be removed
     assert os.path.isfile(fpath)
+
+
+def test_expired_tasks(app, mock_mongo, monkeypatch):
+    """Test that all the expired task are removed
+    """
+    def _parse_conf(_fpath):
+        """Parse conf from include/etc/upload_rest_api.conf if fpath
+        doesn't exist.
+        """
+        conf = run_path("include/etc/upload_rest_api.conf")
+        conf["CLEANUP_TIMELIM"] = 1
+        conf["UPLOAD_PATH"] = app.config.get("UPLOAD_PATH")
+
+        return conf
+
+    monkeypatch.setattr(clean, "parse_conf", _parse_conf)
+
+    # Add checksums to mongo
+    tasks = mock_mongo.upload.tasks
+    tasks.insert_one({"project": "project",
+                      "status": 'pending'})
+    tasks.insert_one({"project": "project",
+                      "status": 'pending'})
+    tasks.insert_one({"project": "project",
+                      "status": 'pending'})
+    tasks.insert_one({"project": "project",
+                      "status": 'pending'})
+    assert tasks.count() == 4
+    time.sleep(2)
+    # Clean all tasks older than 1s
+    clean.clean_mongo()
+
+    assert tasks.count() == 0
+ 

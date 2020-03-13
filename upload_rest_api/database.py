@@ -513,3 +513,7 @@ class AsyncTaskCol(object):
         :return True if task exists
         """
         return self.tasks.find_one({"_id": ObjectId(task_id)}) is not None
+
+    def get_all_tasks(self):
+        """Return all tasks"""
+        return self.tasks.find()

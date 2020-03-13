@@ -9,6 +9,8 @@ import errno
 import os
 import time
 from runpy import run_path
+from datetime import datetime
+from datetime import timedelta
 
 import upload_rest_api.database as db
 import upload_rest_api.gen_metadata as md
@@ -43,6 +45,18 @@ def _clean_empty_dirs(fpath):
             # Raise all errors except [Errno 39] Directory not empty
             if err.errno != errno.ENOTEMPTY:
                 raise
+
+
+def _clean_old_tasks(time_lim):
+    """Remove tasks that are older than time_lim.
+
+    :param time_lim: : expiration time in seconds
+    """
+    now = datetime.now().replace(tzinfo=None)
+    for task in db.AsyncTaskCol().get_all_tasks():
+        gen_time = task["_id"].generation_time.replace(tzinfo=None)
+        if gen_time + timedelta(seconds=time_lim) < now:
+            db.AsyncTaskCol().delete_one(task["_id"])
 
 
 def parse_conf(fpath):
@@ -157,16 +171,20 @@ def clean_disk(metax=True):
 
 
 def clean_mongo():
-    """Clean file identifiers that do not exist in Metax any more from Mongo
+    """Clean old tasks from mongo. Clean file identifiers that do not exist
+    in Metax any more from Mongo
 
     :returns: Count of cleaned Mongo documents
     """
-    projects = _get_projects()
-
     conf = parse_conf("/etc/upload_rest_api.conf")
     url = conf["METAX_URL"]
     user = conf["METAX_USER"]
     password = conf["METAX_PASSWORD"]
+    time_lim = conf["CLEANUP_TIMELIM"]
+
+    _clean_old_tasks(time_lim)
+
+    projects = _get_projects()
 
     metax_ids = md.MetaxClient(url, user, password).get_all_ids(projects)
 
