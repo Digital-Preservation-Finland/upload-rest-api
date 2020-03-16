@@ -144,7 +144,7 @@ def extract_task(fpath, dir_path, task_id=None):
     )
     md5 = gen_metadata.md5_digest(fpath)
     try:
-        extract(fpath, dir_path, precheck=False)
+        extract(fpath, dir_path)
     except (MemberNameError, MemberTypeError, MemberOverwriteError) as exc:
         # Remove the archive and set task's state
         os.remove(fpath)

@@ -7,13 +7,13 @@ import tempfile
 import shutil
 from base64 import b64encode
 from runpy import run_path
+from concurrent.futures import ThreadPoolExecutor
 
 import pytest
 import mongomock
 
 import upload_rest_api.app as app_module
 import upload_rest_api.database as db
-from concurrent.futures import ThreadPoolExecutor
 
 # Prefer modules from source directory rather than from site-python
 sys.path.insert(
@@ -43,8 +43,7 @@ def mock_mongo(monkeypatch):
 
 
 def init_db(mock_mongo):
-    """Initialize user db to have users admin and test
-    with password test.
+    """Initialize user db.
     """
     mock_mongo.drop_database("upload")
 

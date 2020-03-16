@@ -16,6 +16,7 @@ def main():
             "pymongo",
             "file-magic",
             "six",
+            "futures",
             "metax_access@git+https://gitlab.csc.fi/dpres/"
             "metax-access.git@develop",
             "archive_helpers@git+https://gitlab.csc.fi/dpres/"

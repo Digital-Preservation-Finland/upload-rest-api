@@ -56,6 +56,11 @@ def _wait_response(test_client, response, test_auth):
     return response, location
 
 
+def _request_accepted(response):
+    """Returns True if request was accepted"""
+    return response.status_code == 202
+
+
 def test_index(app, test_auth, wrong_auth):
     """Test the application index page with correct
     and incorrect credentials.
@@ -188,7 +193,7 @@ def test_upload_archive(archive, app, test_auth, mock_mongo):
     response = _upload_file(
         test_client, "/v1/files/archive?extract=true", test_auth, archive
     )
-    if response.status_code == 202:
+    if _request_accepted(response):
         response, _ = _wait_response(test_client, response, test_auth)
     assert response.status_code == 200
 
@@ -213,7 +218,7 @@ def test_upload_archive(archive, app, test_auth, mock_mongo):
         test_client, "/v1/files/test.zip?extract=true",
         test_auth, "tests/data/test.zip"
     )
-    if response.status_code == 202:
+    if _request_accepted(response):
         response, _ = _wait_response(test_client, response, test_auth)
 
     data = json.loads(response.data)
@@ -232,14 +237,14 @@ def test_upload_archive_concurrent(app, test_auth, mock_mongo):
 
     response_1 = _upload_file(
         test_client, "/v1/files/archive1?extract=true", test_auth,
-        "tests/data/test1.zip"
+        "tests/data/test.zip"
     )
     response_2 = _upload_file(
         test_client, "/v1/files/archive2?extract=true", test_auth,
         "tests/data/test2.zip"
     )
     # poll with response's polling_url
-    if response_1.status_code == 202:
+    if _request_accepted(response_1):
         response_1, location = _wait_response(test_client, response_1,
                                               test_auth)
         data = json.loads(response_1.data)
@@ -251,7 +256,7 @@ def test_upload_archive_concurrent(app, test_auth, mock_mongo):
         assert response_1.status_code == 410
 
     # poll with response's location
-    if response_2.status_code == 202:
+    if _request_accepted(response_2):
         response_2, location = _wait_response(test_client, response_2,
                                               test_auth)
         data = json.loads(response_2.data)
@@ -265,16 +270,16 @@ def test_upload_archive_concurrent(app, test_auth, mock_mongo):
     fpath = os.path.join(upload_path, "test_project")
 
     # test.txt files correctly extracted
-    test_1_text_file = os.path.join(fpath, "test1", "test.txt")
+    test_text_file = os.path.join(fpath, "test", "test.txt")
     test_2_text_file = os.path.join(fpath, "test2", "test.txt")
-    assert os.path.isfile(test_1_text_file)
-    assert "test" in io.open(test_1_text_file, "rt").read()
+    assert os.path.isfile(test_text_file)
+    assert "test" in io.open(test_text_file, "rt").read()
     assert os.path.isfile(test_2_text_file)
     assert "test" in io.open(test_2_text_file, "rt").read()
 
     # archive file is removed
     archive_file1 = os.path.join(fpath,
-                                 os.path.split("tests/data/test1.zip")[1])
+                                 os.path.split("tests/data/test.zip")[1])
     archive_file2 = os.path.join(fpath,
                                  os.path.split("tests/data/test2.zip")[1])
     assert not os.path.isfile(archive_file1)
@@ -282,7 +287,7 @@ def test_upload_archive_concurrent(app, test_auth, mock_mongo):
 
     # checksum is added to mongo
     assert checksums.count() == 2
-    checksum = checksums.find_one({"_id": test_1_text_file})["checksum"]
+    checksum = checksums.find_one({"_id": test_text_file})["checksum"]
     assert checksum == "150b62e4e7d58c70503bd5fc8a26463c"
     checksum = checksums.find_one({"_id": test_2_text_file})["checksum"]
     assert checksum == "150b62e4e7d58c70503bd5fc8a26463c"
@@ -305,7 +310,7 @@ def test_upload_archive_extract_false(query_params, app,
         test_client, "/v1/files/archive.zip" + query_params,
         test_auth, "tests/data/test.zip"
     )
-    while response.status_code == 202:
+    if _request_accepted(response):
         response, _ = _wait_response(test_client, response, test_auth)
     assert response.status_code == 200
 
@@ -330,8 +335,8 @@ def test_upload_archive_extract_false(query_params, app,
     "tests/data/symlink.tar.gz"
 ])
 def test_upload_invalid_archive(archive, app, test_auth, mock_mongo):
-    """Test that trying to upload a archive with symlinks return 413
-    and skips them while extracting.
+    """Test that trying to upload a archive with symlinks returns error
+    and doesn't create any files.
     """
     test_client = app.test_client()
     upload_path = app.config.get("UPLOAD_PATH")
@@ -340,20 +345,19 @@ def test_upload_invalid_archive(archive, app, test_auth, mock_mongo):
     response = _upload_file(
         test_client, "/v1/files/archive?extract=true", test_auth, archive
     )
-    while response.status_code == 202:
+    if _request_accepted(response):
         response, _ = _wait_response(test_client, response, test_auth)
 
     data = json.loads(response.data)
     assert response.status_code == 200
-
     assert data["message"] == "File 'test/link' has unsupported type: SYM"
 
     fpath = os.path.join(upload_path, "test_project")
     text_file = os.path.join(fpath, "test", "test.txt")
     archive_file = os.path.join(fpath, os.path.split(archive)[1])
 
-    # test.txt is extracted
-    assert os.path.isfile(text_file)
+    # test.txt is not extracted
+    assert not os.path.isfile(text_file)
 
     # archive file is removed
     assert not os.path.isfile(archive_file)
@@ -552,7 +556,7 @@ def test_delete_files(app, test_auth, requests_mock, mock_mongo):
         "/v1/files/test",
         headers=test_auth
     )
-    if response.status_code == 202:
+    if _request_accepted(response):
         response, _ = _wait_response(test_client, response, test_auth)
 
     assert response.status_code == 200
@@ -567,7 +571,7 @@ def test_delete_files(app, test_auth, requests_mock, mock_mongo):
         "/v1/files",
         headers=test_auth
     )
-    if response.status_code == 202:
+    if _request_accepted(response):
         response, _ = _wait_response(test_client, response, test_auth)
 
     assert response.status_code == 200
@@ -639,7 +643,7 @@ def test_delete_metadata(app, test_auth, requests_mock, mock_mongo):
         "/v1/metadata/test",
         headers=test_auth
     )
-    if response.status_code == 202:
+    if _request_accepted(response):
         response, _ = _wait_response(test_client, response, test_auth)
 
     assert response.status_code == 200
@@ -652,7 +656,7 @@ def test_delete_metadata(app, test_auth, requests_mock, mock_mongo):
         "/v1/metadata/test.txt",
         headers=test_auth
     )
-    if response.status_code == 202:
+    if _request_accepted(response):
         response, _ = _wait_response(test_client, response, test_auth)
 
     assert response.status_code == 200
@@ -720,7 +724,7 @@ def test_delete_metadata_dataset_accepted(app, test_auth, requests_mock,
         "/v1/metadata/test",
         headers=test_auth
     )
-    if response.status_code == 202:
+    if _request_accepted(response):
         response, _ = _wait_response(test_client, response, test_auth)
 
     assert json.loads(response.data)["file_path"] == "/test"
@@ -732,7 +736,7 @@ def test_delete_metadata_dataset_accepted(app, test_auth, requests_mock,
         "/v1/metadata/test.txt",
         headers=test_auth
     )
-    if response.status_code == 202:
+    if _request_accepted(response):
         response, _ = _wait_response(test_client, response, test_auth)
 
     response = json.loads(response.data)
@@ -755,7 +759,7 @@ def test_post_metadata(app, test_auth, requests_mock):
                        json={"foo": "bar"})
 
     response = test_client.post("/v1/metadata/*", headers=test_auth)
-    if response.status_code == 202:
+    if _request_accepted(response):
         response, _ = _wait_response(test_client, response, test_auth)
 
     assert response.status_code == 200
@@ -790,7 +794,7 @@ def test_post_metadata_failure(app, test_auth, requests_mock):
                        json=response_json)
 
     response = test_client.post("/v1/metadata/foo", headers=test_auth)
-    if response.status_code == 202:
+    if _request_accepted(response):
         response, _ = _wait_response(test_client, response, test_auth)
 
     assert response.status_code == 200
