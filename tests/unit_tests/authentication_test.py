@@ -1,7 +1,6 @@
 """Unit tests for module authentication"""
 from __future__ import unicode_literals
 
-from runpy import run_path
 import pytest
 
 import upload_rest_api.authentication as auth
@@ -16,7 +15,7 @@ import upload_rest_api.database as db
         ('false_user', 'test_password', False)
     ]
 )
-def test_auth_user(user, password, result, monkeypatch):
+def test_auth_user(user, password, result):
     """Test _auth_user() function with different username-password combinations.
 
     :param user: username of user

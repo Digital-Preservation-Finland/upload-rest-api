@@ -13,7 +13,7 @@ def test_no_expired_files(app, monkeypatch):
     """Test that files that are not too old are not removed nor
     are the access times changed by the cleanup itself.
     """
-    def _parse_conf(fpath):
+    def _parse_conf(_fpath):
         """Parse conf from include/etc/upload_rest_api.conf if fpath
         doesn't exist.
         """
@@ -53,7 +53,7 @@ def test_no_expired_files(app, monkeypatch):
 def test_expired_files(app, mock_mongo, monkeypatch):
     """Test that all the expired files and empty directories are removed.
     """
-    def _parse_conf(fpath):
+    def _parse_conf(_fpath):
         """Parse conf from include/etc/upload_rest_api.conf if fpath
         doesn't exist.
         """
@@ -101,7 +101,7 @@ def test_expired_files(app, mock_mongo, monkeypatch):
 
 
 def test_expired_tasks(app, mock_mongo, monkeypatch):
-    """Test that all the expired task are removed
+    """Test that all the expired tasks are removed
     """
     def _parse_conf(_fpath):
         """Parse conf from include/etc/upload_rest_api.conf if fpath
@@ -115,7 +115,7 @@ def test_expired_tasks(app, mock_mongo, monkeypatch):
 
     monkeypatch.setattr(clean, "parse_conf", _parse_conf)
 
-    # Add checksums to mongo
+    # Add tasks to mongo
     tasks = mock_mongo.upload.tasks
     tasks.insert_one({"project": "project",
                       "status": 'pending'})

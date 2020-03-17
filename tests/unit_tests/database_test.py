@@ -12,7 +12,7 @@ def test_dir_size():
     exist should return size 0.
     """
     # Existing dir
-    assert db.get_dir_size("tests/data") == 2502
+    assert db.get_dir_size("tests/data/get_dir_size") == 8
 
     # Non-existent dir
     assert db.get_dir_size("tests/data/test") == 0

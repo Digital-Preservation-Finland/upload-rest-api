@@ -47,9 +47,16 @@ def _upload_file(client, url, auth, fpath):
     return response
 
 
-def _request_accepted(response):
-    """Returns True if request was accepted"""
-    return response.status_code == 202
+def _wait_response(test_client, test_auth, response):
+    if response.status_code == 202:
+        status = "pending"
+        location = response.headers.get('Location').encode()
+        while status == "pending":
+            time.sleep(2)
+            response = test_client.get(location, headers=test_auth)
+            data = json.loads(response.data)
+            status = data['status']
+    return response
 
 
 @pytest.fixture(autouse=True)
@@ -96,14 +103,7 @@ def test_gen_metadata_root(app, dataset, test_auth, monkeypatch):
 
     # Generate and POST metadata for all the files in test_project
     response = test_client.post("/v1/metadata/*", headers=test_auth)
-    if _request_accepted(response):
-        status = "pending"
-        location = response.headers.get('Location').encode()
-        while status == "pending":
-            time.sleep(2)
-            response = test_client.get(location, headers=test_auth)
-            data = json.loads(response.data)
-            status = data['status']
+    response = _wait_response(test_client, test_auth, response)
 
     assert response.status_code == 200
     data = json.loads(response.data)
@@ -169,14 +169,7 @@ def test_gen_metadata_file(app, dataset, test_auth, monkeypatch):
         "/v1/metadata/integration/test1/test1.txt",
         headers=test_auth
     )
-    if _request_accepted(response):
-        status = "pending"
-        location = response.headers.get('Location').encode()
-        while status == "pending":
-            time.sleep(2)
-            response = test_client.get(location, headers=test_auth)
-            data = json.loads(response.data)
-            status = data['status']
+    response = _wait_response(test_client, test_auth, response)
 
     assert response.status_code == 200
     data = json.loads(response.data)
@@ -188,14 +181,8 @@ def test_gen_metadata_file(app, dataset, test_auth, monkeypatch):
 
     # DELETE whole project
     response = test_client.delete("/v1/files", headers=test_auth)
-    if _request_accepted(response):
-        status = "pending"
-        location = response.headers.get('Location').encode()
-        while status == "pending":
-            time.sleep(2)
-            response = test_client.get(location, headers=test_auth)
-            data = json.loads(response.data)
-            status = data['status']
+    response = _wait_response(test_client, test_auth, response)
+
     assert response.status_code == 200
 
     data = json.loads(response.data)
@@ -242,14 +229,7 @@ def test_delete_metadata(app, accepted_dataset, test_auth):
         "/v1/metadata/integration/test1/test1.txt",
         headers=test_auth
     )
-    if _request_accepted(response):
-        status = "pending"
-        location = response.headers.get('Location').encode()
-        while status == "pending":
-            time.sleep(2)
-            response = test_client.get(location, headers=test_auth)
-            data = json.loads(response.data)
-            status = data['status']
+    response = _wait_response(test_client, test_auth, response)
 
     assert response.status_code == 200
     data = json.loads(response.data)
@@ -270,14 +250,8 @@ def test_delete_metadata(app, accepted_dataset, test_auth):
         "/v1/metadata/integration/test1/test1.txt",
         headers=test_auth
     )
-    if _request_accepted(response):
-        status = "pending"
-        location = response.headers.get('Location').encode()
-        while status == "pending":
-            time.sleep(2)
-            response = test_client.get(location, headers=test_auth)
-            data = json.loads(response.data)
-            status = data['status']
+    response = _wait_response(test_client, test_auth, response)
+
     assert response.status_code == 200
 
     data = json.loads(response.data)
@@ -298,14 +272,7 @@ def test_delete_metadata(app, accepted_dataset, test_auth):
 
     # DELETE whole project
     response = test_client.delete("/v1/files", headers=test_auth)
-    if _request_accepted(response):
-        status = "pending"
-        location = response.headers.get('Location').encode()
-        while status == "pending":
-            time.sleep(2)
-            response = test_client.get(location, headers=test_auth)
-            data = json.loads(response.data)
-            status = data['status']
+    response = _wait_response(test_client, test_auth, response)
 
     assert response.status_code == 200
 
@@ -423,25 +390,13 @@ def test_mongo_cleanup(app, test_auth, monkeypatch):
         test_client, "/v1/files/integration.zip?extract=true",
         test_auth, "tests/data/integration.zip"
     )
-    if _request_accepted(response):
-        status = "pending"
-        location = response.headers.get('Location').encode()
-        while status == "pending":
-            time.sleep(2)
-            response = test_client.get(location, headers=test_auth)
-            data = json.loads(response.data)
-            status = data['status']
+    response = _wait_response(test_client, test_auth, response)
+
     assert response.status_code == 200
     # Generate and POST metadata for all the files in test_project
     response = test_client.post("/v1/metadata/*", headers=test_auth)
-    if _request_accepted(response):
-        status = "pending"
-        location = response.headers.get('Location').encode()
-        while status == "pending":
-            time.sleep(2)
-            response = test_client.get(location, headers=test_auth)
-            data = json.loads(response.data)
-            status = data['status']
+    response = _wait_response(test_client, test_auth, response)
+
     assert response.status_code == 200
 
     # Check that generated identifiers were added to Mongo
