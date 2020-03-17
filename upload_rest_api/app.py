@@ -37,7 +37,7 @@ def create_app():
     # Register all blueprints
     from upload_rest_api.api.v1.files import FILES_API_V1
     from upload_rest_api.api.v1.metadata import METADATA_API_V1
-    from upload_rest_api.api.v1.queue import TASK_STATUS_API_V1
+    from upload_rest_api.api.v1.tasks import TASK_STATUS_API_V1
     app.register_blueprint(FILES_API_V1)
     app.register_blueprint(METADATA_API_V1)
     app.register_blueprint(TASK_STATUS_API_V1)

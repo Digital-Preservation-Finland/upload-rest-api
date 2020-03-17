@@ -14,8 +14,8 @@ TASK_STATUS_API_V1 = Blueprint("tasks_v1", __name__,
 def _create_gone_response():
     """Creates a response telling that task has completed and status
     information is not available anymore"""
-    response = jsonify({"code": 410, "status": "Gone"})
-    response.status_code = 410
+    response = jsonify({"code": 404, "status": "Not found"})
+    response.status_code = 404
     return response
 
 

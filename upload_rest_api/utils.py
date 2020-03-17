@@ -11,8 +11,12 @@ from werkzeug.utils import secure_filename
 import upload_rest_api.database as db
 
 
-def get_upload_path(fpath, root_upload_path, username):
+def get_upload_path(fpath, root_upload_path=None, username=None):
     """Get upload path for current request"""
+    if not username:
+        username = request.authorization.username
+    if not root_upload_path:
+        root_upload_path = current_app.config.get("UPLOAD_PATH")
     user = db.UsersDoc(username)
     project = user.get_project()
 
@@ -49,10 +53,14 @@ def get_tmp_upload_path():
     return fpath, fname
 
 
-def get_return_path(fpath, root_upload_path, username):
+def get_return_path(fpath, root_upload_path=None, username=None):
     """Splice upload_path and project from fpath and return the path
     shown to the user and POSTed to Metax.
     """
+    if not username:
+        username = request.authorization.username
+    if not root_upload_path:
+        root_upload_path = current_app.config.get("UPLOAD_PATH")
     user = db.UsersDoc(username)
     project = user.get_project()
     base_path = safe_join(root_upload_path, project)

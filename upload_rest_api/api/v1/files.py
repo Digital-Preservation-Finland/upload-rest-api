@@ -10,6 +10,7 @@ import json
 from flask import (Blueprint, safe_join, request, jsonify,
                    current_app)
 from werkzeug.utils import secure_filename
+from requests.exceptions import HTTPError
 
 from metax_access import MetaxError
 
@@ -21,18 +22,17 @@ import upload_rest_api.upload as up
 import upload_rest_api.database as db
 import upload_rest_api.gen_metadata as md
 import upload_rest_api.utils as utils
-from upload_rest_api.api.v1.queue import TASK_STATUS_API_V1
-from requests.exceptions import HTTPError
+from upload_rest_api.api.v1.tasks import TASK_STATUS_API_V1
 
 FILES_API_V1 = Blueprint("files_v1", __name__, url_prefix="/v1/files")
 SUPPORTED_TYPES = ("application/octet-stream",)
 
 
-def _get_dir_tree(fpath, root_upload_path, username):
+def _get_dir_tree(fpath):
     """Returns with dir tree from fpath as a dict"""
     file_dict = {}
     for dirpath, _, files in os.walk(fpath):
-        path = utils.get_return_path(dirpath, root_upload_path, username)
+        path = utils.get_return_path(dirpath)
         file_dict[path] = files
 
     if "." in file_dict:
@@ -120,7 +120,7 @@ def upload_file(fpath=None):
     if extract:
         fpath, fname = utils.get_tmp_upload_path()
     else:
-        fpath, fname = utils.get_upload_path(fpath, root_upload_path, username)
+        fpath, fname = utils.get_upload_path(fpath)
 
     # Create directory if it does not exist
     if not os.path.exists(fpath):
@@ -152,7 +152,7 @@ def get_path(fpath):
     """
     username = request.authorization.username
     root_upload_path = current_app.config.get("UPLOAD_PATH")
-    fpath, fname = utils.get_upload_path(fpath, root_upload_path, username)
+    fpath, fname = utils.get_upload_path(fpath)
     fpath = safe_join(fpath, fname)
 
     if os.path.isfile(fpath):
@@ -165,7 +165,7 @@ def get_path(fpath):
         })
 
     elif os.path.isdir(fpath):
-        dir_tree = _get_dir_tree(fpath, root_upload_path, username)
+        dir_tree = _get_dir_tree(fpath)
         response = jsonify(dict(file_path=dir_tree))
 
     else:
@@ -185,7 +185,7 @@ def delete_path(fpath):
     root_upload_path = current_app.config.get("UPLOAD_PATH")
     username = request.authorization.username
     project = db.UsersDoc(username).get_project()
-    fpath, fname = utils.get_upload_path(fpath, root_upload_path, username)
+    fpath, fname = utils.get_upload_path(fpath)
     fpath = safe_join(fpath, fname)
 
     if os.path.isfile(fpath):
@@ -244,7 +244,7 @@ def get_files():
     if not os.path.exists(fpath):
         return utils.make_response(404, "No files found")
 
-    response = jsonify(_get_dir_tree(fpath, root_upload_path, username))
+    response = jsonify(_get_dir_tree(fpath))
     response.status_code = 200
     return response
 

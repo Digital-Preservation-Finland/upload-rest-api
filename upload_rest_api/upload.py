@@ -17,7 +17,7 @@ from archive_helpers.extract import (
 import upload_rest_api.database as db
 import upload_rest_api.gen_metadata as gen_metadata
 import upload_rest_api.utils as utils
-from upload_rest_api.api.v1.queue import TASK_STATUS_API_V1
+from upload_rest_api.api.v1.tasks import TASK_STATUS_API_V1
 
 
 def request_exceeds_quota():
@@ -212,7 +212,7 @@ def save_file(fpath, extract_archives=False):
         md5 = gen_metadata.md5_digest(fpath)
         db.ChecksumsCol().insert_one(os.path.abspath(fpath), md5)
         status_code = 200
-        file_path = utils.get_return_path(fpath, root_upload_path, username)
+        file_path = utils.get_return_path(fpath)
         response = jsonify({
             "file_path": file_path,
             "md5": md5,

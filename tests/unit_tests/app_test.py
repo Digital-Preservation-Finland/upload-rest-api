@@ -253,7 +253,9 @@ def test_upload_archive_concurrent(app, test_auth, mock_mongo):
         assert data["message"] == "archive uploaded and extracted"
 
         response_1 = test_client.delete(location, headers=test_auth)
-        assert response_1.status_code == 410
+        assert response_1.status_code == 404
+        data = json.loads(response_1.data)
+        assert data["status"] == "Not found"
 
     # poll with response's location
     if _request_accepted(response_2):
@@ -265,7 +267,9 @@ def test_upload_archive_concurrent(app, test_auth, mock_mongo):
         assert data["message"] == "archive uploaded and extracted"
 
         response_2 = test_client.delete(location, headers=test_auth)
-        assert response_2.status_code == 410
+        assert response_2.status_code == 404
+        data = json.loads(response_2.data)
+        assert data["status"] == "Not found"
 
     fpath = os.path.join(upload_path, "test_project")
 

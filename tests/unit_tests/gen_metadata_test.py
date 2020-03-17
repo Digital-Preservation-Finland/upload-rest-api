@@ -1,12 +1,10 @@
 """Unit tests for metadata generation"""
 from __future__ import unicode_literals
 
-from runpy import run_path
 import pytest
 
 import upload_rest_api.gen_metadata as md
 import upload_rest_api.database as db
-from _pytest.monkeypatch import monkeypatch
 
 
 @pytest.mark.parametrize(
