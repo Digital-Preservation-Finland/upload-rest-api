@@ -323,13 +323,17 @@ def test_disk_cleanup(app, dataset, test_auth, monkeypatch):
     test_client = app.test_client()
 
     # Upload integration.zip, which is extracted by the server
-    _upload_file(
+    response = _upload_file(
         test_client, "/v1/files/integration.zip?extract=true",
         test_auth, "tests/data/integration.zip"
     )
+    response = _wait_response(test_client, test_auth, response)
+    assert response.status_code == 200
 
     # Generate and POST metadata for all the files in test_project
-    test_client.post("/v1/metadata/*", headers=test_auth)
+    response = test_client.post("/v1/metadata/*", headers=test_auth)
+    response = _wait_response(test_client, test_auth, response)
+    assert response.status_code == 200
 
     # Cleanup all files
     clean.clean_disk()

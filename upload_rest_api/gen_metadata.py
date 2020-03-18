@@ -81,7 +81,7 @@ def _generate_metadata(fpath, root_upload_path, project, storage_id,
         "file_modified": timestamp,
         "file_frozen": timestamp,
         "checksum": {
-            "algorithm": "md5",
+            "algorithm": "MD5",
             "value": checksums.get_checksum(os.path.abspath(fpath)),
             "checked": _timestamp_now()
         },

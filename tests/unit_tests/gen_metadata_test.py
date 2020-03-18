@@ -60,7 +60,7 @@ def test_gen_metadata(monkeypatch):
     assert "file_frozen" in metadata
 
     checksum = metadata["checksum"]
-    assert checksum["algorithm"] == "md5"
+    assert checksum["algorithm"] == "MD5"
     assert checksum["value"] == "150b62e4e7d58c70503bd5fc8a26463c"
     assert "checked" in checksum
 
