@@ -80,10 +80,14 @@ def app(mock_mongo, monkeypatch):
     flask_app = app_module.create_app()
     init_db(mock_mongo)
     temp_path = tempfile.mkdtemp(prefix="tests.testpath.")
+    projects_path = os.path.join(temp_path, "projects")
+    temp_upload_path = os.path.join(temp_path, "tmp")
+    os.makedirs(projects_path)
+    os.makedirs(temp_upload_path)
 
     flask_app.config["TESTING"] = True
-    flask_app.config["UPLOAD_PATH"] = temp_path
-    flask_app.config["UPLOAD_TMP_PATH"] = os.path.join(temp_path, "tmp")
+    flask_app.config["UPLOAD_PATH"] = projects_path
+    flask_app.config["UPLOAD_TMP_PATH"] = temp_upload_path
     flask_app.config["EXTRACT_EXECUTOR"] = ThreadPoolExecutor(max_workers=2)
 
     yield flask_app

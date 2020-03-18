@@ -45,9 +45,7 @@ def get_tmp_upload_path():
     """Get temporary unique upload path for tar and zip files"""
 
     tmp_upload_path = os.path.join(current_app.config.get("UPLOAD_TMP_PATH"))
-    if not os.path.exists(tmp_upload_path):
-        os.makedirs(tmp_upload_path)
-    fpath = safe_join(tmp_upload_path, str(uuid.uuid1()))
+    fpath = safe_join(tmp_upload_path, str(uuid.uuid4()))
     fpath, fname = os.path.split(fpath)
 
     return fpath, fname

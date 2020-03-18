@@ -445,10 +445,10 @@ class AsyncTaskCol(object):
         :param ids: List of identifiers to be removed
         :returns: Number of documents deleted
         """
-        objIds = []
+        obj_ids = []
         for identifier in ids:
-            objIds.append(ObjectId(identifier))
-        return self.tasks.delete_many({"_id": {"$in": objIds}}).deleted_count
+            obj_ids.append(ObjectId(identifier))
+        return self.tasks.delete_many({"_id": {"$in": obj_ids}}).deleted_count
 
     def find(self, project, status):
         """Returns number of tasks for user having certain status for project.

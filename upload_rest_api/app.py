@@ -2,11 +2,10 @@
 """
 from __future__ import unicode_literals
 
-import os
 import logging
+from concurrent.futures import ThreadPoolExecutor
 
 from flask import Flask
-from concurrent.futures import ThreadPoolExecutor
 
 import upload_rest_api.authentication as auth
 
