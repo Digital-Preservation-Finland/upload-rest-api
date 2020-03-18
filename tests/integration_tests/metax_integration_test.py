@@ -52,7 +52,7 @@ def _wait_response(test_client, test_auth, response):
         status = "pending"
         location = response.headers.get('Location').encode()
         while status == "pending":
-            time.sleep(2)
+            time.sleep(0.5)
             response = test_client.get(location, headers=test_auth)
             data = json.loads(response.data)
             status = data['status']
