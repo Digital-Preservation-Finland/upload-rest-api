@@ -131,4 +131,3 @@ def test_expired_tasks(app, mock_mongo, monkeypatch):
     clean.clean_mongo()
 
     assert tasks.count() == 0
- 
