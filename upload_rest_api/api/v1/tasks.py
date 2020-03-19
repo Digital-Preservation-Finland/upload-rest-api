@@ -23,7 +23,7 @@ def _create_gone_response():
 def task_status(task_id):
     """Endpoint for querying the upload task status. When task is not in
     pending state it will be removed automatically in GET. Further queries
-    will return 410.
+    will return 404.
     """
     task = db.AsyncTaskCol().get(task_id)
     if task is None:

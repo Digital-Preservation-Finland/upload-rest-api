@@ -88,7 +88,7 @@ def delete_task(metax_client, fpath, root_upload_path, username, task_id=None):
 @FILES_API_V1.route("", methods=["POST"], strict_slashes=False)
 @FILES_API_V1.route("/<path:fpath>", methods=["POST"])
 def upload_file(fpath=None):
-    """ Save the uploaded file at <UPLOAD_PATH>/projects/project/fpath
+    """ Save the uploaded file at <UPLOAD_PATH>/project/fpath
 
     :returns: HTTP Response
     """
