@@ -108,7 +108,7 @@ def test_expired_tasks(app, mock_mongo, monkeypatch):
         doesn't exist.
         """
         conf = run_path("include/etc/upload_rest_api.conf")
-        conf["CLEANUP_TIMELIM"] = 5
+        conf["CLEANUP_TIMELIM"] = 1
         conf["UPLOAD_PATH"] = app.config.get("UPLOAD_PATH")
 
         return conf
