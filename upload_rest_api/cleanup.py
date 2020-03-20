@@ -9,8 +9,6 @@ import errno
 import os
 import time
 from runpy import run_path
-from datetime import datetime
-from datetime import timedelta
 
 import upload_rest_api.database as db
 import upload_rest_api.gen_metadata as md
@@ -52,10 +50,9 @@ def _clean_old_tasks(time_lim):
 
     :param time_lim: : expiration time in seconds
     """
-    now = datetime.now().replace(tzinfo=None)
+    current_time = time.time()
     for task in db.AsyncTaskCol().get_all_tasks():
-        gen_time = task["_id"].generation_time.replace(tzinfo=None)
-        if gen_time + timedelta(seconds=time_lim) < now:
+        if current_time - task["timestamp"] > time_lim:
             db.AsyncTaskCol().delete_one(task["_id"])
 
 

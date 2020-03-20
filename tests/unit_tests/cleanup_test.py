@@ -107,7 +107,7 @@ def test_expired_tasks(app, mock_mongo, monkeypatch):
         doesn't exist.
         """
         conf = run_path("include/etc/upload_rest_api.conf")
-        conf["CLEANUP_TIMELIM"] = 2
+        conf["CLEANUP_TIMELIM"] = 1
         conf["UPLOAD_PATH"] = app.config.get("UPLOAD_PATH")
 
         return conf
@@ -117,13 +117,17 @@ def test_expired_tasks(app, mock_mongo, monkeypatch):
     # Add tasks to mongo
     tasks = mock_mongo.upload.tasks
     tasks.insert_one({"project": "project_1",
+                      "timestamp": time.time(),
                       "status": 'pending'})
     tasks.insert_one({"project": "project_2",
+                      "timestamp": time.time(),
                       "status": 'pending'})
-    time.sleep(4)
+    time.sleep(2)
     tasks.insert_one({"project": "project_3",
+                      "timestamp": time.time(),
                       "status": 'pending'})
     tasks.insert_one({"project": "project_4",
+                      "timestamp": time.time(),
                       "status": 'pending'})
     assert tasks.count() == 4
 

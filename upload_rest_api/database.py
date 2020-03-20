@@ -7,6 +7,7 @@ import binascii
 import hashlib
 import os
 import random
+import time
 from runpy import run_path
 from string import ascii_letters, digits
 
@@ -427,6 +428,7 @@ class AsyncTaskCol(object):
         :returns: str: task id as string
         """
         return self.tasks.insert_one({"project": project,
+                                      "timestamp": time.time(),
                                       "status": 'pending'}).inserted_id
 
     def delete_one(self, identifier):
