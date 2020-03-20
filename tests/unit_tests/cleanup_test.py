@@ -101,14 +101,13 @@ def test_expired_files(app, mock_mongo, monkeypatch):
 
 
 def test_expired_tasks(app, mock_mongo, monkeypatch):
-    """Test that all the expired tasks are removed
-    """
+    """Test that only expired tasks are removed """
     def _parse_conf(_fpath):
         """Parse conf from include/etc/upload_rest_api.conf if fpath
         doesn't exist.
         """
         conf = run_path("include/etc/upload_rest_api.conf")
-        conf["CLEANUP_TIMELIM"] = 1
+        conf["CLEANUP_TIMELIM"] = 2
         conf["UPLOAD_PATH"] = app.config.get("UPLOAD_PATH")
 
         return conf
@@ -117,17 +116,28 @@ def test_expired_tasks(app, mock_mongo, monkeypatch):
 
     # Add tasks to mongo
     tasks = mock_mongo.upload.tasks
-    tasks.insert_one({"project": "project",
+    tasks.insert_one({"project": "project_1",
                       "status": 'pending'})
-    tasks.insert_one({"project": "project",
+    tasks.insert_one({"project": "project_2",
                       "status": 'pending'})
-    tasks.insert_one({"project": "project",
+    time.sleep(4)
+    tasks.insert_one({"project": "project_3",
                       "status": 'pending'})
-    tasks.insert_one({"project": "project",
+    tasks.insert_one({"project": "project_4",
                       "status": 'pending'})
     assert tasks.count() == 4
-    time.sleep(2)
+
     # Clean all tasks older than 1s
     clean.clean_mongo()
-
+    # Verify that latest two task left
+    tasks_left = tasks.find()
+    projects = []
+    for task in tasks_left:
+        projects.append(task['project'])
+    projects.sort()
+    assert len(projects) == 2
+    assert projects[0] == "project_3"
+    assert projects[1] == "project_4"
+    time.sleep(2)
+    clean.clean_mongo()
     assert tasks.count() == 0
