@@ -47,13 +47,13 @@ def _upload_file(client, url, auth, fpath):
 
 def _wait_response(test_client, response, test_auth):
     status = "pending"
-    location = response.headers.get('Location').encode()
+    polling_url = json.loads(response.data)["polling_url"]
     while status == "pending":
         time.sleep(0.1)
-        response = test_client.get(location, headers=test_auth)
+        response = test_client.get(polling_url, headers=test_auth)
         data = json.loads(response.data)
         status = data['status']
-    return response, location
+    return response, polling_url
 
 
 def _request_accepted(response):
@@ -245,28 +245,28 @@ def test_upload_archive_concurrent(app, test_auth, mock_mongo):
     )
     # poll with response's polling_url
     if _request_accepted(response_1):
-        response_1, location = _wait_response(test_client, response_1,
-                                              test_auth)
+        response_1, polling_url = _wait_response(test_client, response_1,
+                                                 test_auth)
         data = json.loads(response_1.data)
         assert response_1.status_code == 200
         assert data["status"] == "done"
         assert data["message"] == "archive uploaded and extracted"
 
-        response_1 = test_client.delete(location, headers=test_auth)
+        response_1 = test_client.delete(polling_url, headers=test_auth)
         assert response_1.status_code == 404
         data = json.loads(response_1.data)
         assert data["status"] == "Not found"
 
-    # poll with response's location
+    # poll with response's polling_url
     if _request_accepted(response_2):
-        response_2, location = _wait_response(test_client, response_2,
-                                              test_auth)
+        response_2, polling_url = _wait_response(test_client, response_2,
+                                                 test_auth)
         data = json.loads(response_2.data)
         assert response_2.status_code == 200
         assert data["status"] == "done"
         assert data["message"] == "archive uploaded and extracted"
 
-        response_2 = test_client.delete(location, headers=test_auth)
+        response_2 = test_client.delete(polling_url, headers=test_auth)
         assert response_2.status_code == 404
         data = json.loads(response_2.data)
         assert data["status"] == "Not found"
