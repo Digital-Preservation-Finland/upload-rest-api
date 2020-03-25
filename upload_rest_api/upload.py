@@ -139,8 +139,9 @@ def extract_task(fpath, dir_path, task_id=None):
 
     :returns: The mongo identifier of the task
      """
+    _, fname = os.path.split(fpath)
     db.AsyncTaskCol().update_message(
-        task_id, "Uploading archive: %s" % fpath
+        task_id, "Extracting archive: %s" % fname
     )
     md5 = gen_metadata.md5_digest(fpath)
     try:
@@ -201,7 +202,7 @@ def save_file(fpath, extract_archives=False):
         project = db.UsersDoc(username).get_project()
         response = jsonify({
             "file_path": "/" + secure_filename(project),
-            "message": "Uploading files",
+            "message": "Uploading archive",
             "polling_url": polling_url,
             "status": "pending"
         })
