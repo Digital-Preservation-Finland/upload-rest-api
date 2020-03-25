@@ -205,7 +205,7 @@ def save_file(fpath, extract_archives=False):
             "polling_url": polling_url,
             "status": "pending"
         })
-        response.headers['Location'] = polling_url
+        response.headers[b'Location'] = polling_url
         status_code = 202
     else:
         # Add file checksum to mongo
