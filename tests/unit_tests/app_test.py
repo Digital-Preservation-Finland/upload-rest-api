@@ -250,7 +250,7 @@ def test_upload_archive_concurrent(app, test_auth, mock_mongo):
         data = json.loads(response_1.data)
         assert response_1.status_code == 200
         assert data["status"] == "done"
-        assert data["message"] == "archive uploaded and extracted"
+        assert data["message"] == "Archive uploaded and extracted"
 
         response_1 = test_client.delete(polling_url, headers=test_auth)
         assert response_1.status_code == 404
@@ -264,7 +264,7 @@ def test_upload_archive_concurrent(app, test_auth, mock_mongo):
         data = json.loads(response_2.data)
         assert response_2.status_code == 200
         assert data["status"] == "done"
-        assert data["message"] == "archive uploaded and extracted"
+        assert data["message"] == "Archive uploaded and extracted"
 
         response_2 = test_client.delete(polling_url, headers=test_auth)
         assert response_2.status_code == 404

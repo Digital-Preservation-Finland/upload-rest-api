@@ -7,7 +7,6 @@ import zipfile
 import json
 
 from flask import jsonify, request, current_app
-from werkzeug.utils import secure_filename
 
 from archive_helpers.extract import extract
 from archive_helpers.extract import (
@@ -162,7 +161,7 @@ def extract_task(fpath, fname, dir_path, task_id=None):
         _process_extracted_files(dir_path)
 
         db.AsyncTaskCol().update_status(task_id, "done")
-        msg = {"message": "archive uploaded and extracted",
+        msg = {"message": "Archive uploaded and extracted",
                "md5": md5}
         db.AsyncTaskCol().update_message(task_id, json.dumps(msg))
     return task_id
@@ -180,7 +179,6 @@ def save_file(fpath, fname, extract_archives=False):
     :returns: HTTP Response
     """
     username = request.authorization.username
-    root_upload_path = current_app.config.get("UPLOAD_PATH")
 
     # Write the file if it does not exist already
     if not os.path.exists(fpath):

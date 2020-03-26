@@ -118,18 +118,18 @@ def upload_file(fpath):
     extract = request.args.get("extract", default="false")
     extract = True if extract == "true" else False
     if extract:
-        fpath, fname = utils.get_tmp_upload_path()
+        file_path, file_name = utils.get_tmp_upload_path()
     else:
-        fpath, fname = utils.get_upload_path(fpath)
+        file_path, file_name = utils.get_upload_path(fpath)
 
     # Create directory if it does not exist
-    if not os.path.exists(fpath):
-        os.makedirs(fpath)
+    if not os.path.exists(file_path):
+        os.makedirs(file_path)
 
-    fpath = safe_join(fpath, fname)
+    file_path = safe_join(file_path, file_name)
 
     try:
-        response = up.save_file(fpath, fname, extract_archives=extract)
+        response = up.save_file(file_path, fpath, extract_archives=extract)
     except (MemberOverwriteError, up.OverwriteError) as error:
         return utils.make_response(409, str(error))
     except MemberTypeError as error:
