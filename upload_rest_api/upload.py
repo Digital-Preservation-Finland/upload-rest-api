@@ -128,18 +128,18 @@ class UploadPendingError(Exception):
 
 
 @utils.run_background
-def extract_task(fpath, dir_path, task_id=None):
+def extract_task(fpath, fname, dir_path, task_id=None):
     """This function calculates the checksum of the archive and extracts the
     files into ``dir_path`` directory. Finally updates the status of the task
     into database.
 
     :param str fpath: file path of the archive
+    :param fname: file name
     :param str dir_path: directory to where the archive will be extracted
     :param str task_id: mongo dentifier of the task
 
     :returns: The mongo identifier of the task
      """
-    _, fname = os.path.split(fpath)
     db.AsyncTaskCol().update_message(
         task_id, "Extracting archive: %s" % fname
     )
@@ -168,12 +168,13 @@ def extract_task(fpath, dir_path, task_id=None):
     return task_id
 
 
-def save_file(fpath, extract_archives=False):
+def save_file(fpath, fname, extract_archives=False):
     """Save the posted file on disk at fpath by reading
     the upload stream in 1MB chunks. Extract zip files
     and check that no symlinks are created.
 
     :param fpath: Path where to save the file
+    :param fname: file name
     :param extract_archives: Defines wheter or not tar and zip archives are
                              extracted
     :returns: HTTP Response
@@ -197,11 +198,10 @@ def save_file(fpath, extract_archives=False):
             # Remove the archive and raise an exception
             os.remove(fpath)
             raise QuotaError("Quota exceeded")
-        task_id = extract_task(fpath, dir_path)
+        task_id = extract_task(fpath, fname, dir_path)
         polling_url = utils.get_polling_url(TASK_STATUS_API_V1.name, task_id)
-        project = db.UsersDoc(username).get_project()
         response = jsonify({
-            "file_path": "/" + secure_filename(project),
+            "file_path": "/",
             "message": "Uploading archive",
             "polling_url": polling_url,
             "status": "pending"

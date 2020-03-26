@@ -56,9 +56,10 @@ def delete_task(metax_client, fpath, root_upload_path, username, task_id=None):
      """
 
     # Remove metadata from Metax
+    ret_path = utils.get_return_path(fpath, root_upload_path, username)
     db.AsyncTaskCol().update_message(
         task_id,
-        "Deleting files and metadata: %s" % fpath[len(root_upload_path):]
+        "Deleting files and metadata: %s" % ret_path
     )
     project = db.UsersDoc(username).get_project()
     try:
@@ -77,17 +78,16 @@ def delete_task(metax_client, fpath, root_upload_path, username, task_id=None):
         db.update_used_quota(username, root_upload_path)
         db.AsyncTaskCol().update_status(task_id, "done")
         response = {
-            "file_path": fpath[len(root_upload_path):],
-            "status": "deleted",
+            "file_path": ret_path,
+            "status": "done",
             "metax": metax_response
         }
         db.AsyncTaskCol().update_message(task_id, json.dumps(response))
     return task_id
 
 
-@FILES_API_V1.route("", methods=["POST"], strict_slashes=False)
 @FILES_API_V1.route("/<path:fpath>", methods=["POST"])
-def upload_file(fpath=None):
+def upload_file(fpath):
     """ Save the uploaded file at <UPLOAD_PATH>/project/fpath
 
     :returns: HTTP Response
@@ -129,7 +129,7 @@ def upload_file(fpath=None):
     fpath = safe_join(fpath, fname)
 
     try:
-        response = up.save_file(fpath, extract_archives=extract)
+        response = up.save_file(fpath, fname, extract_archives=extract)
     except (MemberOverwriteError, up.OverwriteError) as error:
         return utils.make_response(409, str(error))
     except MemberTypeError as error:
@@ -267,7 +267,7 @@ def delete_files():
 
     polling_url = utils.get_polling_url(TASK_STATUS_API_V1.name, task_id)
     response = jsonify({
-        "file_path": fpath[len(root_upload_path):],
+        "file_path": "/",
         "message": "Deleting files and metadata",
         "polling_url": polling_url,
         "status": "pending"

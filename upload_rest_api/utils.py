@@ -62,8 +62,9 @@ def get_return_path(fpath, root_upload_path=None, username=None):
     user = db.UsersDoc(username)
     project = user.get_project()
     base_path = safe_join(root_upload_path, project)
+    ret_path = os.path.normpath(fpath[len(base_path):])
 
-    return os.path.normpath(fpath[len(base_path):])
+    return ret_path if ret_path != "." else "/"
 
 
 def make_response(status_code, message):
