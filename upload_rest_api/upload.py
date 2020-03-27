@@ -127,7 +127,7 @@ class UploadPendingError(Exception):
 
 
 @utils.run_background
-def extract_task(fpath, fname, dir_path, task_id=None):
+def extract_task(fpath, dir_path, task_id=None):
     """This function calculates the checksum of the archive and extracts the
     files into ``dir_path`` directory. Finally updates the status of the task
     into database.
@@ -140,7 +140,7 @@ def extract_task(fpath, fname, dir_path, task_id=None):
     :returns: The mongo identifier of the task
      """
     db.AsyncTaskCol().update_message(
-        task_id, "Extracting archive: %s" % fname
+        task_id, "Extracting archive"
     )
     md5 = gen_metadata.md5_digest(fpath)
     try:
@@ -198,7 +198,7 @@ def save_file(fpath):
     return response
 
 
-def save_archive(fpath, fname):
+def save_archive(fpath):
     """Uploads the archive on disk at fpath by reading
     the upload stream in 1MB chunks. Extracts the archive file
     and checks that no symlinks are created.
@@ -219,7 +219,7 @@ def save_archive(fpath, fname):
             # Remove the archive and raise an exception
             os.remove(fpath)
             raise QuotaError("Quota exceeded")
-        task_id = extract_task(fpath, fname, dir_path)
+        task_id = extract_task(fpath, dir_path)
         polling_url = utils.get_polling_url(TASK_STATUS_API_V1.name, task_id)
         response = jsonify({
             "file_path": "/",

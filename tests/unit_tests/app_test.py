@@ -191,7 +191,7 @@ def test_upload_archive(archive, app, test_auth, mock_mongo):
     checksums = mock_mongo.upload.checksums
 
     response = _upload_file(
-        test_client, "/v1/archives/archive", test_auth, archive
+        test_client, "/v1/archives", test_auth, archive
     )
     if _request_accepted(response):
         response, _ = _wait_response(test_client, response, test_auth)
@@ -215,7 +215,7 @@ def test_upload_archive(archive, app, test_auth, mock_mongo):
 
     # Trying to upload same zip again should return 409 - Conflict
     response = _upload_file(
-        test_client, "/v1/archives/test.zip",
+        test_client, "/v1/archives",
         test_auth, "tests/data/test.zip"
     )
     if _request_accepted(response):
@@ -236,11 +236,11 @@ def test_upload_archive_concurrent(app, test_auth, mock_mongo):
     checksums = mock_mongo.upload.checksums
 
     response_1 = _upload_file(
-        test_client, "/v1/archives/archive1", test_auth,
+        test_client, "/v1/archives", test_auth,
         "tests/data/test.zip"
     )
     response_2 = _upload_file(
-        test_client, "/v1/archives/archive2", test_auth,
+        test_client, "/v1/archives", test_auth,
         "tests/data/test2.zip"
     )
     # poll with response's polling_url
@@ -310,7 +310,7 @@ def test_upload_invalid_archive(archive, app, test_auth, mock_mongo):
     checksums = mock_mongo.upload.checksums
 
     response = _upload_file(
-        test_client, "/v1/archives/archive", test_auth, archive
+        test_client, "/v1/archives", test_auth, archive
     )
     if _request_accepted(response):
         response, _ = _wait_response(test_client, response, test_auth)

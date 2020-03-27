@@ -149,9 +149,9 @@ def upload_file(fpath):
     return response
 
 
-@ARCHIVES_API_V1.route("/<path:fpath>", methods=["POST"])
-def upload_archive(fpath):
-    """ Extracts the archive at <UPLOAD_PATH>/project
+@ARCHIVES_API_V1.route("/", methods=["POST"], strict_slashes=False)
+def upload_archive():
+    """ Uploads and extracts the archive at <UPLOAD_PATH>/project
 
     :returns: HTTP Response
     """
@@ -170,7 +170,7 @@ def upload_archive(fpath):
 
     file_path = safe_join(file_path, file_name)
     try:
-        response = up.save_archive(file_path, fpath)
+        response = up.save_archive(file_path)
     except (MemberOverwriteError, up.OverwriteError) as error:
         return utils.make_response(409, str(error))
     except MemberTypeError as error:
