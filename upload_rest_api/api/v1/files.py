@@ -49,11 +49,10 @@ def _validate_upload():
         if validation failed.
     """
     response = None
-    username = request.authorization.username
-    root_upload_path = current_app.config.get("UPLOAD_PATH")
     # Update used_quota also at the start of the function
     # since multiple users might by using the same project
-    db.update_used_quota(username, root_upload_path)
+    db.update_used_quota(request.authorization.username,
+                         current_app.config.get("UPLOAD_PATH"))
 
     # Check that Content-Length header is provided
     if request.content_length is None:
@@ -125,9 +124,6 @@ def upload_file(fpath):
 
     :returns: HTTP Response
     """
-    username = request.authorization.username
-    root_upload_path = current_app.config.get("UPLOAD_PATH")
-
     response = _validate_upload()
     if response:
         return response
@@ -144,7 +140,8 @@ def upload_file(fpath):
     except (up.OverwriteError) as error:
         return utils.make_response(409, str(error))
 
-    db.update_used_quota(username, root_upload_path)
+    db.update_used_quota(request.authorization.username,
+                         current_app.config.get("UPLOAD_PATH"))
 
     return response
 
@@ -155,9 +152,6 @@ def upload_archive():
 
     :returns: HTTP Response
     """
-    username = request.authorization.username
-    root_upload_path = current_app.config.get("UPLOAD_PATH")
-
     response = _validate_upload()
     if response:
         return response
@@ -180,7 +174,8 @@ def upload_archive():
     except up.QuotaError as error:
         return utils.make_response(413, str(error))
 
-    db.update_used_quota(username, root_upload_path)
+    db.update_used_quota(request.authorization.username,
+                         current_app.config.get("UPLOAD_PATH"))
 
     return response
 
