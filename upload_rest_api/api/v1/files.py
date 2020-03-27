@@ -151,7 +151,7 @@ def upload_file(fpath):
 
 @ARCHIVES_API_V1.route("/<path:fpath>", methods=["POST"])
 def upload_archive(fpath):
-    """ Save the uploaded file at <UPLOAD_PATH>/project/fpath
+    """ Extracts the archive at <UPLOAD_PATH>/project
 
     :returns: HTTP Response
     """

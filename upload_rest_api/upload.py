@@ -169,13 +169,11 @@ def extract_task(fpath, fname, dir_path, task_id=None):
 
 def save_file(fpath):
     """Save the posted file on disk at fpath by reading
-    the upload stream in 1MB chunks. Extract zip files
-    and check that no symlinks are created.
+    the upload stream in 1MB chunks.
 
     :param fpath: Path where to save the file
     :returns: HTTP Response
     """
-    username = request.authorization.username
 
     # Write the file if it does not exist already
     if not os.path.exists(fpath):
@@ -200,15 +198,13 @@ def save_file(fpath):
     return response
 
 
-def save_archive(fpath, fname, extract_archives=False):
-    """Save the posted file on disk at fpath by reading
-    the upload stream in 1MB chunks. Extract zip files
-    and check that no symlinks are created.
+def save_archive(fpath, fname):
+    """Uploads the archive on disk at fpath by reading
+    the upload stream in 1MB chunks. Extracts the archive file
+    and checks that no symlinks are created.
 
     :param fpath: Path where to save the file
     :param fname: file name
-    :param extract_archives: Defines wheter or not tar and zip archives are
-                             extracted
     :returns: HTTP Response
     """
     username = request.authorization.username
@@ -233,6 +229,7 @@ def save_archive(fpath, fname, extract_archives=False):
         })
         response.headers[b'Location'] = polling_url
         status_code = 202
+
     response.status_code = status_code
 
     return response
