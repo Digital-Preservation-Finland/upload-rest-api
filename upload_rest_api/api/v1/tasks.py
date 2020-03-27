@@ -47,7 +47,7 @@ def task_status(task_id):
 @TASK_STATUS_API_V1.route("/<task_id>", methods=["DELETE"])
 def task_delete(task_id):
     """Endpoint for deleting the upload task entry from mongo DB. Further
-    queries will return 410.
+    queries will return 404.
     """
     task = db.AsyncTaskCol().get(task_id)
     if task is None:
