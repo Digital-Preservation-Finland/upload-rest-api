@@ -333,6 +333,22 @@ def test_upload_invalid_archive(archive, app, test_auth, mock_mongo):
     assert checksums.count({}) == 0
 
 
+def test_upload_file_as_archive(app, test_auth):
+    """Test that trying to upload a file as an archive returns an error.
+    """
+    test_client = app.test_client()
+
+    response = _upload_file(
+        test_client, "/v1/archives", test_auth, "tests/data/test.txt"
+    )
+    if _request_accepted(response):
+        response, _ = _wait_response(test_client, response, test_auth)
+
+    data = json.loads(response.data)
+    assert response.status_code == 400
+    assert data["error"] == "File not archive"
+
+
 def test_get_file(app, test_auth, test2_auth, test3_auth, mock_mongo):
     """Test GET for single file"""
     test_client = app.test_client()

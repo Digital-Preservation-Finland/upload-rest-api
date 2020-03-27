@@ -178,22 +178,19 @@ def save_file(fpath):
     # Write the file if it does not exist already
     if not os.path.exists(fpath):
         _save_stream(fpath)
-        status = "created"
     else:
         raise OverwriteError("File already exists")
 
     # Add file checksum to mongo
     md5 = gen_metadata.md5_digest(fpath)
     db.ChecksumsCol().insert_one(os.path.abspath(fpath), md5)
-    status_code = 200
     file_path = utils.get_return_path(fpath)
     response = jsonify({
         "file_path": file_path,
         "md5": md5,
-        "status": status
+        "status": "created"
     })
-
-    response.status_code = status_code
+    response.status_code = 200
 
     return response
 
@@ -228,8 +225,8 @@ def save_archive(fpath):
             "status": "pending"
         })
         response.headers[b'Location'] = polling_url
-        status_code = 202
-
-    response.status_code = status_code
+        response.status_code = 202
+    else:
+        response = utils.make_response(400, "File not archive")
 
     return response
