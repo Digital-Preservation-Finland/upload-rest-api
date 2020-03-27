@@ -167,7 +167,40 @@ def extract_task(fpath, fname, dir_path, task_id=None):
     return task_id
 
 
-def save_file(fpath, fname, extract_archives=False):
+def save_file(fpath):
+    """Save the posted file on disk at fpath by reading
+    the upload stream in 1MB chunks. Extract zip files
+    and check that no symlinks are created.
+
+    :param fpath: Path where to save the file
+    :returns: HTTP Response
+    """
+    username = request.authorization.username
+
+    # Write the file if it does not exist already
+    if not os.path.exists(fpath):
+        _save_stream(fpath)
+        status = "created"
+    else:
+        raise OverwriteError("File already exists")
+
+    # Add file checksum to mongo
+    md5 = gen_metadata.md5_digest(fpath)
+    db.ChecksumsCol().insert_one(os.path.abspath(fpath), md5)
+    status_code = 200
+    file_path = utils.get_return_path(fpath)
+    response = jsonify({
+        "file_path": file_path,
+        "md5": md5,
+        "status": status
+    })
+
+    response.status_code = status_code
+
+    return response
+
+
+def save_archive(fpath, fname, extract_archives=False):
     """Save the posted file on disk at fpath by reading
     the upload stream in 1MB chunks. Extract zip files
     and check that no symlinks are created.
@@ -180,16 +213,10 @@ def save_file(fpath, fname, extract_archives=False):
     """
     username = request.authorization.username
 
-    # Write the file if it does not exist already
-    if not os.path.exists(fpath):
-        _save_stream(fpath)
-        status = "created"
-    else:
-        raise OverwriteError("File already exists")
+    _save_stream(fpath)
 
     # If zip or tar file was uploaded, extract all files
-    is_archive = zipfile.is_zipfile(fpath) or tarfile.is_tarfile(fpath)
-    if is_archive and extract_archives:
+    if zipfile.is_zipfile(fpath) or tarfile.is_tarfile(fpath):
         dir_path = utils.get_project_path(username)
         # Check the uncompressed size
         if _archive_exceeds_quota(fpath, username):
@@ -206,18 +233,6 @@ def save_file(fpath, fname, extract_archives=False):
         })
         response.headers[b'Location'] = polling_url
         status_code = 202
-    else:
-        # Add file checksum to mongo
-        md5 = gen_metadata.md5_digest(fpath)
-        db.ChecksumsCol().insert_one(os.path.abspath(fpath), md5)
-        status_code = 200
-        file_path = utils.get_return_path(fpath)
-        response = jsonify({
-            "file_path": file_path,
-            "md5": md5,
-            "status": status
-        })
-
     response.status_code = status_code
 
     return response

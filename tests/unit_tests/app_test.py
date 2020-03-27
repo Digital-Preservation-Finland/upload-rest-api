@@ -191,7 +191,7 @@ def test_upload_archive(archive, app, test_auth, mock_mongo):
     checksums = mock_mongo.upload.checksums
 
     response = _upload_file(
-        test_client, "/v1/files/archive?extract=true", test_auth, archive
+        test_client, "/v1/archives/archive", test_auth, archive
     )
     if _request_accepted(response):
         response, _ = _wait_response(test_client, response, test_auth)
@@ -215,7 +215,7 @@ def test_upload_archive(archive, app, test_auth, mock_mongo):
 
     # Trying to upload same zip again should return 409 - Conflict
     response = _upload_file(
-        test_client, "/v1/files/test.zip?extract=true",
+        test_client, "/v1/archives/test.zip",
         test_auth, "tests/data/test.zip"
     )
     if _request_accepted(response):
@@ -236,11 +236,11 @@ def test_upload_archive_concurrent(app, test_auth, mock_mongo):
     checksums = mock_mongo.upload.checksums
 
     response_1 = _upload_file(
-        test_client, "/v1/files/archive1?extract=true", test_auth,
+        test_client, "/v1/archives/archive1", test_auth,
         "tests/data/test.zip"
     )
     response_2 = _upload_file(
-        test_client, "/v1/files/archive2?extract=true", test_auth,
+        test_client, "/v1/archives/archive2", test_auth,
         "tests/data/test2.zip"
     )
     # poll with response's polling_url
@@ -297,43 +297,6 @@ def test_upload_archive_concurrent(app, test_auth, mock_mongo):
     assert checksum == "150b62e4e7d58c70503bd5fc8a26463c"
 
 
-@pytest.mark.parametrize("query_params", [
-    "?extract=false",
-    "?extract=foo",
-    ""
-])
-def test_upload_archive_extract_false(query_params, app,
-                                      test_auth, mock_mongo):
-    """Test that uploaded archive is not extracted without ?extract=true.
-    """
-    test_client = app.test_client()
-    upload_path = app.config.get("UPLOAD_PATH")
-    checksums = mock_mongo.upload.checksums
-
-    response = _upload_file(
-        test_client, "/v1/files/archive.zip" + query_params,
-        test_auth, "tests/data/test.zip"
-    )
-    if _request_accepted(response):
-        response, _ = _wait_response(test_client, response, test_auth)
-    assert response.status_code == 200
-
-    fpath = os.path.join(upload_path, "test_project")
-    text_file = os.path.join(fpath, "test", "test.txt")
-    archive_file = os.path.join(fpath, "archive.zip")
-
-    # test.txt is not extracted
-    assert not os.path.isfile(text_file)
-
-    # archive file is uploaded
-    assert os.path.isfile(archive_file)
-
-    # checksum is added to mongo
-    assert checksums.count({}) == 1
-    checksum = checksums.find_one({"_id": archive_file})["checksum"]
-    assert checksum == "9cc7252c6628ce1bde964b25ef65d0ba"
-
-
 @pytest.mark.parametrize("archive", [
     "tests/data/symlink.zip",
     "tests/data/symlink.tar.gz"
@@ -347,7 +310,7 @@ def test_upload_invalid_archive(archive, app, test_auth, mock_mongo):
     checksums = mock_mongo.upload.checksums
 
     response = _upload_file(
-        test_client, "/v1/files/archive?extract=true", test_auth, archive
+        test_client, "/v1/archives/archive", test_auth, archive
     )
     if _request_accepted(response):
         response, _ = _wait_response(test_client, response, test_auth)
