@@ -6,7 +6,7 @@ import tarfile
 import zipfile
 import json
 
-from flask import jsonify, request, current_app
+from flask import jsonify, request
 
 from archive_helpers.extract import extract
 from archive_helpers.extract import (
