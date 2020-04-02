@@ -4,6 +4,10 @@ from __future__ import unicode_literals
 import os
 import uuid
 from functools import wraps
+try:
+    from urllib.parse import urlparse, urlunparse
+except ImportError:  # Python 2
+    from urlparse import urlparse, urlunparse
 
 from flask import request, current_app, jsonify, safe_join, url_for
 from werkzeug.utils import secure_filename
@@ -76,8 +80,9 @@ def make_response(status_code, message):
 
 def get_polling_url(name, task_id):
     """Creates url used to poll the status of asynchronous request"""
-    url = url_for(name + ".task_status", task_id=task_id)
-    return current_app.config["FILE_STORAGE_PROXY_URL"] + url
+    path = url_for(name + ".task_status", task_id=task_id)
+    parsed_url = urlparse(request.url)
+    return urlunparse([parsed_url[0], parsed_url[1], path, "", "", ""])
 
 
 def run_background(func):

@@ -8,7 +8,7 @@ from shutil import rmtree
 import json
 
 from flask import (Blueprint, safe_join, request, jsonify,
-                   current_app)
+                   current_app, url_for)
 from werkzeug.utils import secure_filename
 from requests.exceptions import HTTPError
 
@@ -248,7 +248,9 @@ def delete_path(fpath):
             "polling_url": polling_url,
             "status": "pending"
         })
-        response.headers[b'Location'] = polling_url
+        location = url_for(TASK_STATUS_API_V1.name + ".task_status",
+                           task_id=task_id)
+        response.headers[b'Location'] = location
         response.status_code = 202
         return response
 
@@ -308,7 +310,9 @@ def delete_files():
         "polling_url": polling_url,
         "status": "pending"
     })
-    response.headers[b'Location'] = polling_url
+    location = url_for(TASK_STATUS_API_V1.name + ".task_status",
+                       task_id=task_id)
+    response.headers[b'Location'] = location
     response.status_code = 202
 
     return response

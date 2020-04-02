@@ -5,7 +5,7 @@ from __future__ import unicode_literals
 import os
 import json
 
-from flask import Blueprint, safe_join, jsonify, request, current_app
+from flask import Blueprint, safe_join, jsonify, request, current_app, url_for
 from requests.exceptions import HTTPError
 
 import upload_rest_api.database as db
@@ -159,7 +159,9 @@ def post_metadata(fpath):
         "polling_url": polling_url,
         "status": "pending"
     })
-    response.headers[b'Location'] = polling_url
+    location = url_for(TASK_STATUS_API_V1.name + ".task_status",
+                       task_id=task_id)
+    response.headers[b'Location'] = location
     response.status_code = 202
 
     return response
@@ -192,7 +194,9 @@ def delete_metadata(fpath):
         "polling_url": polling_url,
         "status": "pending"
     })
-    response.headers[b'Location'] = polling_url
+    location = url_for(TASK_STATUS_API_V1.name + ".task_status",
+                       task_id=task_id)
+    response.headers[b'Location'] = location
     response.status_code = 202
 
     return response

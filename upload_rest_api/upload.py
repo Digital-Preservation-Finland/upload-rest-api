@@ -5,8 +5,7 @@ import os
 import tarfile
 import zipfile
 import json
-
-from flask import jsonify, request
+from flask import jsonify, request, url_for
 
 from archive_helpers.extract import extract
 from archive_helpers.extract import (
@@ -224,7 +223,9 @@ def save_archive(fpath):
             "polling_url": polling_url,
             "status": "pending"
         })
-        response.headers[b'Location'] = polling_url
+        location = url_for(TASK_STATUS_API_V1.name + ".task_status",
+                           task_id=task_id)
+        response.headers[b'Location'] = location
         response.status_code = 202
     else:
         response = utils.make_response(400, "File not archive")
