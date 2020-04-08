@@ -5,7 +5,7 @@ import os
 import tarfile
 import zipfile
 import json
-from flask import jsonify, request, url_for, safe_join
+from flask import jsonify, request, url_for, safe_join, current_app
 
 from archive_helpers.extract import extract
 from archive_helpers.extract import (
@@ -16,6 +16,8 @@ import upload_rest_api.database as db
 import upload_rest_api.gen_metadata as gen_metadata
 import upload_rest_api.utils as utils
 from upload_rest_api.api.v1.tasks import TASK_STATUS_API_V1
+
+SUPPORTED_TYPES = ("application/octet-stream",)
 
 
 def request_exceeds_quota():
@@ -239,4 +241,35 @@ def save_archive(fpath, upload_dir):
             400, "Uploaded file is not a supported archive"
         )
 
+    return response
+
+
+def validate_upload():
+    """Validates the upload request
+
+    :returns: `None` if the validation succeeds. Otherwise error response
+              if validation failed.
+    """
+    response = None
+    # Update used_quota also at the start of the function
+    # since multiple users might by using the same project
+    db.update_used_quota(request.authorization.username,
+                         current_app.config.get("UPLOAD_PATH"))
+
+    # Check that Content-Length header is provided
+    if request.content_length is None:
+        response = utils.make_response(400, "Missing Content-Length header")
+
+    # Check that Content-Type is supported if the header is provided
+    content_type = request.content_type
+    if content_type and content_type not in SUPPORTED_TYPES:
+        response = utils.make_response(
+            415, "Unsupported Content-Type: %s" % content_type
+        )
+
+    # Check user quota
+    if request.content_length > current_app.config.get("MAX_CONTENT_LENGTH"):
+        response = utils.make_response(413, "Max single file size exceeded")
+    elif request_exceeds_quota():
+        response = utils.make_response(413, "Quota exceeded")
     return response

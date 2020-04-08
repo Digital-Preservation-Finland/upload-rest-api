@@ -13,10 +13,6 @@ from requests.exceptions import HTTPError
 
 from metax_access import MetaxError
 
-from archive_helpers.extract import (
-    MemberNameError, MemberOverwriteError, MemberTypeError
-)
-
 import upload_rest_api.upload as up
 import upload_rest_api.database as db
 import upload_rest_api.gen_metadata as md
@@ -24,8 +20,6 @@ import upload_rest_api.utils as utils
 from upload_rest_api.api.v1.tasks import TASK_STATUS_API_V1
 
 FILES_API_V1 = Blueprint("files_v1", __name__, url_prefix="/v1/files")
-ARCHIVES_API_V1 = Blueprint("archives_v1", __name__, url_prefix="/v1/archives")
-SUPPORTED_TYPES = ("application/octet-stream",)
 
 
 def _get_dir_tree(fpath):
@@ -39,37 +33,6 @@ def _get_dir_tree(fpath):
         file_dict["/"] = file_dict.pop(".")
 
     return file_dict
-
-
-def _validate_upload():
-    """Validates the upload request
-
-    :returns: `None` if the validation succeeds. Otherwise error response
-        if validation failed.
-    """
-    response = None
-    # Update used_quota also at the start of the function
-    # since multiple users might by using the same project
-    db.update_used_quota(request.authorization.username,
-                         current_app.config.get("UPLOAD_PATH"))
-
-    # Check that Content-Length header is provided
-    if request.content_length is None:
-        response = utils.make_response(400, "Missing Content-Length header")
-
-    # Check that Content-Type is supported if the header is provided
-    content_type = request.content_type
-    if content_type and content_type not in SUPPORTED_TYPES:
-        response = utils.make_response(
-            415, "Unsupported Content-Type: %s" % content_type
-        )
-
-    # Check user quota
-    if request.content_length > current_app.config.get("MAX_CONTENT_LENGTH"):
-        response = utils.make_response(413, "Max single file size exceeded")
-    elif up.request_exceeds_quota():
-        response = utils.make_response(413, "Quota exceeded")
-    return response
 
 
 @utils.run_background
@@ -123,7 +86,7 @@ def upload_file(fpath):
 
     :returns: HTTP Response
     """
-    response = _validate_upload()
+    response = up.validate_upload()
     if response:
         return response
 
@@ -138,41 +101,6 @@ def upload_file(fpath):
         response = up.save_file(file_path)
     except (up.OverwriteError) as error:
         return utils.make_response(409, str(error))
-
-    db.update_used_quota(request.authorization.username,
-                         current_app.config.get("UPLOAD_PATH"))
-
-    return response
-
-
-@ARCHIVES_API_V1.route("/", methods=["POST"], strict_slashes=False)
-def upload_archive():
-    """ Uploads and extracts the archive at <UPLOAD_PATH>/project
-
-    :returns: HTTP Response
-    """
-    response = _validate_upload()
-    if response:
-        return response
-
-    upload_dir = request.args.get("dir", default=None)
-    file_path, file_name = utils.get_tmp_upload_path()
-
-    # Create directory if it does not exist
-    if not os.path.exists(file_path):
-        os.makedirs(file_path)
-
-    file_path = safe_join(file_path, file_name)
-    try:
-        response = up.save_archive(file_path, upload_dir)
-    except (MemberOverwriteError, up.OverwriteError) as error:
-        return utils.make_response(409, str(error))
-    except MemberTypeError as error:
-        return utils.make_response(415, str(error))
-    except MemberNameError as error:
-        return utils.make_response(400, str(error))
-    except up.QuotaError as error:
-        return utils.make_response(413, str(error))
 
     db.update_used_quota(request.authorization.username,
                          current_app.config.get("UPLOAD_PATH"))
