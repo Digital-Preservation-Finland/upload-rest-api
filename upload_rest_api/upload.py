@@ -5,7 +5,7 @@ import os
 import tarfile
 import zipfile
 import json
-from flask import jsonify, request, url_for
+from flask import jsonify, request, url_for, safe_join
 
 from archive_helpers.extract import extract
 from archive_helpers.extract import (
@@ -132,7 +132,6 @@ def extract_task(fpath, dir_path, task_id=None):
     into database.
 
     :param str fpath: file path of the archive
-    :param fname: file name
     :param str dir_path: directory to where the archive will be extracted
     :param str task_id: mongo dentifier of the task
 
@@ -194,27 +193,34 @@ def save_file(fpath):
     return response
 
 
-def save_archive(fpath):
+def save_archive(fpath, upload_dir):
     """Uploads the archive on disk at fpath by reading
     the upload stream in 1MB chunks. Extracts the archive file
     and checks that no symlinks are created.
 
     :param fpath: Path where to save the file
-    :param fname: file name
+    :param upload_dir: Directory to which the archive is extracted
     :returns: HTTP Response
     """
     username = request.authorization.username
+    dir_path = utils.get_project_path(username)
+    if upload_dir:
+        dir_path = safe_join(dir_path, upload_dir)
+        if os.path.isdir(dir_path):
+            raise OverwriteError("Directory %s already exists" % upload_dir)
+        else:
+            os.makedirs(dir_path)
 
     _save_stream(fpath)
 
     # If zip or tar file was uploaded, extract all files
     if zipfile.is_zipfile(fpath) or tarfile.is_tarfile(fpath):
-        dir_path = utils.get_project_path(username)
         # Check the uncompressed size
         if _archive_exceeds_quota(fpath, username):
             # Remove the archive and raise an exception
             os.remove(fpath)
             raise QuotaError("Quota exceeded")
+
         task_id = extract_task(fpath, dir_path)
         polling_url = utils.get_polling_url(TASK_STATUS_API_V1.name, task_id)
         response = jsonify({
@@ -228,6 +234,9 @@ def save_archive(fpath):
         response.headers[b'Location'] = location
         response.status_code = 202
     else:
-        response = utils.make_response(400, "File not archive")
+        os.remove(fpath)
+        response = utils.make_response(
+            400, "Uploaded file is not a supported archive"
+        )
 
     return response

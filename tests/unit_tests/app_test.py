@@ -346,7 +346,7 @@ def test_upload_file_as_archive(app, test_auth):
 
     data = json.loads(response.data)
     assert response.status_code == 400
-    assert data["error"] == "File not archive"
+    assert data["error"] == "Uploaded file is not a supported archive"
 
 
 def test_get_file(app, test_auth, test2_auth, test3_auth, mock_mongo):

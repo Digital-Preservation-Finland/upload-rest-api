@@ -7,8 +7,7 @@ import os
 from shutil import rmtree
 import json
 
-from flask import (Blueprint, safe_join, request, jsonify,
-                   current_app, url_for)
+from flask import Blueprint, safe_join, request, jsonify, current_app, url_for
 from werkzeug.utils import secure_filename
 from requests.exceptions import HTTPError
 
@@ -156,6 +155,7 @@ def upload_archive():
     if response:
         return response
 
+    upload_dir = request.args.get("dir", default=None)
     file_path, file_name = utils.get_tmp_upload_path()
 
     # Create directory if it does not exist
@@ -164,7 +164,7 @@ def upload_archive():
 
     file_path = safe_join(file_path, file_name)
     try:
-        response = up.save_archive(file_path)
+        response = up.save_archive(file_path, upload_dir)
     except (MemberOverwriteError, up.OverwriteError) as error:
         return utils.make_response(409, str(error))
     except MemberTypeError as error:
