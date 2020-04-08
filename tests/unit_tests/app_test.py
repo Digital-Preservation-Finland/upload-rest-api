@@ -182,22 +182,28 @@ def test_upload_outside(app, test_auth):
     "tests/data/test.zip",
     "tests/data/test.tar.gz"
 ])
-def test_upload_archive(archive, app, test_auth, mock_mongo):
+@pytest.mark.parametrize("dirpath", [True, False])
+def test_upload_archive(archive, dirpath, app, test_auth, mock_mongo):
     """Test that uploaded archive is extracted. No files should be
     extracted outside the project directory.
     """
     test_client = app.test_client()
     upload_path = app.config.get("UPLOAD_PATH")
     checksums = mock_mongo.upload.checksums
+    url = "/v1/archives?dir=dataset" if dirpath else "/v1/archives"
 
     response = _upload_file(
-        test_client, "/v1/archives", test_auth, archive
+        test_client, url, test_auth, archive
     )
     if _request_accepted(response):
         response, _ = _wait_response(test_client, response, test_auth)
     assert response.status_code == 200
 
-    fpath = os.path.join(upload_path, "test_project")
+    if not dirpath:
+        fpath = os.path.join(upload_path, "test_project")
+    else:
+        fpath = os.path.join(upload_path, "test_project", "dataset")
+
     text_file = os.path.join(fpath, "test", "test.txt")
     archive_file = os.path.join(fpath, os.path.split(archive)[1])
 
@@ -215,16 +221,41 @@ def test_upload_archive(archive, app, test_auth, mock_mongo):
 
     # Trying to upload same zip again should return 409 - Conflict
     response = _upload_file(
-        test_client, "/v1/archives",
+        test_client, url,
         test_auth, "tests/data/test.zip"
     )
-    if _request_accepted(response):
-        response, _ = _wait_response(test_client, response, test_auth)
 
-    data = json.loads(response.data)
-    assert response.status_code == 200
-    assert data["status"] == "error"
-    assert data["message"] == "File 'test/test.txt' already exists"
+    if dirpath:
+        data = json.loads(response.data)
+        assert response.status_code == 409
+        assert data["error"] == "Directory 'dataset' already exists"
+
+    else:
+        if _request_accepted(response):
+            response, _ = _wait_response(test_client, response, test_auth)
+
+        data = json.loads(response.data)
+        assert response.status_code == 200
+        assert data["status"] == "error"
+        assert data["message"] == "File 'test/test.txt' already exists"
+
+
+@pytest.mark.parametrize("dirpath", [
+    "../",
+    "dataset/../../",
+    "/dataset"
+])
+def test_upload_invalid_dir(dirpath, app, test_auth):
+    """Test that trying to extract outside the project return 404.
+    """
+    test_client = app.test_client()
+    response = _upload_file(
+        test_client,
+        "/v1/archives?dir=%s" % dirpath,
+        test_auth,
+        "tests/data/test.zip"
+    )
+    assert response.status_code == 404
 
 
 def test_upload_archive_concurrent(app, test_auth, mock_mongo):
