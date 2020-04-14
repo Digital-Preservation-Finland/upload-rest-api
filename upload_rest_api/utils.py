@@ -31,7 +31,7 @@ def get_upload_path(fpath, root_upload_path=None, username=None):
     joined_path = safe_join(root_upload_path, project)
     joined_path = safe_join(joined_path, fpath)
 
-    return joined_path, fname
+    return os.path.normpath(joined_path), fname
 
 
 def get_project_path(username):
