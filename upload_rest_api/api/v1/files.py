@@ -96,7 +96,7 @@ def upload_file(fpath):
     if not os.path.exists(file_path):
         os.makedirs(file_path)
 
-    file_path = safe_join(file_path, file_name)
+    file_path = os.path.join(file_path, file_name)
     try:
         response = up.save_file(file_path)
     except (up.OverwriteError) as error:
@@ -117,7 +117,7 @@ def get_path(fpath):
     username = request.authorization.username
     root_upload_path = current_app.config.get("UPLOAD_PATH")
     fpath, fname = utils.get_upload_path(fpath)
-    fpath = safe_join(fpath, fname)
+    fpath = os.path.join(fpath, fname)
 
     if os.path.isfile(fpath):
         file_path = utils.get_return_path(fpath, root_upload_path, username)
@@ -150,7 +150,7 @@ def delete_path(fpath):
     username = request.authorization.username
     project = db.UsersDoc(username).get_project()
     fpath, fname = utils.get_upload_path(fpath)
-    fpath = safe_join(fpath, fname)
+    fpath = os.path.join(fpath, fname)
 
     if os.path.isfile(fpath):
         # Remove metadata from Metax

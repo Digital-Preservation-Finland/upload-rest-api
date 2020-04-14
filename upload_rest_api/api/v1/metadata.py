@@ -5,7 +5,7 @@ from __future__ import unicode_literals
 import os
 import json
 
-from flask import Blueprint, safe_join, jsonify, request, current_app, url_for
+from flask import Blueprint, jsonify, request, current_app, url_for
 from requests.exceptions import HTTPError
 
 import upload_rest_api.database as db
@@ -34,7 +34,7 @@ def post_metadata_task(metax_client, fpath, root_upload_path, username,
     status = "error"
     response = None
     fpath, fname = utils.get_upload_path(fpath, root_upload_path, username)
-    fpath = safe_join(fpath, fname)
+    fpath = os.path.join(fpath, fname)
     ret_path = utils.get_return_path(fpath, root_upload_path, username)
     db.AsyncTaskCol().update_message(
         task_id, "Creating metadata: %s" % ret_path
@@ -94,7 +94,7 @@ def delete_metadata_task(metax_client, fpath, root_upload_path, username,
     response = None
     project = db.UsersDoc(username).get_project()
     fpath, fname = utils.get_upload_path(fpath, root_upload_path, username)
-    fpath = safe_join(fpath, fname)
+    fpath = os.path.join(fpath, fname)
     ret_path = utils.get_return_path(fpath, root_upload_path, username)
     db.AsyncTaskCol().update_message(
         task_id, "Deleting metadata: %s" % ret_path
@@ -145,7 +145,7 @@ def post_metadata(fpath):
     username = request.authorization.username
     root_upload_path = current_app.config.get("UPLOAD_PATH")
     file_path, fname = utils.get_upload_path(fpath)
-    file_path = safe_join(file_path, fname)
+    file_path = os.path.join(file_path, fname)
 
     storage_id = current_app.config.get("STORAGE_ID")
     task_id = post_metadata_task(md.MetaxClient(), fpath, root_upload_path,
@@ -181,7 +181,7 @@ def delete_metadata(fpath):
     root_upload_path = current_app.config.get("UPLOAD_PATH")
     username = request.authorization.username
     file_path, fname = utils.get_upload_path(fpath)
-    file_path = safe_join(file_path, fname)
+    file_path = os.path.join(file_path, fname)
 
     task_id = delete_metadata_task(md.MetaxClient(), fpath, root_upload_path,
                                    username)
