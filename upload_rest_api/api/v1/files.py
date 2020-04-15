@@ -171,7 +171,7 @@ def delete_path(fpath):
 
         polling_url = utils.get_polling_url(TASK_STATUS_API_V1.name, task_id)
         response = jsonify({
-            "file_path": fpath[len(root_upload_path):],
+            "file_path": fpath[len(os.path.join(root_upload_path, project)):],
             "message": "Deleting files and metadata",
             "polling_url": polling_url,
             "status": "pending"
