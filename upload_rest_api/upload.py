@@ -174,7 +174,7 @@ def extract_task(fpath, dir_path, task_id=None):
         _extract(fpath, dir_path, task_id)
     except Exception as error:
         logging.error(str(error), exc_info=error)
-        db.AsyncTaskCol().update_status(task_id, 500)
+        db.AsyncTaskCol().update_status(task_id, "error")
         db.AsyncTaskCol().update_message(task_id, "Internal server error")
         raise
 

@@ -86,7 +86,7 @@ def delete_task(metax_client, fpath, root_upload_path, username, task_id=None):
         _delete(metax_client, fpath, root_upload_path, username, task_id)
     except Exception as error:
         logging.error(str(error), exc_info=error)
-        db.AsyncTaskCol().update_status(task_id, 500)
+        db.AsyncTaskCol().update_status(task_id, "error")
         db.AsyncTaskCol().update_message(task_id, "Internal server error")
         raise
 
