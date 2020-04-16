@@ -4,8 +4,9 @@ querying and deleting files from the server.
 from __future__ import unicode_literals
 
 import os
-from shutil import rmtree
 import json
+import logging
+from shutil import rmtree
 
 from flask import Blueprint, safe_join, request, jsonify, current_app, url_for
 from werkzeug.utils import secure_filename
@@ -35,20 +36,8 @@ def _get_dir_tree(fpath):
     return file_dict
 
 
-@utils.run_background
-def delete_task(metax_client, fpath, root_upload_path, username, task_id=None):
-    """Deletes files and metadata denoted by fpath directory under user's
-    project. The whole directory is recursively removed.
-
-    :param MetaxClient metax_client: Metax access
-    :param str fpath: path to directory
-    :param str root_upload_path: Upload root directory
-    :param str username: current user
-    :param str task_id: mongo dentifier of the task
-
-    :returns: The mongo identifier of the task
-     """
-
+def _delete(metax_client, fpath, root_upload_path, username, task_id):
+    """Delete files and metadata"""
     # Remove metadata from Metax
     ret_path = utils.get_return_path(fpath, root_upload_path, username)
     db.AsyncTaskCol().update_message(
@@ -59,9 +48,10 @@ def delete_task(metax_client, fpath, root_upload_path, username, task_id=None):
     try:
         metax_response = metax_client.delete_all_metadata(project, fpath,
                                                           root_upload_path)
-    except (MetaxError, HTTPError) as exc:
+    except (MetaxError, HTTPError) as error:
+        logging.error(str(error), exc_info=error)
         db.AsyncTaskCol().update_status(task_id, "error")
-        msg = {"message": str(exc)}
+        msg = {"message": str(error)}
         db.AsyncTaskCol().update_message(task_id, json.dumps(msg))
     else:
         # Remove checksum from mongo
@@ -77,6 +67,29 @@ def delete_task(metax_client, fpath, root_upload_path, username, task_id=None):
             "metax": metax_response
         }
         db.AsyncTaskCol().update_message(task_id, json.dumps(response))
+
+
+@utils.run_background
+def delete_task(metax_client, fpath, root_upload_path, username, task_id=None):
+    """Deletes files and metadata denoted by fpath directory under user's
+    project. The whole directory is recursively removed.
+
+    :param MetaxClient metax_client: Metax access
+    :param str fpath: path to directory
+    :param str root_upload_path: Upload root directory
+    :param str username: current user
+    :param str task_id: mongo dentifier of the task
+
+    :returns: The mongo identifier of the task
+    """
+    try:
+        _delete(metax_client, fpath, root_upload_path, username, task_id)
+    except Exception as error:
+        logging.error(str(error), exc_info=error)
+        db.AsyncTaskCol().update_status(task_id, 500)
+        db.AsyncTaskCol().update_message(task_id, "Internal server error")
+        raise
+
     return task_id
 
 

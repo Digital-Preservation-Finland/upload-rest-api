@@ -5,6 +5,7 @@ import os
 import tarfile
 import zipfile
 import json
+import logging
 from flask import jsonify, request, url_for, safe_join, current_app
 
 from archive_helpers.extract import extract
@@ -127,29 +128,20 @@ class UploadPendingError(Exception):
     pass
 
 
-@utils.run_background
-def extract_task(fpath, dir_path, task_id=None):
-    """This function calculates the checksum of the archive and extracts the
-    files into ``dir_path`` directory. Finally updates the status of the task
-    into database.
-
-    :param str fpath: file path of the archive
-    :param str dir_path: directory to where the archive will be extracted
-    :param str task_id: mongo dentifier of the task
-
-    :returns: The mongo identifier of the task
-     """
+def _extract(fpath, dir_path, task_id):
+    """Extract an archive"""
     db.AsyncTaskCol().update_message(
         task_id, "Extracting archive"
     )
     md5 = gen_metadata.md5_digest(fpath)
     try:
         extract(fpath, dir_path)
-    except (MemberNameError, MemberTypeError, MemberOverwriteError) as exc:
+    except (MemberNameError, MemberTypeError, MemberOverwriteError) as error:
+        logging.error(str(error), exc_info=error)
         # Remove the archive and set task's state
         os.remove(fpath)
         db.AsyncTaskCol().update_status(task_id, "error")
-        msg = {"message": str(exc)}
+        msg = {"message": str(error)}
         db.AsyncTaskCol().update_message(task_id, json.dumps(msg))
     else:
         # Add checksums of the extracted files to mongo
@@ -164,6 +156,28 @@ def extract_task(fpath, dir_path, task_id=None):
         msg = {"message": "Archive uploaded and extracted",
                "md5": md5}
         db.AsyncTaskCol().update_message(task_id, json.dumps(msg))
+
+
+@utils.run_background
+def extract_task(fpath, dir_path, task_id=None):
+    """This function calculates the checksum of the archive and extracts the
+    files into ``dir_path`` directory. Finally updates the status of the task
+    into database.
+
+    :param str fpath: file path of the archive
+    :param str dir_path: directory to where the archive will be extracted
+    :param str task_id: mongo dentifier of the task
+
+    :returns: The mongo identifier of the task
+    """
+    try:
+        _extract(fpath, dir_path, task_id)
+    except Exception as error:
+        logging.error(str(error), exc_info=error)
+        db.AsyncTaskCol().update_status(task_id, 500)
+        db.AsyncTaskCol().update_message(task_id, "Internal server error")
+        raise
+
     return task_id
 
 

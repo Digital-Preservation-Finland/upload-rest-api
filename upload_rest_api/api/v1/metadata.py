@@ -4,6 +4,7 @@ from __future__ import unicode_literals
 
 import os
 import json
+import logging
 
 from flask import Blueprint, jsonify, request, current_app, url_for
 from requests.exceptions import HTTPError
@@ -17,20 +18,9 @@ from upload_rest_api.api.v1.tasks import TASK_STATUS_API_V1
 METADATA_API_V1 = Blueprint("metadata_v1", __name__, url_prefix="/v1/metadata")
 
 
-@utils.run_background
-def post_metadata_task(metax_client, fpath, root_upload_path, username,
-                       storage_id, task_id=None):
-    """This function creates the metadata in Metax for the file(s) denoted
-    by fpath argument. Finally updates the status of the task into database.
-
-    :param MetaxClient metax_client: Metax access
-    :param str fpath: file path
-    :param str root_upload_path: Upload root directory
-    :param str username: current user
-    :param str task_id: mongo dentifier of the task
-
-    :returns: The mongo identifier of the task
-     """
+def _post_metadata(metax_client, fpath, root_upload_path,
+                   username, storage_id, task_id):
+    """POST Metadata to Metax"""
     status = "error"
     response = None
     fpath, fname = utils.get_upload_path(fpath, root_upload_path, username)
@@ -58,9 +48,10 @@ def post_metadata_task(metax_client, fpath, root_upload_path, username,
             response = metax_client.post_metadata(fpaths, root_upload_path,
                                                   username, storage_id)
             status = "done"
-        except HTTPError as exception:
-            response = exception.response.json()
-            status_code = exception.response.status_code
+        except HTTPError as error:
+            logging.error(str(error), exc_info=error)
+            response = error.response.json()
+            status_code = error.response.status_code
 
         # Add created identifiers to Mongo
         if "success" in response and response["success"]:
@@ -73,13 +64,12 @@ def post_metadata_task(metax_client, fpath, root_upload_path, username,
 
     db.AsyncTaskCol().update_status(task_id, status)
     db.AsyncTaskCol().update_message(task_id, json.dumps(response))
-    return task_id
 
 
 @utils.run_background
-def delete_metadata_task(metax_client, fpath, root_upload_path, username,
-                         task_id=None):
-    """This function deletes the metadata in Metax for the file(s) denoted
+def post_metadata_task(metax_client, fpath, root_upload_path, username,
+                       storage_id, task_id=None):
+    """This function creates the metadata in Metax for the file(s) denoted
     by fpath argument. Finally updates the status of the task into database.
 
     :param MetaxClient metax_client: Metax access
@@ -90,6 +80,22 @@ def delete_metadata_task(metax_client, fpath, root_upload_path, username,
 
     :returns: The mongo identifier of the task
     """
+    try:
+        _post_metadata(
+            metax_client, fpath, root_upload_path,
+            username, storage_id, task_id
+        )
+    except Exception as error:
+        logging.error(str(error), exc_info=error)
+        db.AsyncTaskCol().update_status(task_id, 500)
+        db.AsyncTaskCol().update_message(task_id, "Internal server error")
+        raise
+
+    return task_id
+
+
+def _delete_metadata(metax_client, fpath, root_upload_path, username, task_id):
+    """DELETE Metadata form Metax"""
     status = "error"
     response = None
     project = db.UsersDoc(username).get_project()
@@ -113,14 +119,16 @@ def delete_metadata_task(metax_client, fpath, root_upload_path, username,
         try:
             response = delete_func(project, fpath, root_upload_path,
                                    force=True)
-        except HTTPError as exception:
+        except HTTPError as error:
+            logging.error(str(error), exc_info=error)
             response = {
                 "file_path": utils.get_return_path(fpath, root_upload_path,
                                                    username),
-                "metax": exception.response.json()
+                "metax": error.response.json()
             }
-        except md.MetaxClientError as exception:
-            response = {"code": 400, "error": str(exception)}
+        except md.MetaxClientError as error:
+            logging.error(str(error), exc_info=error)
+            response = {"code": 400, "error": str(error)}
         else:
             status = "done"
             response = {
@@ -130,6 +138,32 @@ def delete_metadata_task(metax_client, fpath, root_upload_path, username,
             }
     db.AsyncTaskCol().update_status(task_id, status)
     db.AsyncTaskCol().update_message(task_id, json.dumps(response))
+
+
+@utils.run_background
+def delete_metadata_task(metax_client, fpath, root_upload_path, username,
+                         task_id=None):
+    """This function deletes the metadata in Metax for the file(s) denoted
+    by fpath argument. Finally updates the status of the task into database.
+
+    :param MetaxClient metax_client: Metax access
+    :param str fpath: file path
+    :param str root_upload_path: Upload root directory
+    :param str username: current user
+    :param str task_id: mongo dentifier of the task
+
+    :returns: The mongo identifier of the task
+    """
+    try:
+        _delete_metadata(
+            metax_client, fpath, root_upload_path, username, task_id
+        )
+    except Exception as error:
+        logging.error(str(error), exc_info=error)
+        db.AsyncTaskCol().update_status(task_id, 500)
+        db.AsyncTaskCol().update_message(task_id, "Internal server error")
+        raise
+
     return task_id
 
 
