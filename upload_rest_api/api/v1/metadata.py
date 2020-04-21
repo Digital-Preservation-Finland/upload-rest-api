@@ -76,6 +76,7 @@ def post_metadata_task(metax_client, fpath, root_upload_path, username,
     :param str fpath: file path
     :param str root_upload_path: Upload root directory
     :param str username: current user
+    :param str storage_id: pas storage identifier in Metax
     :param str task_id: mongo dentifier of the task
 
     :returns: The mongo identifier of the task
