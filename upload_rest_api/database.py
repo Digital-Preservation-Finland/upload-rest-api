@@ -41,10 +41,8 @@ def get_random_string(chars):
     return passwd
 
 
-def _get_abs_path(metax_path, root_upload_path, username):
+def _get_abs_path(metax_path, root_upload_path, project):
     """Returns actual path on disk from metax_path"""
-    project = UsersDoc(username).get_project()
-
     return os.path.join(
         root_upload_path,
         project,
@@ -403,12 +401,13 @@ class FilesCol(object):
         :returns: None
         """
         documents = []
+        project = UsersDoc(username).get_project()
 
         for file_md in file_md_list:
             documents.append({
                 "_id": file_md["object"]["identifier"],
                 "file_path": _get_abs_path(file_md["object"]["file_path"],
-                                           root_upload_path, username)
+                                           root_upload_path, project)
             })
 
         self.insert(documents)

@@ -102,7 +102,10 @@ def test_store_identifiers(files_col, monkeypatch):
     corresponding file_paths to Mongo.
     """
     monkeypatch.setattr(db, "_get_abs_path",
-                        lambda path, _root_path, _username: path)
+                        lambda path, _root_path, _project: path)
+
+    monkeypatch.setattr(db.UsersDoc, "get_project",
+                        lambda self: "project_path")
 
     metax_response = [
         {"object": {"identifier": "pid:urn:1", "file_path": "1"}},
