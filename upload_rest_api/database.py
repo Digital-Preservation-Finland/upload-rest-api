@@ -72,22 +72,12 @@ def get_dir_size(fpath):
     return size
 
 
-def update_used_quota(username, root_upload_path):
-    """Update used quota of the user"""
-    user = User(username)
-    project = user.get_project()
-    path = safe_join(root_upload_path, secure_filename(project))
-    size = get_dir_size(path)
-
-    user.set_used_quota(size)
-
-
 def parse_conf(fpath):
     """Parse config from file fpath"""
     return run_path(fpath)
 
 
-def get_mongo_client():
+def _get_mongo_client():
     """Returns a MongoClient instance"""
     conf = parse_conf("/etc/upload_rest_api.conf")
     return pymongo.MongoClient(conf["MONGO_HOST"], conf["MONGO_PORT"])
@@ -95,7 +85,7 @@ def get_mongo_client():
 
 def get_all_users():
     """Returns a list of all the users in upload.users collection"""
-    users = get_mongo_client().upload.users
+    users = _get_mongo_client().upload.users
     return sorted(users.find().distinct("_id"))
 
 
@@ -122,7 +112,7 @@ class User(object):
 
         :param username: Used as primary key _id
         """
-        self.users = get_mongo_client().upload.users
+        self.users = _get_mongo_client().upload.users
         self.username = username
         self.quota = quota
 
@@ -260,6 +250,13 @@ class User(object):
             {"$set": {"used_quota": used_quota}}
         )
 
+    def update_used_quota(self, root_upload_path):
+        """Update used quota of the user"""
+        project = self.get_project()
+        path = safe_join(root_upload_path, secure_filename(project))
+        size = get_dir_size(path)
+        self.set_used_quota(size)
+
     def get_project(self):
         """Get user project"""
         # Raise exception if user does not exist
@@ -289,7 +286,7 @@ class Checksums(object):
 
     def __init__(self):
         """Initializing FilesDoc instances"""
-        self.checksums = get_mongo_client().upload.checksums
+        self.checksums = _get_mongo_client().upload.checksums
 
     def insert_one(self, filepath, checksum):
         """Insert a single checksum doc"""
@@ -338,7 +335,7 @@ class Files(object):
 
     def __init__(self):
         """Initializing FilesDoc instances"""
-        self.files = get_mongo_client().upload.files
+        self.files = _get_mongo_client().upload.files
 
     def get_path(self, identifier):
         """Get file_path based on _id identifier"""
@@ -418,7 +415,7 @@ class Tasks(object):
 
     def __init__(self):
         """Initializing Tasks instance"""
-        self.tasks = get_mongo_client().upload.tasks
+        self.tasks = _get_mongo_client().upload.tasks
 
     def create(self, project):
         """Creates one task document.

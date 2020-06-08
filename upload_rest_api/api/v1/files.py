@@ -59,7 +59,7 @@ def _delete(metax_client, fpath, root_upload_path, username, task_id):
 
         # Remove project directory and update used_quota
         rmtree(fpath)
-        db.update_used_quota(username, root_upload_path)
+        db.User(username).update_used_quota(root_upload_path)
         db.Tasks().update_status(task_id, "done")
         response = {
             "file_path": ret_path,
@@ -115,8 +115,9 @@ def upload_file(fpath):
     except (up.OverwriteError) as error:
         return utils.make_response(409, str(error))
 
-    db.update_used_quota(request.authorization.username,
-                         current_app.config.get("UPLOAD_PATH"))
+    db.User(request.authorization.username).update_used_quota(
+        current_app.config.get("UPLOAD_PATH")
+    )
 
     return response
 
@@ -198,7 +199,7 @@ def delete_path(fpath):
     else:
         return utils.make_response(404, "File not found")
 
-    db.update_used_quota(username, root_upload_path)
+    db.User(username).update_used_quota(root_upload_path)
 
     response = jsonify({
         "file_path": utils.get_return_path(fpath, root_upload_path, username),

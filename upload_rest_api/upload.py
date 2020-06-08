@@ -145,8 +145,7 @@ def _extract(fpath, dir_path, task_id):
         db.Tasks().update_message(task_id, json.dumps(msg))
     else:
         # Add checksums of the extracted files to mongo
-        db.Checksums().insert(_get_archive_checksums(fpath,
-                                                        dir_path))
+        db.Checksums().insert(_get_archive_checksums(fpath, dir_path))
 
         # Remove archive and all created symlinks
         os.remove(fpath)
@@ -267,8 +266,9 @@ def validate_upload():
     response = None
     # Update used_quota also at the start of the function
     # since multiple users might by using the same project
-    db.update_used_quota(request.authorization.username,
-                         current_app.config.get("UPLOAD_PATH"))
+    db.User(request.authorization.username).update_used_quota(
+        current_app.config.get("UPLOAD_PATH")
+    )
 
     # Check that Content-Length header is provided
     if request.content_length is None:
