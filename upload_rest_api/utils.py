@@ -21,7 +21,7 @@ def get_upload_path(fpath, root_upload_path=None, username=None):
         username = request.authorization.username
     if not root_upload_path:
         root_upload_path = current_app.config.get("UPLOAD_PATH")
-    user = db.UsersDoc(username)
+    user = db.User(username)
     project = user.get_project()
 
     fpath, fname = os.path.split(fpath)
@@ -36,7 +36,7 @@ def get_upload_path(fpath, root_upload_path=None, username=None):
 
 def get_project_path(username):
     """Get upload path for current request"""
-    user = db.UsersDoc(username)
+    user = db.User(username)
     project = user.get_project()
 
     root_upload_path = current_app.config.get("UPLOAD_PATH")
@@ -63,7 +63,7 @@ def get_return_path(fpath, root_upload_path=None, username=None):
         username = request.authorization.username
     if not root_upload_path:
         root_upload_path = current_app.config.get("UPLOAD_PATH")
-    user = db.UsersDoc(username)
+    user = db.User(username)
     project = user.get_project()
     base_path = safe_join(root_upload_path, project)
     ret_path = os.path.normpath(fpath[len(base_path):])
@@ -90,9 +90,9 @@ def run_background(func):
     @wraps(func)
     def _dec_func(*args, **kwargs):
         username = request.authorization.username
-        project = db.UsersDoc(username).get_project()
-        task_id = db.AsyncTaskCol().create(project)
-        db.AsyncTaskCol().update_message(task_id, "processing")
+        project = db.User(username).get_project()
+        task_id = db.Tasks().create(project)
+        db.Tasks().update_message(task_id, "processing")
         kwargs["task_id"] = task_id
         executor = current_app.config["EXTRACT_EXECUTOR"]
         executor.submit(func, *args, **kwargs)

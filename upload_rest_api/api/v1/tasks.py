@@ -25,7 +25,7 @@ def task_status(task_id):
     pending state it will be removed automatically in GET. Further queries
     will return 404.
     """
-    task = db.AsyncTaskCol().get(task_id)
+    task = db.Tasks().get(task_id)
     if task is None:
         return _create_gone_response()
     if "message" in task:
@@ -39,7 +39,7 @@ def task_status(task_id):
     else:
         response = jsonify({'status': task["status"]})
     if task["status"] != "pending":
-        db.AsyncTaskCol().delete_one(task_id)
+        db.Tasks().delete_one(task_id)
     response.status_code = 200
     return response
 
@@ -49,10 +49,10 @@ def task_delete(task_id):
     """Endpoint for deleting the upload task entry from mongo DB. Further
     queries will return 404.
     """
-    task = db.AsyncTaskCol().get(task_id)
+    task = db.Tasks().get(task_id)
     if task is None:
         return _create_gone_response()
-    db.AsyncTaskCol().delete_one(task_id)
+    db.Tasks().delete_one(task_id)
     response = jsonify({"message": "deleted"})
     response.status_code = 200
     return response

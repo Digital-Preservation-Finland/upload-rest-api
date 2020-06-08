@@ -355,13 +355,13 @@ def test_mongo_cleanup(app, test_auth, monkeypatch):
     app.config["METAX_PASSWORD"] = PASSWORD
     test_client = app.test_client()
 
-    # Mock FilesCol mongo connection
+    # Mock Files mongo connection
     def _mock_init(self):
         host = app.config.get("MONGO_HOST")
         port = app.config.get("MONGO_PORT")
         self.files = pymongo.MongoClient(host, port).upload.files
 
-    monkeypatch.setattr(db.FilesCol, "__init__", _mock_init)
+    monkeypatch.setattr(db.Files, "__init__", _mock_init)
 
     # Mock configuration parsing
     def _mock_conf(fpath):
@@ -377,7 +377,7 @@ def test_mongo_cleanup(app, test_auth, monkeypatch):
 
     monkeypatch.setattr(clean, "parse_conf", _mock_conf)
 
-    files_col = db.FilesCol()
+    files_col = db.Files()
 
     # ----- Inserting fake identifiers to Mongo and cleaning them
     files_col.insert([

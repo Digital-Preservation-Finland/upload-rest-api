@@ -23,7 +23,7 @@ def test_auth_user(user, password, result):
     :param bool result: Excepted result of authentication
     """
     # Create one test user to database
-    usersdoc = db.UsersDoc('test_user')
+    usersdoc = db.User('test_user')
     usersdoc.create('test_project', 'test_password')
 
     # pylint: disable=protected-access

@@ -27,7 +27,7 @@ def request_exceeds_quota():
     :returns: True if the request exceeds user's quota else False
     """
     username = request.authorization.username
-    user = db.UsersDoc(username)
+    user = db.User(username)
     quota = user.get_quota() - user.get_used_quota()
 
     return quota - request.content_length < 0
@@ -38,7 +38,7 @@ def _archive_exceeds_quota(archive_path, username):
 
     :returns: True if the archive exceeds user's quota else False
     """
-    user = db.UsersDoc(username)
+    user = db.User(username)
     quota = user.get_quota() - user.get_used_quota()
 
     if tarfile.is_tarfile(archive_path):
@@ -130,7 +130,7 @@ class UploadPendingError(Exception):
 
 def _extract(fpath, dir_path, task_id):
     """Extract an archive"""
-    db.AsyncTaskCol().update_message(
+    db.Tasks().update_message(
         task_id, "Extracting archive"
     )
     md5 = gen_metadata.md5_digest(fpath)
@@ -140,22 +140,22 @@ def _extract(fpath, dir_path, task_id):
         logging.error(str(error), exc_info=error)
         # Remove the archive and set task's state
         os.remove(fpath)
-        db.AsyncTaskCol().update_status(task_id, "error")
+        db.Tasks().update_status(task_id, "error")
         msg = {"message": str(error)}
-        db.AsyncTaskCol().update_message(task_id, json.dumps(msg))
+        db.Tasks().update_message(task_id, json.dumps(msg))
     else:
         # Add checksums of the extracted files to mongo
-        db.ChecksumsCol().insert(_get_archive_checksums(fpath,
+        db.Checksums().insert(_get_archive_checksums(fpath,
                                                         dir_path))
 
         # Remove archive and all created symlinks
         os.remove(fpath)
         _process_extracted_files(dir_path)
 
-        db.AsyncTaskCol().update_status(task_id, "done")
+        db.Tasks().update_status(task_id, "done")
         msg = {"message": "Archive uploaded and extracted",
                "md5": md5}
-        db.AsyncTaskCol().update_message(task_id, json.dumps(msg))
+        db.Tasks().update_message(task_id, json.dumps(msg))
 
 
 @utils.run_background
@@ -174,8 +174,8 @@ def extract_task(fpath, dir_path, task_id=None):
         _extract(fpath, dir_path, task_id)
     except Exception as error:
         logging.error(str(error), exc_info=error)
-        db.AsyncTaskCol().update_status(task_id, "error")
-        db.AsyncTaskCol().update_message(task_id, "Internal server error")
+        db.Tasks().update_status(task_id, "error")
+        db.Tasks().update_message(task_id, "Internal server error")
         raise
 
     return task_id
@@ -197,7 +197,7 @@ def save_file(fpath):
 
     # Add file checksum to mongo
     md5 = gen_metadata.md5_digest(fpath)
-    db.ChecksumsCol().insert_one(os.path.abspath(fpath), md5)
+    db.Checksums().insert_one(os.path.abspath(fpath), md5)
     file_path = utils.get_return_path(fpath)
     response = jsonify({
         "file_path": file_path,

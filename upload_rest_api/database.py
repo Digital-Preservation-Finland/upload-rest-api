@@ -74,7 +74,7 @@ def get_dir_size(fpath):
 
 def update_used_quota(username, root_upload_path):
     """Update used quota of the user"""
-    user = UsersDoc(username)
+    user = User(username)
     project = user.get_project()
     path = safe_join(root_upload_path, secure_filename(project))
     size = get_dir_size(path)
@@ -114,11 +114,11 @@ class TaskNotFoundError(Exception):
     pass
 
 
-class UsersDoc(object):
+class User(object):
     """Class for managing users in the database"""
 
     def __init__(self, username, quota=5*1024**3):
-        """Initializing UsersDoc instances
+        """Initializing User instances
 
         :param username: Used as primary key _id
         """
@@ -284,7 +284,7 @@ class UsersDoc(object):
         return self.users.find_one({"_id": self.username}) is not None
 
 
-class ChecksumsCol(object):
+class Checksums(object):
     """Class for managing checksums in the database"""
 
     def __init__(self):
@@ -333,7 +333,7 @@ class ChecksumsCol(object):
         return self.checksums.find({})
 
 
-class FilesCol(object):
+class Files(object):
     """Class for managing files in the database"""
 
     def __init__(self):
@@ -401,7 +401,7 @@ class FilesCol(object):
         :returns: None
         """
         documents = []
-        project = UsersDoc(username).get_project()
+        project = User(username).get_project()
 
         for file_md in file_md_list:
             documents.append({
@@ -413,11 +413,11 @@ class FilesCol(object):
         self.insert(documents)
 
 
-class AsyncTaskCol(object):
-    """Class for asynchronous tasks in the database"""
+class Tasks(object):
+    """Class for managing tasks in the database"""
 
     def __init__(self):
-        """Initializing AsyncTaskColl instance"""
+        """Initializing Tasks instance"""
         self.tasks = get_mongo_client().upload.tasks
 
     def create(self, project):

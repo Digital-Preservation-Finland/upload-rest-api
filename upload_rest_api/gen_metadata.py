@@ -127,9 +127,9 @@ class MetaxClient(object):
         """
 
         # _generate_metadata() vars
-        project = db.UsersDoc(username).get_project()
+        project = db.User(username).get_project()
 
-        checksums = db.ChecksumsCol()
+        checksums = db.Checksums()
         metadata = []
         for fpath in fpaths:
             metadata.append(_generate_metadata(

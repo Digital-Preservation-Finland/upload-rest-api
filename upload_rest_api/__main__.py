@@ -125,7 +125,7 @@ def _get_users(args):
             print(user)
     elif args.user:
         try:
-            user = db.UsersDoc(args.user).get()
+            user = db.User(args.user).get()
         except db.UserNotFoundError:
             print("User not found")
             return
@@ -142,11 +142,11 @@ def _get_users(args):
 def _get_checksums(args):
     """Get checksums from mongo"""
     if args.checksums:
-        checksums = db.ChecksumsCol().get_checksums()
+        checksums = db.Checksums().get_checksums()
         for checksum in checksums:
             print(json.dumps(checksum, indent=4))
     elif args.checksum:
-        checksum = db.ChecksumsCol().get_checksum(args.checksum)
+        checksum = db.Checksums().get_checksum(args.checksum)
         if checksum:
             print(checksum)
         else:
@@ -156,11 +156,11 @@ def _get_checksums(args):
 def _get_identifiers(args):
     """Get identifiers from mongo"""
     if args.identifiers:
-        identifiers = db.FilesCol().get_all_ids()
+        identifiers = db.Files().get_all_ids()
         for identifier in identifiers:
             print(identifier)
     elif args.identifier:
-        path = db.FilesCol().get_path(args.identifier)
+        path = db.Files().get_path(args.identifier)
         if path:
             print(path)
         else:
@@ -176,20 +176,20 @@ def _get(args):
 
 def _create(args):
     """Create a new user"""
-    user = db.UsersDoc(args.username)
+    user = db.User(args.username)
     passwd = user.create(args.project)
     print("%s:%s" % (args.username, passwd))
 
 
 def _delete(args):
     """Delete an existing user"""
-    db.UsersDoc(args.username).delete()
+    db.User(args.username).delete()
     print("Deleted")
 
 
 def _modify(args):
     """Modify an existing user"""
-    user = db.UsersDoc(args.username)
+    user = db.User(args.username)
     if args.quota:
         user.set_quota(args.quota)
     if args.project:

@@ -48,7 +48,7 @@ def init_db(mock_mongo):
     mock_mongo.drop_database("upload")
 
     # test user
-    user = db.UsersDoc("test")
+    user = db.User("test")
     user.users = mock_mongo.upload.users
     user.create("test_project", password="test")
 
@@ -98,10 +98,10 @@ def app(mock_mongo, monkeypatch):
 
 @pytest.fixture(scope="function")
 def user(mock_mongo, monkeypatch):
-    """Initializes and returns UsersDoc instance with db connection
+    """Initializes and returns User instance with db connection
     through mongomock
     """
-    test_user = db.UsersDoc("test_user")
+    test_user = db.User("test_user")
     test_user.users = mock_mongo.upload.users
 
     return test_user
@@ -109,10 +109,10 @@ def user(mock_mongo, monkeypatch):
 
 @pytest.fixture(scope="function")
 def files_col(mock_mongo):
-    """Initializes and returns FilesCol instance with db connection
+    """Initializes and returns Files instance with db connection
     through mongomock
     """
-    files_coll = db.FilesCol()
+    files_coll = db.Files()
     files_coll.files = mock_mongo.upload.files
 
     return files_coll
@@ -123,7 +123,7 @@ def tasks_col(mock_mongo):
     """Initializes and returns  instance with db connection
     through mongomock
     """
-    tasks_col = db.AsyncTaskCol()
+    tasks_col = db.Tasks()
     tasks_col.tasks = mock_mongo.upload.tasks
 
     return tasks_col

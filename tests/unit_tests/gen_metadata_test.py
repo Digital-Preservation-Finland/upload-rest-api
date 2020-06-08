@@ -39,14 +39,14 @@ def test_gen_metadata(monkeypatch):
     """Test that _generate_metadata() produces the correct metadata"""
 
     monkeypatch.setattr(
-        db.ChecksumsCol, "get_checksum",
+        db.Checksums, "get_checksum",
         lambda self, filepath: "150b62e4e7d58c70503bd5fc8a26463c"
     )
     metadata = md._generate_metadata(
         "tests/data/test.txt",
         "tests", "data",
         "pid:uuid:storage_id",
-        db.ChecksumsCol()
+        db.Checksums()
     )
 
     assert len(metadata["identifier"]) == 45

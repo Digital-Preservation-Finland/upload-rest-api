@@ -104,7 +104,7 @@ def test_store_identifiers(files_col, monkeypatch):
     monkeypatch.setattr(db, "_get_abs_path",
                         lambda path, _root_path, _project: path)
 
-    monkeypatch.setattr(db.UsersDoc, "get_project",
+    monkeypatch.setattr(db.User, "get_project",
                         lambda self: "project_path")
 
     metax_response = [

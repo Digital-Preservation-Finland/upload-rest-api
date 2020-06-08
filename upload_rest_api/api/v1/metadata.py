@@ -26,7 +26,7 @@ def _post_metadata(metax_client, fpath, root_upload_path,
     fpath, fname = utils.get_upload_path(fpath, root_upload_path, username)
     fpath = os.path.join(fpath, fname)
     ret_path = utils.get_return_path(fpath, root_upload_path, username)
-    db.AsyncTaskCol().update_message(
+    db.Tasks().update_message(
         task_id, "Creating metadata: %s" % ret_path
     )
 
@@ -56,14 +56,14 @@ def _post_metadata(metax_client, fpath, root_upload_path,
         # Add created identifiers to Mongo
         if "success" in response and response["success"]:
             created_md = response["success"]
-            db.FilesCol().store_identifiers(created_md, root_upload_path,
+            db.Files().store_identifiers(created_md, root_upload_path,
                                             username)
 
         # Create upload-rest-api response
         response = {"code": status_code, "metax_response": response}
 
-    db.AsyncTaskCol().update_status(task_id, status)
-    db.AsyncTaskCol().update_message(task_id, json.dumps(response))
+    db.Tasks().update_status(task_id, status)
+    db.Tasks().update_message(task_id, json.dumps(response))
 
 
 @utils.run_background
@@ -88,8 +88,8 @@ def post_metadata_task(metax_client, fpath, root_upload_path, username,
         )
     except Exception as error:
         logging.error(str(error), exc_info=error)
-        db.AsyncTaskCol().update_status(task_id, "error")
-        db.AsyncTaskCol().update_message(task_id, "Internal server error")
+        db.Tasks().update_status(task_id, "error")
+        db.Tasks().update_message(task_id, "Internal server error")
         raise
 
     return task_id
@@ -99,11 +99,11 @@ def _delete_metadata(metax_client, fpath, root_upload_path, username, task_id):
     """DELETE Metadata form Metax"""
     status = "error"
     response = None
-    project = db.UsersDoc(username).get_project()
+    project = db.User(username).get_project()
     fpath, fname = utils.get_upload_path(fpath, root_upload_path, username)
     fpath = os.path.join(fpath, fname)
     ret_path = utils.get_return_path(fpath, root_upload_path, username)
-    db.AsyncTaskCol().update_message(
+    db.Tasks().update_message(
         task_id, "Deleting metadata: %s" % ret_path
     )
 
@@ -137,8 +137,8 @@ def _delete_metadata(metax_client, fpath, root_upload_path, username, task_id):
                                                    username),
                 "metax": response
             }
-    db.AsyncTaskCol().update_status(task_id, status)
-    db.AsyncTaskCol().update_message(task_id, json.dumps(response))
+    db.Tasks().update_status(task_id, status)
+    db.Tasks().update_message(task_id, json.dumps(response))
 
 
 @utils.run_background
@@ -161,8 +161,8 @@ def delete_metadata_task(metax_client, fpath, root_upload_path, username,
         )
     except Exception as error:
         logging.error(str(error), exc_info=error)
-        db.AsyncTaskCol().update_status(task_id, "error")
-        db.AsyncTaskCol().update_message(task_id, "Internal server error")
+        db.Tasks().update_status(task_id, "error")
+        db.Tasks().update_message(task_id, "Internal server error")
         raise
 
     return task_id

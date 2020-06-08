@@ -51,9 +51,9 @@ def _clean_old_tasks(time_lim):
     :param time_lim: : expiration time in seconds
     """
     current_time = time.time()
-    for task in db.AsyncTaskCol().get_all_tasks():
+    for task in db.Tasks().get_all_tasks():
         if current_time - task["timestamp"] > time_lim:
-            db.AsyncTaskCol().delete_one(task["_id"])
+            db.Tasks().delete_one(task["_id"])
 
 
 def parse_conf(fpath):
@@ -141,7 +141,7 @@ def clean_project(project, fpath, metax=True):
     _clean_empty_dirs(fpath)
 
     # Clean checksums of the deleted files from mongo
-    db.ChecksumsCol().delete(deleted_files)
+    db.Checksums().delete(deleted_files)
 
     # Remove Metax entries of deleted files that are not part of any datasets
     if metax:
@@ -185,7 +185,7 @@ def clean_mongo():
 
     metax_ids = md.MetaxClient(url, user, password).get_all_ids(projects)
 
-    files = db.FilesCol()
+    files = db.Files()
     mongo_ids = files.get_all_ids()
     id_list = []
 
