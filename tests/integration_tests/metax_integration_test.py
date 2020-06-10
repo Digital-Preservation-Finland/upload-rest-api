@@ -65,14 +65,8 @@ def clean_metax():
     metax_client = MetaxClient(URL, USER, PASSWORD)
     files_dict = metax_client.get_files_dict("test_project")
     file_id_list = [value["id"] for value in files_dict.values()]
-    try:
+    if file_id_list:
         metax_client.client.delete_files(file_id_list)
-    except requests.exceptions.HTTPError as exception:
-        detail = exception.response.json()['detail']
-        if detail == "Received empty list of identifiers":
-            pass
-        else:
-            raise
 
 
 @pytest.mark.parametrize(
@@ -356,7 +350,7 @@ def test_mongo_cleanup(app, test_auth, monkeypatch):
     test_client = app.test_client()
 
     # Mock Files mongo connection
-    def _mock_init(self):
+    def _mock_init(self, client):
         host = app.config.get("MONGO_HOST")
         port = app.config.get("MONGO_PORT")
         self.files = pymongo.MongoClient(host, port).upload.files
