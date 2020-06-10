@@ -40,33 +40,34 @@ def _delete(metax_client, fpath, root_upload_path, username, task_id):
     """Delete files and metadata"""
     # Remove metadata from Metax
     ret_path = utils.get_return_path(fpath, root_upload_path, username)
-    db.Tasks().update_message(
+    database = db.Database()
+    database.tasks.update_message(
         task_id,
         "Deleting files and metadata: %s" % ret_path
     )
-    project = db.User(username).get_project()
+    project = database.user(username).get_project()
     try:
         metax_response = metax_client.delete_all_metadata(project, fpath,
                                                           root_upload_path)
     except (MetaxError, HTTPError) as error:
         logging.error(str(error), exc_info=error)
-        db.Tasks().update_status(task_id, "error")
+        database.tasks.update_status(task_id, "error")
         msg = {"message": str(error)}
-        db.Tasks().update_message(task_id, json.dumps(msg))
+        database.tasks.update_message(task_id, json.dumps(msg))
     else:
         # Remove checksum from mongo
-        db.Checksums().delete_dir(fpath)
+        database.checksums.delete_dir(fpath)
 
         # Remove project directory and update used_quota
         rmtree(fpath)
-        db.User(username).update_used_quota(root_upload_path)
-        db.Tasks().update_status(task_id, "done")
+        database.user(username).update_used_quota(root_upload_path)
+        database.tasks.update_status(task_id, "done")
         response = {
             "file_path": ret_path,
             "status": "done",
             "metax": metax_response
         }
-        db.Tasks().update_message(task_id, json.dumps(response))
+        database.tasks.update_message(task_id, json.dumps(response))
 
 
 @utils.run_background
@@ -86,8 +87,9 @@ def delete_task(metax_client, fpath, root_upload_path, username, task_id=None):
         _delete(metax_client, fpath, root_upload_path, username, task_id)
     except Exception as error:
         logging.error(str(error), exc_info=error)
-        db.Tasks().update_status(task_id, "error")
-        db.Tasks().update_message(task_id, "Internal server error")
+        tasks = db.Database().tasks
+        tasks.update_status(task_id, "error")
+        tasks.update_message(task_id, "Internal server error")
         raise
 
     return task_id
@@ -115,7 +117,7 @@ def upload_file(fpath):
     except (up.OverwriteError) as error:
         return utils.make_response(409, str(error))
 
-    db.User(request.authorization.username).update_used_quota(
+    db.Database().user(request.authorization.username).update_used_quota(
         current_app.config.get("UPLOAD_PATH")
     )
 
@@ -132,13 +134,14 @@ def get_path(fpath):
     root_upload_path = current_app.config.get("UPLOAD_PATH")
     fpath, fname = utils.get_upload_path(fpath)
     fpath = os.path.join(fpath, fname)
+    database = db.Database()
 
     if os.path.isfile(fpath):
         file_path = utils.get_return_path(fpath, root_upload_path, username)
         response = jsonify({
             "file_path": file_path,
-            "metax_identifier": db.Files().get_identifier(fpath),
-            "md5": db.Checksums().get_checksum(os.path.abspath(fpath)),
+            "metax_identifier": database.files.get_identifier(fpath),
+            "md5": database.checksums.get_checksum(os.path.abspath(fpath)),
             "timestamp": md.iso8601_timestamp(fpath)
         })
 
@@ -162,7 +165,8 @@ def delete_path(fpath):
     """
     root_upload_path = current_app.config.get("UPLOAD_PATH")
     username = request.authorization.username
-    project = db.User(username).get_project()
+    database = db.Database()
+    project = database.user(username).get_project()
     fpath, fname = utils.get_upload_path(fpath)
     fpath = os.path.join(fpath, fname)
 
@@ -175,7 +179,7 @@ def delete_path(fpath):
             response = str(exception)
 
         # Remove checksum from mongo
-        db.Checksums().delete_one(os.path.abspath(fpath))
+        database.checksums.delete_one(os.path.abspath(fpath))
         os.remove(fpath)
 
     elif os.path.isdir(fpath):
@@ -199,7 +203,7 @@ def delete_path(fpath):
     else:
         return utils.make_response(404, "File not found")
 
-    db.User(username).update_used_quota(root_upload_path)
+    database.user(username).update_used_quota(root_upload_path)
 
     response = jsonify({
         "file_path": utils.get_return_path(fpath, root_upload_path, username),
@@ -218,7 +222,7 @@ def get_files():
     :return: HTTP Response
     """
     username = request.authorization.username
-    project = db.User(username).get_project()
+    project = db.Database().user(username).get_project()
     root_upload_path = current_app.config.get("UPLOAD_PATH")
     fpath = safe_join(root_upload_path, secure_filename(project))
 
@@ -237,7 +241,7 @@ def delete_files():
     :returns: HTTP Response
     """
     username = request.authorization.username
-    project = db.User(username).get_project()
+    project = db.Database().user(username).get_project()
     root_upload_path = current_app.config.get("UPLOAD_PATH")
     fpath = safe_join(root_upload_path, secure_filename(project))
 

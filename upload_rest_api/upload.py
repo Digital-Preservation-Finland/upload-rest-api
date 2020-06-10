@@ -21,24 +21,24 @@ from upload_rest_api.api.v1.tasks import TASK_STATUS_API_V1
 SUPPORTED_TYPES = ("application/octet-stream",)
 
 
-def request_exceeds_quota():
+def _request_exceeds_quota(database):
     """Check whether the request exceeds users quota
 
     :returns: True if the request exceeds user's quota else False
     """
     username = request.authorization.username
-    user = db.User(username)
+    user = database.user(username)
     quota = user.get_quota() - user.get_used_quota()
 
     return quota - request.content_length < 0
 
 
-def _archive_exceeds_quota(archive_path, username):
+def _archive_exceeds_quota(database, archive_path, username):
     """Check whether extracting the archive exceeds users quota.
 
     :returns: True if the archive exceeds user's quota else False
     """
-    user = db.User(username)
+    user = database.user(username)
     quota = user.get_quota() - user.get_used_quota()
 
     if tarfile.is_tarfile(archive_path):
@@ -130,7 +130,9 @@ class UploadPendingError(Exception):
 
 def _extract(fpath, dir_path, task_id):
     """Extract an archive"""
-    db.Tasks().update_message(
+    database = db.Database()
+
+    database.tasks.update_message(
         task_id, "Extracting archive"
     )
     md5 = gen_metadata.md5_digest(fpath)
@@ -140,21 +142,21 @@ def _extract(fpath, dir_path, task_id):
         logging.error(str(error), exc_info=error)
         # Remove the archive and set task's state
         os.remove(fpath)
-        db.Tasks().update_status(task_id, "error")
+        database.tasks.update_status(task_id, "error")
         msg = {"message": str(error)}
-        db.Tasks().update_message(task_id, json.dumps(msg))
+        database.tasks.update_message(task_id, json.dumps(msg))
     else:
         # Add checksums of the extracted files to mongo
-        db.Checksums().insert(_get_archive_checksums(fpath, dir_path))
+        database.checksums.insert(_get_archive_checksums(fpath, dir_path))
 
         # Remove archive and all created symlinks
         os.remove(fpath)
         _process_extracted_files(dir_path)
 
-        db.Tasks().update_status(task_id, "done")
+        database.tasks.update_status(task_id, "done")
         msg = {"message": "Archive uploaded and extracted",
                "md5": md5}
-        db.Tasks().update_message(task_id, json.dumps(msg))
+        database.tasks.update_message(task_id, json.dumps(msg))
 
 
 @utils.run_background
@@ -173,8 +175,9 @@ def extract_task(fpath, dir_path, task_id=None):
         _extract(fpath, dir_path, task_id)
     except Exception as error:
         logging.error(str(error), exc_info=error)
-        db.Tasks().update_status(task_id, "error")
-        db.Tasks().update_message(task_id, "Internal server error")
+        tasks = db.Database().tasks
+        tasks.update_status(task_id, "error")
+        tasks.update_message(task_id, "Internal server error")
         raise
 
     return task_id
@@ -196,7 +199,7 @@ def save_file(fpath):
 
     # Add file checksum to mongo
     md5 = gen_metadata.md5_digest(fpath)
-    db.Checksums().insert_one(os.path.abspath(fpath), md5)
+    db.Database().checksums.insert_one(os.path.abspath(fpath), md5)
     file_path = utils.get_return_path(fpath)
     response = jsonify({
         "file_path": file_path,
@@ -231,7 +234,7 @@ def save_archive(fpath, upload_dir):
     # If zip or tar file was uploaded, extract all files
     if zipfile.is_zipfile(fpath) or tarfile.is_tarfile(fpath):
         # Check the uncompressed size
-        if _archive_exceeds_quota(fpath, username):
+        if _archive_exceeds_quota(db.Database(), fpath, username):
             # Remove the archive and raise an exception
             os.remove(fpath)
             raise QuotaError("Quota exceeded")
@@ -264,9 +267,11 @@ def validate_upload():
               if validation failed.
     """
     response = None
+    database = db.Database()
+
     # Update used_quota also at the start of the function
     # since multiple users might by using the same project
-    db.User(request.authorization.username).update_used_quota(
+    database.user(request.authorization.username).update_used_quota(
         current_app.config.get("UPLOAD_PATH")
     )
 
@@ -284,6 +289,6 @@ def validate_upload():
     # Check user quota
     if request.content_length > current_app.config.get("MAX_CONTENT_LENGTH"):
         response = utils.make_response(413, "Max single file size exceeded")
-    elif request_exceeds_quota():
+    elif _request_exceeds_quota(database):
         response = utils.make_response(413, "Quota exceeded")
     return response

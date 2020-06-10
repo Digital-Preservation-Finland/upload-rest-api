@@ -125,12 +125,12 @@ class MetaxClient(object):
         :param storage_id: pas storage identifier in Metax
         :returns: HTTP response returned by Metax
         """
-
         # _generate_metadata() vars
-        project = db.User(username).get_project()
-
-        checksums = db.Checksums()
+        database = db.Database()
+        project = database.user(username).get_project()
+        checksums = database.checksums
         metadata = []
+
         for fpath in fpaths:
             metadata.append(_generate_metadata(
                 fpath, root_upload_path,

@@ -47,7 +47,7 @@ def upload_archive():
     except up.QuotaError as error:
         return utils.make_response(413, str(error))
 
-    db.User(request.authorization.username).update_used_quota(
+    db.Database().user(request.authorization.username).update_used_quota(
         current_app.config.get("UPLOAD_PATH")
     )
 

@@ -377,7 +377,7 @@ def test_mongo_cleanup(app, test_auth, monkeypatch):
 
     monkeypatch.setattr(clean, "parse_conf", _mock_conf)
 
-    files_col = db.Files()
+    files_col = db.Database().files
 
     # ----- Inserting fake identifiers to Mongo and cleaning them
     files_col.insert([

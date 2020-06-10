@@ -77,18 +77,6 @@ def parse_conf(fpath):
     return run_path(fpath)
 
 
-def _get_mongo_client():
-    """Returns a MongoClient instance"""
-    conf = parse_conf("/etc/upload_rest_api.conf")
-    return pymongo.MongoClient(conf["MONGO_HOST"], conf["MONGO_PORT"])
-
-
-def get_all_users():
-    """Returns a list of all the users in upload.users collection"""
-    users = _get_mongo_client().upload.users
-    return sorted(users.find().distinct("_id"))
-
-
 class UserExistsError(Exception):
     """Exception for trying to create a user, which already exists"""
     pass
@@ -104,15 +92,67 @@ class TaskNotFoundError(Exception):
     pass
 
 
+class Database(object):
+    """Class for accessing data in mongodb"""
+
+    def __init__(self):
+        """Initialize connection to mongodb"""
+        conf = parse_conf("/etc/upload_rest_api.conf")
+        self.client = pymongo.MongoClient(conf["MONGO_HOST"],
+                                          conf["MONGO_PORT"])
+
+    def get_all_users(self):
+        """Returns a list of all the users in upload.users collection"""
+        users = self.client.upload.users
+        return sorted(users.find().distinct("_id"))
+
+    def store_identifiers(self, file_md_list, root_upload_path, username):
+        """Store file identifiers and paths on disk to Mongo.
+
+        :param file_md_list: List of created file metadata returned by Metax
+        :returns: None
+        """
+        documents = []
+        project = self.user(username).get_project()
+
+        for file_md in file_md_list:
+            documents.append({
+                "_id": file_md["object"]["identifier"],
+                "file_path": _get_abs_path(file_md["object"]["file_path"],
+                                           root_upload_path, project)
+            })
+
+        self.files.insert(documents)
+
+    def user(self, username):
+        """Returns user"""
+        return User(self.client, username)
+
+    @property
+    def checksums(self):
+        """Return checksums collection."""
+        return Checksums(self.client)
+
+    @property
+    def files(self):
+        """Return files collection."""
+        return Files(self.client)
+
+    @property
+    def tasks(self):
+        """Return tasks collection."""
+        return Tasks(self.client)
+
+
 class User(object):
     """Class for managing users in the database"""
 
-    def __init__(self, username, quota=5*1024**3):
+    def __init__(self, client, username, quota=5*1024**3):
         """Initializing User instances
 
         :param username: Used as primary key _id
         """
-        self.users = _get_mongo_client().upload.users
+        self.users = client.upload.users
         self.username = username
         self.quota = quota
 
@@ -284,9 +324,9 @@ class User(object):
 class Checksums(object):
     """Class for managing checksums in the database"""
 
-    def __init__(self):
-        """Initializing FilesDoc instances"""
-        self.checksums = _get_mongo_client().upload.checksums
+    def __init__(self, client):
+        """Initializing Checksums instances"""
+        self.checksums = client.upload.checksums
 
     def insert_one(self, filepath, checksum):
         """Insert a single checksum doc"""
@@ -333,9 +373,9 @@ class Checksums(object):
 class Files(object):
     """Class for managing files in the database"""
 
-    def __init__(self):
-        """Initializing FilesDoc instances"""
-        self.files = _get_mongo_client().upload.files
+    def __init__(self, client):
+        """Initializing Files instances"""
+        self.files = client.upload.files
 
     def get_path(self, identifier):
         """Get file_path based on _id identifier"""
@@ -391,31 +431,13 @@ class Files(object):
         documents = self.files.find()
         return [document["_id"] for document in documents]
 
-    def store_identifiers(self, file_md_list, root_upload_path, username):
-        """Store file identifiers and paths on disk to Mongo.
-
-        :param file_md_list: List of created file metadata returned by Metax
-        :returns: None
-        """
-        documents = []
-        project = User(username).get_project()
-
-        for file_md in file_md_list:
-            documents.append({
-                "_id": file_md["object"]["identifier"],
-                "file_path": _get_abs_path(file_md["object"]["file_path"],
-                                           root_upload_path, project)
-            })
-
-        self.insert(documents)
-
 
 class Tasks(object):
     """Class for managing tasks in the database"""
 
-    def __init__(self):
+    def __init__(self, client):
         """Initializing Tasks instance"""
-        self.tasks = _get_mongo_client().upload.tasks
+        self.tasks = client.upload.tasks
 
     def create(self, project):
         """Creates one task document.

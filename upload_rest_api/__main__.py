@@ -119,13 +119,15 @@ def _cleanup_mongo(args):
 
 def _get_users(args):
     """Get users from mongo"""
+    database = db.Database()
+
     if args.users:
-        users = db.get_all_users()
+        users = database.get_all_users()
         for user in users:
             print(user)
     elif args.user:
         try:
-            user = db.User(args.user).get()
+            user = database.user(args.user).get()
         except db.UserNotFoundError:
             print("User not found")
             return
@@ -141,12 +143,14 @@ def _get_users(args):
 
 def _get_checksums(args):
     """Get checksums from mongo"""
+    database = db.Database()
+
     if args.checksums:
-        checksums = db.Checksums().get_checksums()
+        checksums = database.checksums.get_checksums()
         for checksum in checksums:
             print(json.dumps(checksum, indent=4))
     elif args.checksum:
-        checksum = db.Checksums().get_checksum(args.checksum)
+        checksum = database.checksums.get_checksum(args.checksum)
         if checksum:
             print(checksum)
         else:
@@ -155,12 +159,14 @@ def _get_checksums(args):
 
 def _get_identifiers(args):
     """Get identifiers from mongo"""
+    database = db.Database()
+
     if args.identifiers:
-        identifiers = db.Files().get_all_ids()
+        identifiers = database.files.get_all_ids()
         for identifier in identifiers:
             print(identifier)
     elif args.identifier:
-        path = db.Files().get_path(args.identifier)
+        path = database.files.get_path(args.identifier)
         if path:
             print(path)
         else:
@@ -176,20 +182,20 @@ def _get(args):
 
 def _create(args):
     """Create a new user"""
-    user = db.User(args.username)
+    user = db.Database().user(args.username)
     passwd = user.create(args.project)
     print("%s:%s" % (args.username, passwd))
 
 
 def _delete(args):
     """Delete an existing user"""
-    db.User(args.username).delete()
+    db.Database().user(args.username).delete()
     print("Deleted")
 
 
 def _modify(args):
     """Modify an existing user"""
-    user = db.User(args.username)
+    user = db.Database().user(args.username)
     if args.quota:
         user.set_quota(args.quota)
     if args.project:

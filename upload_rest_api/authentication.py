@@ -12,7 +12,7 @@ from upload_rest_api.database import UserNotFoundError
 
 def _auth_user(username, password):
     """Authenticate user"""
-    user = db.User(username)
+    user = db.Database().user(username)
 
     try:
         user = user.get()

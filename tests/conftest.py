@@ -48,7 +48,7 @@ def init_db(mock_mongo):
     mock_mongo.drop_database("upload")
 
     # test user
-    user = db.User("test")
+    user = db.Database().user("test")
     user.users = mock_mongo.upload.users
     user.create("test_project", password="test")
 
@@ -101,7 +101,7 @@ def user(mock_mongo, monkeypatch):
     """Initializes and returns User instance with db connection
     through mongomock
     """
-    test_user = db.User("test_user")
+    test_user = db.Database().user("test_user")
     test_user.users = mock_mongo.upload.users
 
     return test_user
@@ -112,7 +112,7 @@ def files_col(mock_mongo):
     """Initializes and returns Files instance with db connection
     through mongomock
     """
-    files_coll = db.Files()
+    files_coll = db.Database().files
     files_coll.files = mock_mongo.upload.files
 
     return files_coll
@@ -123,7 +123,7 @@ def tasks_col(mock_mongo):
     """Initializes and returns  instance with db connection
     through mongomock
     """
-    tasks_col = db.Tasks()
+    tasks_col = db.Database().tasks
     tasks_col.tasks = mock_mongo.upload.tasks
 
     return tasks_col

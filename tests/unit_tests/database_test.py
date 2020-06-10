@@ -21,11 +21,11 @@ def test_dir_size():
 def test_create_user(user):
     """Test creation of new user
     """
-    db = user.users
+    users = user.users
     user.username = "test"
     user.create("test_project")
 
-    user_dict = db.find_one({"_id": "test"})
+    user_dict = users.find_one({"_id": "test"})
 
     assert user_dict is not None
     assert user.exists()
@@ -50,15 +50,15 @@ def test_create_user(user):
 def test_delete_user(user):
     """Test deletion of user
     """
-    db = user.users
+    users = user.users
 
-    db.insert_one({"_id": "test_user"})
-    db.insert_one({"_id": "test_user2"})
+    users.insert_one({"_id": "test_user"})
+    users.insert_one({"_id": "test_user2"})
 
     user.delete()
 
-    assert db.find_one({"_id": "test_user"}) is None
-    assert db.find_one({"_id": "test_user2"}) is not None
+    assert users.find_one({"_id": "test_user"}) is None
+    assert users.find_one({"_id": "test_user2"}) is not None
 
 
 def test_get_all_ids(files_col):
@@ -97,7 +97,7 @@ def test_insert_and_delete_files(files_col):
     assert len(files_col.get_all_ids()) == 0
 
 
-def test_store_identifiers(files_col, monkeypatch):
+def test_store_identifiers(monkeypatch):
     """Test that store_identifiers writes the POSTed identifiers and
     corresponding file_paths to Mongo.
     """
@@ -113,22 +113,23 @@ def test_store_identifiers(files_col, monkeypatch):
         {"object": {"identifier": "pid:urn:3", "file_path": "3"}}
     ]
 
-    files_col.store_identifiers(metax_response, "/tmp", "user")
-    assert files_col.get_all_ids() == ["pid:urn:1", "pid:urn:2", "pid:urn:3"]
+    database = db.Database()
+    database.store_identifiers(metax_response, "/tmp", "user")
+    assert database.files.get_all_ids() == ["pid:urn:1", "pid:urn:2", "pid:urn:3"]
 
 
 def test_quota(user):
     """Test get_quota() and set_quota() functions
     """
-    db = user.users
-    db.insert_one({"_id": "test_user", "quota": 5 * 1024**3})
+    users = user.users
+    users.insert_one({"_id": "test_user", "quota": 5 * 1024**3})
 
     # Get
     assert user.get_quota() == 5 * 1024**3
 
     # Set
     user.set_quota(0)
-    assert db.find_one({"_id": "test_user"})["quota"] == 0
+    assert users.find_one({"_id": "test_user"})["quota"] == 0
 
 
 def test_get_random_string():

@@ -46,7 +46,7 @@ def test_gen_metadata(monkeypatch):
         "tests/data/test.txt",
         "tests", "data",
         "pid:uuid:storage_id",
-        db.Checksums()
+        db.Database().checksums
     )
 
     assert len(metadata["identifier"]) == 45

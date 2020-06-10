@@ -31,8 +31,9 @@ def test_cleanup(mock_clean_disk, mock_clean_mongo, command):
 
 def test_get(mock_mongo, capsys):
     """Test get command."""
-    db.User("test1").create("test_project")
-    db.User("test2").create("test_project")
+    database = db.Database()
+    database.user("test1").create("test_project")
+    database.user("test2").create("test_project")
 
     with mock.patch.object(
         sys, 'argv',
@@ -57,7 +58,7 @@ def test_create_user(mock_mongo):
 
 def test_create_existing_user(mock_mongo):
     """Test that creating a user that already exists raises UserExistsError"""
-    db.User("test").create("test_project")
+    db.Database().user("test").create("test_project")
     with mock.patch.object(
         sys, 'argv',
         ['upload-rest-api', 'create', 'test', 'test']
@@ -68,7 +69,7 @@ def test_create_existing_user(mock_mongo):
 
 def test_delete_user(mock_mongo):
     """Test deletion of an existing user"""
-    db.User("test").create("test_project")
+    db.Database().user("test").create("test_project")
     with mock.patch.object(
         sys, 'argv',
         ['upload-rest-api', 'delete', 'test']
@@ -90,7 +91,7 @@ def test_delete_user_fail(mock_mongo):
 
 def test_modify(mock_mongo):
     """Test modifying user quota and project"""
-    user = db.User("test")
+    user = db.Database().user("test")
     user.create("test_project")
     with mock.patch.object(
         sys, 'argv',
