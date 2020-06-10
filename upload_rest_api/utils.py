@@ -15,14 +15,10 @@ from werkzeug.utils import secure_filename
 import upload_rest_api.database as db
 
 
-def get_upload_path(fpath, root_upload_path=None, username=None):
+def get_upload_path(project, fpath, root_upload_path=None):
     """Get upload path for current request"""
-    if not username:
-        username = request.authorization.username
     if not root_upload_path:
         root_upload_path = current_app.config.get("UPLOAD_PATH")
-    user = db.Database().user(username)
-    project = user.get_project()
 
     fpath, fname = os.path.split(fpath)
     fname = secure_filename(fname)
@@ -34,11 +30,8 @@ def get_upload_path(fpath, root_upload_path=None, username=None):
     return os.path.normpath(joined_path), fname
 
 
-def get_project_path(username):
-    """Get upload path for current request"""
-    user = db.Database().user(username)
-    project = user.get_project()
-
+def get_project_path(project):
+    """Get upload path for a given project"""
     root_upload_path = current_app.config.get("UPLOAD_PATH")
     project = secure_filename(project)
 
@@ -55,16 +48,13 @@ def get_tmp_upload_path():
     return fpath, fname
 
 
-def get_return_path(fpath, root_upload_path=None, username=None):
+def get_return_path(project, fpath, root_upload_path=None):
     """Splice upload_path and project from fpath and return the path
     shown to the user and POSTed to Metax.
     """
-    if not username:
-        username = request.authorization.username
     if not root_upload_path:
         root_upload_path = current_app.config.get("UPLOAD_PATH")
-    user = db.Database().user(username)
-    project = user.get_project()
+
     base_path = safe_join(root_upload_path, project)
     ret_path = os.path.normpath(fpath[len(base_path):])
 

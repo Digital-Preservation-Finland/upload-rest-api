@@ -183,10 +183,11 @@ def extract_task(fpath, dir_path, task_id=None):
     return task_id
 
 
-def save_file(fpath):
+def save_file(project, fpath):
     """Save the posted file on disk at fpath by reading
     the upload stream in 1MB chunks.
 
+    :param project: File's project
     :param fpath: Path where to save the file
     :returns: HTTP Response
     """
@@ -200,7 +201,7 @@ def save_file(fpath):
     # Add file checksum to mongo
     md5 = gen_metadata.md5_digest(fpath)
     db.Database().checksums.insert_one(os.path.abspath(fpath), md5)
-    file_path = utils.get_return_path(fpath)
+    file_path = utils.get_return_path(project, fpath)
     response = jsonify({
         "file_path": file_path,
         "md5": md5,
@@ -221,7 +222,9 @@ def save_archive(fpath, upload_dir):
     :returns: HTTP Response
     """
     username = request.authorization.username
-    dir_path = utils.get_project_path(username)
+    database = db.Database()
+    project = database.user(username).get_project()
+    dir_path = utils.get_project_path(project)
     if upload_dir:
         dir_path = safe_join(dir_path, upload_dir)
         if os.path.isdir(dir_path):
@@ -234,7 +237,7 @@ def save_archive(fpath, upload_dir):
     # If zip or tar file was uploaded, extract all files
     if zipfile.is_zipfile(fpath) or tarfile.is_tarfile(fpath):
         # Check the uncompressed size
-        if _archive_exceeds_quota(db.Database(), fpath, username):
+        if _archive_exceeds_quota(database, fpath, username):
             # Remove the archive and raise an exception
             os.remove(fpath)
             raise QuotaError("Quota exceeded")

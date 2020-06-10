@@ -23,10 +23,12 @@ def _post_metadata(metax_client, fpath, root_upload_path,
     """POST Metadata to Metax"""
     status = "error"
     response = None
-    fpath, fname = utils.get_upload_path(fpath, root_upload_path, username)
-    fpath = os.path.join(fpath, fname)
-    ret_path = utils.get_return_path(fpath, root_upload_path, username)
     database = db.Database()
+    project = database.user(username).get_project()
+
+    fpath, fname = utils.get_upload_path(project, fpath, root_upload_path)
+    fpath = os.path.join(fpath, fname)
+    ret_path = utils.get_return_path(project, fpath, root_upload_path)
 
     database.tasks.update_message(
         task_id, "Creating metadata: %s" % ret_path
@@ -105,9 +107,9 @@ def _delete_metadata(metax_client, fpath, root_upload_path, username, task_id):
     response = None
     database = db.Database()
     project = database.user(username).get_project()
-    fpath, fname = utils.get_upload_path(fpath, root_upload_path, username)
+    fpath, fname = utils.get_upload_path(project, fpath, root_upload_path)
     fpath = os.path.join(fpath, fname)
-    ret_path = utils.get_return_path(fpath, root_upload_path, username)
+    ret_path = utils.get_return_path(project, fpath, root_upload_path)
     database.tasks.update_message(
         task_id, "Deleting metadata: %s" % ret_path
     )
@@ -128,8 +130,9 @@ def _delete_metadata(metax_client, fpath, root_upload_path, username, task_id):
         except HTTPError as error:
             logging.error(str(error), exc_info=error)
             response = {
-                "file_path": utils.get_return_path(fpath, root_upload_path,
-                                                   username),
+                "file_path": utils.get_return_path(
+                    project, fpath, root_upload_path
+                ),
                 "metax": error.response.json()
             }
         except md.MetaxClientError as error:
@@ -138,8 +141,9 @@ def _delete_metadata(metax_client, fpath, root_upload_path, username, task_id):
         else:
             status = "done"
             response = {
-                "file_path": utils.get_return_path(fpath, root_upload_path,
-                                                   username),
+                "file_path": utils.get_return_path(
+                    project, fpath, root_upload_path
+                ),
                 "metax": response
             }
     database.tasks.update_status(task_id, status)
@@ -184,8 +188,9 @@ def post_metadata(fpath):
     :returns: HTTP Response
     """
     username = request.authorization.username
+    project = db.Database().user(username).get_project()
     root_upload_path = current_app.config.get("UPLOAD_PATH")
-    file_path, fname = utils.get_upload_path(fpath)
+    file_path, fname = utils.get_upload_path(project, fpath, root_upload_path)
     file_path = os.path.join(file_path, fname)
 
     storage_id = current_app.config.get("STORAGE_ID")
@@ -193,7 +198,7 @@ def post_metadata(fpath):
                                  username, storage_id)
 
     polling_url = utils.get_polling_url(TASK_STATUS_API_V1.name, task_id)
-    ret_path = utils.get_return_path(file_path)
+    ret_path = utils.get_return_path(project, file_path, root_upload_path)
     response = jsonify({
         "file_path": ret_path,
         "message": "Creating metadata",
@@ -219,16 +224,17 @@ def delete_metadata(fpath):
     :returns: HTTP Response
     """
 
-    root_upload_path = current_app.config.get("UPLOAD_PATH")
     username = request.authorization.username
-    file_path, fname = utils.get_upload_path(fpath)
+    project = db.Database().user(username).get_project()
+    root_upload_path = current_app.config.get("UPLOAD_PATH")
+    file_path, fname = utils.get_upload_path(project, fpath, root_upload_path)
     file_path = os.path.join(file_path, fname)
 
     task_id = delete_metadata_task(md.MetaxClient(), fpath, root_upload_path,
                                    username)
 
     polling_url = utils.get_polling_url(TASK_STATUS_API_V1.name, task_id)
-    ret_path = utils.get_return_path(file_path)
+    ret_path = utils.get_return_path(project, file_path, root_upload_path)
     response = jsonify({
         "file_path": ret_path,
         "message": "Deleting metadata",
