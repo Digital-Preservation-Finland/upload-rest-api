@@ -4,7 +4,6 @@ from __future__ import unicode_literals
 import json
 import time
 
-import pytest
 import pymongo
 import mock
 
@@ -104,7 +103,7 @@ def test_delete_files(app, test_auth, requests_mock):
             "/v1/files",
             headers=test_auth
         )
-        _wait_response(client, response, test_auth, 1)
+        _wait_response(client, response, test_auth, 2)
         assert connect.call_count < 10
 
 
@@ -123,7 +122,7 @@ def test_post_metadata(app, test_auth, requests_mock):
         return_value=pymongo.MongoClient()
     ) as connect:
         response = client.post("/v1/metadata/test/", headers=test_auth)
-        _wait_response(client, response, test_auth, 5)
+        _wait_response(client, response, test_auth, 4)
         assert connect.call_count < 10
 
 
@@ -172,5 +171,5 @@ def test_delete_metadata(app, test_auth, requests_mock):
             "/v1/metadata/test/",
             headers=test_auth
         )
-        _wait_response(client, response, test_auth, 2)
+        _wait_response(client, response, test_auth, 4)
         assert connect.call_count < 10

@@ -64,8 +64,7 @@ def get_metax_path(fpath, root_upload_path):
     return file_path[len(project)+1:]
 
 
-def _generate_metadata(fpath, root_upload_path, project, storage_id,
-                       checksums):
+def _generate_metadata(fpath, root_upload_path, project, storage_id, checksums):
     """Generate metadata in json format"""
     timestamp = iso8601_timestamp(fpath)
     file_path = get_metax_path(fpath, root_upload_path)
@@ -82,7 +81,7 @@ def _generate_metadata(fpath, root_upload_path, project, storage_id,
         "file_frozen": timestamp,
         "checksum": {
             "algorithm": "MD5",
-            "value": checksums.get_checksum(os.path.abspath(fpath)),
+            "value": checksums[os.path.abspath(fpath)],
             "checked": _timestamp_now()
         },
         "file_storage": storage_id
@@ -128,7 +127,7 @@ class MetaxClient(object):
         # _generate_metadata() vars
         database = db.Database()
         project = database.user(username).get_project()
-        checksums = database.checksums
+        checksums = database.checksums.get_checksums()
         metadata = []
 
         for fpath in fpaths:

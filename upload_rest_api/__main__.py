@@ -147,8 +147,7 @@ def _get_checksums(args):
 
     if args.checksums:
         checksums = database.checksums.get_checksums()
-        for checksum in checksums:
-            print(json.dumps(checksum, indent=4))
+        print(json.dumps(checksums, indent=4))
     elif args.checksum:
         checksum = database.checksums.get_checksum(args.checksum)
         if checksum:

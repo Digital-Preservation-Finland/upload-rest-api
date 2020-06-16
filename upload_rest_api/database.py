@@ -367,7 +367,9 @@ class Checksums(object):
 
     def get_checksums(self):
         """Get all checksums"""
-        return self.checksums.find({})
+        return {
+            i["_id"]: i["checksum"] for i in self.checksums.find({})
+        }
 
 
 class Files(object):

@@ -1,6 +1,8 @@
 """Unit tests for metadata generation"""
 from __future__ import unicode_literals
 
+import os
+
 import pytest
 
 import upload_rest_api.gen_metadata as md
@@ -37,16 +39,19 @@ def test_mimetype():
 
 def test_gen_metadata(monkeypatch):
     """Test that _generate_metadata() produces the correct metadata"""
+    fpath = os.path.abspath("tests/data/test.txt")
 
     monkeypatch.setattr(
-        db.Checksums, "get_checksum",
-        lambda self, filepath: "150b62e4e7d58c70503bd5fc8a26463c"
+        db.Checksums, "get_checksums",
+        lambda self: {
+            fpath: "150b62e4e7d58c70503bd5fc8a26463c"
+        }
     )
     metadata = md._generate_metadata(
         "tests/data/test.txt",
         "tests", "data",
         "pid:uuid:storage_id",
-        db.Database().checksums
+        db.Database().checksums.get_checksums()
     )
 
     assert len(metadata["identifier"]) == 45
