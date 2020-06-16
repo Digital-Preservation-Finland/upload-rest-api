@@ -183,10 +183,11 @@ def extract_task(fpath, dir_path, task_id=None):
     return task_id
 
 
-def save_file(project, fpath):
+def save_file(database, project, fpath):
     """Save the posted file on disk at fpath by reading
     the upload stream in 1MB chunks.
 
+    :param database: Database object
     :param project: File's project
     :param fpath: Path where to save the file
     :returns: HTTP Response
@@ -200,7 +201,7 @@ def save_file(project, fpath):
 
     # Add file checksum to mongo
     md5 = gen_metadata.md5_digest(fpath)
-    db.Database().checksums.insert_one(os.path.abspath(fpath), md5)
+    database.checksums.insert_one(os.path.abspath(fpath), md5)
     file_path = utils.get_return_path(project, fpath)
     response = jsonify({
         "file_path": file_path,
@@ -212,17 +213,17 @@ def save_file(project, fpath):
     return response
 
 
-def save_archive(fpath, upload_dir):
+def save_archive(database, fpath, upload_dir):
     """Uploads the archive on disk at fpath by reading
     the upload stream in 1MB chunks. Extracts the archive file
     and checks that no symlinks are created.
 
+    :param database: Database object
     :param fpath: Path where to save the file
     :param upload_dir: Directory to which the archive is extracted
     :returns: HTTP Response
     """
     username = request.authorization.username
-    database = db.Database()
     project = database.user(username).get_project()
     dir_path = utils.get_project_path(project)
     if upload_dir:
@@ -263,14 +264,13 @@ def save_archive(fpath, upload_dir):
     return response
 
 
-def validate_upload():
+def validate_upload(database):
     """Validates the upload request
 
     :returns: `None` if the validation succeeds. Otherwise error response
               if validation failed.
     """
     response = None
-    database = db.Database()
 
     # Update used_quota also at the start of the function
     # since multiple users might by using the same project

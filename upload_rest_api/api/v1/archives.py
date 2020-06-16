@@ -24,7 +24,8 @@ def upload_archive():
 
     :returns: HTTP Response
     """
-    response = up.validate_upload()
+    database = db.Database()
+    response = up.validate_upload(database)
     if response:
         return response
 
@@ -37,7 +38,7 @@ def upload_archive():
 
     file_path = safe_join(file_path, file_name)
     try:
-        response = up.save_archive(file_path, upload_dir)
+        response = up.save_archive(database, file_path, upload_dir)
     except (MemberOverwriteError, up.OverwriteError) as error:
         return utils.make_response(409, str(error))
     except MemberTypeError as error:
@@ -47,7 +48,7 @@ def upload_archive():
     except up.QuotaError as error:
         return utils.make_response(413, str(error))
 
-    db.Database().user(request.authorization.username).update_used_quota(
+    database.user(request.authorization.username).update_used_quota(
         current_app.config.get("UPLOAD_PATH")
     )
 

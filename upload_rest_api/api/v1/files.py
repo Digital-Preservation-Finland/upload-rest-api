@@ -105,7 +105,7 @@ def upload_file(fpath):
     database = db.Database()
     project = database.user(username).get_project()
 
-    response = up.validate_upload()
+    response = up.validate_upload(database)
     if response:
         return response
 
@@ -117,7 +117,7 @@ def upload_file(fpath):
 
     file_path = os.path.join(file_path, file_name)
     try:
-        response = up.save_file(project, file_path)
+        response = up.save_file(database, project, file_path)
     except (up.OverwriteError) as error:
         return utils.make_response(409, str(error))
 

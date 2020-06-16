@@ -25,7 +25,10 @@ sys.path.insert(
 def parse_conf(monkeypatch):
     """Parse conf from include/etc/upload_rest_api.conf.
     """
-    monkeypatch.setattr(db, "parse_conf", lambda conf: run_path("include/etc/upload_rest_api.conf"))
+    monkeypatch.setattr(
+        db, "parse_conf",
+        lambda conf: run_path("include/etc/upload_rest_api.conf")
+    )
 
 
 @pytest.fixture(autouse=True)
@@ -97,7 +100,7 @@ def app(mock_mongo, monkeypatch):
 
 
 @pytest.fixture(scope="function")
-def user(mock_mongo, monkeypatch):
+def user(mock_mongo):
     """Initializes and returns User instance with db connection
     through mongomock
     """
