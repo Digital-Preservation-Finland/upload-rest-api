@@ -129,14 +129,32 @@ class MetaxClient(object):
         project = database.user(username).get_project()
         checksums = database.checksums.get_checksums()
         metadata = []
+        responses = []
 
+        i = 0
         for fpath in fpaths:
             metadata.append(_generate_metadata(
                 fpath, root_upload_path,
                 project, storage_id, checksums
             ))
 
-        return self.client.post_file(metadata)
+            # POST metadata to Metax every 5k steps
+            i += 1
+            if i % 5000 == 0:
+                responses.append(self.client.post_file(metadata))
+                metadata = []
+
+        if metadata:
+            responses.append(self.client.post_file(metadata))
+
+        response = {"failed": [], "success": []}
+        for metax_response in responses:
+            if "failed" in metax_response:
+                response["failed"].extend(metax_response["failed"])
+            if "success" in metax_response:
+                response["success"].extend(metax_response["success"])
+
+        return response
 
     def delete_metadata(self, project, fpaths):
         """DELETE metadata from Metax

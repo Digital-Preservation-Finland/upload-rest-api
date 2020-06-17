@@ -769,8 +769,10 @@ def test_post_metadata(app, test_auth, requests_mock):
     )
 
     # Mock Metax HTTP response
-    requests_mock.post("https://metax-test.csc.fi/rest/v1/files/",
-                       json={"foo": "bar"})
+    requests_mock.post(
+        "https://metax-test.csc.fi/rest/v1/files/",
+        json={"success": [], "failed": ["fail1", "fail2"]}
+    )
 
     response = test_client.post("/v1/metadata/*", headers=test_auth)
     if _request_accepted(response):
@@ -779,7 +781,7 @@ def test_post_metadata(app, test_auth, requests_mock):
     assert response.status_code == 200
     assert json.loads(response.data) == {
         "code": 200,
-        "metax_response": {"foo": "bar"},
+        "metax_response": {"success": [], "failed": ["fail1", "fail2"]},
         "status": "done"
     }
 
