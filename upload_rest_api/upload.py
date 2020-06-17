@@ -33,13 +33,14 @@ def _request_exceeds_quota(database):
     return quota - request.content_length < 0
 
 
-def _archive_exceeds_quota(database, archive_path, username):
+def _check_extraction_size(database, archive_path, username):
     """Check whether extracting the archive exceeds users quota.
 
-    :returns: True if the archive exceeds user's quota else False
+    :returns: Tuple (quota, used_quota, extracted_size)
     """
     user = database.user(username)
-    quota = user.get_quota() - user.get_used_quota()
+    quota = user.get_quota()
+    used_quota = user.get_used_quota()
 
     if tarfile.is_tarfile(archive_path):
         with tarfile.open(archive_path) as archive:
@@ -48,7 +49,7 @@ def _archive_exceeds_quota(database, archive_path, username):
         with zipfile.ZipFile(archive_path) as archive:
             size = sum(memb.file_size for memb in archive.filelist)
 
-    return quota - size < 0
+    return quota, used_quota, size
 
 
 def _process_extracted_files(fpath):
@@ -238,11 +239,15 @@ def save_archive(database, fpath, upload_dir):
     # If zip or tar file was uploaded, extract all files
     if zipfile.is_zipfile(fpath) or tarfile.is_tarfile(fpath):
         # Check the uncompressed size
-        if _archive_exceeds_quota(database, fpath, username):
+        quota, used_quota, extracted_size = _check_extraction_size(
+            database, fpath, username
+        )
+        if quota - used_quota - extracted_size < 0:
             # Remove the archive and raise an exception
             os.remove(fpath)
             raise QuotaError("Quota exceeded")
 
+        database.user(username).set_used_quota(used_quota + extracted_size)
         task_id = extract_task(fpath, dir_path)
         polling_url = utils.get_polling_url(TASK_STATUS_API_V1.name, task_id)
         response = jsonify({

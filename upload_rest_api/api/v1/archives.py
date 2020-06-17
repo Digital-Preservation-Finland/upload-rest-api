@@ -48,8 +48,4 @@ def upload_archive():
     except up.QuotaError as error:
         return utils.make_response(413, str(error))
 
-    database.user(request.authorization.username).update_used_quota(
-        current_app.config.get("UPLOAD_PATH")
-    )
-
     return response
