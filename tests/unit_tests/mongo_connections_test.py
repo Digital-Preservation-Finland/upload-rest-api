@@ -127,7 +127,7 @@ def test_post_metadata(app, test_auth, requests_mock):
 
 
 def test_delete_metadata(app, test_auth, requests_mock):
-    """Test test mongo connections of metadata deletion."""
+    """Test mongo connections of metadata deletion."""
     client = app.test_client()
     _upload_archive(client, test_auth)
 
