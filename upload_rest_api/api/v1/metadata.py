@@ -57,13 +57,6 @@ def _post_metadata(metax_client, fpath, root_upload_path,
             response = error.response.json()
             status_code = error.response.status_code
 
-        # Add created identifiers to Mongo
-        if "success" in response and response["success"]:
-            created_md = response["success"]
-            database.store_identifiers(
-                created_md, root_upload_path, username
-            )
-
         # Create upload-rest-api response
         response = {"code": status_code, "metax_response": response}
 

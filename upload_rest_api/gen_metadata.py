@@ -124,7 +124,6 @@ class MetaxClient(object):
         :param storage_id: pas storage identifier in Metax
         :returns: HTTP response returned by Metax
         """
-        # _generate_metadata() vars
         database = db.Database()
         project = database.user(username).get_project()
         checksums = database.checksums.get_checksums()
@@ -141,12 +140,28 @@ class MetaxClient(object):
             # POST metadata to Metax every 5k steps
             i += 1
             if i % 5000 == 0:
-                responses.append(self.client.post_file(metadata))
+                response = self.client.post_file(metadata)
+                responses.append(response)
+                # Add created identifiers to Mongo
+                if "success" in response and response["success"]:
+                    database.store_identifiers(
+                        response["success"], root_upload_path, username
+                    )
+
                 metadata = []
 
-        if metadata:
-            responses.append(self.client.post_file(metadata))
 
+        # POST remaining metadata
+        if metadata:
+            response = self.client.post_file(metadata)
+            responses.append(response)
+            # Add created identifiers to Mongo
+            if "success" in response and response["success"]:
+                database.store_identifiers(
+                    response["success"], root_upload_path, username
+                )
+
+        # Merge all responses into one response
         response = {"failed": [], "success": []}
         for metax_response in responses:
             if "failed" in metax_response:
