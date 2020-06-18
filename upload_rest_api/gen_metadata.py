@@ -90,6 +90,34 @@ def _generate_metadata(fpath, root_upload_path, project, storage_id, checksums):
     return metadata
 
 
+def _strip_metax_response(metax_response):
+    """Collect only the necessary fields from the metax response."""
+    response = {"success": [], "failed": []}
+
+    if "failed" in metax_response:
+        response["failed"] = metax_response["failed"]
+
+    if "success" in metax_response and metax_response["success"]:
+        for file_md in metax_response["success"]:
+            identifier = file_md["object"]["identifier"]
+            file_path = file_md["object"]["file_path"]
+            parent_dir = file_md["object"]["parent_directory"]["identifier"]
+            checksum = file_md["object"]["checksum"]["value"]
+
+            metadata = {
+                "object": {
+                    "identifier": identifier,
+                    "file_path": file_path,
+                    "parent_directory": {"identifier": parent_dir},
+                    "checksum": {"value": checksum}
+                }
+            }
+
+            response["success"].append(metadata)
+
+    return response
+
+
 class MetaxClientError(Exception):
     """Generic error raised by MetaxClient"""
 
@@ -141,7 +169,7 @@ class MetaxClient(object):
             i += 1
             if i % 5000 == 0:
                 response = self.client.post_file(metadata)
-                responses.append(response)
+                responses.append(_strip_metax_response(response))
                 # Add created identifiers to Mongo
                 if "success" in response and response["success"]:
                     database.store_identifiers(
@@ -154,7 +182,7 @@ class MetaxClient(object):
         # POST remaining metadata
         if metadata:
             response = self.client.post_file(metadata)
-            responses.append(response)
+            responses.append(_strip_metax_response(response))
             # Add created identifiers to Mongo
             if "success" in response and response["success"]:
                 database.store_identifiers(
@@ -162,12 +190,12 @@ class MetaxClient(object):
                 )
 
         # Merge all responses into one response
-        response = {"failed": [], "success": []}
+        response = {"success": [], "failed": []}
         for metax_response in responses:
-            if "failed" in metax_response:
-                response["failed"].extend(metax_response["failed"])
             if "success" in metax_response:
                 response["success"].extend(metax_response["success"])
+            if "failed" in metax_response:
+                response["failed"].extend(metax_response["failed"])
 
         return response
 
