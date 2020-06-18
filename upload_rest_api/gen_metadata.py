@@ -144,13 +144,28 @@ class MetaxClient(object):
         return self.client.get_files_dict(project)
 
     def post_metadata(self, fpaths, root_upload_path, username, storage_id):
-        """generate and POST metadata to Metax
+        """Generate file metadata and POST it to Metax in 5k chunks.
 
         :param fpaths: List of files for which to generate the metadata
         :param root_upload_path: root upload directory
         :param username: current user
         :param storage_id: pas storage identifier in Metax
-        :returns: HTTP response returned by Metax
+        :returns: Stripped HTTP response returned by Metax.
+                  Success list contains succesfully generated file metadata in
+                  format:
+                  [
+                      {
+                          "object": {
+                              "identifier": identifier,
+                              "file_path": file_path,
+                              "checksum": {"value": checksum},
+                              "parent_directory": {"identifier": identifier}
+                          }
+                      },
+                      .
+                      .
+                      .
+                  ]
         """
         database = db.Database()
         project = database.user(username).get_project()
