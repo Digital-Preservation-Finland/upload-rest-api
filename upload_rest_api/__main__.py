@@ -1,10 +1,13 @@
 """Commandline interface for upload_rest_api package"""
 from __future__ import print_function
 
+import os
 import argparse
 import json
+from runpy import run_path
 
 import upload_rest_api.database as db
+import upload_rest_api.gen_metadata as md
 from upload_rest_api.cleanup import clean_disk, clean_mongo
 
 
@@ -20,6 +23,7 @@ def _parse_args():
     subparsers = parser.add_subparsers(title='Available commands')
     _setup_cleanup_files_args(subparsers)
     _setup_cleanup_mongo_args(subparsers)
+    _setup_generate_metadata_args(subparsers)
     _setup_get_args(subparsers)
     _setup_create_args(subparsers)
     _setup_delete_args(subparsers)
@@ -68,6 +72,18 @@ def _setup_get_args(subparsers):
     parser.add_argument(
         '--checksums', action="store_true", default=False,
         help="Get all checksums"
+    )
+
+
+def _setup_generate_metadata_args(subparsers):
+    """Define generate-metadata subparser and its arguments."""
+    parser = subparsers.add_parser(
+        'generate-metadata', help='Generate file metadata for a project'
+    )
+    parser.set_defaults(func=_generate_metadata)
+    parser.add_argument('user')
+    parser.add_argument(
+        '-o', '--output', default="identifiers.txt", help="Output filepath"
     )
 
 
@@ -177,6 +193,44 @@ def _get(args):
     _get_users(args)
     _get_checksums(args)
     _get_identifiers(args)
+
+
+def _generate_metadata(args):
+    """Generate metadata for the specified project"""
+    if os.path.exists(args.output):
+        raise ValueError("Output file exists")
+
+    conf = run_path("/etc/upload_rest_api.conf")
+    upload_path = conf["UPLOAD_PATH"]
+    database = db.Database()
+    username = args.user
+    project = database.user(username).get_project()
+    project_path = os.path.join(
+        upload_path, project
+    )
+    metax_client = md.MetaxClient(
+        conf["METAX_URL"], conf["METAX_USER"], conf["METAX_PASSWORD"]
+    )
+
+    fpaths = []
+    for dirpath, _, files in os.walk(project_path):
+        for fname in files:
+            fpaths.append(os.path.join(dirpath, fname))
+
+    # POST metadata to Metax
+    response = metax_client.post_metadata(
+        fpaths, upload_path, username, md.PAS_FILE_STORAGE_ID
+    )
+
+    # Write created identifiers to output file
+    with open(args.output, "w") as f_out:
+        for _file_md in response["success"]:
+            f_out.write("%s\t%s\t%s\t%s\n" % (
+                _file_md["object"]["parent_directory"]["identifier"],
+                _file_md["object"]["identifier"],
+                _file_md["object"]["checksum"]["value"],
+                _file_md["object"]["file_path"]
+            ))
 
 
 def _create(args):
