@@ -78,7 +78,7 @@ def _setup_get_args(subparsers):
 def _setup_generate_metadata_args(subparsers):
     """Define generate-metadata subparser and its arguments."""
     parser = subparsers.add_parser(
-        'generate-metadata', help='Generate file metadata for a project'
+        'generate-metadata', help='Generate file metadata'
     )
     parser.set_defaults(func=_generate_metadata)
     parser.add_argument('user')
@@ -221,6 +221,9 @@ def _generate_metadata(args):
     response = metax_client.post_metadata(
         fpaths, upload_path, username, md.PAS_FILE_STORAGE_ID
     )
+
+    print("Success: %d" % len(response["success"]))
+    print("Failed: %d" % len(response["failed"]))
 
     # Write created identifiers to output file
     with open(args.output, "w") as f_out:
