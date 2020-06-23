@@ -6,8 +6,7 @@ from hmac import compare_digest
 
 from flask import request, abort
 
-from upload_rest_api import database as db
-from upload_rest_api.database import UserNotFoundError
+import upload_rest_api.database as db
 
 
 def _auth_user(username, password):
@@ -16,7 +15,7 @@ def _auth_user(username, password):
 
     try:
         user = user.get()
-    except UserNotFoundError:
+    except db.UserNotFoundError:
         # Calculate digest even if user does not exist to avoid
         # leaking information about which users exist
         return compare_digest(b"hash"*16, db.hash_passwd("passwd", "salt"))
