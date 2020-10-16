@@ -2,10 +2,15 @@ stages:
   - rpm-package
   - local-test
 
-rpm-package:
+rpm-package-rhel7:
   stage: rpm-package
   script:
     - 'rpm-package.sh'
+
+rpm-package-rhel8:
+  stage: rpm-package
+  script:
+    - 'rpm-package.sh rhel8'
 
 unit-test:
   stage: local-test

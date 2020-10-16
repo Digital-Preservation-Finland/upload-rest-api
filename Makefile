@@ -20,6 +20,17 @@ install:
 	rm ${DESTDIR}${PREFIX}/lib/python2.7/site-packages/*.egg-info/requires.txt
 	sed -i '/\.egg-info\/requires.txt$$/d' INSTALLED_FILES
 
+install3:
+	mkdir -p "${ETC}"
+
+	# Cleanup temporary files
+	rm -f INSTALLED_FILES
+
+	# Copy config files
+	cp include/etc/upload_rest_api.conf ${ETC}/
+
+	# Use Python setuptools
+	python3 ./setup.py install -O1 --prefix="${PREFIX}" --root="${DESTDIR}" --record=INSTALLED_FILES
 
 test:
 	py.test  tests/unit_tests -v \
@@ -42,4 +53,9 @@ clean-rpm:
 rpm: clean
 	create-archive.sh
 	preprocess-spec-m4-macros.sh include/rhel7
+	build-rpm.sh
+
+rpm3: clean
+	create-archive.sh
+	preprocess-spec-m4-macros.sh include/rhel8
 	build-rpm.sh
