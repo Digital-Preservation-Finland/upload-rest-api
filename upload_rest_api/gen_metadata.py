@@ -7,12 +7,16 @@ from datetime import datetime
 from uuid import uuid4
 
 import six
-import magic
-from flask import current_app
 
-from metax_access import (Metax, DS_STATE_ACCEPTED_TO_DIGITAL_PRESERVATION,
-                          DS_STATE_IN_DIGITAL_PRESERVATION)
+import magic
 import upload_rest_api.database as db
+from flask import current_app
+from metax_access import (DS_STATE_ACCEPTED_TO_DIGITAL_PRESERVATION,
+                          DS_STATE_IN_DIGITAL_PRESERVATION,
+                          DS_STATE_IN_PACKAGING_SERVICE,
+                          DS_STATE_PACKAGING_FAILED,
+                          DS_STATE_SIP_SENT_TO_INGESTION_IN_DPRES_SERVICE,
+                          Metax)
 
 PAS_FILE_STORAGE_ID = "urn:nbn:fi:att:file-storage-pas"
 
@@ -269,7 +273,7 @@ class MetaxClient(object):
         """
         self.dataset_cache.clear()
         files_dict = self.client.get_files_dict(project)
-        file_id_list = []
+        files_to_delete = {}
 
         # Iterate through all files under dir fpath
         for dirpath, _, files in os.walk(fpath):
@@ -281,22 +285,45 @@ class MetaxClient(object):
                 storage_id = files_dict[metax_path]["storage_identifier"]
                 if storage_id != PAS_FILE_STORAGE_ID:
                     continue
-                # Append file id to file_id_list if file is not associated
-                # with any dataset and file metadata is in Metax
-                if force:
-                    no_dataset = not self.file_has_accepted_dataset(metax_path,
-                                                                    files_dict)
-                else:
-                    no_dataset = not self.file_has_dataset(metax_path,
-                                                           files_dict)
-                if no_dataset:
-                    file_id_list.append(files_dict[metax_path]["id"])
 
-        if not file_id_list:
+                files_to_delete[metax_path] = files_dict[metax_path]
+
+        if force:
+            # Delete metadata for files which don't belong to accepted
+            # datasets
+            # FIXME: Deleting all file metadata when 'force' is in use
+            # is inefficient at the moment due to each check requiring
+            # an API call.
+            files_to_delete = {
+                metax_path: file_ for metax_path, file_
+                in six.iteritems(files_to_delete)
+                if not self.file_has_accepted_dataset(metax_path, files_dict)
+            }
+        else:
+            # Delete metadata for files that don't belong to datasets
+            file_ids_to_delete = [
+                file_["id"] for file_ in six.itervalues(files_to_delete)
+            ]
+            # Retrieve related datasets in a single bulk operation
+            file2dataset = self.client.get_file2dataset_dict(
+                file_ids_to_delete
+            )
+
+            files_to_delete = {
+                metax_path: file_ for metax_path, file_
+                in six.iteritems(files_to_delete)
+                if not file2dataset.get(file_["identifier"], None)
+            }
+
+        if not files_to_delete:
             return {"deleted_files_count": 0}
 
         # Remove file metadata from Metax and return the response
-        return self.client.delete_files(file_id_list)
+        file_ids_to_delete = [
+            file_["id"] for file_ in files_to_delete.values()
+        ]
+
+        return self.client.delete_files(file_ids_to_delete)
 
     def get_all_ids(self, project_list):
         """Get a set of all identifiers of files in any of the projects in
