@@ -21,7 +21,7 @@ from upload_rest_api.gen_metadata import MetaxClient
 import upload_rest_api.database as db
 import upload_rest_api.cleanup as clean
 
-URL = "https://metax-test.csc.fi"
+URL = "https://metax.fd-test.csc.fi"
 USER = "tpas"
 
 if os.path.isfile("/etc/upload_rest_api.conf"):
