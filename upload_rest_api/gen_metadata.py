@@ -228,7 +228,9 @@ class MetaxClient(object):
         files_dict = self.client.get_files_dict(project)
 
         # Retrieve "file -> dataset" association map
-        file_ids = [file_["id"] for file_ in six.itervalues(files_dict)]
+        file_ids = [
+            file_["identifier"] for file_ in six.itervalues(files_dict)
+        ]
         file2datasets = self.client.get_file2dataset_dict(file_ids)
 
         # Delete metadata if file exists in fpaths AND it doesn't have
@@ -310,7 +312,8 @@ class MetaxClient(object):
         else:
             # Delete metadata for files that don't belong to datasets
             file_ids_to_delete = [
-                file_["id"] for file_ in six.itervalues(files_to_delete)
+                file_["identifier"] for file_
+                in six.itervalues(files_to_delete)
             ]
             # Retrieve related datasets in a single bulk operation
             file2datasets = self.client.get_file2dataset_dict(
@@ -328,7 +331,7 @@ class MetaxClient(object):
 
         # Remove file metadata from Metax and return the response
         file_ids_to_delete = [
-            file_["id"] for file_ in files_to_delete.values()
+            file_["identifier"] for file_ in files_to_delete.values()
         ]
 
         return self.client.delete_files(file_ids_to_delete)
