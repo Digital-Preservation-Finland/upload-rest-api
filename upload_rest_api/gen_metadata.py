@@ -227,16 +227,24 @@ class MetaxClient(object):
         """
         files_dict = self.client.get_files_dict(project)
 
-        # Generate the list of ids to remove from Metax
-        file_id_list = []
-        for fpath in fpaths:
-            if fpath in files_dict:
-                file_id_list.append(files_dict[fpath]["id"])
+        # Retrieve "file -> dataset" association map
+        file_ids = [file_["id"] for file_ in six.itervalues(files_dict)]
+        file2datasets = self.client.get_file2dataset_dict(file_ids)
 
-        if not file_id_list:
+        # Delete metadata if file exists in fpaths AND it doesn't have
+        # any datasets
+        file_ids_to_delete = []
+        for metax_path, file_ in six.iteritems(files_dict):
+            path_exists = metax_path in fpaths
+            dataset_exists = file2datasets.get(file_["identifier"], None)
+
+            if path_exists and not dataset_exists:
+                file_ids_to_delete.append(file_["identifier"])
+
+        if not file_ids_to_delete:
             return {"deleted_files_count": 0}
 
-        return self.client.delete_files(file_id_list)
+        return self.client.delete_files(file_ids_to_delete)
 
     def delete_file_metadata(self, project, fpath, root_upload_path=None,
                              force=False):
@@ -305,14 +313,14 @@ class MetaxClient(object):
                 file_["id"] for file_ in six.itervalues(files_to_delete)
             ]
             # Retrieve related datasets in a single bulk operation
-            file2dataset = self.client.get_file2dataset_dict(
+            file2datasets = self.client.get_file2dataset_dict(
                 file_ids_to_delete
             )
 
             files_to_delete = {
                 metax_path: file_ for metax_path, file_
                 in six.iteritems(files_to_delete)
-                if not file2dataset.get(file_["identifier"], None)
+                if not file2datasets.get(file_["identifier"], None)
             }
 
         if not files_to_delete:
