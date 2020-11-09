@@ -7,19 +7,19 @@ in /etc/upload_rest_api.conf.
 """
 from __future__ import unicode_literals
 
-import os
 import getpass
 import json
-from runpy import run_path
+import os
 import time
+from runpy import run_path
 
-import requests.exceptions
-import pytest
 import pymongo
-
-from upload_rest_api.gen_metadata import MetaxClient
-import upload_rest_api.database as db
+import pytest
+import requests.exceptions
 import upload_rest_api.cleanup as clean
+import upload_rest_api.database as db
+from metax_access import Metax
+from upload_rest_api.gen_metadata import MetaxClient
 
 URL = "https://metax.fd-test.csc.fi"
 USER = "tpas"
@@ -28,7 +28,7 @@ if os.path.isfile("/etc/upload_rest_api.conf"):
     PASSWORD = run_path("/etc/upload_rest_api.conf")["METAX_PASSWORD"]
 else:
     PASSWORD = getpass.getpass(
-        prompt="https://metax-test.csc.fi password for user tpas: "
+        prompt="https://metax.fd-test.csc.fi password for user tpas: "
     )
 
 
@@ -142,11 +142,12 @@ def test_gen_metadata_file(app, dataset, test_auth, monkeypatch):
     is removed when project is deleted.
     """
     if dataset:
-        # Mock file_has_dataset to always return True
+        # Mock Metax.get_file2dataset_dict to always return a result with
+        # an existing dataset for every given file ID
         monkeypatch.setattr(
-            MetaxClient,
-            "file_has_dataset",
-            lambda a, b, c: True
+            Metax,
+            "get_file2dataset_dict",
+            lambda _, file_ids: {fid: ["fake_dataset"] for fid in file_ids}
         )
 
     app.config["METAX_PASSWORD"] = PASSWORD
