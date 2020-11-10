@@ -371,9 +371,7 @@ class MetaxClient(object):
             dataset_ids = self.client.get_file_datasets(file_id)
             for dataset_id in dataset_ids:
                 if dataset_id not in self.dataset_cache:
-                    dataset = self.client.query_datasets(
-                        {'preferred_identifier': dataset_id}
-                    )
+                    dataset = self.client.get_dataset(dataset_id)
                     self.dataset_cache[dataset_id] = \
                         dataset['preservation_state']
                 dataset_state = self.dataset_cache[dataset_id]

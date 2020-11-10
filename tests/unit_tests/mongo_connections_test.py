@@ -150,10 +150,10 @@ def test_delete_metadata(app, test_auth, requests_mock):
                       json=response)
 
     requests_mock.post("https://metax.fd-test.csc.fi/rest/v1/files/datasets",
-                       json=['dataset&preferred&identifier'])
+                       json=['dataset_identifier'])
 
-    requests_mock.get("https://metax.fd-test.csc.fi/rest/v1/datasets?"
-                      "preferred_identifier=dataset%26preferred%26identifier",
+    requests_mock.get("https://metax.fd-test.csc.fi/rest/v1/datasets/"
+                      "dataset_identifier",
                       json={"preservation_state": 75})
 
     requests_mock.delete("https://metax.fd-test.csc.fi/rest/v1/files",

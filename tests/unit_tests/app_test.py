@@ -629,9 +629,9 @@ def test_delete_metadata(app, test_auth, requests_mock, mock_mongo):
                       "project_identifier=test_project",
                       json=response)
     requests_mock.post("https://metax.fd-test.csc.fi/rest/v1/files/datasets",
-                       json=['dataset&preferred&identifier'])
-    requests_mock.get("https://metax.fd-test.csc.fi/rest/v1/datasets?"
-                      "preferred_identifier=dataset%26preferred%26identifier",
+                       json=['dataset_identifier'])
+    requests_mock.get("https://metax.fd-test.csc.fi/rest/v1/datasets/"
+                      "dataset_identifier",
                       json={"preservation_state": 75})
     adapter = requests_mock.delete("https://metax.fd-test.csc.fi/rest/v1/files",
                                    json={"deleted_files_count": 1})
@@ -710,9 +710,9 @@ def test_delete_metadata_dataset_accepted(app, test_auth, requests_mock,
                       json=response)
 
     requests_mock.post("https://metax.fd-test.csc.fi/rest/v1/files/datasets",
-                       json=['dataset_preferred_identifier'])
-    requests_mock.get("https://metax.fd-test.csc.fi/rest/v1/datasets?"
-                      "preferred_identifier=dataset_preferred_identifier",
+                       json=['dataset_identifier'])
+    requests_mock.get("https://metax.fd-test.csc.fi/rest/v1/datasets/"
+                      "dataset_identifier",
                       json={"preservation_state": 80})
     adapter = requests_mock.delete("https://metax.fd-test.csc.fi/rest/v1/files",
                                    json={"deleted_files_count": 0})
