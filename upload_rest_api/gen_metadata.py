@@ -304,35 +304,30 @@ class MetaxClient(object):
             # FIXME: Deleting all file metadata when 'force' is in use
             # is inefficient at the moment due to each check requiring
             # an API call.
-            files_to_delete = {
-                metax_path: file_ for metax_path, file_
+            file_ids_to_delete = [
+                file_["identifier"] for metax_path, file_
                 in six.iteritems(files_to_delete)
                 if not self.file_has_accepted_dataset(metax_path, files_dict)
-            }
+            ]
         else:
             # Delete metadata for files that don't belong to datasets
-            file_ids_to_delete = [
+            file_ids = [
                 file_["identifier"] for file_
                 in six.itervalues(files_to_delete)
             ]
             # Retrieve related datasets in a single bulk operation
             file2datasets = self.client.get_file2dataset_dict(
-                file_ids_to_delete
+                file_ids
             )
 
-            files_to_delete = {
-                metax_path: file_ for metax_path, file_
+            file_ids_to_delete = [
+                file_["identifier"] for metax_path, file_
                 in six.iteritems(files_to_delete)
                 if not file2datasets.get(file_["identifier"], None)
-            }
+            ]
 
-        if not files_to_delete:
+        if not file_ids_to_delete:
             return {"deleted_files_count": 0}
-
-        # Remove file metadata from Metax and return the response
-        file_ids_to_delete = [
-            file_["identifier"] for file_ in files_to_delete.values()
-        ]
 
         return self.client.delete_files(file_ids_to_delete)
 
