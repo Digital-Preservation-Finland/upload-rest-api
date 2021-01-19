@@ -2,18 +2,19 @@
 from __future__ import unicode_literals
 
 import os
+import shutil
 import sys
 import tempfile
-import shutil
 from base64 import b64encode
-from runpy import run_path
 from concurrent.futures import ThreadPoolExecutor
+from runpy import run_path
 
-import pytest
+import fakeredis
 import mongomock
-
+import pytest
 import upload_rest_api.app as app_module
 import upload_rest_api.database as db
+from upload_rest_api.jobs.utils import get_job_queue
 
 # Prefer modules from source directory rather than from site-python
 sys.path.insert(
@@ -29,6 +30,46 @@ def parse_conf(monkeypatch):
         db, "parse_conf",
         lambda conf: run_path("include/etc/upload_rest_api.conf")
     )
+    monkeypatch.setattr(
+        "upload_rest_api.config.get_config",
+        lambda: run_path("include/etc/upload_rest_api.conf")
+    )
+
+
+@pytest.yield_fixture(scope="function")
+def upload_tmpdir(tmp_path_factory):
+    """
+    Temporary directory for uploads
+    """
+    yield tmp_path_factory.mktemp("tests.upload_")
+
+
+@pytest.yield_fixture(scope="function")
+def mock_config(monkeypatch, upload_tmpdir):
+    """
+    Mock the generic configuration located in `upload_rest_api.config` that
+    is accessible to both Flask and the RQ job queue
+    """
+    projects_path = upload_tmpdir / "projects"
+    temp_upload_path = upload_tmpdir / "tmp"
+
+    projects_path.mkdir()
+    temp_upload_path.mkdir()
+
+    mock_config_ = run_path("include/etc/upload_rest_api.conf")
+    mock_config_["UPLOAD_PATH"] = str(projects_path)
+    mock_config_["UPLOAD_TMP_PATH"] = str(temp_upload_path)
+
+    monkeypatch.setattr(
+        "upload_rest_api.config.CONFIG",
+        mock_config_
+    )
+    monkeypatch.setattr(
+        "upload_rest_api.utils.CONFIG",
+        mock_config_
+    )
+
+    yield mock_config_
 
 
 @pytest.fixture(autouse=True)
@@ -43,6 +84,46 @@ def mock_mongo(monkeypatch):
     mongoclient = mongomock.MongoClient()
     monkeypatch.setattr('pymongo.MongoClient', lambda *args: mongoclient)
     return mongoclient
+
+
+@pytest.fixture(scope="function", autouse=True)
+def mock_redis(monkeypatch):
+    """
+    Patch job queue to use a mock Redis
+    """
+    server = fakeredis.FakeServer()
+    conn = fakeredis.FakeStrictRedis(server=server)
+
+    monkeypatch.setattr(
+        "upload_rest_api.jobs.utils.get_redis_connection",
+        lambda: conn
+    )
+
+    yield conn
+
+
+@pytest.fixture(scope="function")
+def upload_queue(mock_redis):
+    """
+    RQ job queue for upload tasks
+    """
+    yield get_job_queue("upload")
+
+
+@pytest.fixture(scope="function")
+def metadata_queue(mock_redis):
+    """
+    RQ job queue for metadata tasks
+    """
+    yield get_job_queue("metadata")
+
+
+@pytest.fixture(scope="function")
+def files_queue(mock_redis):
+    """
+    RQ job queue for file tasks
+    """
+    yield get_job_queue("files")
 
 
 def init_db(mock_mongo):
@@ -65,7 +146,7 @@ def init_db(mock_mongo):
 
 
 @pytest.yield_fixture(scope="function")
-def app(mock_mongo, monkeypatch):
+def app(mock_mongo, mock_config, monkeypatch):
     """Creates temporary upload directory and app, which uses it.
     Temp dirs are cleaned after use.
 
@@ -82,21 +163,13 @@ def app(mock_mongo, monkeypatch):
 
     flask_app = app_module.create_app()
     init_db(mock_mongo)
-    temp_path = tempfile.mkdtemp(prefix="tests.testpath.")
-    projects_path = os.path.join(temp_path, "projects")
-    temp_upload_path = os.path.join(temp_path, "tmp")
-    os.makedirs(projects_path)
-    os.makedirs(temp_upload_path)
 
     flask_app.config["TESTING"] = True
-    flask_app.config["UPLOAD_PATH"] = projects_path
-    flask_app.config["UPLOAD_TMP_PATH"] = temp_upload_path
+    flask_app.config["UPLOAD_PATH"] = mock_config["UPLOAD_PATH"]
+    flask_app.config["UPLOAD_TMP_PATH"] = mock_config["UPLOAD_TMP_PATH"]
     flask_app.config["EXTRACT_EXECUTOR"] = ThreadPoolExecutor(max_workers=2)
 
     yield flask_app
-
-    # Cleanup
-    shutil.rmtree(temp_path)
 
 
 @pytest.fixture(scope="function")

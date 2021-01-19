@@ -74,7 +74,7 @@ def test_index(app, test_auth, wrong_auth):
     assert response.status_code == 401
 
 
-def test_upload(app, test_auth, mock_mongo):
+def test_upload(app, test_auth, mock_mongo, mock_config):
     """Test uploading a plain text file"""
     test_client = app.test_client()
     upload_path = app.config.get("UPLOAD_PATH")

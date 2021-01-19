@@ -14,11 +14,13 @@ from werkzeug.utils import secure_filename
 
 import upload_rest_api.database as db
 
+from upload_rest_api.config import CONFIG
+
 
 def get_upload_path(project, fpath, root_upload_path=None):
     """Get upload path for current request"""
     if not root_upload_path:
-        root_upload_path = current_app.config.get("UPLOAD_PATH")
+        root_upload_path = CONFIG.get("UPLOAD_PATH")
 
     fpath, fname = os.path.split(fpath)
     fname = secure_filename(fname)
@@ -32,7 +34,7 @@ def get_upload_path(project, fpath, root_upload_path=None):
 
 def get_project_path(project):
     """Get upload path for a given project"""
-    root_upload_path = current_app.config.get("UPLOAD_PATH")
+    root_upload_path = CONFIG.get("UPLOAD_PATH")
     project = secure_filename(project)
 
     return safe_join(root_upload_path, project)
@@ -41,7 +43,7 @@ def get_project_path(project):
 def get_tmp_upload_path():
     """Get temporary unique upload path for tar and zip files"""
 
-    tmp_upload_path = os.path.join(current_app.config.get("UPLOAD_TMP_PATH"))
+    tmp_upload_path = os.path.join(CONFIG.get("UPLOAD_TMP_PATH"))
     fpath = safe_join(tmp_upload_path, str(uuid.uuid4()))
     fpath, fname = os.path.split(fpath)
 

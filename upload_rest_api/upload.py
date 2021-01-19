@@ -193,7 +193,6 @@ def save_file(database, project, fpath):
     :param fpath: Path where to save the file
     :returns: HTTP Response
     """
-
     # Write the file if it does not exist already
     if not os.path.exists(fpath):
         _save_stream(fpath)
