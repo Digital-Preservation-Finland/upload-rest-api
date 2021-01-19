@@ -14,7 +14,6 @@ import mongomock
 import pytest
 import upload_rest_api.app as app_module
 import upload_rest_api.database as db
-from upload_rest_api.jobs.utils import get_job_queue
 
 # Prefer modules from source directory rather than from site-python
 sys.path.insert(
@@ -48,7 +47,7 @@ def upload_tmpdir(tmp_path_factory):
 def mock_config(monkeypatch, upload_tmpdir):
     """
     Mock the generic configuration located in `upload_rest_api.config` that
-    is accessible to both Flask and the RQ job queue
+    is accessible whether Flask is active or not
     """
     projects_path = upload_tmpdir / "projects"
     temp_upload_path = upload_tmpdir / "tmp"
@@ -57,19 +56,13 @@ def mock_config(monkeypatch, upload_tmpdir):
     temp_upload_path.mkdir()
 
     mock_config_ = run_path("include/etc/upload_rest_api.conf")
-    mock_config_["UPLOAD_PATH"] = str(projects_path)
-    mock_config_["UPLOAD_TMP_PATH"] = str(temp_upload_path)
 
-    monkeypatch.setattr(
-        "upload_rest_api.config.CONFIG",
-        mock_config_
-    )
-    monkeypatch.setattr(
-        "upload_rest_api.utils.CONFIG",
-        mock_config_
-    )
+    from upload_rest_api.config import CONFIG
 
-    yield mock_config_
+    monkeypatch.setitem(CONFIG, "UPLOAD_PATH", str(projects_path))
+    monkeypatch.setitem(CONFIG, "UPLOAD_TMP_PATH", str(temp_upload_path))
+
+    yield CONFIG
 
 
 @pytest.fixture(autouse=True)
@@ -107,6 +100,8 @@ def upload_queue(mock_redis):
     """
     RQ job queue for upload tasks
     """
+    from upload_rest_api.jobs.utils import get_job_queue
+
     yield get_job_queue("upload")
 
 
@@ -115,6 +110,8 @@ def metadata_queue(mock_redis):
     """
     RQ job queue for metadata tasks
     """
+    from upload_rest_api.jobs.utils import get_job_queue
+
     yield get_job_queue("metadata")
 
 
@@ -123,6 +120,8 @@ def files_queue(mock_redis):
     """
     RQ job queue for file tasks
     """
+    from upload_rest_api.jobs.utils import get_job_queue
+
     yield get_job_queue("files")
 
 
@@ -156,7 +155,10 @@ def app(mock_mongo, mock_config, monkeypatch):
     # Patch app to use default configuration file instead of global
     # configuration file (/etc/upload_rest_api.conf)
     def _mock_configure_app(app):
-        """Read default configuration file"""
+        """
+        Update current_app.config to reference the same flask.Config
+        instance as `upload_rest_api.config.CONFIG`
+        """
         app.config.from_pyfile("../include/etc/upload_rest_api.conf")
 
     monkeypatch.setattr(app_module, "configure_app", _mock_configure_app)

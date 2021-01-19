@@ -3,22 +3,22 @@ querying and deleting files from the server.
 """
 from __future__ import unicode_literals
 
-import os
 import json
 import logging
+import os
 from shutil import rmtree
 
-from flask import Blueprint, safe_join, request, jsonify, current_app, url_for
-from werkzeug.utils import secure_filename
 from requests.exceptions import HTTPError
 
-from metax_access import MetaxError
-
-import upload_rest_api.upload as up
 import upload_rest_api.database as db
 import upload_rest_api.gen_metadata as md
+import upload_rest_api.upload as up
 import upload_rest_api.utils as utils
+from flask import Blueprint, current_app, jsonify, request, safe_join, url_for
+from metax_access import MetaxError
 from upload_rest_api.api.v1.tasks import TASK_STATUS_API_V1
+from upload_rest_api.jobs.utils import FILES_QUEUE, enqueue_background_job
+from werkzeug.utils import secure_filename
 
 FILES_API_V1 = Blueprint("files_v1", __name__, url_prefix="/v1/files")
 
@@ -189,8 +189,15 @@ def delete_path(fpath):
 
     elif os.path.isdir(fpath):
         # Remove all file metadata of files under dir fpath from Metax
-        task_id = delete_task(md.MetaxClient(), fpath, root_upload_path,
-                              username)
+        task_id = enqueue_background_job(
+            task_func="upload_rest_api.jobs.files.delete_task",
+            queue_name=FILES_QUEUE,
+            username=username,
+            job_kwargs={
+                "fpath": fpath,
+                "username": username
+            }
+        )
 
         polling_url = utils.get_polling_url(TASK_STATUS_API_V1.name, task_id)
         response = jsonify({
@@ -252,7 +259,16 @@ def delete_files():
 
     if not os.path.exists(fpath):
         return utils.make_response(404, "No files found")
-    task_id = delete_task(md.MetaxClient(), fpath, root_upload_path, username)
+
+    task_id = enqueue_background_job(
+        task_func="upload_rest_api.jobs.files.delete_task",
+        queue_name=FILES_QUEUE,
+        username=username,
+        job_kwargs={
+            "fpath": fpath,
+            "username": username
+        }
+    )
 
     polling_url = utils.get_polling_url(TASK_STATUS_API_V1.name, task_id)
     response = jsonify({

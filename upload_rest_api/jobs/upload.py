@@ -67,7 +67,7 @@ def _get_archive_checksums(archive, extract_path):
 
 
 @api_background_job
-def extract_archive(fpath, dir_path, task_id):
+def extract_task(fpath, dir_path, task_id):
     """This RQ job calculates the checksum of the archive and extracts the
     files into ``dir_path`` directory. Finally updates the status of the task
     into database.

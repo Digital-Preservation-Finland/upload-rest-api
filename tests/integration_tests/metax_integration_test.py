@@ -13,6 +13,8 @@ import os
 import time
 from runpy import run_path
 
+from rq import SimpleWorker
+
 import pymongo
 import pytest
 import requests.exceptions
@@ -59,6 +61,32 @@ def _wait_response(test_client, test_auth, response):
     return response
 
 
+@pytest.fixture(scope="function")
+def background_job_runner(test_auth):
+    def wrapper(test_client, queue, response):
+        """
+        Find the RQ job corresponding to the background task and finish it
+        """
+        polling_url = json.loads(response.data)["polling_url"]
+        task_id = polling_url.split("/")[-1]
+
+        assert task_id in queue.job_ids
+
+        job = queue.fetch_job(task_id)
+
+        SimpleWorker([queue], connection=queue.connection).work(burst=True)
+
+        # Check that the task API reports the task as having succeeded
+        response = test_client.get(polling_url, headers=test_auth)
+        data = json.loads(response.data)
+
+        assert data["status"] == "done"
+
+        return response
+
+    return wrapper
+
+
 @pytest.fixture(autouse=True)
 def clean_metax():
     """DELETE all metadata from Metax that might be left from previous runs"""
@@ -69,11 +97,22 @@ def clean_metax():
         metax_client.client.delete_files(file_id_list)
 
 
+@pytest.fixture(scope="function", autouse=True)
+def integration_mock_setup(app, mock_config):
+    """
+    Ensure the real Metax password is used for integration tests
+    """
+    app.config["METAX_PASSWORD"] = PASSWORD
+    mock_config["METAX_PASSWORD"] = PASSWORD
+
+
 @pytest.mark.parametrize(
     "dataset", [True, False],
     ids=["File has a dataset", "File has no dataset"]
 )
-def test_gen_metadata_root(app, dataset, test_auth, monkeypatch):
+def test_gen_metadata_root(
+        app, dataset, test_auth, monkeypatch, metadata_queue, upload_queue,
+        background_job_runner, mock_config):
     """Test that calling /v1/metadata. produces
     correct metadata for all files of the project and
     metadata is removed when the file is removed.
@@ -86,18 +125,19 @@ def test_gen_metadata_root(app, dataset, test_auth, monkeypatch):
             lambda a, b, c: True
         )
 
-    app.config["METAX_PASSWORD"] = PASSWORD
     test_client = app.test_client()
 
     # Upload integration.zip, which is extracted by the server
-    _upload_file(
+    response = _upload_file(
         test_client, "/v1/archives",
         test_auth, "tests/data/integration.zip"
     )
+    background_job_runner(test_client, upload_queue, response)
 
     # Generate and POST metadata for all the files in test_project
     response = test_client.post("/v1/metadata/*", headers=test_auth)
-    response = _wait_response(test_client, test_auth, response)
+    # Finish the background job
+    response = background_job_runner(test_client, metadata_queue, response)
 
     assert response.status_code == 200
     data = json.loads(response.data)
@@ -137,7 +177,9 @@ def test_gen_metadata_root(app, dataset, test_auth, monkeypatch):
     "dataset", [True, False],
     ids=["File has a dataset", "File has no dataset"]
 )
-def test_gen_metadata_file(app, dataset, test_auth, monkeypatch):
+def test_gen_metadata_file(
+        app, dataset, test_auth, monkeypatch, metadata_queue, upload_queue,
+        files_queue, background_job_runner):
     """Test that generating metadata for a single file works and the metadata
     is removed when project is deleted.
     """
@@ -150,21 +192,21 @@ def test_gen_metadata_file(app, dataset, test_auth, monkeypatch):
             lambda _, file_ids: {fid: ["fake_dataset"] for fid in file_ids}
         )
 
-    app.config["METAX_PASSWORD"] = PASSWORD
     test_client = app.test_client()
 
     # Upload integration.zip, which is extracted by the server
-    _upload_file(
+    response = _upload_file(
         test_client, "/v1/archives",
         test_auth, "tests/data/integration.zip"
     )
+    background_job_runner(test_client, upload_queue, response)
 
     # Generate and POST metadata for file test1.txt in test_project
     response = test_client.post(
         "/v1/metadata/integration/test1/test1.txt",
         headers=test_auth
     )
-    response = _wait_response(test_client, test_auth, response)
+    response = background_job_runner(test_client, metadata_queue, response)
 
     assert response.status_code == 200
     data = json.loads(response.data)
@@ -176,7 +218,7 @@ def test_gen_metadata_file(app, dataset, test_auth, monkeypatch):
 
     # DELETE whole project
     response = test_client.delete("/v1/files", headers=test_auth)
-    response = _wait_response(test_client, test_auth, response)
+    response = background_job_runner(test_client, files_queue, response)
 
     assert response.status_code == 200
 
@@ -204,27 +246,29 @@ def test_gen_metadata_file(app, dataset, test_auth, monkeypatch):
         "File has no dataset with status 120"
     ]
 )
-def test_delete_metadata(app, accepted_dataset, test_auth):
+def test_delete_metadata(
+        app, accepted_dataset, test_auth, upload_queue, metadata_queue,
+        files_queue, background_job_runner):
     """Verifies that metadata is 1) deleted for a file belonging to a
     dataset not accepted to preservation and is 2) not deleted when file
     belongs to dataset accepted to preservation
     """
 
-    app.config["METAX_PASSWORD"] = PASSWORD
     test_client = app.test_client()
 
     # Upload integration.zip, which is extracted by the server
-    _upload_file(
+    response = _upload_file(
         test_client, "/v1/archives",
         test_auth, "tests/data/integration.zip"
     )
+    response = background_job_runner(test_client, upload_queue, response)
 
     # Generate and POST metadata for file test1.txt in test_project
     response = test_client.post(
         "/v1/metadata/integration/test1/test1.txt",
         headers=test_auth
     )
-    response = _wait_response(test_client, test_auth, response)
+    response = background_job_runner(test_client, metadata_queue, response)
 
     assert response.status_code == 200
     data = json.loads(response.data)
@@ -245,7 +289,7 @@ def test_delete_metadata(app, accepted_dataset, test_auth):
         "/v1/metadata/integration/test1/test1.txt",
         headers=test_auth
     )
-    response = _wait_response(test_client, test_auth, response)
+    response = background_job_runner(test_client, metadata_queue, response)
 
     assert response.status_code == 200
 
@@ -267,7 +311,7 @@ def test_delete_metadata(app, accepted_dataset, test_auth):
 
     # DELETE whole project
     response = test_client.delete("/v1/files", headers=test_auth)
-    response = _wait_response(test_client, test_auth, response)
+    response = background_job_runner(test_client, files_queue, response)
 
     assert response.status_code == 200
 
@@ -288,7 +332,9 @@ def test_delete_metadata(app, accepted_dataset, test_auth):
     "dataset", [True, False],
     ids=["File has a dataset", "File has no dataset"]
 )
-def test_disk_cleanup(app, dataset, test_auth, monkeypatch):
+def test_disk_cleanup(
+        app, dataset, test_auth, monkeypatch, files_queue, metadata_queue,
+        upload_queue, background_job_runner):
     """Test that cleanup script removes file metadata from Metax if it is
     not associated with any dataset.
     """
@@ -298,7 +344,6 @@ def test_disk_cleanup(app, dataset, test_auth, monkeypatch):
             fpath = "include/etc/upload_rest_api.conf"
 
         conf = run_path(fpath)
-        conf["METAX_PASSWORD"] = PASSWORD
         conf["UPLOAD_PATH"] = app.config.get("UPLOAD_PATH")
         conf["CLEANUP_TIMELIM"] = -1
 
@@ -314,7 +359,6 @@ def test_disk_cleanup(app, dataset, test_auth, monkeypatch):
             lambda a, b, c: True
         )
 
-    app.config["METAX_PASSWORD"] = PASSWORD
     test_client = app.test_client()
 
     # Upload integration.zip, which is extracted by the server
@@ -322,12 +366,12 @@ def test_disk_cleanup(app, dataset, test_auth, monkeypatch):
         test_client, "/v1/archives",
         test_auth, "tests/data/integration.zip"
     )
-    response = _wait_response(test_client, test_auth, response)
+    response = background_job_runner(test_client, upload_queue, response)
     assert response.status_code == 200
 
     # Generate and POST metadata for all the files in test_project
     response = test_client.post("/v1/metadata/*", headers=test_auth)
-    response = _wait_response(test_client, test_auth, response)
+    response = background_job_runner(test_client, metadata_queue, response)
     assert response.status_code == 200
 
     # Cleanup all files
@@ -343,11 +387,12 @@ def test_disk_cleanup(app, dataset, test_auth, monkeypatch):
         assert not files_dict
 
 
-def test_mongo_cleanup(app, test_auth, monkeypatch):
+def test_mongo_cleanup(
+        app, test_auth, monkeypatch, upload_queue, metadata_queue,
+        background_job_runner):
     """Test that cleaning files from mongo deletes all files that
     haven't been posted to Metax.
     """
-    app.config["METAX_PASSWORD"] = PASSWORD
     test_client = app.test_client()
 
     # Mock Files mongo connection
@@ -389,12 +434,12 @@ def test_mongo_cleanup(app, test_auth, monkeypatch):
         test_client, "/v1/archives",
         test_auth, "tests/data/integration.zip"
     )
-    response = _wait_response(test_client, test_auth, response)
-
+    response = background_job_runner(test_client, upload_queue, response)
     assert response.status_code == 200
+
     # Generate and POST metadata for all the files in test_project
     response = test_client.post("/v1/metadata/*", headers=test_auth)
-    response = _wait_response(test_client, test_auth, response)
+    response = background_job_runner(test_client, metadata_queue, response)
 
     assert response.status_code == 200
 

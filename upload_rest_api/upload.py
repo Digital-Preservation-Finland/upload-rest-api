@@ -1,22 +1,20 @@
 """Module for handling the file uploads"""
 from __future__ import unicode_literals
 
+import json
+import logging
 import os
 import tarfile
 import zipfile
-import json
-import logging
-from flask import jsonify, request, url_for, safe_join, current_app
-
-from archive_helpers.extract import extract
-from archive_helpers.extract import (
-    MemberNameError, MemberOverwriteError, MemberTypeError
-)
 
 import upload_rest_api.database as db
 import upload_rest_api.gen_metadata as gen_metadata
 import upload_rest_api.utils as utils
+from archive_helpers.extract import (MemberNameError, MemberOverwriteError,
+                                     MemberTypeError, extract)
+from flask import current_app, jsonify, request, safe_join, url_for
 from upload_rest_api.api.v1.tasks import TASK_STATUS_API_V1
+from upload_rest_api.jobs.utils import UPLOAD_QUEUE, enqueue_background_job
 
 SUPPORTED_TYPES = ("application/octet-stream",)
 
@@ -247,7 +245,15 @@ def save_archive(database, fpath, upload_dir):
             raise QuotaError("Quota exceeded")
 
         database.user(username).set_used_quota(used_quota + extracted_size)
-        task_id = extract_task(fpath, dir_path)
+        task_id = enqueue_background_job(
+            task_func="upload_rest_api.jobs.upload.extract_task",
+            queue_name=UPLOAD_QUEUE,
+            username=username,
+            job_kwargs={
+                "fpath": fpath,
+                "dir_path": dir_path
+            }
+        )
         polling_url = utils.get_polling_url(TASK_STATUS_API_V1.name, task_id)
         response = jsonify({
             "file_path": "/",

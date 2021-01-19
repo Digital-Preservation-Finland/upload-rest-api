@@ -17,7 +17,6 @@ LOGGER = logging.getLogger(__name__)
 def configure_app(app):
     """Read config from /etc/upload_rest_api.conf"""
     app.config.from_pyfile("/etc/upload_rest_api.conf")
-    app.config["EXTRACT_EXECUTOR"] = ThreadPoolExecutor(max_workers=5)
 
 
 def create_app():

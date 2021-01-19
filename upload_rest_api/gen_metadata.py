@@ -10,13 +10,13 @@ import six
 
 import magic
 import upload_rest_api.database as db
-from flask import current_app
 from metax_access import (DS_STATE_ACCEPTED_TO_DIGITAL_PRESERVATION,
                           DS_STATE_IN_DIGITAL_PRESERVATION,
                           DS_STATE_IN_PACKAGING_SERVICE,
                           DS_STATE_PACKAGING_FAILED,
                           DS_STATE_SIP_SENT_TO_INGESTION_IN_DPRES_SERVICE,
                           Metax)
+from upload_rest_api.config import CONFIG
 
 PAS_FILE_STORAGE_ID = "urn:nbn:fi:att:file-storage-pas"
 
@@ -134,10 +134,9 @@ class MetaxClient(object):
 
         # If any of the params is not provided read them from app.config
         if url is None or user is None or password is None:
-            app = current_app
-            url = app.config.get("METAX_URL")
-            user = app.config.get("METAX_USER")
-            password = app.config.get("METAX_PASSWORD")
+            url = CONFIG.get("METAX_URL")
+            user = CONFIG.get("METAX_USER")
+            password = CONFIG.get("METAX_PASSWORD")
 
         self.client = Metax(url, user, password)
         # dataset_id => preservation_state dict
