@@ -1,6 +1,7 @@
 """Configure py.test default values and functionality"""
 from __future__ import unicode_literals
 
+import json
 import os
 import shutil
 import sys
@@ -14,6 +15,8 @@ import mongomock
 import pytest
 import upload_rest_api.app as app_module
 import upload_rest_api.database as db
+from rq import SimpleWorker
+from upload_rest_api.jobs.utils import get_job_queue
 
 # Prefer modules from source directory rather than from site-python
 sys.path.insert(
@@ -59,6 +62,14 @@ def mock_config(monkeypatch, upload_tmpdir):
 
     from upload_rest_api.config import CONFIG
 
+    # Copy the values from "include/etc/upload_rest_api.conf"
+    for key, value in mock_config_.items():
+        if not key[0].isupper():
+            # Skip Python built-ins
+            continue
+
+        monkeypatch.setitem(CONFIG, key, value)
+
     monkeypatch.setitem(CONFIG, "UPLOAD_PATH", str(projects_path))
     monkeypatch.setitem(CONFIG, "UPLOAD_TMP_PATH", str(temp_upload_path))
 
@@ -96,33 +107,52 @@ def mock_redis(monkeypatch):
 
 
 @pytest.fixture(scope="function")
-def upload_queue(mock_redis):
+def background_job_runner(test_auth):
     """
-    RQ job queue for upload tasks
+    Convenience fixture to complete background jobs based on the task API
+    response received by the client
     """
-    from upload_rest_api.jobs.utils import get_job_queue
+    def wrapper(test_client, queue_name, response, expect_success=True):
+        """
+        Find the RQ job corresponding to the background task and finish it
 
-    yield get_job_queue("upload")
+        :param test_client: Flask test client
+        :param str queue_name: Queue name containing the job
+        :param response: Response returned to the client that contains
+                         a polling URL
+        :param bool expect_success: Whether to test for task success.
+                                    Default is True.
 
+        :returns: Return the task status HTTP response after the job
+                  has been finished
+        """
+        # Get the task ID from the polling URL from the response provided
+        # to the client
+        polling_url = json.loads(response.data)["polling_url"]
+        task_id = polling_url.split("/")[-1]
 
-@pytest.fixture(scope="function")
-def metadata_queue(mock_redis):
-    """
-    RQ job queue for metadata tasks
-    """
-    from upload_rest_api.jobs.utils import get_job_queue
+        # Ensure the task can be found in the correct queue and complete it
+        queue = get_job_queue(queue_name)
+        assert task_id in queue.job_ids
 
-    yield get_job_queue("metadata")
+        job = queue.fetch_job(task_id)
 
+        SimpleWorker([queue], connection=queue.connection).execute_job(
+            job=job, queue=queue
+        )
 
-@pytest.fixture(scope="function")
-def files_queue(mock_redis):
-    """
-    RQ job queue for file tasks
-    """
-    from upload_rest_api.jobs.utils import get_job_queue
+        # Check that the task API reports the task as having finished
+        response = test_client.get(polling_url, headers=test_auth)
+        data = json.loads(response.data)
 
-    yield get_job_queue("files")
+        assert data["status"] != "pending"
+
+        if expect_success:
+            assert data["status"] == "done"
+
+        return response
+
+    return wrapper
 
 
 def init_db(mock_mongo):

@@ -183,7 +183,8 @@ def test_upload_outside(app, test_auth):
     "tests/data/test.tar.gz"
 ])
 @pytest.mark.parametrize("dirpath", [True, False])
-def test_upload_archive(archive, dirpath, app, test_auth, mock_mongo):
+def test_upload_archive(
+        archive, dirpath, app, test_auth, mock_mongo, background_job_runner):
     """Test that uploaded archive is extracted. No files should be
     extracted outside the project directory.
     """
@@ -196,7 +197,7 @@ def test_upload_archive(archive, dirpath, app, test_auth, mock_mongo):
         test_client, url, test_auth, archive
     )
     if _request_accepted(response):
-        response, _ = _wait_response(test_client, response, test_auth)
+        response = background_job_runner(test_client, "upload", response)
     assert response.status_code == 200
 
     if not dirpath:
@@ -232,7 +233,9 @@ def test_upload_archive(archive, dirpath, app, test_auth, mock_mongo):
 
     else:
         if _request_accepted(response):
-            response, _ = _wait_response(test_client, response, test_auth)
+            response = background_job_runner(
+                test_client, "upload", response, expect_success=False
+            )
 
         data = json.loads(response.data)
         assert response.status_code == 200
@@ -258,7 +261,8 @@ def test_upload_invalid_dir(dirpath, app, test_auth):
     assert response.status_code == 404
 
 
-def test_upload_archive_concurrent(app, test_auth, mock_mongo):
+def test_upload_archive_concurrent(
+        app, test_auth, mock_mongo, background_job_runner):
     """Test that uploaded archive is extracted. No files should be
     extracted outside the project directory.
     """
@@ -276,8 +280,8 @@ def test_upload_archive_concurrent(app, test_auth, mock_mongo):
     )
     # poll with response's polling_url
     if _request_accepted(response_1):
-        response_1, polling_url = _wait_response(test_client, response_1,
-                                                 test_auth)
+        polling_url = json.loads(response_1.data)["polling_url"]
+        response_1 = background_job_runner(test_client, "upload", response_1)
         data = json.loads(response_1.data)
         assert response_1.status_code == 200
         assert data["status"] == "done"
@@ -290,8 +294,8 @@ def test_upload_archive_concurrent(app, test_auth, mock_mongo):
 
     # poll with response's polling_url
     if _request_accepted(response_2):
-        response_2, polling_url = _wait_response(test_client, response_2,
-                                                 test_auth)
+        polling_url = json.loads(response_2.data)["polling_url"]
+        response_2 = background_job_runner(test_client, "upload", response_2)
         data = json.loads(response_2.data)
         assert response_2.status_code == 200
         assert data["status"] == "done"
@@ -332,7 +336,8 @@ def test_upload_archive_concurrent(app, test_auth, mock_mongo):
     "tests/data/symlink.zip",
     "tests/data/symlink.tar.gz"
 ])
-def test_upload_invalid_archive(archive, app, test_auth, mock_mongo):
+def test_upload_invalid_archive(
+        archive, app, test_auth, mock_mongo, background_job_runner):
     """Test that trying to upload a archive with symlinks returns error
     and doesn't create any files.
     """
@@ -344,7 +349,9 @@ def test_upload_invalid_archive(archive, app, test_auth, mock_mongo):
         test_client, "/v1/archives", test_auth, archive
     )
     if _request_accepted(response):
-        response, _ = _wait_response(test_client, response, test_auth)
+        response = background_job_runner(
+            test_client, "upload", response, expect_success=False
+        )
 
     data = json.loads(response.data)
     assert response.status_code == 200
@@ -364,7 +371,7 @@ def test_upload_invalid_archive(archive, app, test_auth, mock_mongo):
     assert checksums.count({}) == 0
 
 
-def test_upload_file_as_archive(app, test_auth):
+def test_upload_file_as_archive(app, test_auth, background_job_runner):
     """Test that trying to upload a file as an archive returns an error.
     """
     test_client = app.test_client()
@@ -373,7 +380,9 @@ def test_upload_file_as_archive(app, test_auth):
         test_client, "/v1/archives", test_auth, "tests/data/test.txt"
     )
     if _request_accepted(response):
-        response, _ = _wait_response(test_client, response, test_auth)
+        response = background_job_runner(
+            test_client, "upload", response, expect_success=False
+        )
 
     data = json.loads(response.data)
     assert response.status_code == 400
@@ -517,7 +526,8 @@ def test_get_files(app, test_auth):
     assert data["file_path"]["/test"] == ["test2.txt"]
 
 
-def test_delete_files(app, test_auth, requests_mock, mock_mongo):
+def test_delete_files(
+        app, test_auth, requests_mock, mock_mongo, background_job_runner):
     """Test DELETE for the whole project and a single dir"""
     response = {
         "next": None,
@@ -571,7 +581,7 @@ def test_delete_files(app, test_auth, requests_mock, mock_mongo):
         headers=test_auth
     )
     if _request_accepted(response):
-        response, _ = _wait_response(test_client, response, test_auth)
+        response = background_job_runner(test_client, "files", response)
 
     assert response.status_code == 200
     assert json.loads(response.data)["metax"] == ["/test/test.txt"]
@@ -586,7 +596,7 @@ def test_delete_files(app, test_auth, requests_mock, mock_mongo):
         headers=test_auth
     )
     if _request_accepted(response):
-        response, _ = _wait_response(test_client, response, test_auth)
+        response = background_job_runner(test_client, "files", response)
 
     assert response.status_code == 200
     assert json.loads(response.data)["metax"] == ["/test.txt"]
@@ -601,7 +611,8 @@ def test_delete_files(app, test_auth, requests_mock, mock_mongo):
     assert response.status_code == 404
 
 
-def test_delete_metadata(app, test_auth, requests_mock, mock_mongo):
+def test_delete_metadata(
+        app, test_auth, requests_mock, mock_mongo, background_job_runner):
     """Test DELETE metadata for a directory and a single dir"""
     response = {
         "next": None,
@@ -658,7 +669,7 @@ def test_delete_metadata(app, test_auth, requests_mock, mock_mongo):
         headers=test_auth
     )
     if _request_accepted(response):
-        response, _ = _wait_response(test_client, response, test_auth)
+        response = background_job_runner(test_client, "metadata", response)
 
     assert response.status_code == 200
     assert json.loads(response.data)["file_path"] == "/test"
@@ -671,15 +682,15 @@ def test_delete_metadata(app, test_auth, requests_mock, mock_mongo):
         headers=test_auth
     )
     if _request_accepted(response):
-        response, _ = _wait_response(test_client, response, test_auth)
+        response = background_job_runner(test_client, "metadata", response)
 
     assert response.status_code == 200
     assert json.loads(response.data)["file_path"] == "/test.txt"
     assert json.loads(response.data)["metax"] == {}
 
 
-def test_delete_metadata_dataset_accepted(app, test_auth, requests_mock,
-                                          mock_mongo):
+def test_delete_metadata_dataset_accepted(
+        app, test_auth, requests_mock, mock_mongo, background_job_runner):
     """Test DELETE metadata for a directory and a single file when
     dataset state is accepted to digital preservation.
     """
@@ -739,7 +750,7 @@ def test_delete_metadata_dataset_accepted(app, test_auth, requests_mock,
         headers=test_auth
     )
     if _request_accepted(response):
-        response, _ = _wait_response(test_client, response, test_auth)
+        response = background_job_runner(test_client, "metadata", response)
 
     assert json.loads(response.data)["file_path"] == "/test"
     assert json.loads(response.data)["metax"] == {"deleted_files_count": 0}
@@ -751,14 +762,16 @@ def test_delete_metadata_dataset_accepted(app, test_auth, requests_mock,
         headers=test_auth
     )
     if _request_accepted(response):
-        response, _ = _wait_response(test_client, response, test_auth)
+        response = background_job_runner(
+            test_client, "metadata", response, expect_success=False
+        )
 
     response = json.loads(response.data)
     assert response["code"] == 400
     assert response["error"] == "Metadata is part of an accepted dataset"
 
 
-def test_post_metadata(app, test_auth, requests_mock):
+def test_post_metadata(app, test_auth, requests_mock, background_job_runner):
     """Test posting file metadata to Metax"""
 
     test_client = app.test_client()
@@ -776,7 +789,7 @@ def test_post_metadata(app, test_auth, requests_mock):
 
     response = test_client.post("/v1/metadata/*", headers=test_auth)
     if _request_accepted(response):
-        response, _ = _wait_response(test_client, response, test_auth)
+        response = background_job_runner(test_client, "metadata", response)
 
     assert response.status_code == 200
     assert json.loads(response.data) == {
@@ -786,7 +799,8 @@ def test_post_metadata(app, test_auth, requests_mock):
     }
 
 
-def test_post_metadata_failure(app, test_auth, requests_mock):
+def test_post_metadata_failure(
+        app, test_auth, requests_mock, background_job_runner):
     """Try to post file metadata to Metax when the metadata already exists. API
     should return HTTP response with status code 200, and the error message
     from Metax.
@@ -811,7 +825,9 @@ def test_post_metadata_failure(app, test_auth, requests_mock):
 
     response = test_client.post("/v1/metadata/foo", headers=test_auth)
     if _request_accepted(response):
-        response, _ = _wait_response(test_client, response, test_auth)
+        response = background_job_runner(
+            test_client, "metadata", response, expect_success=False
+        )
 
     assert response.status_code == 200
     assert json.loads(response.data) == {

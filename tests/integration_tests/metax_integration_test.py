@@ -60,33 +60,6 @@ def _wait_response(test_client, test_auth, response):
             status = data['status']
     return response
 
-
-@pytest.fixture(scope="function")
-def background_job_runner(test_auth):
-    def wrapper(test_client, queue, response):
-        """
-        Find the RQ job corresponding to the background task and finish it
-        """
-        polling_url = json.loads(response.data)["polling_url"]
-        task_id = polling_url.split("/")[-1]
-
-        assert task_id in queue.job_ids
-
-        job = queue.fetch_job(task_id)
-
-        SimpleWorker([queue], connection=queue.connection).work(burst=True)
-
-        # Check that the task API reports the task as having succeeded
-        response = test_client.get(polling_url, headers=test_auth)
-        data = json.loads(response.data)
-
-        assert data["status"] == "done"
-
-        return response
-
-    return wrapper
-
-
 @pytest.fixture(autouse=True)
 def clean_metax():
     """DELETE all metadata from Metax that might be left from previous runs"""
@@ -111,8 +84,8 @@ def integration_mock_setup(app, mock_config):
     ids=["File has a dataset", "File has no dataset"]
 )
 def test_gen_metadata_root(
-        app, dataset, test_auth, monkeypatch, metadata_queue, upload_queue,
-        background_job_runner, mock_config):
+        app, dataset, test_auth, monkeypatch, background_job_runner,
+        mock_config):
     """Test that calling /v1/metadata. produces
     correct metadata for all files of the project and
     metadata is removed when the file is removed.
@@ -132,12 +105,12 @@ def test_gen_metadata_root(
         test_client, "/v1/archives",
         test_auth, "tests/data/integration.zip"
     )
-    background_job_runner(test_client, upload_queue, response)
+    background_job_runner(test_client, "upload", response)
 
     # Generate and POST metadata for all the files in test_project
     response = test_client.post("/v1/metadata/*", headers=test_auth)
     # Finish the background job
-    response = background_job_runner(test_client, metadata_queue, response)
+    response = background_job_runner(test_client, "metadata", response)
 
     assert response.status_code == 200
     data = json.loads(response.data)
@@ -178,8 +151,7 @@ def test_gen_metadata_root(
     ids=["File has a dataset", "File has no dataset"]
 )
 def test_gen_metadata_file(
-        app, dataset, test_auth, monkeypatch, metadata_queue, upload_queue,
-        files_queue, background_job_runner):
+        app, dataset, test_auth, monkeypatch, background_job_runner):
     """Test that generating metadata for a single file works and the metadata
     is removed when project is deleted.
     """
@@ -199,14 +171,14 @@ def test_gen_metadata_file(
         test_client, "/v1/archives",
         test_auth, "tests/data/integration.zip"
     )
-    background_job_runner(test_client, upload_queue, response)
+    background_job_runner(test_client, "upload", response)
 
     # Generate and POST metadata for file test1.txt in test_project
     response = test_client.post(
         "/v1/metadata/integration/test1/test1.txt",
         headers=test_auth
     )
-    response = background_job_runner(test_client, metadata_queue, response)
+    response = background_job_runner(test_client, "metadata", response)
 
     assert response.status_code == 200
     data = json.loads(response.data)
@@ -218,7 +190,7 @@ def test_gen_metadata_file(
 
     # DELETE whole project
     response = test_client.delete("/v1/files", headers=test_auth)
-    response = background_job_runner(test_client, files_queue, response)
+    response = background_job_runner(test_client, "files", response)
 
     assert response.status_code == 200
 
@@ -247,8 +219,7 @@ def test_gen_metadata_file(
     ]
 )
 def test_delete_metadata(
-        app, accepted_dataset, test_auth, upload_queue, metadata_queue,
-        files_queue, background_job_runner):
+        app, accepted_dataset, test_auth, background_job_runner):
     """Verifies that metadata is 1) deleted for a file belonging to a
     dataset not accepted to preservation and is 2) not deleted when file
     belongs to dataset accepted to preservation
@@ -257,18 +228,18 @@ def test_delete_metadata(
     test_client = app.test_client()
 
     # Upload integration.zip, which is extracted by the server
-    response = _upload_file(
+    poll_response = _upload_file(
         test_client, "/v1/archives",
         test_auth, "tests/data/integration.zip"
     )
-    response = background_job_runner(test_client, upload_queue, response)
+    response = background_job_runner(test_client, "upload", poll_response)
 
     # Generate and POST metadata for file test1.txt in test_project
-    response = test_client.post(
+    poll_response = test_client.post(
         "/v1/metadata/integration/test1/test1.txt",
         headers=test_auth
     )
-    response = background_job_runner(test_client, metadata_queue, response)
+    response = background_job_runner(test_client, "metadata", poll_response)
 
     assert response.status_code == 200
     data = json.loads(response.data)
@@ -285,11 +256,11 @@ def test_delete_metadata(
                                            file_block)['identifier']
 
     # Delete metadata for file test1.txt in test_project
-    response = test_client.delete(
+    poll_response = test_client.delete(
         "/v1/metadata/integration/test1/test1.txt",
         headers=test_auth
     )
-    response = background_job_runner(test_client, metadata_queue, response)
+    response = background_job_runner(test_client, "metadata", poll_response)
 
     assert response.status_code == 200
 
@@ -310,8 +281,8 @@ def test_delete_metadata(
         assert not files_dict
 
     # DELETE whole project
-    response = test_client.delete("/v1/files", headers=test_auth)
-    response = background_job_runner(test_client, files_queue, response)
+    poll_response = test_client.delete("/v1/files", headers=test_auth)
+    response = background_job_runner(test_client, "files", poll_response)
 
     assert response.status_code == 200
 
@@ -333,8 +304,7 @@ def test_delete_metadata(
     ids=["File has a dataset", "File has no dataset"]
 )
 def test_disk_cleanup(
-        app, dataset, test_auth, monkeypatch, files_queue, metadata_queue,
-        upload_queue, background_job_runner):
+        app, dataset, test_auth, monkeypatch, background_job_runner):
     """Test that cleanup script removes file metadata from Metax if it is
     not associated with any dataset.
     """
@@ -362,16 +332,16 @@ def test_disk_cleanup(
     test_client = app.test_client()
 
     # Upload integration.zip, which is extracted by the server
-    response = _upload_file(
+    poll_response = _upload_file(
         test_client, "/v1/archives",
         test_auth, "tests/data/integration.zip"
     )
-    response = background_job_runner(test_client, upload_queue, response)
+    response = background_job_runner(test_client, "upload", poll_response)
     assert response.status_code == 200
 
     # Generate and POST metadata for all the files in test_project
-    response = test_client.post("/v1/metadata/*", headers=test_auth)
-    response = background_job_runner(test_client, metadata_queue, response)
+    poll_response = test_client.post("/v1/metadata/*", headers=test_auth)
+    response = background_job_runner(test_client, "metadata", poll_response)
     assert response.status_code == 200
 
     # Cleanup all files
@@ -388,8 +358,7 @@ def test_disk_cleanup(
 
 
 def test_mongo_cleanup(
-        app, test_auth, monkeypatch, upload_queue, metadata_queue,
-        background_job_runner):
+        app, test_auth, monkeypatch, background_job_runner):
     """Test that cleaning files from mongo deletes all files that
     haven't been posted to Metax.
     """
@@ -430,16 +399,16 @@ def test_mongo_cleanup(
     assert not files_col.get_all_ids()
 
     # Upload integration.zip, which is extracted by the server
-    response = _upload_file(
+    poll_response = _upload_file(
         test_client, "/v1/archives",
         test_auth, "tests/data/integration.zip"
     )
-    response = background_job_runner(test_client, upload_queue, response)
+    response = background_job_runner(test_client, "upload", poll_response)
     assert response.status_code == 200
 
     # Generate and POST metadata for all the files in test_project
-    response = test_client.post("/v1/metadata/*", headers=test_auth)
-    response = background_job_runner(test_client, metadata_queue, response)
+    poll_response = test_client.post("/v1/metadata/*", headers=test_auth)
+    response = background_job_runner(test_client, "metadata", poll_response)
 
     assert response.status_code == 200
 

@@ -13,7 +13,7 @@ def fake_task(task_id, value):
 
 
 @pytest.mark.usefixtures("app")
-def test_enqueue_fake_job(tasks_col, upload_queue, mock_redis):
+def test_enqueue_fake_job(tasks_col, mock_redis):
     """
     Test enqueuing a fake task using "enqueue_background_job"
     and ensure it can be executed properly
@@ -37,6 +37,7 @@ def test_enqueue_fake_job(tasks_col, upload_queue, mock_redis):
     assert job["status"] == "pending"
 
     # Check that the Redis queue has the same job
+    upload_queue = get_job_queue("upload")
     assert upload_queue.job_ids == [job_id]
 
     # Job can be finished
