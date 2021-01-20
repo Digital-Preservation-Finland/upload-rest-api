@@ -36,65 +36,6 @@ def _get_dir_tree(project, fpath, root_upload_path):
     return file_dict
 
 
-def _delete(metax_client, fpath, root_upload_path, username, task_id):
-    """Delete files and metadata"""
-    # Remove metadata from Metax
-    database = db.Database()
-    project = database.user(username).get_project()
-    ret_path = utils.get_return_path(project, fpath, root_upload_path)
-    database.tasks.update_message(
-        task_id,
-        "Deleting files and metadata: %s" % ret_path
-    )
-    try:
-        metax_response = metax_client.delete_all_metadata(project, fpath,
-                                                          root_upload_path)
-    except (MetaxError, HTTPError) as error:
-        logging.error(str(error), exc_info=error)
-        database.tasks.update_status(task_id, "error")
-        msg = {"message": str(error)}
-        database.tasks.update_message(task_id, json.dumps(msg))
-    else:
-        # Remove checksum from mongo
-        database.checksums.delete_dir(fpath)
-
-        # Remove project directory and update used_quota
-        rmtree(fpath)
-        database.user(username).update_used_quota(root_upload_path)
-        database.tasks.update_status(task_id, "done")
-        response = {
-            "file_path": ret_path,
-            "status": "done",
-            "metax": metax_response
-        }
-        database.tasks.update_message(task_id, json.dumps(response))
-
-
-@utils.run_background
-def delete_task(metax_client, fpath, root_upload_path, username, task_id=None):
-    """Deletes files and metadata denoted by fpath directory under user's
-    project. The whole directory is recursively removed.
-
-    :param MetaxClient metax_client: Metax access
-    :param str fpath: path to directory
-    :param str root_upload_path: Upload root directory
-    :param str username: current user
-    :param str task_id: mongo dentifier of the task
-
-    :returns: The mongo identifier of the task
-    """
-    try:
-        _delete(metax_client, fpath, root_upload_path, username, task_id)
-    except Exception as error:
-        logging.error(str(error), exc_info=error)
-        tasks = db.Database().tasks
-        tasks.update_status(task_id, "error")
-        tasks.update_message(task_id, "Internal server error")
-        raise
-
-    return task_id
-
-
 @FILES_API_V1.route("/<path:fpath>", methods=["POST"])
 def upload_file(fpath):
     """ Save the uploaded file at <UPLOAD_PATH>/project/fpath

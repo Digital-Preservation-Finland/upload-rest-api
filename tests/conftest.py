@@ -7,7 +7,6 @@ import shutil
 import sys
 import tempfile
 from base64 import b64encode
-from concurrent.futures import ThreadPoolExecutor
 from runpy import run_path
 
 import fakeredis
@@ -199,7 +198,6 @@ def app(mock_mongo, mock_config, monkeypatch):
     flask_app.config["TESTING"] = True
     flask_app.config["UPLOAD_PATH"] = mock_config["UPLOAD_PATH"]
     flask_app.config["UPLOAD_TMP_PATH"] = mock_config["UPLOAD_TMP_PATH"]
-    flask_app.config["EXTRACT_EXECUTOR"] = ThreadPoolExecutor(max_workers=2)
 
     yield flask_app
 

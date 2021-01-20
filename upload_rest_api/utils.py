@@ -75,19 +75,3 @@ def get_polling_url(name, task_id):
     path = url_for(name + ".task_status", task_id=task_id)
     parsed_url = urlparse(request.url)
     return urlunparse([parsed_url[0], parsed_url[1], path, "", "", ""])
-
-
-def run_background(func):
-    """ A decorator for running function on background"""
-    @wraps(func)
-    def _dec_func(*args, **kwargs):
-        username = request.authorization.username
-        database = db.Database()
-        project = database.user(username).get_project()
-        task_id = database.tasks.create(project)
-        database.tasks.update_message(task_id, "processing")
-        kwargs["task_id"] = task_id
-        executor = current_app.config["EXTRACT_EXECUTOR"]
-        executor.submit(func, *args, **kwargs)
-        return task_id
-    return _dec_func

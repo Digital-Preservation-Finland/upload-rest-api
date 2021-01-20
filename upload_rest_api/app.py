@@ -3,7 +3,6 @@
 from __future__ import unicode_literals
 
 import logging
-from concurrent.futures import ThreadPoolExecutor
 
 from flask import Flask
 
