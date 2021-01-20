@@ -28,6 +28,7 @@ Requires:       python3-flask
 Requires:       python3-pymongo
 Requires:       python3-magic
 Requires:       python3-six
+Requires:       python3-rq
 Requires:       metax-access
 Requires:       archive-helpers
 BuildRequires:  python3-setuptools

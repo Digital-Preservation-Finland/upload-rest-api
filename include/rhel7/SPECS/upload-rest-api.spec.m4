@@ -28,6 +28,7 @@ Requires:       python-flask
 Requires:       python-pymongo
 Requires:       python-magic
 Requires:       python-six
+Requires:       python-rq
 Requires:       python-futures
 Requires:       metax-access
 Requires:       archive-helpers
@@ -35,6 +36,7 @@ BuildRequires:  python-setuptools
 BuildRequires:  pytest
 BuildRequires:  python-mongomock
 BuildRequires:  python-mock
+BuildRequires:  python-fakeredis
 
 %description
 REST API for file uploads to passipservice.csc.fi
