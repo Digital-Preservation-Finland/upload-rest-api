@@ -43,7 +43,6 @@ def test_enqueue_fake_job(tasks_col, mock_redis):
     # Job can be finished
     SimpleWorker([upload_queue], connection=mock_redis).work(burst=True)
 
-    assert upload_queue.finished_job_registry.get_job_ids() == [job_id]
     job = upload_queue.fetch_job(job_id)
 
     assert job.result == "Task ID = {}, value = spam".format(job_id)

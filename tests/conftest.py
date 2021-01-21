@@ -38,11 +38,12 @@ def parse_conf(monkeypatch):
 
 
 @pytest.yield_fixture(scope="function")
-def upload_tmpdir(tmp_path_factory):
+def upload_tmpdir(tmpdir):
     """
     Temporary directory for uploads
     """
-    yield tmp_path_factory.mktemp("tests.upload_")
+    tmpdir.mkdir("upload")
+    yield tmpdir.join("upload")
 
 
 @pytest.yield_fixture(scope="function")
@@ -51,8 +52,8 @@ def mock_config(monkeypatch, upload_tmpdir):
     Mock the generic configuration located in `upload_rest_api.config` that
     is accessible whether Flask is active or not
     """
-    projects_path = upload_tmpdir / "projects"
-    temp_upload_path = upload_tmpdir / "tmp"
+    projects_path = upload_tmpdir.join("projects")
+    temp_upload_path = upload_tmpdir.join("tmp")
 
     projects_path.mkdir()
     temp_upload_path.mkdir()
@@ -89,13 +90,12 @@ def mock_mongo(monkeypatch):
     return mongoclient
 
 
-@pytest.fixture(scope="function", autouse=True)
+@pytest.yield_fixture(scope="function", autouse=True)
 def mock_redis(monkeypatch):
     """
     Patch job queue to use a mock Redis
     """
-    server = fakeredis.FakeServer()
-    conn = fakeredis.FakeStrictRedis(server=server)
+    conn = fakeredis.FakeStrictRedis()
 
     monkeypatch.setattr(
         "upload_rest_api.jobs.utils.get_redis_connection",
@@ -103,6 +103,10 @@ def mock_redis(monkeypatch):
     )
 
     yield conn
+
+    # fakeredis versions prior to v1.0 are not isolated and use a singleton,
+    # making a manual flush necessary
+    conn.flushall()
 
 
 @pytest.fixture(scope="function")
@@ -185,8 +189,8 @@ def app(mock_mongo, mock_config, monkeypatch):
     # configuration file (/etc/upload_rest_api.conf)
     def _mock_configure_app(app):
         """
-        Update current_app.config to reference the same flask.Config
-        instance as `upload_rest_api.config.CONFIG`
+        Update Flask app to use the same configuration parameters as
+        `upload_rest_api.config.CONFIG`
         """
         app.config.from_pyfile("../include/etc/upload_rest_api.conf")
 

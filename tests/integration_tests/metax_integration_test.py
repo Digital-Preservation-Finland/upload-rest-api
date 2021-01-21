@@ -260,7 +260,11 @@ def test_delete_metadata(
         "/v1/metadata/integration/test1/test1.txt",
         headers=test_auth
     )
-    response = background_job_runner(test_client, "metadata", poll_response)
+    response = background_job_runner(
+        test_client, "metadata", poll_response,
+        # If accepted dataset exists, the background job cannot succeed
+        expect_success=not accepted_dataset
+    )
 
     assert response.status_code == 200
 
@@ -282,7 +286,10 @@ def test_delete_metadata(
 
     # DELETE whole project
     poll_response = test_client.delete("/v1/files", headers=test_auth)
-    response = background_job_runner(test_client, "files", poll_response)
+    response = background_job_runner(
+        test_client, "files", poll_response,
+        expect_success=accepted_dataset
+    )
 
     assert response.status_code == 200
 
