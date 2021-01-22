@@ -11,11 +11,16 @@ UPLOAD_QUEUE = "upload"
 
 JOB_QUEUE_NAMES = (FILES_QUEUE, METADATA_QUEUE, UPLOAD_QUEUE)
 
+# Maximum execution time for a job
+JOB_TIMEOUT = 12 * 60 * 60  # 12 hours
+# For how long failed jobs are preserved
+FAILED_JOB_TTL = 7 * 24 * 60 * 60  # 7 days
+
 
 class BackgroundJobQueue(Queue):
     # Background jobs might take a very long time, so assign
     # a very high timeout
-    DEFAULT_TIMEOUT = 12 * 60 * 60  # 12 hours
+    DEFAULT_TIMEOUT = JOB_TIMEOUT
 
 
 def api_background_job(func):
@@ -92,6 +97,7 @@ def enqueue_background_job(task_func, queue_name, username, job_kwargs):
     queue.enqueue(
         task_func,
         job_id=str(task_id),
+        failure_ttl=FAILED_JOB_TTL,
         kwargs=job_kwargs
     )
     return str(task_id)
