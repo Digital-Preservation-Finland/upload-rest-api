@@ -1,8 +1,9 @@
 """Unit tests for database module"""
 from __future__ import unicode_literals
 
-import re
 import binascii
+import json
+import re
 
 import upload_rest_api.database as db
 
@@ -159,15 +160,15 @@ def test_async_task_creation(tasks_col):
     task_id_1 = tasks_col.create("test_project")
     task_id_2 = tasks_col.create("test_project")
     assert task_id_1 != task_id_2
-    assert tasks_col.find("test_project", "pending").count() == 2
+    assert len(tasks_col.find("test_project", "pending")) == 2
 
 
 def test_async_task_update(tasks_col):
     """Test update of tasks documents"""
     task_id_1 = tasks_col.create("test_project")
     tasks_col.update_status(task_id_1, "done")
-    assert tasks_col.find("test_project", "done").count() == 1
-    assert tasks_col.find("test_project", "pending").count() == 0
+    assert len(tasks_col.find("test_project", "done")) == 1
+    assert len(tasks_col.find("test_project", "pending")) == 0
 
     task = tasks_col.get(task_id_1)
     assert task["status"] == "done"
@@ -193,3 +194,53 @@ def test_async_task_delete(tasks_col):
     task_id_1 = tasks_col.create("test_user_1")
     task_id_2 = tasks_col.create("test_user_2")
     assert tasks_col.delete([task_id_1, task_id_2]) == 2
+
+
+def test_async_task_large_message(tasks_col):
+    """Test updating a task with a large message and ensure it is split
+    into multiple chunks correctly
+    """
+    biggus_dictus = {
+        "spam": ["lorem ipsum {}".format(i) for i in range(0, 200000)],
+        "eggs": ["ipsum lorem {}".format(i) for i in range(0, 200000)],
+        "ham": ["blah blah blah {}".format(i) for i in range(0, 200000)],
+    }
+    # JSON-encoded dict is ~13 MB in size
+    message = json.dumps(biggus_dictus)
+
+    task_id = tasks_col.create("test_project")
+    tasks_col.update_message(task_id, message)
+
+    # Message can be retrieved through 'get' and 'find'
+    task = tasks_col.get(task_id)
+    assert task["message"] == message
+
+    task = tasks_col.find("test_project", "pending")[0]
+    assert task["message"] == message
+
+    # Per 2 MB chunk size, message was split into 7 chunks
+    assert tasks_col.task_messages.count({"task_id": task_id}) == 7
+
+    tasks_col.delete([task_id])
+
+    # Message is deleted as well
+    assert tasks_col.task_messages.count({"task_id": task_id}) == 0
+
+
+def test_async_task_include_message(tasks_col):
+    """Test retrieving tasks without task messages
+    """
+    task_id_a = tasks_col.create("test_project_a")
+    task_id_b = tasks_col.create("test_project_b")
+    tasks_col.update_message(task_id_a, "Test message 1")
+    tasks_col.update_message(task_id_b, "Test message 2")
+
+    all_tasks = tasks_col.get_all_tasks()
+
+    assert all_tasks[0]["_id"] == task_id_a
+    assert all_tasks[1]["_id"] == task_id_b
+
+    # Messages are not included when retrieving all tasks, as it would
+    # consume a ton of memory otherwise
+    assert "message" not in all_tasks[0]
+    assert "message" not in all_tasks[1]

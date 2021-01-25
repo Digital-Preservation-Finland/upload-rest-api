@@ -235,6 +235,7 @@ def tasks_col(mock_mongo):
     """
     tasks_col = db.Database().tasks
     tasks_col.tasks = mock_mongo.upload.tasks
+    tasks_col.task_messages = mock_mongo.upload.task_messages
 
     return tasks_col
 

@@ -26,6 +26,17 @@ SALT_LEN = 20
 ITERATIONS = 200000
 HASH_ALG = "sha512"
 
+# Default MongoDB document size is 4 MB, but let's use 2 MB just to be sure.
+MESSAGE_CHUNK_SIZE = 2000000
+
+
+def _iter_chunks(data, size=MESSAGE_CHUNK_SIZE):
+    """
+    Split data into chunks of given size and yield them one at a time
+    """
+    for i in range(0, len(data), size):
+        yield data[i:i + size]
+
 
 def get_random_string(chars):
     """Generate and return random string of given number of
@@ -440,6 +451,7 @@ class Tasks(object):
     def __init__(self, client):
         """Initializing Tasks instance"""
         self.tasks = client.upload.tasks
+        self.task_messages = client.upload.task_messages
 
     def create(self, project):
         """Creates one task document.
@@ -457,6 +469,8 @@ class Tasks(object):
         :param identifier: _id of the document to be removed
         :returns: Number of documents deleted
         """
+        self.task_messages.delete_many({"task_id": ObjectId(identifier)})
+
         return self.tasks.delete_one(
             {"_id": ObjectId(identifier)}
         ).deleted_count
@@ -470,6 +484,8 @@ class Tasks(object):
         obj_ids = []
         for identifier in ids:
             obj_ids.append(ObjectId(identifier))
+
+        self.task_messages.delete_many({"task_id": {"$in": obj_ids}})
         return self.tasks.delete_many({"_id": {"$in": obj_ids}}).deleted_count
 
     def find(self, project, status):
@@ -477,9 +493,19 @@ class Tasks(object):
 
         :param str project: project name
         :param str status: status of task
+        :param bool include_message: whether to include task messages
+                                     in the results
         :returns: Found tasks
         """
-        return self.tasks.find({"project": project, "status": status})
+        tasks = list(self.tasks.find({"project": project, "status": status}))
+
+        # Populate the message field by fetching the chunks, if any
+        for task in tasks:
+            message = self._get_message(task)
+            if message:
+                task["message"] = message
+
+        return tasks
 
     def get(self, task_id):
         """Returns task document based on task_id.
@@ -487,7 +513,58 @@ class Tasks(object):
         :param str task_id: task identifier string
         :returns: task document
         """
-        return self.tasks.find_one({"_id": ObjectId(task_id)})
+        task = self.tasks.find_one({"_id": ObjectId(task_id)})
+        if task:
+            message = self._get_message(task)
+            if message:
+                task["message"] = message
+
+        return task
+
+    def _get_message(self, task):
+        """
+        Get the individual chunk documents and return the reconstructed message
+        """
+        task_id = task["_id"]
+        chunk_count = task.get("message_chunks", 0)
+
+        if chunk_count == 0:
+            return None
+
+        chunks = self.task_messages.find({
+            "task_id": task_id,
+            "chunk_id": {"$in": list(range(0, chunk_count))}
+        })
+        chunks = list(chunks)
+        chunks.sort(key=lambda entry: entry["chunk_id"])
+
+        message = "".join([chunk["chunk"] for chunk in chunks])
+
+        return message
+
+    def _set_message(self, task_id, message):
+        """
+        Create the individual message chunks
+
+        :returns: The amount of chunks used to save the message
+        """
+        chunk_count = 0
+        for i, chunk in enumerate(_iter_chunks(message)):
+            self.task_messages.update_one(
+                {"task_id": task_id, "chunk_id": i},
+                {
+                    "$set": {
+                        "task_id": task_id,
+                        "chunk_id": i,
+                        "chunk": chunk
+                    }
+                },
+                {"upsert": True}
+            )
+
+            chunk_count += 1
+
+        return chunk_count
 
     def update_status(self, task_id, status):
         """Updates status of the task.
@@ -510,9 +587,14 @@ class Tasks(object):
         """
         if not self.exists(task_id):
             raise TaskNotFoundError("Task '%s' not found" % task_id)
+
+        chunk_count = self._set_message(
+            task_id=ObjectId(task_id),
+            message=message
+        )
         self.tasks.update_one(
             {"_id": ObjectId(task_id)},
-            {"$set": {"message": message}}
+            {"$set": {"message_chunks": chunk_count}}
         )
 
     def update_md5(self, task_id, md5):
@@ -538,4 +620,6 @@ class Tasks(object):
 
     def get_all_tasks(self):
         """Return all tasks"""
+        # Messages are *not* included in the response to prevent unnecessary
+        # memory usage
         return self.tasks.find()
