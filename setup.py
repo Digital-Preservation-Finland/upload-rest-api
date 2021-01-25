@@ -16,8 +16,8 @@ def main():
             "pymongo",
             "file-magic",
             "six",
-            "redis==3.4.1",  # Last Python 2 compatible version
-            "rq==1.3.0",  # Last Python 2 compatible version
+            "redis",
+            "rq",
             "futures; python_version == '2.7'",
             "metax_access@git+https://gitlab.csc.fi/dpres/"
             "metax-access.git@develop",
