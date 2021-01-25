@@ -559,7 +559,7 @@ class Tasks(object):
                         "chunk": chunk
                     }
                 },
-                {"upsert": True}
+                upsert=True
             )
 
             chunk_count += 1
