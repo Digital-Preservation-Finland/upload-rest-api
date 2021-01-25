@@ -35,6 +35,8 @@ BuildRequires:  python3-setuptools
 BuildRequires:  python3-pytest
 BuildRequires:  python3-mongomock
 BuildRequires:  python3-mock
+# TODO: python3-fakeredis hasn't been packaged yet
+# BuildRequires:  python3-fakeredis
 
 %description
 REST API for file uploads to passipservice.csc.fi
