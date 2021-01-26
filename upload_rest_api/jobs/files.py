@@ -16,13 +16,11 @@ from upload_rest_api.jobs.utils import api_background_job
 
 
 @api_background_job
-def delete_task(fpath, username, task_id):
+def delete_files(fpath, username, task_id):
     """Deletes files and metadata denoted by fpath directory under user's
     project. The whole directory is recursively removed.
 
-    :param MetaxClient metax_client: Metax access
     :param str fpath: path to directory
-    :param str root_upload_path: Upload root directory
     :param str username: current user
     :param str task_id: mongo dentifier of the task
     """

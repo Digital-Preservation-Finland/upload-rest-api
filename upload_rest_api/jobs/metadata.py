@@ -16,12 +16,12 @@ from upload_rest_api.jobs.utils import api_background_job
 
 @api_background_job
 def post_metadata(fpath, username, storage_id, task_id):
-    """
-    This function deletes the metadata in Metax for the file(s) denoted
+    """This function creates the metadata in Metax for the file(s) denoted
     by fpath argument. Finally updates the status of the task into database.
 
     :param str fpath: file path
     :param str username: current user
+    :param str storage_id: pas storage identifier in Metax
     :param str task_id: mongo dentifier of the task
     """
     root_upload_path = CONFIG["UPLOAD_PATH"]

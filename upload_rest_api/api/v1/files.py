@@ -131,7 +131,7 @@ def delete_path(fpath):
     elif os.path.isdir(fpath):
         # Remove all file metadata of files under dir fpath from Metax
         task_id = enqueue_background_job(
-            task_func="upload_rest_api.jobs.files.delete_task",
+            task_func="upload_rest_api.jobs.files.delete_files",
             queue_name=FILES_QUEUE,
             username=username,
             job_kwargs={
@@ -202,7 +202,7 @@ def delete_files():
         return utils.make_response(404, "No files found")
 
     task_id = enqueue_background_job(
-        task_func="upload_rest_api.jobs.files.delete_task",
+        task_func="upload_rest_api.jobs.files.delete_files",
         queue_name=FILES_QUEUE,
         username=username,
         job_kwargs={
