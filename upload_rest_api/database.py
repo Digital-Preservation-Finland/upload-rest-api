@@ -1,7 +1,6 @@
 """Module for accessing user database
 """
-from __future__ import unicode_literals
-from __future__ import print_function
+from __future__ import print_function, unicode_literals
 
 import binascii
 import hashlib
@@ -14,8 +13,9 @@ from string import ascii_letters, digits
 import pymongo
 from bson.binary import Binary
 from bson.objectid import ObjectId
-
 from flask import safe_join
+from rq.exceptions import NoSuchJobError
+from rq.job import Job
 from werkzeug.utils import secure_filename
 
 # Password vars
@@ -507,6 +507,31 @@ class Tasks(object):
 
         return tasks
 
+    def _sync_task_status(self, task):
+        """
+        Check if the corresponding MongoDB task is in the failed RQ queue.
+        If it is, update the MongoDB task entry correspondingly.
+
+        This is used when the exception handler that updates the MongoDB entry
+        was not executed. One case where this can happen is if the worker
+        is killed by the out-of-memory killer.
+        """
+        from upload_rest_api.jobs.utils import get_redis_connection
+
+        task_id = str(task["_id"])
+
+        try:
+            job = Job.fetch(task_id, connection=get_redis_connection())
+        except NoSuchJobError:
+            return task
+
+        if job.is_failed and task["status"] != "error":
+            self.update_status(task_id, "error")
+            self.update_message(task_id, "Internal server error")
+            task = self.tasks.find_one({"_id": ObjectId(task_id)})
+
+        return task
+
     def get(self, task_id):
         """Returns task document based on task_id.
 
@@ -515,6 +540,9 @@ class Tasks(object):
         """
         task = self.tasks.find_one({"_id": ObjectId(task_id)})
         if task:
+            # Synchronize RQ and MongoDB state if they're out of sync
+            task = self._sync_task_status(task)
+
             message = self._get_message(task)
             if message:
                 task["message"] = message

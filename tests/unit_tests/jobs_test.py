@@ -97,3 +97,41 @@ def test_enqueue_background_job_failing(tasks_col, mock_redis):
     assert len(failed_jobs) == 1
 
     assert failed_jobs[0]["message"] == "Internal server error"
+
+
+@pytest.mark.usefixtures("app")
+def test_enqueue_background_job_failing_out_of_sync(tasks_col, mock_redis):
+    """
+    Test enqueuing a fake task using "enqueue_background_job"
+    and ensure it is handled properly if the failure is recorded in RQ
+    but not MongoDB
+    """
+    job_id = enqueue_background_job(
+        task_func="tests.unit_tests.jobs_test.failing_task",
+        queue_name="upload",
+        username="test",
+        job_kwargs={}
+    )
+
+    # Check that the Redis queue has the same job
+    upload_queue = get_job_queue("upload")
+    assert upload_queue.job_ids == [job_id]
+
+    # Job can be finished
+    SimpleWorker([upload_queue], connection=mock_redis).work(burst=True)
+
+    rq_job = upload_queue.fetch_job(job_id)
+
+    assert rq_job.is_failed
+
+    # Update the status in MongoDB to appear in-progress, while in RQ
+    # it has already failed
+    tasks_col.update_message(job_id, "processing")
+    tasks_col.update_status(job_id, "pending")
+
+    # Retrieve the task from MongoDB; it should be automatically updated to
+    # match the status in RQ
+    task = tasks_col.get(job_id)
+
+    assert task["message"] == "Internal server error"
+    assert task["status"] == "error"

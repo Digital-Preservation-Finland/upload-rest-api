@@ -1,11 +1,11 @@
 """REST api for querying upload status
 """
 from __future__ import unicode_literals
+
 import json
 
-from flask import Blueprint, jsonify
-
 import upload_rest_api.database as db
+from flask import Blueprint, jsonify
 
 TASK_STATUS_API_V1 = Blueprint("tasks_v1", __name__,
                                url_prefix="/v1/tasks")
