@@ -99,7 +99,7 @@ def extract_task(fpath, dir_path, task_id):
         os.remove(fpath)
         _process_extracted_files(dir_path)
 
-        database.tasks.update_status(task_id, "done")
         msg = {"message": "Archive uploaded and extracted",
                "md5": md5}
         database.tasks.update_message(task_id, json.dumps(msg))
+        database.tasks.update_status(task_id, "done")

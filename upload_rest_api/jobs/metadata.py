@@ -68,8 +68,8 @@ def post_metadata(fpath, username, storage_id, task_id):
         # Create upload-rest-api response
         response = {"code": status_code, "metax_response": response}
 
-    database.tasks.update_status(task_id, status)
     database.tasks.update_message(task_id, json.dumps(response))
+    database.tasks.update_status(task_id, status)
 
 
 @api_background_job
@@ -129,5 +129,5 @@ def delete_metadata(fpath, username, task_id):
                 ),
                 "metax": response
             }
-    database.tasks.update_status(task_id, status)
     database.tasks.update_message(task_id, json.dumps(response))
+    database.tasks.update_status(task_id, status)

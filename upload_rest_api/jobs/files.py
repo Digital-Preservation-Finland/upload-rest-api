@@ -50,10 +50,10 @@ def delete_files(fpath, username, task_id):
         # Remove project directory and update used_quota
         rmtree(fpath)
         database.user(username).update_used_quota(root_upload_path)
-        database.tasks.update_status(task_id, "done")
         response = {
             "file_path": ret_path,
             "status": "done",
             "metax": metax_response
         }
         database.tasks.update_message(task_id, json.dumps(response))
+        database.tasks.update_status(task_id, "done")
