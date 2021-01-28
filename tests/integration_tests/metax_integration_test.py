@@ -287,11 +287,13 @@ def test_delete_metadata(
     # DELETE whole project
     poll_response = test_client.delete("/v1/files", headers=test_auth)
     response = background_job_runner(
-        test_client, "files", poll_response,
-        expect_success=accepted_dataset
+        test_client, "files", poll_response
     )
 
     assert response.status_code == 200
+    data = json.loads(response.data)
+
+    assert data["metax"]["deleted_files_count"] == 0
 
     # Test that no test_project files are found in Metax
     files_dict = metax_client.get_files_dict("test_project")

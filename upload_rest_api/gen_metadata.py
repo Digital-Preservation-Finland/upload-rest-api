@@ -230,7 +230,9 @@ class MetaxClient(object):
         file_ids = [
             file_["identifier"] for file_ in six.itervalues(files_dict)
         ]
-        file2datasets = self.client.get_file2dataset_dict(file_ids)
+        file2datasets = {}
+        if file_ids:
+            file2datasets = self.client.get_file2dataset_dict(file_ids)
 
         # Delete metadata if file exists in fpaths AND it doesn't have
         # any datasets
@@ -315,9 +317,9 @@ class MetaxClient(object):
                 in six.itervalues(files_to_delete)
             ]
             # Retrieve related datasets in a single bulk operation
-            file2datasets = self.client.get_file2dataset_dict(
-                file_ids
-            )
+            file2datasets = {}
+            if file_ids:
+                file2datasets = self.client.get_file2dataset_dict(file_ids)
 
             file_ids_to_delete = [
                 file_["identifier"] for metax_path, file_
