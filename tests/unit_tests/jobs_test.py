@@ -135,3 +135,24 @@ def test_enqueue_background_job_failing_out_of_sync(tasks_col, mock_redis):
 
     assert task["message"] == "Internal server error"
     assert task["status"] == "error"
+
+
+@pytest.mark.usefixtures("app", "mock_redis")
+def test_enqueue_background_job_custom_timeout(mock_config, monkeypatch):
+    """
+    Test enqueueing a background job with custom timeout in effect and ensure
+    it is used
+    """
+    monkeypatch.setitem(mock_config, "RQ_JOB_TIMEOUT", 2222)
+
+    job_id = enqueue_background_job(
+        task_func="tests.unit_tests.jobs_test.failing_task",
+        queue_name="upload",
+        username="test",
+        job_kwargs={}
+    )
+
+    upload_queue = get_job_queue("upload")
+    job = upload_queue.fetch_job(job_id)
+
+    assert job.timeout == 2222

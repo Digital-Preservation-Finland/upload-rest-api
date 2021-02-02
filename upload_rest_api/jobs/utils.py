@@ -12,15 +12,16 @@ UPLOAD_QUEUE = "upload"
 JOB_QUEUE_NAMES = (FILES_QUEUE, METADATA_QUEUE, UPLOAD_QUEUE)
 
 # Maximum execution time for a job
-JOB_TIMEOUT = 12 * 60 * 60  # 12 hours
+DEFAULT_JOB_TIMEOUT = 12 * 60 * 60  # 12 hours
 # For how long failed jobs are preserved
-FAILED_JOB_TTL = 7 * 24 * 60 * 60  # 7 days
+# NOTE: This configuration parameter is ignored in RQ versions prior to v1.0
+DEFAULT_FAILED_JOB_TTL = 7 * 24 * 60 * 60  # 7 days
 
 
 class BackgroundJobQueue(Queue):
-    # Background jobs might take a very long time, so assign
-    # a very high timeout
-    DEFAULT_TIMEOUT = JOB_TIMEOUT
+    # Custom queue class for background jobs. This can be extended in the
+    # future if needed.
+    pass
 
 
 def api_background_job(func):
@@ -94,10 +95,14 @@ def enqueue_background_job(task_func, queue_name, username, job_kwargs):
 
     job_kwargs["task_id"] = str(task_id)
 
+    job_timeout = CONFIG.get("RQ_JOB_TIMEOUT", DEFAULT_JOB_TIMEOUT)
+
     queue.enqueue(
         task_func,
         job_id=str(task_id),
-        failure_ttl=FAILED_JOB_TTL,
+        timeout=job_timeout,  # rq 0.12.0 or older
+        job_timeout=job_timeout,  # rq 0.13.0 and newer
+        failure_ttl=CONFIG.get("RQ_FAILED_JOB_TTL", DEFAULT_FAILED_JOB_TTL),
         kwargs=job_kwargs
     )
     return str(task_id)
