@@ -1,4 +1,4 @@
-"""Unit tests for metadata generation"""
+"""Unit tests for metadata generation."""
 from __future__ import unicode_literals
 
 import os
@@ -18,12 +18,12 @@ import upload_rest_api.database as db
     ]
 )
 def test_metax_path(fpath, upload_path, expected):
-    """Test fpath is sliced properly and returns path /project/<path:fpath>"""
+    """Test fpath is sliced properly and returns path /project/<path:fpath>."""
     assert md.get_metax_path(fpath, upload_path) == expected
 
 
 def test_md5():
-    """Test that md5_digest function returns the correct digest"""
+    """Test that md5_digest function returns the correct digest."""
     digest1 = "150b62e4e7d58c70503bd5fc8a26463c"
     digest2 = "40c6cadaffe26738f84732d0fdd09ce4"
 
@@ -32,13 +32,13 @@ def test_md5():
 
 
 def test_mimetype():
-    """Test that _get_mimetype() returns correct MIME types"""
+    """Test that _get_mimetype() returns correct MIME types."""
     assert md._get_mimetype("tests/data/test.txt") == "text/plain"
     assert md._get_mimetype("tests/data/test.zip") == "application/zip"
 
 
 def test_gen_metadata(monkeypatch):
-    """Test that _generate_metadata() produces the correct metadata"""
+    """Test that _generate_metadata() produces the correct metadata."""
     fpath = os.path.abspath("tests/data/test.txt")
 
     monkeypatch.setattr(
@@ -70,3 +70,23 @@ def test_gen_metadata(monkeypatch):
     assert "checked" in checksum
 
     assert metadata["file_storage"] == "pid:uuid:storage_id"
+
+
+@pytest.mark.parametrize('verify', [True, False])
+def test_metax_ssl_verification(requests_mock, verify):
+    """Test Metax HTTPS connection verification.
+
+    HTTPS connection to Metax should be verified if `verify` parameter
+    is used.
+
+    :param requests_mock: HTTP request mocker
+    :param verify: value for MetaxClient `verify` parameter
+    """
+    requests_mock.get('https://foo/rest/v1/datasets/qux', json={})
+
+    md.MetaxClient(url='https://foo',
+                   user='bar',
+                   password='baz',
+                   verify=verify).client.get_dataset('qux')
+
+    assert requests_mock.last_request.verify is verify

@@ -129,7 +129,7 @@ class MetaxClientError(Exception):
 class MetaxClient(object):
     """Class for handling Metax metadata"""
 
-    def __init__(self, url=None, user=None, password=None):
+    def __init__(self, url=None, user=None, password=None, verify=None):
         """Init MetaxClient instances"""
 
         # If any of the params is not provided read them from app.config
@@ -138,7 +138,10 @@ class MetaxClient(object):
             user = CONFIG.get("METAX_USER")
             password = CONFIG.get("METAX_PASSWORD")
 
-        self.client = Metax(url, user, password)
+        if verify is None:
+            verify = CONFIG.get("METAX_SSL_VERIFICATION", True)
+
+        self.client = Metax(url, user, password, verify=verify)
         # dataset_id => preservation_state dict
         self.dataset_cache = {}
 

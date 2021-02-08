@@ -208,9 +208,10 @@ def _generate_metadata(args):
     project_path = os.path.join(
         upload_path, project
     )
-    metax_client = md.MetaxClient(
-        conf["METAX_URL"], conf["METAX_USER"], conf["METAX_PASSWORD"]
-    )
+    metax_client = md.MetaxClient(conf["METAX_URL"],
+                                  conf["METAX_USER"],
+                                  conf["METAX_PASSWORD"],
+                                  conf["METAX_SSL_VERIFICATION"])
 
     fpaths = []
     for dirpath, _, files in os.walk(project_path):

@@ -123,7 +123,8 @@ def clean_project(project, fpath, metax=True):
         metax_client = md.MetaxClient(
             url=conf["METAX_URL"],
             user=conf["METAX_USER"],
-            password=conf["METAX_PASSWORD"]
+            password=conf["METAX_PASSWORD"],
+            verify=conf["METAX_SSL_VERIFICATION"]
         )
         file_dict = metax_client.get_files_dict(project)
 
@@ -178,13 +179,17 @@ def clean_mongo():
     url = conf["METAX_URL"]
     user = conf["METAX_USER"]
     password = conf["METAX_PASSWORD"]
+    ssl_verification = conf["METAX_SSL_VERIFICATION"]
     time_lim = conf["CLEANUP_TIMELIM"]
 
     _clean_old_tasks(time_lim)
 
     projects = _get_projects()
 
-    metax_ids = md.MetaxClient(url, user, password).get_all_ids(projects)
+    metax_ids = md.MetaxClient(url,
+                               user,
+                               password,
+                               ssl_verification).get_all_ids(projects)
 
     files = db.Database().files
     mongo_ids = files.get_all_ids()
