@@ -1,3 +1,4 @@
+"""Upload module background jobs."""
 from __future__ import unicode_literals
 
 import json
@@ -6,15 +7,11 @@ import os.path
 import tarfile
 import zipfile
 
-from requests.exceptions import HTTPError
+from archive_helpers.extract import (MemberNameError, MemberOverwriteError,
+                                     MemberTypeError, extract)
 
 import upload_rest_api.database as db
 import upload_rest_api.gen_metadata as gen_metadata
-import upload_rest_api.utils as utils
-from archive_helpers.extract import (MemberNameError, MemberOverwriteError,
-                                     MemberTypeError, extract)
-from metax_access import MetaxError
-from upload_rest_api.config import CONFIG
 from upload_rest_api.jobs.utils import api_background_job
 
 
@@ -35,8 +32,8 @@ def _process_extracted_files(fpath):
 
 
 def _get_archive_checksums(archive, extract_path):
-    """Calculate md5 checksums of all archive members and return a list of
-    dicts::
+    """Calculate md5 checksums of all archive members and return a list
+    of dicts::
 
         {
             "_id": filpath,
@@ -68,12 +65,13 @@ def _get_archive_checksums(archive, extract_path):
 
 @api_background_job
 def extract_task(fpath, dir_path, task_id):
-    """Calculates the checksum of the archive and extracts the files into
-    ``dir_path`` directory. Finally updates the status of the task
-    into database.
+    """Calculate the checksum of the archive and extracts the files into
+    ``dir_path`` directory. Finally updates the status of the task into
+    database.
 
     :param str fpath: file path of the archive
-    :param str dir_path: directory to where the archive will be extracted
+    :param str dir_path: directory to where the archive will be
+                         extracted
     :param str task_id: mongo dentifier of the task
     """
     database = db.Database()

@@ -1,4 +1,4 @@
-"""Unit tests for database module"""
+"""Unit tests for database module."""
 from __future__ import unicode_literals
 
 import binascii
@@ -9,8 +9,9 @@ import upload_rest_api.database as db
 
 
 def test_dir_size():
-    """Test that dir sizes are calculated correctly. Dirs that do not
-    exist should return size 0.
+    """Test that dir sizes are calculated correctly.
+
+    Dirs that do not exist should return size 0.
     """
     # Existing dir
     assert db.get_dir_size("tests/data/get_dir_size") == 8
@@ -20,8 +21,7 @@ def test_dir_size():
 
 
 def test_create_user(user):
-    """Test creation of new user
-    """
+    """Test creation of new user."""
     users = user.users
     user.username = "test"
     user.create("test_project")
@@ -49,8 +49,7 @@ def test_create_user(user):
 
 
 def test_delete_user(user):
-    """Test deletion of user
-    """
+    """Test deletion of user."""
     users = user.users
 
     users.insert_one({"_id": "test_user"})
@@ -63,8 +62,7 @@ def test_delete_user(user):
 
 
 def test_get_all_ids(files_col):
-    """Test get_all_ids returns a list of all _ids in the collection
-    """
+    """Test get_all_ids returns a list of all _ids in the collection."""
     assert files_col.get_all_ids() == []
 
     for i in range(10):
@@ -77,8 +75,7 @@ def test_get_all_ids(files_col):
 
 
 def test_insert_and_delete_files(files_col):
-    """Test insertion and deletion of files documents
-    """
+    """Test insertion and deletion of files documents."""
     document = {"_id": "pid:urn:1", "file_path": "1"}
     many_documents = [
         {"_id": "pid:urn:2", "file_path": "2"},
@@ -116,12 +113,12 @@ def test_store_identifiers(monkeypatch):
 
     database = db.Database()
     database.store_identifiers(metax_response, "/tmp", "user")
-    assert database.files.get_all_ids() == ["pid:urn:1", "pid:urn:2", "pid:urn:3"]
+    assert database.files.get_all_ids() \
+        == ["pid:urn:1", "pid:urn:2", "pid:urn:3"]
 
 
 def test_quota(user):
-    """Test get_quota() and set_quota() functions
-    """
+    """Test get_quota() and set_quota() functions."""
     users = user.users
     users.insert_one({"_id": "test_user", "quota": 5 * 1024**3})
 
@@ -135,7 +132,7 @@ def test_quota(user):
 
 def test_get_random_string():
     """Test that get_random_string() returns random strings
-    of given lenght with only ascii letters and digits
+    of given lenght with only ascii letters and digits.
     """
     strings = set()
 
@@ -149,14 +146,13 @@ def test_get_random_string():
 
 
 def test_hash_passwd():
-    """Test that salting and hashing returns the correct digest
-    """
+    """Test that salting and hashing returns the correct digest."""
     digest = binascii.hexlify(db.hash_passwd("test", "test")[:16])
     assert digest == b"4b119f6da6890ed1cc68d5b3adf7d053"
 
 
 def test_async_task_creation(tasks_col):
-    """Test creation of tasks documents"""
+    """Test creation of tasks documents."""
     task_id_1 = tasks_col.create("test_project")
     task_id_2 = tasks_col.create("test_project")
     assert task_id_1 != task_id_2
@@ -164,7 +160,7 @@ def test_async_task_creation(tasks_col):
 
 
 def test_async_task_update(tasks_col):
-    """Test update of tasks documents"""
+    """Test update of tasks documents."""
     task_id_1 = tasks_col.create("test_project")
     tasks_col.update_status(task_id_1, "done")
     assert len(tasks_col.find("test_project", "done")) == 1
@@ -182,7 +178,7 @@ def test_async_task_update(tasks_col):
 
 
 def test_async_task_delete(tasks_col):
-    """Test deletion of tasks documents"""
+    """Test deletion of tasks documents."""
     task_id_1 = tasks_col.create("test_user_1")
     task_id_2 = tasks_col.create("test_user_2")
     assert tasks_col.delete_one(task_id_1) == 1
@@ -198,7 +194,7 @@ def test_async_task_delete(tasks_col):
 
 def test_async_task_large_message(tasks_col):
     """Test updating a task with a large message and ensure it is split
-    into multiple chunks correctly
+    into multiple chunks correctly.
     """
     biggus_dictus = {
         "spam": ["lorem ipsum {}".format(i) for i in range(0, 200000)],
@@ -228,8 +224,7 @@ def test_async_task_large_message(tasks_col):
 
 
 def test_async_task_include_message(tasks_col):
-    """Test retrieving tasks without task messages
-    """
+    """Test retrieving tasks without task messages."""
     task_id_a = tasks_col.create("test_project_a")
     task_id_b = tasks_col.create("test_project_b")
     tasks_col.update_message(task_id_a, "Test message 1")

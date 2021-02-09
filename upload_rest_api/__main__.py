@@ -1,4 +1,4 @@
-"""Commandline interface for upload_rest_api package"""
+"""Commandline interface for upload_rest_api package."""
 from __future__ import print_function
 
 import os
@@ -122,19 +122,19 @@ def _setup_modify_args(subparsers):
 
 
 def _cleanup_files(args):
-    """Clean files from the disk"""
+    """Clean files from the disk."""
     deleted_count = clean_disk()
     print("Cleaned %d files" % deleted_count)
 
 
 def _cleanup_mongo(args):
-    """Clean identifiers from the mongo"""
+    """Clean identifiers from the mongo."""
     deleted_count = clean_mongo()
     print("Cleaned %d identifiers" % deleted_count)
 
 
 def _get_users(args):
-    """Get users from mongo"""
+    """Get users from mongo."""
     database = db.Database()
 
     if args.users:
@@ -158,7 +158,7 @@ def _get_users(args):
 
 
 def _get_checksums(args):
-    """Get checksums from mongo"""
+    """Get checksums from mongo."""
     database = db.Database()
 
     if args.checksums:
@@ -173,7 +173,7 @@ def _get_checksums(args):
 
 
 def _get_identifiers(args):
-    """Get identifiers from mongo"""
+    """Get identifiers from mongo."""
     database = db.Database()
 
     if args.identifiers:
@@ -189,14 +189,14 @@ def _get_identifiers(args):
 
 
 def _get(args):
-    """Get mongo documents"""
+    """Get mongo documents."""
     _get_users(args)
     _get_checksums(args)
     _get_identifiers(args)
 
 
 def _generate_metadata(args):
-    """Generate metadata for the specified project"""
+    """Generate metadata for the specified project."""
     if os.path.exists(args.output):
         raise ValueError("Output file exists")
 
@@ -238,20 +238,20 @@ def _generate_metadata(args):
 
 
 def _create(args):
-    """Create a new user"""
+    """Create a new user."""
     user = db.Database().user(args.username)
     passwd = user.create(args.project)
     print("%s:%s" % (args.username, passwd))
 
 
 def _delete(args):
-    """Delete an existing user"""
+    """Delete an existing user."""
     db.Database().user(args.username).delete()
     print("Deleted")
 
 
 def _modify(args):
-    """Modify an existing user"""
+    """Modify an existing user."""
     user = db.Database().user(args.username)
     if args.quota:
         user.set_quota(args.quota)

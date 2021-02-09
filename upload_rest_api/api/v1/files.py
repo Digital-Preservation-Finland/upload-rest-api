@@ -1,30 +1,27 @@
-"""/files/v1 endpoints. Functionality for uploading,
-querying and deleting files from the server.
+"""/files/v1 endpoints.
+
+Functionality for uploading, querying and deleting files from the
+server.
 """
 from __future__ import unicode_literals
 
-import json
-import logging
 import os
-from shutil import rmtree
 
-from requests.exceptions import HTTPError
+from flask import Blueprint, current_app, jsonify, request, safe_join, url_for
+from werkzeug.utils import secure_filename
 
 import upload_rest_api.database as db
 import upload_rest_api.gen_metadata as md
 import upload_rest_api.upload as up
 import upload_rest_api.utils as utils
-from flask import Blueprint, current_app, jsonify, request, safe_join, url_for
-from metax_access import MetaxError
 from upload_rest_api.api.v1.tasks import TASK_STATUS_API_V1
 from upload_rest_api.jobs.utils import FILES_QUEUE, enqueue_background_job
-from werkzeug.utils import secure_filename
 
 FILES_API_V1 = Blueprint("files_v1", __name__, url_prefix="/v1/files")
 
 
 def _get_dir_tree(project, fpath, root_upload_path):
-    """Returns with dir tree from fpath as a dict"""
+    """Return with dir tree from fpath as a dict."""
     file_dict = {}
     for dirpath, _, files in os.walk(fpath):
         path = utils.get_return_path(project, dirpath, root_upload_path)
@@ -38,7 +35,7 @@ def _get_dir_tree(project, fpath, root_upload_path):
 
 @FILES_API_V1.route("/<path:fpath>", methods=["POST"])
 def upload_file(fpath):
-    """ Save the uploaded file at <UPLOAD_PATH>/project/fpath
+    """Save the uploaded file at <UPLOAD_PATH>/project/fpath.
 
     :returns: HTTP Response
     """
@@ -104,8 +101,10 @@ def get_path(fpath):
 
 @FILES_API_V1.route("/<path:fpath>", methods=["DELETE"])
 def delete_path(fpath):
-    """Delete fpath under user's project. If fpath resolves to a directory,
-    the whole directory is recursively removed.
+    """Delete fpath under user's project.
+
+    If fpath resolves to a directory, the whole directory is recursively
+    removed.
 
     :returns: HTTP Response
     """
@@ -170,7 +169,7 @@ def delete_path(fpath):
 
 @FILES_API_V1.route("", methods=["GET"], strict_slashes=False)
 def get_files():
-    """Get all files of the user
+    """Get all files of the user.
 
     :return: HTTP Response
     """
@@ -189,7 +188,7 @@ def get_files():
 
 @FILES_API_V1.route("", methods=["DELETE"], strict_slashes=False)
 def delete_files():
-    """Delete all files of a user
+    """Delete all files of a user.
 
     :returns: HTTP Response
     """

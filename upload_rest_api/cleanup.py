@@ -15,8 +15,8 @@ import upload_rest_api.gen_metadata as md
 
 
 def _is_expired(fpath, current_time, time_lim):
-    """Checks last file access and calculates whether the
-    file is considered expired or not.
+    """Check last file access and calculate whether the file is
+    considered expired or not.
 
     :param fpath: Path to the file
     :param current_time: Current Unix time
@@ -58,12 +58,12 @@ def _clean_old_tasks(time_lim):
 
 
 def parse_conf(fpath):
-    """Parse config from file fpath"""
+    """Parse config from file fpath."""
     return run_path(fpath)
 
 
 def _get_projects():
-    """Returns a list of all projects with files uploaded"""
+    """Return a list of all projects with files uploaded."""
     conf = parse_conf("/etc/upload_rest_api.conf")
     upload_path = conf["UPLOAD_PATH"]
     dirs = []
@@ -99,8 +99,8 @@ def _clean_file(_file, upload_path, fpaths, file_dict=None, metax_client=None):
 
 def clean_project(project, fpath, metax=True):
     """Remove all files of a given project that haven't been accessed
-    within time_lim seconds. If the removed file has a Metax file entry and
-    metax_client is provided, remove the Metax file entry as well.
+    within time_lim seconds. If the removed file has a Metax file entry
+    and metax_client is provided, remove the Metax file entry as well.
 
     :param project: Project identifier used to search files from Metax
     :param fpath: Path to the dir to cleanup
@@ -145,7 +145,8 @@ def clean_project(project, fpath, metax=True):
     # Clean checksums of the deleted files from mongo
     db.Database().checksums.delete(deleted_files)
 
-    # Remove Metax entries of deleted files that are not part of any datasets
+    # Remove Metax entries of deleted files that are not part of any
+    # datasets
     if metax:
         metax_client.delete_metadata(project, fpaths)
 
@@ -153,7 +154,7 @@ def clean_project(project, fpath, metax=True):
 
 
 def clean_disk(metax=True):
-    """Clean all project in upload_path
+    """Clean all project in upload_path.
 
     :returns: Count of deleted files
     """
@@ -170,8 +171,10 @@ def clean_disk(metax=True):
 
 
 def clean_mongo():
-    """Clean old tasks from mongo. Clean file identifiers that do not exist
-    in Metax any more from Mongo
+    """Clean old tasks from mongo.
+
+    Clean file identifiers that do not exist in Metax any more from
+    Mongo.
 
     :returns: Count of cleaned Mongo documents
     """

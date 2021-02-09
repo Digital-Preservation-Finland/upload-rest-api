@@ -1,4 +1,4 @@
-"""Unit tests for the cleanup.py script"""
+"""Unit tests for the cleanup.py script."""
 from __future__ import unicode_literals
 
 import os
@@ -51,7 +51,8 @@ def test_no_expired_files(app, monkeypatch):
 
 
 def test_expired_files(app, mock_mongo, monkeypatch):
-    """Test that all the expired files and empty directories are removed.
+    """Test that all the expired files and empty directories are
+    removed.
     """
     def _parse_conf(_fpath):
         """Parse conf from include/etc/upload_rest_api.conf if fpath
@@ -101,7 +102,7 @@ def test_expired_files(app, mock_mongo, monkeypatch):
 
 
 def test_expired_tasks(app, mock_mongo, monkeypatch):
-    """Test that only expired tasks are removed """
+    """Test that only expired tasks are removed."""
     def _parse_conf(_fpath):
         """Parse conf from include/etc/upload_rest_api.conf if fpath
         doesn't exist.

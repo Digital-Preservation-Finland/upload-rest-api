@@ -1,16 +1,11 @@
-"""REST api for uploading files into passipservice
-"""
+"""REST api for uploading files into passipservice."""
 from __future__ import unicode_literals
 
 import os
-import json
-import logging
 
 from flask import Blueprint, jsonify, request, current_app, url_for
-from requests.exceptions import HTTPError
 
 import upload_rest_api.database as db
-import upload_rest_api.gen_metadata as md
 import upload_rest_api.utils as utils
 from upload_rest_api.api.v1.tasks import TASK_STATUS_API_V1
 from upload_rest_api.jobs.utils import enqueue_background_job, METADATA_QUEUE
@@ -21,10 +16,12 @@ METADATA_API_V1 = Blueprint("metadata_v1", __name__, url_prefix="/v1/metadata")
 
 @METADATA_API_V1.route("/<path:fpath>", methods=["POST"])
 def post_metadata(fpath):
-    """POST file metadata to Metax. A background task is launched to run
-    the job. The ``Location`` header and the body of the response contain
-    the URL to be used for polling the status of the task. Status code is
-    set to HTTP 202(Accepted).
+    """POST file metadata to Metax.
+
+    A background task is launched to run the job. The ``Location``
+    header and the body of the response contain the URL to be used for
+    polling the status of the task. Status code is set to HTTP
+    202(Accepted).
 
     :returns: HTTP Response
     """
@@ -64,15 +61,16 @@ def post_metadata(fpath):
 
 @METADATA_API_V1.route("/<path:fpath>", methods=["DELETE"])
 def delete_metadata(fpath):
-    """Delete fpath metadata under user's project. A background task is
-    launched to run the job. If fpath resolves to a directory metadata is
-    recursively removed all the files under the directory. The ``Location``
-    header and the body of the response contain the URL to be used for
-    polling the status of the task. Status code is set to HTTP 202(Accepted).
+    """Delete fpath metadata under user's project.
+
+    A background task is launched to run the job. If fpath resolves to a
+    directory metadata is recursively removed all the files under the
+    directory. The ``Location`` header and the body of the response
+    contain the URL to be used for polling the status of the task.
+    Status code is set to HTTP 202(Accepted).
 
     :returns: HTTP Response
     """
-
     username = request.authorization.username
     project = db.Database().user(username).get_project()
     root_upload_path = current_app.config.get("UPLOAD_PATH")

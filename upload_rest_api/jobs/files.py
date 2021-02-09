@@ -1,15 +1,15 @@
+"""Files API background jobs."""
 from __future__ import unicode_literals
 
 import json
-import logging
 from shutil import rmtree
 
 from requests.exceptions import HTTPError
+from metax_access import MetaxError
 
 import upload_rest_api.database as db
 import upload_rest_api.gen_metadata as md
 import upload_rest_api.utils as utils
-from metax_access import MetaxError
 from upload_rest_api.config import CONFIG
 
 from upload_rest_api.jobs.utils import api_background_job
@@ -17,7 +17,7 @@ from upload_rest_api.jobs.utils import api_background_job
 
 @api_background_job
 def delete_files(fpath, username, task_id):
-    """Deletes files and metadata denoted by fpath directory under user's
+    """Delete files and metadata denoted by fpath directory under user's
     project. The whole directory is recursively removed.
 
     :param str fpath: path to directory

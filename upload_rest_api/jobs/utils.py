@@ -1,8 +1,10 @@
+"""Background task utility functions."""
 from functools import wraps
 
-import upload_rest_api.database as db
 from redis import Redis
 from rq import Queue
+
+import upload_rest_api.database as db
 from upload_rest_api.config import CONFIG
 
 FILES_QUEUE = "files"
@@ -14,19 +16,19 @@ JOB_QUEUE_NAMES = (FILES_QUEUE, METADATA_QUEUE, UPLOAD_QUEUE)
 # Maximum execution time for a job
 DEFAULT_JOB_TIMEOUT = 12 * 60 * 60  # 12 hours
 # For how long failed jobs are preserved
-# NOTE: This configuration parameter is ignored in RQ versions prior to v1.0
+# NOTE: This configuration parameter is ignored in RQ versions prior to
+# v1.0
 DEFAULT_FAILED_JOB_TTL = 7 * 24 * 60 * 60  # 7 days
 
 
 class BackgroundJobQueue(Queue):
-    # Custom queue class for background jobs. This can be extended in the
-    # future if needed.
-    pass
+    """Background job queue."""
+    # Custom queue class for background jobs. This can be extended in
+    # the future if needed.
 
 
 def api_background_job(func):
-    """
-    Decorator for RQ background jobs.
+    """Decorate RQ background jobs.
 
     If the task fails, the task will be marked as having failed
     unexpectedly in the MongoDB database before exception handling
@@ -48,9 +50,7 @@ def api_background_job(func):
 
 
 def get_redis_connection():
-    """
-    Get Redis connection used for the job queue
-    """
+    """Get Redis connection used for the job queue."""
     password = CONFIG.get("REDIS_PASSWORD", None)
     redis = Redis(
         host=CONFIG["REDIS_HOST"],
@@ -63,8 +63,7 @@ def get_redis_connection():
 
 
 def get_job_queue(queue_name):
-    """
-    Get a RQ queue instance for the given queue
+    """Get a RQ queue instance for the given queue.
 
     :param str queue_name: Queue name
     """
@@ -77,14 +76,14 @@ def get_job_queue(queue_name):
 
 
 def enqueue_background_job(task_func, queue_name, username, job_kwargs):
-    """
-    Create a task ID and enqueue a RQ job
+    """Create a task ID and enqueue a RQ job.
 
     :param str task_func: Python function to run as a string to import
                           eg. "upload_rest_api.jobs.upload.extract_archive"
     :param str queue_name: Queue used to run the job
     :param str username: Username
-    :param dict job_kwargs: Keyword arguments to pass to the background task
+    :param dict job_kwargs: Keyword arguments to pass to the background
+                            task
     """
     queue = get_job_queue(queue_name)
 

@@ -1,4 +1,4 @@
-"""Tests for ``upload_rest_api.app`` module"""
+"""Tests for ``upload_rest_api.app`` module."""
 from __future__ import unicode_literals
 
 import io
@@ -11,7 +11,7 @@ import pytest
 
 
 def _contains_symlinks(fpath):
-    """Check if fpath or any subdirectories contains symlinks
+    """Check if fpath or any subdirectories contains symlinks.
 
     :param fpath: Path to directory to check
     :returns: True if any symlinks are found else False
@@ -25,13 +25,13 @@ def _contains_symlinks(fpath):
 
 
 def _set_user_quota(users, username, quota, used_quota):
-    """Set quota and used quota of user username"""
+    """Set quota and used quota of user username."""
     users.update_one({"_id": username}, {"$set": {"quota": quota}})
     users.update_one({"_id": username}, {"$set": {"used_quota": used_quota}})
 
 
 def _upload_file(client, url, auth, fpath):
-    """Send POST request to given URL with file fpath
+    """Send POST request to given URL with file fpath.
 
     :returns: HTTP response
     """
@@ -57,7 +57,7 @@ def _wait_response(test_client, response, test_auth):
 
 
 def _request_accepted(response):
-    """Returns True if request was accepted"""
+    """Return True if request was accepted."""
     return response.status_code == 202
 
 
@@ -74,8 +74,9 @@ def test_index(app, test_auth, wrong_auth):
     assert response.status_code == 401
 
 
-def test_upload(app, test_auth, mock_mongo, mock_config):
-    """Test uploading a plain text file"""
+@pytest.mark.usefixtures('mock_config')
+def test_upload(app, test_auth, mock_mongo):
+    """Test uploading a plain text file."""
     test_client = app.test_client()
     upload_path = app.config.get("UPLOAD_PATH")
     checksums = mock_mongo.upload.checksums
@@ -103,7 +104,7 @@ def test_upload(app, test_auth, mock_mongo, mock_config):
 
 
 def test_upload_max_size(app, test_auth):
-    """Test uploading file larger than the supported max file size"""
+    """Test uploading file larger than the supported max file size."""
     # Set max upload size to 1 byte
     app.config["MAX_CONTENT_LENGTH"] = 1
     test_client = app.test_client()
@@ -121,7 +122,7 @@ def test_upload_max_size(app, test_auth):
 
 
 def test_user_quota(app, test_auth, mock_mongo):
-    """Test uploading files larger than allowed by user quota"""
+    """Test uploading files larger than allowed by user quota."""
     test_client = app.test_client()
     upload_path = app.config.get("UPLOAD_PATH")
     users = mock_mongo.upload.users
@@ -138,7 +139,7 @@ def test_user_quota(app, test_auth, mock_mongo):
 
 
 def test_used_quota(app, test_auth, mock_mongo, requests_mock):
-    """Test that used quota is calculated correctly"""
+    """Test that used quota is calculated correctly."""
     # Mock Metax
     requests_mock.get("https://metax.fd-test.csc.fi/rest/v1/files?limit=10000&"
                       "project_identifier=test_project",
@@ -185,8 +186,9 @@ def test_upload_outside(app, test_auth):
 @pytest.mark.parametrize("dirpath", [True, False])
 def test_upload_archive(
         archive, dirpath, app, test_auth, mock_mongo, background_job_runner):
-    """Test that uploaded archive is extracted. No files should be
-    extracted outside the project directory.
+    """Test that uploaded archive is extracted.
+
+    No files should be extracted outside the project directory.
     """
     test_client = app.test_client()
     upload_path = app.config.get("UPLOAD_PATH")
@@ -249,8 +251,7 @@ def test_upload_archive(
     "/dataset"
 ])
 def test_upload_invalid_dir(dirpath, app, test_auth):
-    """Test that trying to extract outside the project return 404.
-    """
+    """Test that trying to extract outside the project return 404."""
     test_client = app.test_client()
     response = _upload_file(
         test_client,
@@ -262,9 +263,11 @@ def test_upload_invalid_dir(dirpath, app, test_auth):
 
 
 def test_upload_archive_concurrent(
-        app, test_auth, mock_mongo, background_job_runner):
-    """Test that uploaded archive is extracted. No files should be
-    extracted outside the project directory.
+        app, test_auth, mock_mongo, background_job_runner
+):
+    """Test that uploaded archive is extracted.
+
+    No files should be extracted outside the project directory.
     """
     test_client = app.test_client()
     upload_path = app.config.get("UPLOAD_PATH")
@@ -372,7 +375,8 @@ def test_upload_invalid_archive(
 
 
 def test_upload_file_as_archive(app, test_auth, background_job_runner):
-    """Test that trying to upload a file as an archive returns an error.
+    """Test that trying to upload a file as an archive returns an
+    error.
     """
     test_client = app.test_client()
 
@@ -390,7 +394,7 @@ def test_upload_file_as_archive(app, test_auth, background_job_runner):
 
 
 def test_get_file(app, test_auth, test2_auth, test3_auth, mock_mongo):
-    """Test GET for single file"""
+    """Test GET for single file."""
     test_client = app.test_client()
     upload_path = app.config.get("UPLOAD_PATH")
 
@@ -430,7 +434,7 @@ def test_get_file(app, test_auth, test2_auth, test3_auth, mock_mongo):
 
 
 def test_delete_file(app, test_auth, requests_mock, mock_mongo):
-    """Test DELETE for single file"""
+    """Test DELETE for single file."""
     response = {
         "next": None,
         "results": [
@@ -483,7 +487,7 @@ def test_delete_file(app, test_auth, requests_mock, mock_mongo):
 
 
 def test_get_files(app, test_auth):
-    """Test GET for the whole project and a single directory"""
+    """Test GET for the whole project and a single directory."""
     test_client = app.test_client()
     upload_path = app.config.get("UPLOAD_PATH")
 
@@ -527,8 +531,9 @@ def test_get_files(app, test_auth):
 
 
 def test_delete_files(
-        app, test_auth, requests_mock, mock_mongo, background_job_runner):
-    """Test DELETE for the whole project and a single dir"""
+        app, test_auth, requests_mock, mock_mongo, background_job_runner
+):
+    """Test DELETE for the whole project and a single dir."""
     response = {
         "next": None,
         "results": [
@@ -612,8 +617,9 @@ def test_delete_files(
 
 
 def test_delete_metadata(
-        app, test_auth, requests_mock, mock_mongo, background_job_runner):
-    """Test DELETE metadata for a directory and a single dir"""
+        app, test_auth, requests_mock, mock_mongo, background_job_runner
+):
+    """Test DELETE metadata for a directory and a single dir."""
     response = {
         "next": None,
         "results": [
@@ -644,8 +650,10 @@ def test_delete_metadata(
     requests_mock.get("https://metax.fd-test.csc.fi/rest/v1/datasets/"
                       "dataset_identifier",
                       json={"preservation_state": 75})
-    adapter = requests_mock.delete("https://metax.fd-test.csc.fi/rest/v1/files",
-                                   json={"deleted_files_count": 1})
+    adapter = requests_mock.delete(
+        "https://metax.fd-test.csc.fi/rest/v1/files",
+        json={"deleted_files_count": 1}
+    )
     requests_mock.delete("https://metax.fd-test.csc.fi/rest/v1/files/foo",
                          json={})
 
@@ -690,7 +698,8 @@ def test_delete_metadata(
 
 
 def test_delete_metadata_dataset_accepted(
-        app, test_auth, requests_mock, mock_mongo, background_job_runner):
+        app, test_auth, requests_mock, mock_mongo, background_job_runner
+):
     """Test DELETE metadata for a directory and a single file when
     dataset state is accepted to digital preservation.
     """
@@ -725,8 +734,10 @@ def test_delete_metadata_dataset_accepted(
     requests_mock.get("https://metax.fd-test.csc.fi/rest/v1/datasets/"
                       "dataset_identifier",
                       json={"preservation_state": 80})
-    adapter = requests_mock.delete("https://metax.fd-test.csc.fi/rest/v1/files",
-                                   json={"deleted_files_count": 0})
+    adapter = requests_mock.delete(
+        "https://metax.fd-test.csc.fi/rest/v1/files",
+        json={"deleted_files_count": 0}
+    )
     requests_mock.delete("https://metax.fd-test.csc.fi/rest/v1/files/foo",
                          json={})
 
@@ -772,8 +783,7 @@ def test_delete_metadata_dataset_accepted(
 
 
 def test_post_metadata(app, test_auth, requests_mock, background_job_runner):
-    """Test posting file metadata to Metax"""
-
+    """Test posting file metadata to Metax."""
     test_client = app.test_client()
 
     # Upload file to test instance
@@ -801,11 +811,12 @@ def test_post_metadata(app, test_auth, requests_mock, background_job_runner):
 
 def test_post_metadata_failure(
         app, test_auth, requests_mock, background_job_runner):
-    """Try to post file metadata to Metax when the metadata already exists. API
-    should return HTTP response with status code 200, and the error message
-    from Metax.
-    """
+    """Try to post file metadata to Metax when the metadata already
+    exists.
 
+    API should return HTTP response with status code 200, and the error
+    message from Metax.
+    """
     test_client = app.test_client()
 
     # Upload file to test instance

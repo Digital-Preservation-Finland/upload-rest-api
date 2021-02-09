@@ -1,4 +1,4 @@
-"""Tests for ``upload_rest_api.__main__`` module"""
+"""Tests for ``upload_rest_api.__main__`` module."""
 import sys
 
 import mock
@@ -29,7 +29,8 @@ def test_cleanup(mock_clean_disk, mock_clean_mongo, command):
         mock_clean_mongo.assert_called()
 
 
-def test_get(mock_mongo, capsys):
+@pytest.mark.usefixtures('mock_mongo')
+def test_get(capsys):
     """Test get command."""
     database = db.Database()
     database.user("test1").create("test_project")
@@ -46,7 +47,7 @@ def test_get(mock_mongo, capsys):
 
 
 def test_create_user(mock_mongo):
-    """Test creating user test"""
+    """Test creating user test."""
     with mock.patch.object(
         sys, 'argv',
         ['upload-rest-api', 'create', 'test', 'test']
@@ -56,8 +57,11 @@ def test_create_user(mock_mongo):
     assert mock_mongo.upload.users.count({"_id": "test"}) == 1
 
 
-def test_create_existing_user(mock_mongo):
-    """Test that creating a user that already exists raises UserExistsError"""
+@pytest.mark.usefixtures('mock_mongo')
+def test_create_existing_user():
+    """Test that creating a user that already exists raises
+    UserExistsError.
+    """
     db.Database().user("test").create("test_project")
     with mock.patch.object(
         sys, 'argv',
@@ -68,7 +72,7 @@ def test_create_existing_user(mock_mongo):
 
 
 def test_delete_user(mock_mongo):
-    """Test deletion of an existing user"""
+    """Test deletion of an existing user."""
     db.Database().user("test").create("test_project")
     with mock.patch.object(
         sys, 'argv',
@@ -79,8 +83,9 @@ def test_delete_user(mock_mongo):
     assert mock_mongo.upload.users.count({"_id": "test"}) == 0
 
 
-def test_delete_user_fail(mock_mongo):
-    """Test deletion of an user that does not exist"""
+@pytest.mark.usefixtures('mock_mongo')
+def test_delete_user_fail():
+    """Test deletion of an user that does not exist."""
     with mock.patch.object(
         sys, 'argv',
         ['upload-rest-api', 'delete', 'test']
@@ -89,8 +94,9 @@ def test_delete_user_fail(mock_mongo):
             upload_rest_api.__main__.main()
 
 
-def test_modify(mock_mongo):
-    """Test modifying user quota and project"""
+# @pytest.mark.usefixtures('mock_mongo')
+def test_modify():
+    """Test modifying user quota and project."""
     user = db.Database().user("test")
     user.create("test_project")
     with mock.patch.object(

@@ -18,7 +18,9 @@ import upload_rest_api.database as db
     ]
 )
 def test_metax_path(fpath, upload_path, expected):
-    """Test fpath is sliced properly and returns path /project/<path:fpath>."""
+    """Test fpath is sliced properly and returns path
+    /project/<path:fpath>.
+    """
     assert md.get_metax_path(fpath, upload_path) == expected
 
 

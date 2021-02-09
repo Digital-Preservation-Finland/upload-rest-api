@@ -1,12 +1,11 @@
+"""Read configuration file."""
 import os.path
 import logging
 from flask import Config
 
 
 def get_config():
-    """
-    Get the configuration file and return a flask.Config instance
-    """
+    """Get the configuration file and return a flask.Config instance."""
     config = Config("/")
 
     if os.path.exists("/etc/upload_rest_api.conf"):

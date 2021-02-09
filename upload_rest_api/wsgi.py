@@ -1,4 +1,4 @@
-"""Module that allows deployment using WSGI"""
+"""Module that allows deployment using WSGI."""
 
 from upload_rest_api import app
 

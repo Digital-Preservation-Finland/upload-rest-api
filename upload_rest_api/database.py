@@ -1,5 +1,4 @@
-"""Module for accessing user database
-"""
+"""Module for accessing user database."""
 from __future__ import print_function, unicode_literals
 
 import binascii
@@ -26,21 +25,23 @@ SALT_LEN = 20
 ITERATIONS = 200000
 HASH_ALG = "sha512"
 
-# Default MongoDB document size is 4 MB, but let's use 2 MB just to be sure.
+# Default MongoDB document size is 4 MB, but let's use 2 MB just to be
+# sure.
 MESSAGE_CHUNK_SIZE = 2000000
 
 
 def _iter_chunks(data, size=MESSAGE_CHUNK_SIZE):
-    """
-    Split data into chunks of given size and yield them one at a time
+    """Split data into chunks of given size and yield them one at a
+    time.
     """
     for i in range(0, len(data), size):
         yield data[i:i + size]
 
 
 def get_random_string(chars):
-    """Generate and return random string of given number of
-    ascii letters or digits.
+    """Generate random string.
+
+    String contains given number of ascii letters or digits.
 
     :param chars: Lenght of the string to generate
     :returns: Generated random string
@@ -53,7 +54,7 @@ def get_random_string(chars):
 
 
 def _get_abs_path(metax_path, root_upload_path, project):
-    """Returns actual path on disk from metax_path"""
+    """Return actual path on disk from metax_path."""
     return os.path.join(
         root_upload_path,
         project,
@@ -62,8 +63,10 @@ def _get_abs_path(metax_path, root_upload_path, project):
 
 
 def hash_passwd(password, salt):
-    """Salt and hash password using PBKDF2 with HMAC PRNG and SHA512 hashing
-    algorithm.
+    """Salt and hash password.
+
+    PBKDF2 with HMAC PRNG and SHA512 hashing
+    algorithm is used.
 
     :returns: hexadecimal representation of the 512 bit digest
     """
@@ -73,7 +76,7 @@ def hash_passwd(password, salt):
 
 
 def get_dir_size(fpath):
-    """Returns the size of the dir fpath in bytes"""
+    """Return the size of the dir fpath in bytes."""
     size = 0
     for dirpath, _, files in os.walk(fpath):
         for fname in files:
@@ -84,43 +87,41 @@ def get_dir_size(fpath):
 
 
 def parse_conf(fpath):
-    """Parse config from file fpath"""
+    """Parse config from file fpath."""
     return run_path(fpath)
 
 
 class UserExistsError(Exception):
-    """Exception for trying to create a user, which already exists"""
-    pass
+    """Exception for trying to create a user, which already exists."""
 
 
 class UserNotFoundError(Exception):
-    """Exception for querying a user, which does not exist"""
-    pass
+    """Exception for querying a user, which does not exist."""
 
 
 class TaskNotFoundError(Exception):
-    """Exception for querying a task, which does not exist"""
-    pass
+    """Exception for querying a task, which does not exist."""
 
 
 class Database(object):
-    """Class for accessing data in mongodb"""
+    """Class for accessing data in mongodb."""
 
     def __init__(self):
-        """Initialize connection to mongodb"""
+        """Initialize connection to mongodb."""
         conf = parse_conf("/etc/upload_rest_api.conf")
         self.client = pymongo.MongoClient(conf["MONGO_HOST"],
                                           conf["MONGO_PORT"])
 
     def get_all_users(self):
-        """Returns a list of all the users in upload.users collection"""
+        """Return a list of all the users in upload.users collection."""
         users = self.client.upload.users
         return sorted(users.find().distinct("_id"))
 
     def store_identifiers(self, file_md_list, root_upload_path, username):
         """Store file identifiers and paths on disk to Mongo.
 
-        :param file_md_list: List of created file metadata returned by Metax
+        :param file_md_list: List of created file metadata returned by
+                             Metax
         :returns: None
         """
         documents = []
@@ -136,7 +137,7 @@ class Database(object):
         self.files.insert(documents)
 
     def user(self, username):
-        """Returns user"""
+        """Return user."""
         return User(self.client, username)
 
     @property
@@ -156,10 +157,10 @@ class Database(object):
 
 
 class User(object):
-    """Class for managing users in the database"""
+    """Class for managing users in the database."""
 
     def __init__(self, client, username, quota=5*1024**3):
-        """Initializing User instances
+        """Initialize User instances.
 
         :param username: Used as primary key _id
         """
@@ -168,7 +169,7 @@ class User(object):
         self.quota = quota
 
     def __repr__(self):
-        """User instance representation"""
+        """User instance representation."""
         user = self.users.find_one({"_id": self.username})
 
         if user is None:
@@ -183,9 +184,10 @@ class User(object):
         )
 
     def create(self, project, password=None):
-        """Adds new user to the database. Salt is always
-        generated randomly, but password can be set
-        by providing to optional argument password.
+        """Add new user to the database.
+
+        Salt is always generated randomly, but password can be set by
+        providing to optional argument password.
 
         :param project: Project the user is associated with
         :param password: Password of the created user
@@ -217,8 +219,7 @@ class User(object):
         return passwd
 
     def change_password(self):
-        """Change user password
-        """
+        """Change user password."""
         passwd = get_random_string(PASSWD_LEN)
         salt = get_random_string(SALT_LEN)
         digest = hash_passwd(passwd, salt)
@@ -234,8 +235,7 @@ class User(object):
         return passwd
 
     def delete(self):
-        """Deletes existing user
-        """
+        """Delete existing user."""
         # Raise exception if user does not exist
         if not self.exists():
             raise UserNotFoundError("User '%s' not found" % self.username)
@@ -243,8 +243,7 @@ class User(object):
         self.users.delete_one({"_id": self.username})
 
     def get(self):
-        """Returns existing user
-        """
+        """Return existing user."""
         # Raise exception if user does not exist
         if not self.exists():
             raise UserNotFoundError("User '%s' not found" % self.username)
@@ -252,8 +251,7 @@ class User(object):
         return self.users.find_one({"_id": self.username})
 
     def get_utf8(self):
-        """Returns existing user with digest in utf8 format
-        """
+        """Return existing user with digest in utf8 format."""
         # Raise exception if user does not exist
         if not self.exists():
             raise UserNotFoundError("User '%s' not found" % self.username)
@@ -264,7 +262,7 @@ class User(object):
         return user
 
     def get_quota(self):
-        """Returns the overall quota of the user"""
+        """Return the overall quota of the user."""
         # Raise exception if user does not exist
         if not self.exists():
             raise UserNotFoundError("User '%s' not found" % self.username)
@@ -272,7 +270,7 @@ class User(object):
         return self.users.find_one({"_id": self.username})["quota"]
 
     def get_used_quota(self):
-        """Returns the used quota of the user"""
+        """Return the used quota of the user."""
         # Raise exception if user does not exist
         if not self.exists():
             raise UserNotFoundError("User '%s' not found" % self.username)
@@ -280,7 +278,7 @@ class User(object):
         return self.users.find_one({"_id": self.username})["used_quota"]
 
     def set_quota(self, quota):
-        """Set the quota of the user"""
+        """Set the quota of the user."""
         # Raise exception if user does not exist
         if not self.exists():
             raise UserNotFoundError("User '%s' not found" % self.username)
@@ -291,7 +289,7 @@ class User(object):
         )
 
     def set_used_quota(self, used_quota):
-        """Set the used quota of the user"""
+        """Set the used quota of the user."""
         # Raise exception if user does not exist
         if not self.exists():
             raise UserNotFoundError("User '%s' not found" % self.username)
@@ -302,14 +300,14 @@ class User(object):
         )
 
     def update_used_quota(self, root_upload_path):
-        """Update used quota of the user"""
+        """Update used quota of the user."""
         project = self.get_project()
         path = safe_join(root_upload_path, secure_filename(project))
         size = get_dir_size(path)
         self.set_used_quota(size)
 
     def get_project(self):
-        """Get user project"""
+        """Get user project."""
         # Raise exception if user does not exist
         if not self.exists():
             raise UserNotFoundError("User '%s' not found" % self.username)
@@ -317,7 +315,7 @@ class User(object):
         return self.users.find_one({"_id": self.username})["project"]
 
     def set_project(self, project):
-        """Set user project"""
+        """Set user project."""
         # Raise exception if user does not exist
         if not self.exists():
             raise UserNotFoundError("User '%s' not found" % self.username)
@@ -328,37 +326,37 @@ class User(object):
         )
 
     def exists(self):
-        """Check if the user is found in the db"""
+        """Check if the user is found in the db."""
         return self.users.find_one({"_id": self.username}) is not None
 
 
 class Checksums(object):
-    """Class for managing checksums in the database"""
+    """Class for managing checksums in the database."""
 
     def __init__(self, client):
-        """Initializing Checksums instances"""
+        """Initialize Checksums instances."""
         self.checksums = client.upload.checksums
 
     def insert_one(self, filepath, checksum):
-        """Insert a single checksum doc"""
+        """Insert a single checksum doc."""
         self.checksums.insert_one({"_id": filepath, "checksum": checksum})
 
     def insert(self, checksums):
-        """Insert multiple checksum docs"""
+        """Insert multiple checksum docs."""
         self.checksums.insert_many(checksums)
 
     def delete_one(self, filepath):
-        """Delete a single checksum doc"""
+        """Delete a single checksum doc."""
         self.checksums.delete_one({"_id": filepath})
 
     def delete(self, filepaths):
-        """Delete multiple checksum docs"""
+        """Delete multiple checksum docs."""
         return self.checksums.delete_many(
             {"_id": {"$in": filepaths}}
         ).deleted_count
 
     def delete_dir(self, dirpath):
-        """Delete all file checksums found under dirpath"""
+        """Delete all file checksums found under dirpath."""
         filepaths = []
         for _dir, _, files in os.walk(dirpath):
             for _file in files:
@@ -369,7 +367,7 @@ class Checksums(object):
         self.delete(filepaths)
 
     def get_checksum(self, filepath):
-        """Get checksum of a single file"""
+        """Get checksum of a single file."""
         checksum = self.checksums.find_one({"_id": filepath})
         if checksum is None:
             return None
@@ -377,21 +375,21 @@ class Checksums(object):
         return checksum["checksum"]
 
     def get_checksums(self):
-        """Get all checksums"""
+        """Get all checksums."""
         return {
             i["_id"]: i["checksum"] for i in self.checksums.find({})
         }
 
 
 class Files(object):
-    """Class for managing files in the database"""
+    """Class for managing files in the database."""
 
     def __init__(self, client):
-        """Initializing Files instances"""
+        """Initialize Files instances."""
         self.files = client.upload.files
 
     def get_path(self, identifier):
-        """Get file_path based on _id identifier"""
+        """Get file_path based on _id identifier."""
         _file = self.files.find_one({"_id": identifier})
         if _file is None:
             return None
@@ -399,7 +397,7 @@ class Files(object):
         return _file["file_path"]
 
     def get_identifier(self, fpath):
-        """Get file_identifier based on file_path"""
+        """Get file_identifier based on file_path."""
         _file = self.files.find_one({"file_path": fpath})
 
         if _file is None:
@@ -410,7 +408,8 @@ class Files(object):
     def insert(self, files):
         """Insert multiple files into the files collection.
 
-        :param files: List of dicts {"_id": identifier, "file_path": file_path}
+        :param files: List of dicts {"_id": identifier,
+                                     "file_path": file_path}
         :returns: Number of documents inserted
         """
         return len(self.files.insert_many(files).inserted_ids)
@@ -426,7 +425,8 @@ class Files(object):
     def insert_one(self, document):
         """Insert one file document.
 
-        :param document: Dict {"_id": identifier, "file_path": file_path}
+        :param document: Dict {"_id": identifier,
+                               "file_path": file_path}
         :returns: None
         """
         self.files.insert_one(document)
@@ -440,21 +440,21 @@ class Files(object):
         return self.files.delete_one({"_id": identifier}).deleted_count
 
     def get_all_ids(self):
-        """Return a list of all identifiers stored"""
+        """Return a list of all identifiers stored."""
         documents = self.files.find()
         return [document["_id"] for document in documents]
 
 
 class Tasks(object):
-    """Class for managing tasks in the database"""
+    """Class for managing tasks in the database."""
 
     def __init__(self, client):
-        """Initializing Tasks instance"""
+        """Initialize Tasks instance."""
         self.tasks = client.upload.tasks
         self.task_messages = client.upload.task_messages
 
     def create(self, project):
-        """Creates one task document.
+        """Create one task document.
 
         :param str project: project name
         :returns: str: task id as string
@@ -489,7 +489,8 @@ class Tasks(object):
         return self.tasks.delete_many({"_id": {"$in": obj_ids}}).deleted_count
 
     def find(self, project, status):
-        """Returns number of tasks for user having certain status for project.
+        """Return number of tasks for user having certain status for
+        project.
 
         :param str project: project name
         :param str status: status of task
@@ -508,13 +509,14 @@ class Tasks(object):
         return tasks
 
     def _sync_task_status(self, task):
-        """
-        Check if the corresponding MongoDB task is in the failed RQ queue.
+        """Check if the corresponding MongoDB task is in the failed RQ
+        queue.
+
         If it is, update the MongoDB task entry correspondingly.
 
-        This is used when the exception handler that updates the MongoDB entry
-        was not executed. One case where this can happen is if the worker
-        is killed by the out-of-memory killer.
+        This is used when the exception handler that updates the MongoDB
+        entry was not executed. One case where this can happen is if the
+        worker is killed by the out-of-memory killer.
         """
         from upload_rest_api.jobs.utils import get_redis_connection
 
@@ -533,7 +535,7 @@ class Tasks(object):
         return task
 
     def get(self, task_id):
-        """Returns task document based on task_id.
+        """Return task document based on task_id.
 
         :param str task_id: task identifier string
         :returns: task document
@@ -550,8 +552,8 @@ class Tasks(object):
         return task
 
     def _get_message(self, task):
-        """
-        Get the individual chunk documents and return the reconstructed message
+        """Get the individual chunk documents and return the
+        reconstructed message.
         """
         task_id = task["_id"]
         chunk_count = task.get("message_chunks", 0)
@@ -571,8 +573,7 @@ class Tasks(object):
         return message
 
     def _set_message(self, task_id, message):
-        """
-        Create the individual message chunks
+        """Create the individual message chunks.
 
         :returns: The amount of chunks used to save the message
         """
@@ -595,7 +596,7 @@ class Tasks(object):
         return chunk_count
 
     def update_status(self, task_id, status):
-        """Updates status of the task.
+        """Update status of the task.
 
         :param str task_id: task id as string
         :param str status: new status for the task
@@ -608,7 +609,7 @@ class Tasks(object):
         )
 
     def update_message(self, task_id, message):
-        """Updates message of the task.
+        """Update message of the task.
 
         :param str task_id: task id as string
         :param str message: new message for the task
@@ -626,7 +627,7 @@ class Tasks(object):
         )
 
     def update_md5(self, task_id, md5):
-        """Updates md5 of the task.
+        """Update md5 of the task.
 
         :param str task_id: task id as string
         :param str md5: new md5 for the task
@@ -639,7 +640,7 @@ class Tasks(object):
         )
 
     def exists(self, task_id):
-        """Check if the task is found in the db
+        """Check if the task is found in the db.
 
         :param str task_id: task id as string
         :return True if task exists
@@ -647,7 +648,7 @@ class Tasks(object):
         return self.tasks.find_one({"_id": ObjectId(task_id)}) is not None
 
     def get_all_tasks(self):
-        """Return all tasks"""
-        # Messages are *not* included in the response to prevent unnecessary
-        # memory usage
+        """Return all tasks."""
+        # Messages are *not* included in the response to prevent
+        # unnecessary memory usage
         return self.tasks.find()

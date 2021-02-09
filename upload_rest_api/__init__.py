@@ -1,1 +1,1 @@
-"""File upload REST API"""
+"""File upload REST API."""

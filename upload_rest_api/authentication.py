@@ -1,5 +1,4 @@
-"""Module for authenticating users
-"""
+"""Module for authenticating users."""
 from __future__ import unicode_literals
 
 from hmac import compare_digest
@@ -10,7 +9,7 @@ import upload_rest_api.database as db
 
 
 def _auth_user(username, password):
-    """Authenticate user"""
+    """Authenticate user."""
     user = db.Database().user(username)
 
     try:
@@ -27,7 +26,7 @@ def _auth_user(username, password):
 
 
 def authenticate():
-    """Authenticates username and password.
+    """Authenticate username and password.
 
     Returns 401 - Unauthorized access for wrong username or password
     """

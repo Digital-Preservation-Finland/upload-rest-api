@@ -1,4 +1,4 @@
-"""Tests for ``upload_rest_api.app`` module"""
+"""Tests for ``upload_rest_api.app`` module."""
 from __future__ import unicode_literals
 
 import json
@@ -39,8 +39,7 @@ def _wait_response(client, response, auth, sleep):
 
 
 def test_upload_archive(app, test_auth, background_job_runner):
-    """Test mongo connections for archive upload.
-    """
+    """Test mongo connections for archive upload."""
     client = app.test_client()
 
     with mock.patch(
@@ -53,7 +52,7 @@ def test_upload_archive(app, test_auth, background_job_runner):
 
 
 def test_get_files(app, test_auth, background_job_runner):
-    """Test mongo connections of a GET request to project root"""
+    """Test mongo connections of a GET request to project root."""
     client = app.test_client()
     response = _upload_archive(client, test_auth)
     background_job_runner(client, "upload", response)
@@ -68,7 +67,7 @@ def test_get_files(app, test_auth, background_job_runner):
 
 
 def test_delete_files(app, test_auth, requests_mock, background_job_runner):
-    """Test mongo connections of project deletion"""
+    """Test mongo connections of project deletion."""
     client = app.test_client()
     response = _upload_archive(client, test_auth)
     background_job_runner(client, "upload", response)
@@ -111,14 +110,13 @@ def test_delete_files(app, test_auth, requests_mock, background_job_runner):
 
 
 def test_post_metadata(app, test_auth, requests_mock, background_job_runner):
-    """Test posting file metadata to Metax"""
+    """Test posting file metadata to Metax."""
     client = app.test_client()
     _upload_archive(client, test_auth)
 
     # Mock Metax HTTP response
     requests_mock.post("https://metax.fd-test.csc.fi/rest/v1/files/",
                        json={"foo": "bar"})
-
 
     with mock.patch(
         "pymongo.MongoClient",

@@ -1,5 +1,5 @@
-"""
-Module containing configuration options that will be loaded by a RQ worker
+"""Module containing configuration options that will be loaded by a RQ
+worker.
 """
 from upload_rest_api.config import CONFIG
 

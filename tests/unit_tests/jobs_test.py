@@ -1,3 +1,4 @@
+"""Unit tests for background jobs."""
 from __future__ import unicode_literals
 
 import pytest
@@ -8,25 +9,20 @@ from upload_rest_api.jobs.utils import (api_background_job,
 
 @api_background_job
 def successful_task(task_id, value):
-    """
-    Fake background job executed by RQ
-    """
+    """Fake background job executed by RQ."""
     return "Task ID = {}, value = {}".format(task_id, value)
 
 
 @api_background_job
 def failing_task(task_id):
-    """
-    Fake failing background job executed by RQ
-    """
+    """Fake failing background job executed by RQ."""
     raise ValueError("Couldn't reticulate splines")
 
 
 @pytest.mark.usefixtures("app")
 def test_enqueue_background_job_successful(tasks_col, mock_redis):
-    """
-    Test enqueuing a fake task using "enqueue_background_job"
-    and ensure it can be executed properly
+    """Test enqueuing a fake task using "enqueue_background_job"
+    and ensure it can be executed properly.
     """
     job_id = enqueue_background_job(
         task_func="tests.unit_tests.jobs_test.successful_task",
@@ -60,9 +56,8 @@ def test_enqueue_background_job_successful(tasks_col, mock_redis):
 
 @pytest.mark.usefixtures("app")
 def test_enqueue_background_job_failing(tasks_col, mock_redis):
-    """
-    Test enqueuing a fake task using "enqueue_background_job"
-    and ensure it is handled properly if it raises an exception
+    """Test enqueuing a fake task using "enqueue_background_job"
+    and ensure it is handled properly if it raises an exception.
     """
     job_id = enqueue_background_job(
         task_func="tests.unit_tests.jobs_test.failing_task",
@@ -101,10 +96,9 @@ def test_enqueue_background_job_failing(tasks_col, mock_redis):
 
 @pytest.mark.usefixtures("app")
 def test_enqueue_background_job_failing_out_of_sync(tasks_col, mock_redis):
-    """
-    Test enqueuing a fake task using "enqueue_background_job"
+    """Test enqueuing a fake task using "enqueue_background_job"
     and ensure it is handled properly if the failure is recorded in RQ
-    but not MongoDB
+    but not MongoDB.
     """
     job_id = enqueue_background_job(
         task_func="tests.unit_tests.jobs_test.failing_task",
@@ -129,8 +123,8 @@ def test_enqueue_background_job_failing_out_of_sync(tasks_col, mock_redis):
     tasks_col.update_message(job_id, "processing")
     tasks_col.update_status(job_id, "pending")
 
-    # Retrieve the task from MongoDB; it should be automatically updated to
-    # match the status in RQ
+    # Retrieve the task from MongoDB; it should be automatically updated
+    # to match the status in RQ
     task = tasks_col.get(job_id)
 
     assert task["message"] == "Internal server error"
@@ -139,9 +133,8 @@ def test_enqueue_background_job_failing_out_of_sync(tasks_col, mock_redis):
 
 @pytest.mark.usefixtures("app", "mock_redis")
 def test_enqueue_background_job_custom_timeout(mock_config, monkeypatch):
-    """
-    Test enqueueing a background job with custom timeout in effect and ensure
-    it is used
+    """Test enqueueing a background job with custom timeout in effect
+    and ensure it is used.
     """
     monkeypatch.setitem(mock_config, "RQ_JOB_TIMEOUT", 2222)
 

@@ -1,18 +1,14 @@
-"""Module for handling the file uploads"""
+"""Module for handling the file uploads."""
 from __future__ import unicode_literals
 
-import json
-import logging
 import os
 import tarfile
 import zipfile
 
-import upload_rest_api.database as db
+from flask import current_app, jsonify, request, safe_join, url_for
+
 import upload_rest_api.gen_metadata as gen_metadata
 import upload_rest_api.utils as utils
-from archive_helpers.extract import (MemberNameError, MemberOverwriteError,
-                                     MemberTypeError, extract)
-from flask import current_app, jsonify, request, safe_join, url_for
 from upload_rest_api.api.v1.tasks import TASK_STATUS_API_V1
 from upload_rest_api.jobs.utils import UPLOAD_QUEUE, enqueue_background_job
 
@@ -20,7 +16,7 @@ SUPPORTED_TYPES = ("application/octet-stream",)
 
 
 def _request_exceeds_quota(database):
-    """Check whether the request exceeds users quota
+    """Check whether the request exceeds users quota.
 
     :returns: True if the request exceeds user's quota else False
     """
@@ -65,18 +61,15 @@ def _save_stream(fpath, chunk_size=1024*1024):
 
 
 class OverwriteError(Exception):
-    """Exception for trying to overwrite a existing file"""
-    pass
+    """Exception for trying to overwrite a existing file."""
 
 
 class QuotaError(Exception):
-    """Exception for exceeding to quota"""
-    pass
+    """Exception for exceeding to quota."""
 
 
 class UploadPendingError(Exception):
-    """Exception for a pending upload"""
-    pass
+    """Exception for a pending upload."""
 
 
 def save_file(database, project, fpath):
@@ -125,8 +118,7 @@ def save_archive(database, fpath, upload_dir):
         dir_path = safe_join(dir_path, upload_dir)
         if os.path.isdir(dir_path):
             raise OverwriteError("Directory '%s' already exists" % upload_dir)
-        else:
-            os.makedirs(dir_path)
+        os.makedirs(dir_path)
 
     _save_stream(fpath)
 
@@ -172,10 +164,10 @@ def save_archive(database, fpath, upload_dir):
 
 
 def validate_upload(database):
-    """Validates the upload request
+    """Validate the upload request.
 
-    :returns: `None` if the validation succeeds. Otherwise error response
-              if validation failed.
+    :returns: `None` if the validation succeeds. Otherwise error
+              response if validation failed.
     """
     response = None
 

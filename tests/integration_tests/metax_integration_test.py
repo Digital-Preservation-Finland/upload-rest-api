@@ -1,9 +1,10 @@
-"""Integration tests using test-metax. URL endpoints that send requests to
-Metax are tested. Tests make sure that the metadata is correctly posted and
-deleted.
+"""Integration tests using test-metax.
 
-These tests require the METAX_URL, METAX_USER and METAX_PASSWORD to be defined
-in /etc/upload_rest_api.conf.
+URL endpoints that send requests to Metax are tested. Tests make sure
+that the metadata is correctly posted and deleted.
+
+These tests require the METAX_URL, METAX_USER and METAX_PASSWORD to be
+defined in /etc/upload_rest_api.conf.
 """
 from __future__ import unicode_literals
 
@@ -13,14 +14,13 @@ import os
 import time
 from runpy import run_path
 
-from rq import SimpleWorker
-
+from metax_access import Metax
 import pymongo
 import pytest
 import requests.exceptions
+
 import upload_rest_api.cleanup as clean
 import upload_rest_api.database as db
-from metax_access import Metax
 from upload_rest_api.gen_metadata import MetaxClient
 
 URL = "https://metax.fd-test.csc.fi"
@@ -35,7 +35,7 @@ else:
 
 
 def _upload_file(client, url, auth, fpath):
-    """Send POST request to given URL with file fpath
+    """Send POST request to given URL with file fpath.
 
     :returns: HTTP response
     """
@@ -60,9 +60,12 @@ def _wait_response(test_client, test_auth, response):
             status = data['status']
     return response
 
+
 @pytest.fixture(autouse=True)
 def clean_metax():
-    """DELETE all metadata from Metax that might be left from previous runs"""
+    """DELETE all metadata from Metax that might be left from previous
+    runs.
+    """
     metax_client = MetaxClient(URL, USER, PASSWORD)
     files_dict = metax_client.get_files_dict("test_project")
     file_id_list = [value["id"] for value in files_dict.values()]
@@ -72,23 +75,22 @@ def clean_metax():
 
 @pytest.fixture(scope="function", autouse=True)
 def integration_mock_setup(app, mock_config):
-    """
-    Ensure the real Metax password is used for integration tests
-    """
+    """Ensure the real Metax password is used for integration tests."""
     app.config["METAX_PASSWORD"] = PASSWORD
     mock_config["METAX_PASSWORD"] = PASSWORD
 
 
+@pytest.mark.usefixtures('mock_config')
 @pytest.mark.parametrize(
     "dataset", [True, False],
     ids=["File has a dataset", "File has no dataset"]
 )
 def test_gen_metadata_root(
-        app, dataset, test_auth, monkeypatch, background_job_runner,
-        mock_config):
-    """Test that calling /v1/metadata. produces
-    correct metadata for all files of the project and
-    metadata is removed when the file is removed.
+        app, dataset, test_auth, monkeypatch, background_job_runner
+):
+    """Test that calling /v1/metadata produces correct metadata for all
+    files of the project and metadata is removed when the file is
+    removed.
     """
     if dataset:
         # Mock file_has_dataset to always return True
@@ -134,7 +136,8 @@ def test_gen_metadata_root(
     else:
         assert data["metax"]["deleted_files_count"] == 1
 
-    # Test that test1.txt was removed from Metax but test2.txt is still there
+    # Test that test1.txt was removed from Metax but test2.txt is still
+    # there
     metax_client = MetaxClient(URL, USER, PASSWORD)
     files_dict = metax_client.get_files_dict("test_project")
 
@@ -152,12 +155,12 @@ def test_gen_metadata_root(
 )
 def test_gen_metadata_file(
         app, dataset, test_auth, monkeypatch, background_job_runner):
-    """Test that generating metadata for a single file works and the metadata
-    is removed when project is deleted.
+    """Test that generating metadata for a single file works and the
+    metadata is removed when project is deleted.
     """
     if dataset:
-        # Mock Metax.get_file2dataset_dict to always return a result with
-        # an existing dataset for every given file ID
+        # Mock Metax.get_file2dataset_dict to always return a result
+        # with an existing dataset for every given file ID
         monkeypatch.setattr(
             Metax,
             "get_file2dataset_dict",
@@ -222,7 +225,7 @@ def test_delete_metadata(
         app, accepted_dataset, test_auth, background_job_runner):
     """Verifies that metadata is 1) deleted for a file belonging to a
     dataset not accepted to preservation and is 2) not deleted when file
-    belongs to dataset accepted to preservation
+    belongs to dataset accepted to preservation.
     """
 
     test_client = app.test_client()
@@ -314,8 +317,8 @@ def test_delete_metadata(
 )
 def test_disk_cleanup(
         app, dataset, test_auth, monkeypatch, background_job_runner):
-    """Test that cleanup script removes file metadata from Metax if it is
-    not associated with any dataset.
+    """Test that cleanup script removes file metadata from Metax if it
+    is not associated with any dataset.
     """
     # Mock configuration parsing
     def _mock_conf(fpath):
@@ -367,7 +370,8 @@ def test_disk_cleanup(
 
 
 def test_mongo_cleanup(
-        app, test_auth, monkeypatch, background_job_runner):
+        app, test_auth, monkeypatch, background_job_runner
+):
     """Test that cleaning files from mongo deletes all files that
     haven't been posted to Metax.
     """
@@ -436,7 +440,7 @@ def test_mongo_cleanup(
 
 
 def _create_dataset_with_file(accepted_dataset, dataset_file_data_block):
-    """ Creates a dataset into Metax"""
+    """Create a dataset into Metax."""
     resp = requests.get(
         "%s/rpc/datasets/get_minimal_dataset_template?type=service" % URL,
         verify=False

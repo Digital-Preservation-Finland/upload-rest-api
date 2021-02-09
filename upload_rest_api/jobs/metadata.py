@@ -1,3 +1,4 @@
+"""Metadata API background jobs."""
 from __future__ import unicode_literals
 
 import json
@@ -9,15 +10,17 @@ from requests.exceptions import HTTPError
 import upload_rest_api.database as db
 import upload_rest_api.gen_metadata as md
 import upload_rest_api.utils as utils
-from metax_access import MetaxError
 from upload_rest_api.config import CONFIG
 from upload_rest_api.jobs.utils import api_background_job
 
 
 @api_background_job
 def post_metadata(fpath, username, storage_id, task_id):
-    """This function creates the metadata in Metax for the file(s) denoted
-    by fpath argument. Finally updates the status of the task into database.
+    """Create file metadata in Metax.
+
+    This function creates the metadata in Metax for the file(s) denoted
+    by fpath argument. Finally updates the status of the task into
+    database.
 
     :param str fpath: file path
     :param str username: current user
@@ -74,8 +77,11 @@ def post_metadata(fpath, username, storage_id, task_id):
 
 @api_background_job
 def delete_metadata(fpath, username, task_id):
-    """This function deletes the metadata in Metax for the file(s) denoted
-    by fpath argument. Finally updates the status of the task into database.
+    """Delete file metadata.
+
+    This function deletes the metadata in Metax for the file(s) denoted
+    by fpath argument. Finally updates the status of the task into
+    database.
 
     :param str fpath: file path
     :param str username: current user

@@ -1,11 +1,12 @@
-"""/archives/v1 endpoints. Functionality for uploading and extracting an
-archive.
+"""/archives/v1 endpoints.
+
+Functionality for uploading and extracting an archive.
 """
 from __future__ import unicode_literals
 
 import os
 
-from flask import Blueprint, safe_join, request, current_app
+from flask import Blueprint, safe_join, request
 
 from archive_helpers.extract import (
     MemberNameError, MemberOverwriteError, MemberTypeError
@@ -20,7 +21,7 @@ ARCHIVES_API_V1 = Blueprint("archives_v1", __name__, url_prefix="/v1/archives")
 
 @ARCHIVES_API_V1.route("/", methods=["POST"], strict_slashes=False)
 def upload_archive():
-    """ Uploads and extracts the archive at <UPLOAD_PATH>/project
+    """Upload and extract the archive at <UPLOAD_PATH>/project.
 
     :returns: HTTP Response
     """

@@ -1,9 +1,8 @@
-"""upload-rest-api utility functions"""
+"""upload-rest-api utility functions."""
 from __future__ import unicode_literals
 
 import os
 import uuid
-from functools import wraps
 try:
     from urllib.parse import urlparse, urlunparse
 except ImportError:  # Python 2
@@ -12,13 +11,12 @@ except ImportError:  # Python 2
 from flask import request, current_app, jsonify, safe_join, url_for
 from werkzeug.utils import secure_filename
 
-import upload_rest_api.database as db
 
 from upload_rest_api.config import CONFIG
 
 
 def get_upload_path(project, fpath, root_upload_path=None):
-    """Get upload path for current request"""
+    """Get upload path for current request."""
     if not root_upload_path:
         root_upload_path = CONFIG.get("UPLOAD_PATH")
 
@@ -33,7 +31,7 @@ def get_upload_path(project, fpath, root_upload_path=None):
 
 
 def get_project_path(project):
-    """Get upload path for a given project"""
+    """Get upload path for a given project."""
     root_upload_path = CONFIG.get("UPLOAD_PATH")
     project = secure_filename(project)
 
@@ -41,8 +39,7 @@ def get_project_path(project):
 
 
 def get_tmp_upload_path():
-    """Get temporary unique upload path for tar and zip files"""
-
+    """Get temporary unique upload path for tar and zip files."""
     tmp_upload_path = os.path.join(CONFIG.get("UPLOAD_TMP_PATH"))
     fpath = safe_join(tmp_upload_path, str(uuid.uuid4()))
     fpath, fname = os.path.split(fpath)
@@ -64,14 +61,14 @@ def get_return_path(project, fpath, root_upload_path=None):
 
 
 def make_response(status_code, message):
-    """Returns jsonified default error message"""
+    """Return jsonified default error message."""
     response = jsonify({"code": status_code, "error": message})
     response.status_code = status_code
     return response
 
 
 def get_polling_url(name, task_id):
-    """Creates url used to poll the status of asynchronous request"""
+    """Create url used to poll the status of asynchronous request."""
     path = url_for(name + ".task_status", task_id=task_id)
     parsed_url = urlparse(request.url)
     return urlunparse([parsed_url[0], parsed_url[1], path, "", "", ""])
