@@ -1,6 +1,4 @@
 """Upload module background jobs."""
-import json
-import logging
 import os.path
 import tarfile
 import zipfile
@@ -10,7 +8,7 @@ from archive_helpers.extract import (MemberNameError, MemberOverwriteError,
 
 import upload_rest_api.database as db
 import upload_rest_api.gen_metadata as gen_metadata
-from upload_rest_api.jobs.utils import api_background_job
+from upload_rest_api.jobs.utils import api_background_job, ClientError
 
 
 def _process_extracted_files(fpath):
@@ -77,25 +75,19 @@ def extract_task(fpath, dir_path, task_id):
     database.tasks.update_message(
         task_id, "Extracting archive"
     )
-    md5 = gen_metadata.md5_digest(fpath)
     try:
         extract(fpath, dir_path)
     except (MemberNameError, MemberTypeError, MemberOverwriteError) as error:
-        logging.error(str(error), exc_info=error)
         # Remove the archive and set task's state
         os.remove(fpath)
-        database.tasks.update_status(task_id, "error")
-        msg = {"message": str(error)}
-        database.tasks.update_message(task_id, json.dumps(msg))
-    else:
-        # Add checksums of the extracted files to mongo
-        database.checksums.insert(_get_archive_checksums(fpath, dir_path))
+        raise ClientError(str(error)) from error
 
-        # Remove archive and all created symlinks
-        os.remove(fpath)
-        _process_extracted_files(dir_path)
+    # Add checksums of the extracted files to mongo
+    database.checksums.insert(_get_archive_checksums(fpath, dir_path))
 
-        msg = {"message": "Archive uploaded and extracted",
-               "md5": md5}
-        database.tasks.update_message(task_id, json.dumps(msg))
-        database.tasks.update_status(task_id, "done")
+    # Remove archive and all created symlinks
+    os.remove(fpath)
+    _process_extracted_files(dir_path)
+
+    database.tasks.update_message(task_id, "Archive uploaded and extracted")
+    database.tasks.update_status(task_id, "done")

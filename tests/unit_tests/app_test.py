@@ -6,6 +6,10 @@ import shutil
 import time
 
 import pytest
+from rq import SimpleWorker
+
+import upload_rest_api.database as database
+import upload_rest_api.jobs as jobs
 
 
 def _contains_symlinks(fpath):
@@ -472,7 +476,7 @@ def test_delete_file(app, test_auth, requests_mock, mock_mongo):
     )
 
     assert response.status_code == 200
-    assert json.loads(response.data)["metax"] == "/test.txt"
+    assert json.loads(response.data)["metax"] == {'deleted_files_count': 1}
     assert not os.path.isfile(fpath)
     assert mock_mongo.upload.checksums.count({}) == 0
 
@@ -587,7 +591,8 @@ def test_delete_files(
         response = background_job_runner(test_client, "files", response)
 
     assert response.status_code == 200
-    assert json.loads(response.data)["metax"] == ["/test/test.txt"]
+    assert json.loads(response.data)["message"] \
+        == 'Deleted files and metadata: /test'
     assert not os.path.exists(os.path.split(test_path_2)[0])
     assert checksums.count({}) == 1
 
@@ -602,7 +607,8 @@ def test_delete_files(
         response = background_job_runner(test_client, "files", response)
 
     assert response.status_code == 200
-    assert json.loads(response.data)["metax"] == ["/test.txt"]
+    assert json.loads(response.data)["message"] \
+        == "Deleted files and metadata: /"
     assert not os.path.exists(os.path.split(test_path_1)[0])
     assert checksums.count({}) == 0
 
@@ -678,8 +684,7 @@ def test_delete_metadata(
         response = background_job_runner(test_client, "metadata", response)
 
     assert response.status_code == 200
-    assert json.loads(response.data)["file_path"] == "/test"
-    assert json.loads(response.data)["metax"] == {"deleted_files_count": 1}
+    assert json.loads(response.data)["message"] == "1 files deleted"
     assert adapter.last_request.json() == ['bar']
 
     # DELETE metadata for single file
@@ -691,8 +696,8 @@ def test_delete_metadata(
         response = background_job_runner(test_client, "metadata", response)
 
     assert response.status_code == 200
-    assert json.loads(response.data)["file_path"] == "/test.txt"
-    assert json.loads(response.data)["metax"] == {}
+    assert json.loads(response.data)["message"] \
+        == "1 files deleted"
 
 
 def test_delete_metadata_dataset_accepted(
@@ -761,8 +766,7 @@ def test_delete_metadata_dataset_accepted(
     if _request_accepted(response):
         response = background_job_runner(test_client, "metadata", response)
 
-    assert json.loads(response.data)["file_path"] == "/test"
-    assert json.loads(response.data)["metax"] == {"deleted_files_count": 0}
+    assert json.loads(response.data)["message"] == "0 files deleted"
     assert adapter.last_request is None
 
     # DELETE metadata for single file
@@ -776,8 +780,8 @@ def test_delete_metadata_dataset_accepted(
         )
 
     response = json.loads(response.data)
-    assert response["code"] == 400
-    assert response["error"] == "Metadata is part of an accepted dataset"
+    assert response["message"] \
+        == "Metadata is part of an accepted dataset"
 
 
 def test_post_metadata(app, test_auth, requests_mock, background_job_runner):
@@ -801,19 +805,45 @@ def test_post_metadata(app, test_auth, requests_mock, background_job_runner):
 
     assert response.status_code == 200
     assert json.loads(response.data) == {
-        "code": 200,
-        "metax_response": {"success": [], "failed": ["fail1", "fail2"]},
+        "message": "Metadata created: /",
         "status": "done"
     }
 
 
-def test_post_metadata_failure(
-        app, test_auth, requests_mock, background_job_runner):
-    """Try to post file metadata to Metax when the metadata already
-    exists.
+@pytest.mark.parametrize(
+    ('metax_response', 'message'),
+    [
+        (
+            {
+                "file_path": ["a file with path /foo already exists in"
+                              " project bar"],
+            },
+            "Resource already exists."
+        ),
+        (
+            {
+                "file_path": ["a file with path /foo already exists in "
+                              "project bar"],
+                "identifier": ["a file with given identifier already exists"],
+            },
+            "Resource already exists."
+        ),
+        (
+            {
+                "file_path": ["a file with path /foo already exists in "
+                              "project bar"],
+                "identifier": ["Unknown error"],
+            },
+            "Internal server error"
+        )
+    ]
+)
+def test_post_metadata_failure(app, test_auth, requests_mock,
+                               background_job_runner, metax_response, message):
+    """Test post file metadata failure.
 
-    API should return HTTP response with status code 200, and the error
-    message from Metax.
+    If posting file metadata to Metax fails, API should return HTTP
+    response with status code 200, and the clear error message.
     """
     test_client = app.test_client()
 
@@ -823,14 +853,9 @@ def test_post_metadata_failure(
     )
 
     # Mock Metax HTTP response
-    response_json = {
-        "file_path": ["a file with path /foo already exists in project bar"],
-        "identifier": ["a file with given identifier already exists"],
-        "error_identifier": "2019-08-23T12:46:11-971d8a58"
-    }
     requests_mock.post("https://metax.fd-test.csc.fi/rest/v1/files/",
                        status_code=400,
-                       json=response_json)
+                       json=metax_response)
 
     response = test_client.post("/v1/metadata/foo", headers=test_auth)
     if _request_accepted(response):
@@ -840,8 +865,7 @@ def test_post_metadata_failure(
 
     assert response.status_code == 200
     assert json.loads(response.data) == {
-        "code": 400,
-        "metax_response": response_json,
+        "message": message,
         "status": "error"
     }
 
@@ -864,3 +888,71 @@ def test_reverse_proxy_polling_url(app, test_auth):
     polling_url = json.loads(response.data)["polling_url"]
 
     assert polling_url.startswith("http://reverse_proxy/v1/tasks/")
+
+
+@jobs.api_background_job
+def _modify_task_info(task_id):
+    """Modify task info in database."""
+    tasks = database.Database().tasks
+    tasks.update_message(task_id, "foo")
+    tasks.update_status(task_id, "bar")
+
+
+@jobs.api_background_job
+def _raise_general_exception(task_id):
+    """Raise general exception."""
+    raise Exception('Something failed')
+
+
+@jobs.api_background_job
+def _raise_client_error(task_id):
+    """Raise ClientError."""
+    raise jobs.ClientError('Client made mistake.')
+
+
+@pytest.mark.parametrize(
+    ('task_func', 'expected_response'),
+    [
+        (
+            'tests.unit_tests.app_test._modify_task_info',
+            {'message': 'foo', 'status': 'bar'}
+        ),
+        (
+            'tests.unit_tests.app_test._raise_general_exception',
+            {'message': 'Internal server error', 'status': 'error'}
+        ),
+        (
+            'tests.unit_tests.app_test._raise_client_error',
+            {'message': 'Client made mistake.', 'status': 'error'}
+        )
+    ]
+)
+def test_query_task(app, mock_redis, test_auth, task_func, expected_response):
+    """Test querying task status.
+
+    :param app: Flask app
+    :param mock_redis: Redis mocker
+    :param test_auth: authentication headers
+    :param task_func: function to be queued in RQ
+    :param expected_response: expected API JSON response
+    """
+    # Enqueue a job
+    job = jobs.enqueue_background_job(
+        task_func=task_func,
+        queue_name="upload",
+        username="test",
+        job_kwargs={}
+    )
+
+    # Task should be pending
+    test_client = app.test_client()
+    response = test_client.get("/v1/tasks/{}".format(job), headers=test_auth)
+    assert json.loads(response.data) == {'message': 'processing',
+                                         'status': 'pending'}
+
+    # Run job. Task should be finished (status: done) or failed (status:
+    # error).
+    SimpleWorker([jobs.get_job_queue("upload")],
+                 connection=mock_redis).work(burst=True)
+    response = test_client.get("/v1/tasks/{}".format(job), headers=test_auth)
+    assert json.loads(response.data) == expected_response

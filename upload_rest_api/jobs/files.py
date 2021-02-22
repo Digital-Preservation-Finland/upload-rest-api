@@ -1,5 +1,4 @@
 """Files API background jobs."""
-import json
 from shutil import rmtree
 
 from requests.exceptions import HTTPError
@@ -10,7 +9,7 @@ import upload_rest_api.gen_metadata as md
 import upload_rest_api.utils as utils
 from upload_rest_api.config import CONFIG
 
-from upload_rest_api.jobs.utils import api_background_job
+from upload_rest_api.jobs.utils import api_background_job, ClientError
 
 
 @api_background_job
@@ -34,24 +33,19 @@ def delete_files(fpath, username, task_id):
         "Deleting files and metadata: %s" % ret_path
     )
     try:
-        metax_response = metax_client.delete_all_metadata(project, fpath,
-                                                          root_upload_path)
+        metax_client.delete_all_metadata(project, fpath, root_upload_path)
     except (MetaxError, HTTPError) as error:
-        database.tasks.update_status(task_id, "error")
-        msg = {"message": str(error)}
-        database.tasks.update_message(task_id, json.dumps(msg))
-        raise
-    else:
-        # Remove checksum from mongo
-        database.checksums.delete_dir(fpath)
+        raise ClientError from error
 
-        # Remove project directory and update used_quota
-        rmtree(fpath)
-        database.user(username).update_used_quota(root_upload_path)
-        response = {
-            "file_path": ret_path,
-            "status": "done",
-            "metax": metax_response
-        }
-        database.tasks.update_message(task_id, json.dumps(response))
-        database.tasks.update_status(task_id, "done")
+    # Remove checksum from mongo
+    database.checksums.delete_dir(fpath)
+
+    # Remove project directory and update used_quota
+    rmtree(fpath)
+    database.user(username).update_used_quota(root_upload_path)
+
+    database.tasks.update_message(
+        task_id,
+        "Deleted files and metadata: {}".format(ret_path)
+    )
+    database.tasks.update_status(task_id, "done")

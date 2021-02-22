@@ -1,6 +1,4 @@
 """REST api for querying upload status."""
-import json
-
 from flask import Blueprint, jsonify
 
 import upload_rest_api.database as db
@@ -29,23 +27,15 @@ def task_status(task_id):
     task = tasks.get(task_id)
 
     if task is None:
-        return _create_gone_response()
-
-    if "message" in task:
-        try:
-            json_object = json.loads(task["message"])
-            json_object["status"] = task["status"]
-            response = jsonify(json_object)
-        except ValueError:
-            response = jsonify({'status': task["status"],
-                                "message": task["message"]})
+        response = _create_gone_response()
     else:
-        response = jsonify({'status': task["status"]})
+        response = jsonify({'status': task["status"],
+                            "message": task["message"]})
 
-    if task["status"] != "pending":
-        tasks.delete_one(task_id)
+        if task["status"] != "pending":
+            tasks.delete_one(task_id)
+        response.status_code = 200
 
-    response.status_code = 200
     return response
 
 

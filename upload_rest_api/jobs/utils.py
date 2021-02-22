@@ -27,6 +27,10 @@ class BackgroundJobQueue(Queue):
     # the future if needed.
 
 
+class ClientError(Exception):
+    """Exception caused by client error."""
+
+
 def api_background_job(func):
     """Decorate RQ background jobs.
 
@@ -40,10 +44,13 @@ def api_background_job(func):
 
         try:
             return func(*args, **kwargs)
-        except Exception:
+        except Exception as exception:
             tasks = db.Database().tasks
             tasks.update_status(task_id, "error")
-            tasks.update_message(task_id, "Internal server error")
+            if isinstance(exception, ClientError):
+                tasks.update_message(task_id, str(exception))
+            else:
+                tasks.update_message(task_id, "Internal server error")
             raise
 
     return wrapper

@@ -1,15 +1,13 @@
 """Metadata API background jobs."""
-import json
-import logging
 import os.path
 
-from requests.exceptions import HTTPError
+from metax_access import ResourceAlreadyExistsError
 
 import upload_rest_api.database as db
 import upload_rest_api.gen_metadata as md
 import upload_rest_api.utils as utils
 from upload_rest_api.config import CONFIG
-from upload_rest_api.jobs.utils import api_background_job
+from upload_rest_api.jobs.utils import api_background_job, ClientError
 
 
 @api_background_job
@@ -27,9 +25,6 @@ def post_metadata(fpath, username, storage_id, task_id):
     """
     root_upload_path = CONFIG["UPLOAD_PATH"]
 
-    status = "error"
-    response = None
-
     metax_client = md.MetaxClient()
     database = db.Database()
 
@@ -40,7 +35,7 @@ def post_metadata(fpath, username, storage_id, task_id):
     ret_path = utils.get_return_path(project, fpath, root_upload_path)
 
     database.tasks.update_message(
-        task_id, "Creating metadata: %s" % ret_path
+        task_id, "Creating metadata: {}".format(ret_path)
     )
 
     if os.path.isdir(fpath):
@@ -54,23 +49,17 @@ def post_metadata(fpath, username, storage_id, task_id):
         fpaths = [fpath]
 
     else:
-        response = {"code": 404, "error": "File not found"}
-    if not response:
-        status_code = 200
-        try:
-            response = metax_client.post_metadata(fpaths, root_upload_path,
-                                                  username, storage_id)
-            status = "done"
-        except HTTPError as error:
-            logging.error(str(error), exc_info=error)
-            response = error.response.json()
-            status_code = error.response.status_code
+        raise ClientError("File not found")
 
-        # Create upload-rest-api response
-        response = {"code": status_code, "metax_response": response}
+    try:
+        metax_client.post_metadata(fpaths, root_upload_path, username,
+                                   storage_id)
+    except ResourceAlreadyExistsError as error:
+        raise ClientError(error.message) from error
 
-    database.tasks.update_message(task_id, json.dumps(response))
-    database.tasks.update_status(task_id, status)
+    database.tasks.update_message(task_id,
+                                  "Metadata created: {}".format(ret_path))
+    database.tasks.update_status(task_id, "done")
 
 
 @api_background_job
@@ -86,9 +75,6 @@ def delete_metadata(fpath, username, task_id):
     :param str task_id: mongo dentifier of the task
     """
     root_upload_path = CONFIG["UPLOAD_PATH"]
-
-    status = "error"
-    response = None
 
     metax_client = md.MetaxClient()
     database = db.Database()
@@ -108,30 +94,15 @@ def delete_metadata(fpath, username, task_id):
         # Remove all file metadata of files under dir fpath from Metax
         delete_func = metax_client.delete_all_metadata
     else:
-        response = {"code": 404, "error": "File not found"}
+        raise ClientError("File not found")
 
-    if not response:
-        try:
-            response = delete_func(project, fpath, root_upload_path,
-                                   force=True)
-        except HTTPError as error:
-            logging.error(str(error), exc_info=error)
-            response = {
-                "file_path": utils.get_return_path(
-                    project, fpath, root_upload_path
-                ),
-                "metax": error.response.json()
-            }
-        except md.MetaxClientError as error:
-            logging.error(str(error), exc_info=error)
-            response = {"code": 400, "error": str(error)}
-        else:
-            status = "done"
-            response = {
-                "file_path": utils.get_return_path(
-                    project, fpath, root_upload_path
-                ),
-                "metax": response
-            }
-    database.tasks.update_message(task_id, json.dumps(response))
-    database.tasks.update_status(task_id, status)
+    try:
+        response = delete_func(project, fpath, root_upload_path, force=True)
+    except md.MetaxClientError as error:
+        raise ClientError(str(error)) from error
+
+    database.tasks.update_message(
+        task_id,
+        "{} files deleted".format(response['deleted_files_count'])
+    )
+    database.tasks.update_status(task_id, "done")

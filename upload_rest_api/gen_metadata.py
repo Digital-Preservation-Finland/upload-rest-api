@@ -274,7 +274,8 @@ class MetaxClient(object):
             )
 
         file_id = str(file_metadata["id"])
-        return self.client.delete_file(file_id)
+        self.client.delete_file(file_id)
+        return {'deleted_files_count': 1}
 
     def delete_all_metadata(self, project, fpath, root_upload_path,
                             force=False):
