@@ -1,15 +1,12 @@
 """Files API background jobs."""
 from shutil import rmtree
 
-from requests.exceptions import HTTPError
-from metax_access import MetaxError
-
 import upload_rest_api.database as db
 import upload_rest_api.gen_metadata as md
 import upload_rest_api.utils as utils
 from upload_rest_api.config import CONFIG
 
-from upload_rest_api.jobs.utils import api_background_job, ClientError
+from upload_rest_api.jobs.utils import api_background_job
 
 
 @api_background_job
@@ -32,10 +29,7 @@ def delete_files(fpath, username, task_id):
         task_id,
         "Deleting files and metadata: %s" % ret_path
     )
-    try:
-        metax_client.delete_all_metadata(project, fpath, root_upload_path)
-    except (MetaxError, HTTPError) as error:
-        raise ClientError from error
+    metax_client.delete_all_metadata(project, fpath, root_upload_path)
 
     # Remove checksum from mongo
     database.checksums.delete_dir(fpath)
