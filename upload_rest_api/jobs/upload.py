@@ -62,8 +62,7 @@ def _get_archive_checksums(archive, extract_path):
 @api_background_job
 def extract_task(fpath, dir_path, task_id):
     """Calculate the checksum of the archive and extracts the files into
-    ``dir_path`` directory. Finally updates the status of the task into
-    database.
+    ``dir_path`` directory.
 
     :param str fpath: file path of the archive
     :param str dir_path: directory to where the archive will be
@@ -90,4 +89,3 @@ def extract_task(fpath, dir_path, task_id):
     _process_extracted_files(dir_path)
 
     database.tasks.update_message(task_id, "Archive uploaded and extracted")
-    database.tasks.update_status(task_id, "done")

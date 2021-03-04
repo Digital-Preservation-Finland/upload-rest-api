@@ -915,7 +915,7 @@ def _raise_client_error(task_id):
     [
         (
             'tests.unit_tests.app_test._modify_task_info',
-            {'message': 'foo', 'status': 'bar'}
+            {'message': 'foo', 'status': 'done'}
         ),
         (
             'tests.unit_tests.app_test._raise_general_exception',

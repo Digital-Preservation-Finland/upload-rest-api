@@ -15,8 +15,7 @@ def post_metadata(fpath, username, storage_id, task_id):
     """Create file metadata in Metax.
 
     This function creates the metadata in Metax for the file(s) denoted
-    by fpath argument. Finally updates the status of the task into
-    database.
+    by fpath argument.
 
     :param str fpath: file path
     :param str username: current user
@@ -59,7 +58,6 @@ def post_metadata(fpath, username, storage_id, task_id):
 
     database.tasks.update_message(task_id,
                                   "Metadata created: {}".format(ret_path))
-    database.tasks.update_status(task_id, "done")
 
 
 @api_background_job
@@ -67,8 +65,7 @@ def delete_metadata(fpath, username, task_id):
     """Delete file metadata.
 
     This function deletes the metadata in Metax for the file(s) denoted
-    by fpath argument. Finally updates the status of the task into
-    database.
+    by fpath argument.
 
     :param str fpath: file path
     :param str username: current user
@@ -105,4 +102,3 @@ def delete_metadata(fpath, username, task_id):
         task_id,
         "{} files deleted".format(response['deleted_files_count'])
     )
-    database.tasks.update_status(task_id, "done")

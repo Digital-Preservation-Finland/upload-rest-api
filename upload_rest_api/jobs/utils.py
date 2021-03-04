@@ -34,24 +34,27 @@ class ClientError(Exception):
 def api_background_job(func):
     """Decorate RQ background jobs.
 
-    If the task fails, the task will be marked as having failed
-    unexpectedly in the MongoDB database before exception handling
-    is passed over to the RQ worker
+    Sets task status after task has run. If the task fails, the task
+    will be marked as having failed unexpectedly in the MongoDB database
+    before exception handling is passed over to the RQ worker
     """
     @wraps(func)
     def wrapper(*args, **kwargs):
         task_id = kwargs["task_id"]
+        tasks = db.Database().tasks
 
         try:
-            return func(*args, **kwargs)
+            result = func(*args, **kwargs)
         except Exception as exception:
-            tasks = db.Database().tasks
             tasks.update_status(task_id, "error")
             if isinstance(exception, ClientError):
                 tasks.update_message(task_id, str(exception))
             else:
                 tasks.update_message(task_id, "Internal server error")
             raise
+
+        tasks.update_status(task_id, "done")
+        return result
 
     return wrapper
 

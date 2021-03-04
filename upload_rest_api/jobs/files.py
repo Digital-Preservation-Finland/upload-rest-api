@@ -42,4 +42,3 @@ def delete_files(fpath, username, task_id):
         task_id,
         "Deleted files and metadata: {}".format(ret_path)
     )
-    database.tasks.update_status(task_id, "done")
