@@ -76,6 +76,7 @@ rm -rf $RPM_BUILD_ROOT
 
 %files -f INSTALLED_FILES
 %defattr(-,root,root,-)
+%config(noreplace) /etc/upload_rest_api.conf
 %attr(-,upload_rest_api,upload_rest_api) /var/spool/upload
 
 # TODO: For now changelog must be last, because it is generated automatically
