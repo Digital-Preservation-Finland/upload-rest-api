@@ -3,15 +3,21 @@ from __future__ import unicode_literals
 
 import logging
 
+import upload_rest_api.authentication as auth
 from flask import Flask
-
 from upload_rest_api.api.v1.archives import ARCHIVES_API_V1
-from upload_rest_api.api.v1.errorhandlers import http_error_generic
-from upload_rest_api.api.v1.errorhandlers import http_error_500
+from upload_rest_api.api.v1.errorhandlers import (http_error_500,
+                                                  http_error_generic)
 from upload_rest_api.api.v1.files import FILES_API_V1
 from upload_rest_api.api.v1.metadata import METADATA_API_V1
 from upload_rest_api.api.v1.tasks import TASK_STATUS_API_V1
-import upload_rest_api.authentication as auth
+
+try:
+    # Newer Werkzeug
+    from werkzeug.middleware.proxy_fix import ProxyFix
+except ImportError:
+    # Older Werkzeug
+    from werkzeug.contrib.fixers import ProxyFix
 
 
 logging.basicConfig(level=logging.ERROR)
@@ -29,6 +35,19 @@ def create_app():
     :returns: Instance of flask.Flask()
     """
     app = Flask(__name__)
+
+    try:
+        # Newer Werkzeug requires explicitly defining the HTTP headers
+        # and the number of proxies handling each header
+        app.wsgi_app = ProxyFix(
+            app.wsgi_app,
+            # X-Forwarded-For, X-Forwarded-Host and X-Forwarded-Server
+            # are set by mod_proxy
+            x_for=1,
+            x_host=1
+        )
+    except TypeError:
+        app.wsgi_app = ProxyFix(app.wsgi_app, num_proxies=1)
 
     # Configure app
     configure_app(app)
