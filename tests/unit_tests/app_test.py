@@ -181,34 +181,43 @@ def test_upload_outside(app, test_auth):
     assert response.status_code == 404
 
 
-@pytest.mark.parametrize("archive", [
-    "tests/data/test.zip",
-    "tests/data/test.tar.gz"
-])
-@pytest.mark.parametrize("dirpath", [True, False])
+@pytest.mark.parametrize(
+    ["archive", "dirpath"],
+    [
+        ("tests/data/test.zip", ""),
+        ("tests/data/test.tar.gz", ""),
+        ("tests/data/test.tar.gz", "directory"),
+        ("tests/data/test.tar.gz", "directory/subdirectory"),
+        # TODO: For some reason only relative paths are allowed, so this
+        # test case fails
+        # ("tests/data/test.tar.gz", "/directory"),
+    ]
+)
 def test_upload_archive(
-        archive, dirpath, app, test_auth, mock_mongo, background_job_runner):
+        archive, dirpath, app, test_auth, mock_mongo, background_job_runner
+):
     """Test that uploaded archive is extracted.
 
     No files should be extracted outside the project directory.
+
+    :param archive: path to test archive
+    :param url dirpath: Directory path where archive is extracted
+    :param app: Flask app
+    :param test_auth: authentication headers
+    :param mock_mongo: Mongoclient
+    :param background_job_runner: RQ job mocker
     """
     test_client = app.test_client()
     upload_path = app.config.get("UPLOAD_PATH")
     checksums = mock_mongo.upload.checksums
-    url = "/v1/archives?dir=dataset" if dirpath else "/v1/archives"
 
-    response = _upload_file(
-        test_client, url, test_auth, archive
-    )
+    url = "/v1/archives?dir={}".format(dirpath) if dirpath else "/v1/archives"
+    response = _upload_file(test_client, url, test_auth, archive)
     if _request_accepted(response):
         response = background_job_runner(test_client, "upload", response)
     assert response.status_code == 200
 
-    if not dirpath:
-        fpath = os.path.join(upload_path, "test_project")
-    else:
-        fpath = os.path.join(upload_path, "test_project", "dataset")
-
+    fpath = os.path.join(upload_path, "test_project", dirpath)
     text_file = os.path.join(fpath, "test", "test.txt")
     archive_file = os.path.join(fpath, os.path.split(archive)[1])
 
@@ -224,27 +233,125 @@ def test_upload_archive(
     checksum = checksums.find_one({"_id": text_file})["checksum"]
     assert checksum == "150b62e4e7d58c70503bd5fc8a26463c"
 
-    # Trying to upload same zip again should return 409 - Conflict
-    response = _upload_file(
-        test_client, url,
-        test_auth, "tests/data/test.zip"
+
+@pytest.mark.parametrize(
+    ["archive", "url"],
+    [
+        ("tests/data/test.tar.gz", "/v1/archives?dir=dataset"),
+        ("tests/data/file1.tar", "/v1/archives?dir=dataset")
+    ]
+)
+def test_upload_archive_overwrite_directory(
+        archive, url, app, test_auth, background_job_runner
+):
+    """Test uploading archive that would overwrite a directory.
+
+    :param archive: path to test archive
+    :param url: url where archive is uploaded
+    :param app: Flask app
+    :param test_auth: authentication headers
+    :param background_job_runner: RQ job mocker
+    """
+    test_client = app.test_client()
+
+    # Upload first archive
+    response = _upload_file(test_client, url, test_auth, archive)
+    assert response.status_code == 202
+    response = background_job_runner(test_client, "upload", response)
+    assert response.status_code == 200
+
+    # Trying to upload same archive again should return 409 - Conflict
+    response = _upload_file(test_client, url, test_auth, archive)
+    data = json.loads(response.data)
+    assert response.status_code == 409
+    assert data["error"] == "Directory 'dataset' already exists"
+
+
+@pytest.mark.parametrize(
+    ["archive", "url"],
+    [
+        ("tests/data/test.tar.gz", "/v1/archives")
+    ]
+)
+def test_upload_archive_overwrite_file(
+        archive, url, app, test_auth, background_job_runner
+):
+    """Test uploading archive that would overwrite a file.
+
+    :param archive: path to test archive
+    :param url: url where archive is uploaded
+    :param app: Flask app
+    :param test_auth: authentication headers
+    :param background_job_runner: RQ job mocker
+    """
+    test_client = app.test_client()
+
+    # Upload first archive
+    response = _upload_file(test_client, url, test_auth, archive)
+    assert response.status_code == 202
+    response = background_job_runner(test_client, "upload", response)
+    assert response.status_code == 200
+
+    # Trying to upload same archive again should return cause error
+    response = _upload_file(test_client, url, test_auth, archive)
+    response = background_job_runner(
+        test_client, "upload", response, expect_success=False
     )
 
-    if dirpath:
-        data = json.loads(response.data)
-        assert response.status_code == 409
-        assert data["error"] == "Directory 'dataset' already exists"
+    data = json.loads(response.data)
+    assert response.status_code == 200
+    assert data["status"] == "error"
+    assert data["message"] == "File 'test/test.txt' already exists"
 
-    else:
-        if _request_accepted(response):
-            response = background_job_runner(
-                test_client, "upload", response, expect_success=False
-            )
 
-        data = json.loads(response.data)
-        assert response.status_code == 200
-        assert data["status"] == "error"
-        assert data["message"] == "File 'test/test.txt' already exists"
+@pytest.mark.parametrize(
+    ["archive1", "url1", "archive2", "url2"],
+    [
+        (
+            "tests/data/dir1_file1.tar",
+            "/v1/archives",
+            "tests/data/dir1_file2.tar",
+            "/v1/archives"
+        ),
+        # TODO: For some reason this test case fails
+        # (
+        #     "tests/data/file1.tar",
+        #     "/v1/archives?dir=dir1",
+        #     "tests/data/file2.tar",
+        #     "/v1/archives?dir=dir1"
+        # )
+    ]
+)
+def test_upload_two_archives(
+        archive1, url1, archive2, url2, app, test_auth, background_job_runner
+):
+    """Test uploading two archives to same directory.
+
+    :param archive1: path to first test archive
+    :param url1: upload url of first archive
+    :param archive2: path to second test archive
+    :param url2: url where archive is uploaded
+    :param app: Flask app
+    :param test_auth: authentication headers
+    :param background_job_runner: RQ job mocker
+    """
+    test_client = app.test_client()
+
+    # Upload first archive
+    response = _upload_file(test_client, url1, test_auth, archive1)
+    assert response.status_code == 202
+    response = background_job_runner(test_client, "upload", response)
+    assert response.status_code == 200
+
+    # Upload second archive
+    response = _upload_file(test_client, url2, test_auth, archive2)
+    response = background_job_runner(
+        test_client, "upload", response
+    )
+    data = json.loads(response.data)
+    assert response.status_code == 200
+    assert data["status"] == "done"
+    assert data["message"] == "Archive uploaded and extracted"
 
 
 @pytest.mark.parametrize("dirpath", [
@@ -408,10 +515,7 @@ def test_get_file(app, test_auth, test2_auth, test3_auth, mock_mongo):
     })
 
     # GET file that exists
-    response = test_client.get(
-        "/v1/files/test.txt",
-        headers=test_auth
-    )
+    response = test_client.get("/v1/files/test.txt", headers=test_auth)
 
     assert response.status_code == 200
     data = json.loads(response.data)
@@ -421,17 +525,11 @@ def test_get_file(app, test_auth, test2_auth, test3_auth, mock_mongo):
     assert data["metax_identifier"] == "None"
 
     # GET file with user test2, which is in the same project
-    response = test_client.get(
-        "/v1/files/test.txt",
-        headers=test2_auth
-    )
+    response = test_client.get("/v1/files/test.txt", headers=test2_auth)
     assert response.status_code == 200
 
     # GET file with user test3, which is not in the same project
-    response = test_client.get(
-        "/v1/files/test.txt",
-        headers=test3_auth
-    )
+    response = test_client.get("/v1/files/test.txt", headers=test3_auth)
     assert response.status_code == 404
 
 
@@ -488,48 +586,83 @@ def test_delete_file(app, test_auth, requests_mock, mock_mongo):
     assert response.status_code == 404
 
 
-def test_get_files(app, test_auth):
-    """Test GET for the whole project and a single directory."""
+@pytest.mark.parametrize(
+    ['path', 'data'],
+    [
+        # Root directory
+        (
+            '',
+            {
+                '/': ['file1.txt'],
+                '/dir1': ['file2.txt'],
+                '/dir2': [],
+                '/dir2/subdir1': ['file3.txt']
+            }
+        ),
+        # Root directory
+        (
+            '/',
+            {
+                '/': ['file1.txt'],
+                '/dir1': ['file2.txt'],
+                '/dir2': [],
+                '/dir2/subdir1': ['file3.txt']
+            }
+        ),
+        # Directory that contains only files
+        (
+            '/dir1/',
+            {
+                'file_path': {
+                    '/dir1': ['file2.txt']
+                }
+            }
+        ),
+        # Directory that contains only directories
+        (
+            '/dir2/',
+            {
+                'file_path': {
+                    '/dir2': [],
+                    '/dir2/subdir1': ['file3.txt']
+                }
+            }
+        )
+    ]
+)
+def test_get_files(app, test_auth, path, data):
+    """Test GET for directories.
+
+    :param app: Flask app
+    :param test_auth: authentication headers
+    :param path: directory path to be tested
+    :param data: expected data
+    """
     test_client = app.test_client()
     upload_path = app.config.get("UPLOAD_PATH")
 
-    os.makedirs(os.path.join(upload_path, "test_project/test"))
+    os.makedirs(os.path.join(upload_path, "test_project/dir1"))
+    os.makedirs(os.path.join(upload_path, "test_project/dir2/subdir1"))
     shutil.copy(
         "tests/data/test.txt",
-        os.path.join(upload_path, "test_project/test1.txt")
+        os.path.join(upload_path, "test_project/file1.txt")
     )
     shutil.copy(
         "tests/data/test.txt",
-        os.path.join(upload_path, "test_project/test/test2.txt")
+        os.path.join(upload_path, "test_project/dir1/file2.txt")
+    )
+    shutil.copy(
+        "tests/data/test.txt",
+        os.path.join(upload_path, "test_project/dir2/subdir1/file3.txt")
     )
 
-    # GET whole project
     response = test_client.get(
-        "/v1/files",
-        headers=test_auth
-    )
-    response_trailing_slash = test_client.get(
-        "/v1/files/",
-        headers=test_auth
-    )
-
-    assert response.data == response_trailing_slash.data
-    assert response.status_code == 200
-    data = json.loads(response.data)
-
-    assert data["/"] == ["test1.txt"]
-    assert data["/test"] == ["test2.txt"]
-
-    # GET single directory
-    response = test_client.get(
-        "/v1/files/test/",
+        "/v1/files" + path,
         headers=test_auth
     )
 
     assert response.status_code == 200
-    data = json.loads(response.data)
-
-    assert data["file_path"]["/test"] == ["test2.txt"]
+    assert json.loads(response.data) == data
 
 
 def test_delete_files(
