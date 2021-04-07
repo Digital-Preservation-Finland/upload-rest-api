@@ -589,7 +589,7 @@ def test_delete_file(app, test_auth, requests_mock, mock_mongo):
 @pytest.mark.parametrize(
     ['path', 'data'],
     [
-        # Root directory
+        # All files of user
         (
             '',
             {
@@ -599,38 +599,36 @@ def test_delete_file(app, test_auth, requests_mock, mock_mongo):
                 '/dir2/subdir1': ['file3.txt']
             }
         ),
-        # Root directory
+        # Root directory, contains files and directories
         (
             '/',
             {
-                '/': ['file1.txt'],
-                '/dir1': ['file2.txt'],
-                '/dir2': [],
-                '/dir2/subdir1': ['file3.txt']
+                'identifier': 'foo',
+                'directories': ['dir1', 'dir2'],
+                'files': ['file1.txt']
             }
         ),
         # Directory that contains only files
         (
             '/dir1/',
             {
-                'file_path': {
-                    '/dir1': ['file2.txt']
-                }
+                'identifier': 'foo',
+                'directories': [],
+                'files': ['file2.txt']
             }
         ),
         # Directory that contains only directories
         (
             '/dir2/',
             {
-                'file_path': {
-                    '/dir2': [],
-                    '/dir2/subdir1': ['file3.txt']
-                }
+                'identifier': 'foo',
+                'directories': ['subdir1'],
+                'files': []
             }
         )
     ]
 )
-def test_get_files(app, test_auth, path, data):
+def test_get_files(app, test_auth, path, data, requests_mock):
     """Test GET for directories.
 
     :param app: Flask app
@@ -638,9 +636,13 @@ def test_get_files(app, test_auth, path, data):
     :param path: directory path to be tested
     :param data: expected data
     """
-    test_client = app.test_client()
-    upload_path = app.config.get("UPLOAD_PATH")
+    requests_mock.get(
+        'https://metax.fd-test.csc.fi/rest/v1/directories/files',
+        json={'identifier': 'foo', 'directories': []}
+    )
 
+    # Create sample directory structure
+    upload_path = app.config.get("UPLOAD_PATH")
     os.makedirs(os.path.join(upload_path, "test_project/dir1"))
     os.makedirs(os.path.join(upload_path, "test_project/dir2/subdir1"))
     shutil.copy(
@@ -656,13 +658,38 @@ def test_get_files(app, test_auth, path, data):
         os.path.join(upload_path, "test_project/dir2/subdir1/file3.txt")
     )
 
-    response = test_client.get(
-        "/v1/files" + path,
-        headers=test_auth
-    )
-
+    # Check the response
+    test_client = app.test_client()
+    response = test_client.get("/v1/files" + path, headers=test_auth)
     assert response.status_code == 200
     assert json.loads(response.data) == data
+
+
+def test_get_directory_without_identifier(app, test_auth, requests_mock):
+    """Test listing contents of directory without identifier.
+
+    Response should list directory contents, but the directory
+    identifier should be missing.
+
+    :param app: Flask app
+    :param test_auth: authentication headers
+    """
+    # Create test directory
+    upload_path = app.config.get("UPLOAD_PATH")
+    os.makedirs(os.path.join(upload_path, "test_project/test_directory"))
+
+    # Metax responds with 404, which means that test directory metadata
+    # does not (yet) exist in Metax.
+    requests_mock.get('https://metax.fd-test.csc.fi/rest/v1/directories/'
+                      'files',
+                      status_code=404)
+
+    test_client = app.test_client()
+    response = test_client.get("v1/files/test_directory", headers=test_auth)
+    assert response.status_code == 200
+    assert json.loads(response.data) == {'directories': [],
+                                         'files': [],
+                                         'identifier': None}
 
 
 def test_delete_files(

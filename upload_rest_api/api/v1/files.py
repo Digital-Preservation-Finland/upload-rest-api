@@ -6,6 +6,7 @@ server.
 import os
 
 from flask import Blueprint, current_app, jsonify, request, safe_join, url_for
+import metax_access
 from werkzeug.utils import secure_filename
 
 import upload_rest_api.database as db
@@ -29,6 +30,26 @@ def _get_dir_tree(project, fpath, root_upload_path):
         file_dict["/"] = file_dict.pop(".")
 
     return file_dict
+
+
+def _get_dir_files(fpath):
+    """Return all files in directory.
+
+    :param fpath: path to directory,
+    :returns: List of files in directory
+    """
+    return [x for x in os.listdir(fpath)
+            if os.path.isfile(os.path.join(fpath, x))]
+
+
+def _get_dir_subdirectories(fpath):
+    """Return all subdirectories in directory.
+
+    :param fpath: path to directory,
+    :returns: List of subdirectories in directory
+    """
+    return [x for x in os.listdir(fpath)
+            if os.path.isdir(os.path.join(fpath, x))]
 
 
 @FILES_API_V1.route("/<path:fpath>", methods=["POST"])
@@ -64,6 +85,7 @@ def upload_file(fpath):
     return response
 
 
+@FILES_API_V1.route("/", defaults={'fpath': ""}, methods=["GET"])
 @FILES_API_V1.route("/<path:fpath>", methods=["GET"])
 def get_path(fpath):
     """Get filepath, name and checksum.
@@ -76,24 +98,38 @@ def get_path(fpath):
     root_upload_path = current_app.config.get("UPLOAD_PATH")
     fpath, fname = utils.get_upload_path(project, fpath, root_upload_path)
     fpath = os.path.join(fpath, fname)
+    return_path = utils.get_return_path(project, fpath, root_upload_path)
 
     if os.path.isfile(fpath):
-        file_path = utils.get_return_path(project, fpath, root_upload_path)
-        response = jsonify({
-            "file_path": file_path,
+        response = {
+            "file_path": return_path,
             "metax_identifier": database.files.get_identifier(fpath),
             "md5": database.checksums.get_checksum(os.path.abspath(fpath)),
             "timestamp": md.iso8601_timestamp(fpath)
-        })
+        }
 
     elif os.path.isdir(fpath):
-        dir_tree = _get_dir_tree(project, fpath, root_upload_path)
-        response = jsonify(dict(file_path=dir_tree))
+        metax = metax_access.Metax(
+            url=current_app.config.get("METAX_URL"),
+            user=current_app.config.get("METAX_USER"),
+            password=current_app.config.get("METAX_PASSWORD"),
+            verify=current_app.config.get("METAX_SSL_VERIFICATION")
+        )
+        try:
+            identifier = metax.get_project_directory(project,
+                                                     return_path)['identifier']
+        except metax_access.DirectoryNotAvailableError:
+            identifier = None
+
+        response = {
+            'identifier': identifier,
+            'directories': _get_dir_subdirectories(fpath),
+            'files': _get_dir_files(fpath)
+        }
 
     else:
         return utils.make_response(404, "File not found")
 
-    response.status_code = 200
     return response
 
 
@@ -165,7 +201,7 @@ def delete_path(fpath):
     return response
 
 
-@FILES_API_V1.route("", methods=["GET"], strict_slashes=False)
+@FILES_API_V1.route("", methods=["GET"])
 def get_files():
     """Get all files of the user.
 
