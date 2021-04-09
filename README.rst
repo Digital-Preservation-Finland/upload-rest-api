@@ -6,6 +6,11 @@ Usage
 -----
 Development
 ^^^^^^^^^^^
+Copy configuration file `include/etc/upload_rest_api.conf` to /etc/. Edit
+MongoDB, Redis, and Metax configuration according to your system. Ensure that
+filestorage service app has read&write permissions to directories configured in
+configuration file.
+
 Create virtual environment and install requirements::
 
     virtualenv .venv
@@ -17,39 +22,43 @@ Start local development/test server::
 
     python upload_rest_api/app.py
 
+Start rq workers that read jobs from queues: `files`, `metadata`, and `upload`::
+
+    rq worker files metadata upload
+
+Create a user using CLI. The command returns username and password::
+
+    python upload_rest_api create <user> <project>
+
 POST file::
 
-    curl -X POST -T <path-to-file> -u user:passwd localhost:5000/v1/files/<path-to-file-on-server>
+    curl -X POST -T <path-to-file> -u <user:password> localhost:5000/v1/files/<path-to-file-on-server>
 
 GET file::
 
-    curl -u user:passwd localhost:5000/v1/files/<path-to-file-on-server>
+    curl -u <user>:<password> localhost:5000/v1/files/<path-to-file-on-server>
 
 DELETE file::
 
-    curl -X DELETE -u user:passwd localhost:5000/v1/files/<path-to-file-on-server>
-
-admin user can manage user database through the db API::
-
-    curl -X GET/POST/DELETE -u admin:passwd localhost:5000/v1/users/<username>
+    curl -X DELETE -u <user>:<password> localhost:5000/v1/files/<path-to-file-on-server>
 
 POST file metadata to Metax::
 
-    curl -X POST -u user:passwd localhost:5000/v1/metadata/<path-to-file-or-dir>
+    curl -X POST -u <user>:<password> localhost:5000/v1/metadata/<path-to-file-or-dir>
 
 If the given path resolves to a directory, all files inside the directory and its
 subdirectories are posted to Metax. POST metadata of all uploaded files to Metax::
 
-    curl -X POST -u user:passwd localhost:5000/v1/metadata/*
+    curl -X POST -u <user>:<password> localhost:5000/v1/metadata/*
 
 DELETE file metadata from Metax::
 
-    curl -X DELETE -u user:passwd localhost:5000/v1/metadata/<path-to-file-or-dir>
+    curl -X DELETE -u <user>:<password> localhost:5000/v1/metadata/<path-to-file-or-dir>
 
 If the given path resolves to a directory, all files inside the directory and its
 subdirectories are deleted from Metax. Delete metadata of all uploaded files from Metax::
 
-    curl -X DELETE -u user:passwd localhost:5000/v1/metadata/*
+    curl -X DELETE -u <user>:<password> localhost:5000/v1/metadata/*
 
 Copyright
 ---------
