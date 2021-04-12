@@ -846,3 +846,23 @@ def test_post_metadata_failure(
         "metax_response": response_json,
         "status": "error"
     }
+
+
+def test_reverse_proxy_polling_url(app, test_auth):
+    """Mock the web application running behind a reverse proxy and ensure that
+    the reverse proxy's URL is detected by the web application.
+    """
+    test_client = app.test_client()
+
+    # Add an environment variable containing the X-Forwarded-Host HTTP header
+    # value.
+    # This is how Werkzeug (eg. all WSGI servers) read the HTTP headers for an
+    # incoming request.
+    response = test_client.post(
+        "/v1/metadata/*",
+        headers=test_auth,
+        environ_base={"HTTP_X_FORWARDED_HOST": "reverse_proxy"}
+    )
+    polling_url = json.loads(response.data)["polling_url"]
+
+    assert polling_url.startswith("http://reverse_proxy/v1/tasks/")
