@@ -30,6 +30,12 @@ class BackgroundJobQueue(Queue):
 class ClientError(Exception):
     """Exception caused by client error."""
 
+    def __init__(self, message, files=None):
+        """Init ClientError."""
+        super(ClientError, self).__init__(message)
+        self.message = message
+        self.files = files
+
 
 def api_background_job(func):
     """Decorate RQ background jobs.
@@ -48,7 +54,8 @@ def api_background_job(func):
         except Exception as exception:
             tasks.update_status(task_id, "error")
             if isinstance(exception, ClientError):
-                tasks.update_message(task_id, str(exception))
+                tasks.update_message(task_id, "Task failed")
+                tasks.update_error(task_id, exception.message, exception.files)
             else:
                 tasks.update_message(task_id, "Internal server error")
             raise

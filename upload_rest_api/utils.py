@@ -13,19 +13,26 @@ from werkzeug.utils import secure_filename
 from upload_rest_api.config import CONFIG
 
 
-def get_upload_path(project, fpath, root_upload_path=None):
-    """Get upload path for current request."""
+def get_upload_path(project, file_path, root_upload_path=None):
+    """Get upload path for file.
+
+    :param project: project identifier
+    :param file_path: relative file path
+    :param root_upload_path: root upload path
+    :returns: tuple that contains real path of directory and file
+              name
+    """
     if not root_upload_path:
         root_upload_path = CONFIG.get("UPLOAD_PATH")
 
-    fpath, fname = os.path.split(fpath)
-    fname = secure_filename(fname)
-    project = secure_filename(project)
+    fpath, fname = os.path.split(file_path)
+    secure_fname = secure_filename(fname)
+    secure_project = secure_filename(project)
 
-    joined_path = safe_join(root_upload_path, project)
+    joined_path = safe_join(root_upload_path, secure_project)
     joined_path = safe_join(joined_path, fpath)
 
-    return os.path.normpath(joined_path), fname
+    return os.path.normpath(joined_path), secure_fname
 
 
 def get_project_path(project):

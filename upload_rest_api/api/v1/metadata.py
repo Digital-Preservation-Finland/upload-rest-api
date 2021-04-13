@@ -35,7 +35,7 @@ def post_metadata(fpath):
         queue_name=METADATA_QUEUE,
         username=username,
         job_kwargs={
-            "fpath": fpath,
+            "path": fpath,
             "username": username,
             "storage_id": storage_id
         }

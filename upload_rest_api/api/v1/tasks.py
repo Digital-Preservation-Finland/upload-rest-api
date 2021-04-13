@@ -25,16 +25,18 @@ def task_status(task_id):
     """
     tasks = db.Database().tasks
     task = tasks.get(task_id)
-
     if task is None:
         response = _create_gone_response()
+
     else:
-        response = jsonify({'status': task["status"],
-                            "message": task["message"]})
+        content = {'status': task["status"],
+                   "message": task["message"]}
+        if 'errors' in task:
+            content['errors'] = task['errors']
+        response = jsonify(content)
 
         if task["status"] != "pending":
             tasks.delete_one(task_id)
-        response.status_code = 200
 
     return response
 

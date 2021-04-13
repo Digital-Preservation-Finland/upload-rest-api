@@ -624,6 +624,32 @@ class Tasks(object):
             {"$set": {"message_chunks": chunk_count}}
         )
 
+    def update_error(self, task_id, error_message, files=None):
+        """Update error information of the task.
+
+        :param str task_id: task id as string
+        :param str error_message: Error message
+        :param list files: Files that caused error
+        """
+        if not self.exists(task_id):
+            raise TaskNotFoundError("Task '%s' not found" % task_id)
+
+        self.tasks.update_one(
+            {
+                "_id": ObjectId(task_id)
+            },
+            {
+                "$set": {
+                    "errors": [
+                        {
+                            "message": error_message,
+                            "files": files
+                        }
+                    ]
+                }
+            }
+        )
+
     def update_md5(self, task_id, md5):
         """Update md5 of the task.
 

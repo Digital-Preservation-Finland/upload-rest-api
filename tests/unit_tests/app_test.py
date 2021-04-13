@@ -301,7 +301,8 @@ def test_upload_archive_overwrite_file(
     data = json.loads(response.data)
     assert response.status_code == 200
     assert data["status"] == "error"
-    assert data["message"] == "File 'test/test.txt' already exists"
+    assert data["errors"][0]["message"] \
+        == "File 'test/test.txt' already exists"
 
 
 @pytest.mark.parametrize(
@@ -467,7 +468,8 @@ def test_upload_invalid_archive(
 
     data = json.loads(response.data)
     assert response.status_code == 200
-    assert data["message"] == "File 'test/link' has unsupported type: SYM"
+    assert data["errors"][0]["message"] \
+        == "File 'test/link' has unsupported type: SYM"
 
     fpath = os.path.join(upload_path, "test_project")
     text_file = os.path.join(fpath, "test", "test.txt")
@@ -940,7 +942,7 @@ def test_delete_metadata_dataset_accepted(
         )
 
     response = json.loads(response.data)
-    assert response["message"] \
+    assert response["errors"][0]["message"] \
         == "Metadata is part of an accepted dataset"
 
 
@@ -971,39 +973,107 @@ def test_post_metadata(app, test_auth, requests_mock, background_job_runner):
 
 
 @pytest.mark.parametrize(
-    ('metax_response', 'message'),
+    ('metax_response', 'expected_response'),
     [
+        # Path is reserved
         (
             {
                 "file_path": ["a file with path /foo already exists in"
                               " project bar"],
             },
-            "Resource already exists."
+            {
+                'message': "Task failed",
+                'status': 'error',
+                'errors': [{
+                    'message': "Some of the files already exist.",
+                    'files': ['/foo']
+                }]
+            }
         ),
+        # Path and identifier are reserved
         (
             {
                 "file_path": ["a file with path /foo already exists in "
                               "project bar"],
                 "identifier": ["a file with given identifier already exists"],
             },
-            "Resource already exists."
+            {
+                'message': "Task failed",
+                'status': 'error',
+                'errors': [{
+                    'message': "Some of the files already exist.",
+                    'files': ['/foo']
+                }]
+            }
         ),
+        # Path is reserved but also unknown error occurs
         (
             {
                 "file_path": ["a file with path /foo already exists in "
                               "project bar"],
                 "identifier": ["Unknown error"],
             },
-            "Internal server error"
+            {
+                'message': "Internal server error",
+                'status': 'error'
+            }
+        ),
+        # Multiple paths are reserved
+        (
+            {
+                "success": [],
+                "failed": [
+                    {
+                        "object": {
+                            "file_path": "/foo1",
+                            "identifier": "foo1",
+                        },
+                        "errors": {
+                            "file_path": [
+                                "a file with path /foo1 already exists in "
+                                "project bar"
+                            ]
+                        }
+                    },
+                    {
+                        "object": {
+                            "file_path": "/foo2",
+                            "identifier": "foo2",
+                        },
+                        "errors": {
+                            "file_path": [
+                                "a file with path /foo2 already exists in "
+                                "project bar"
+                            ]
+                        }
+                    }
+                ]
+            },
+            {
+                'message': "Task failed",
+                'status': 'error',
+                'errors': [{
+                    'message': "Some of the files already exist.",
+                    'files': ['/foo1', '/foo2']
+                }]
+            }
         )
     ]
 )
 def test_post_metadata_failure(app, test_auth, requests_mock,
-                               background_job_runner, metax_response, message):
+                               background_job_runner, metax_response,
+                               expected_response):
     """Test post file metadata failure.
 
     If posting file metadata to Metax fails, API should return HTTP
     response with status code 200, and the clear error message.
+
+    :param app: Flask application
+    :param test_auth: authentication headers
+    :param requests_mock: HTTP request mocker
+    :param background_job_runner: RQ job mocker
+    :param metax_response: Mocked Metax response
+    :param expected response: Expected response from API
     """
     test_client = app.test_client()
 
@@ -1024,10 +1094,7 @@ def test_post_metadata_failure(app, test_auth, requests_mock,
         )
 
     assert response.status_code == 200
-    assert json.loads(response.data) == {
-        "message": message,
-        "status": "error"
-    }
+    assert json.loads(response.data) == expected_response
 
 
 def test_reverse_proxy_polling_url(app, test_auth):
@@ -1083,7 +1150,10 @@ def _raise_client_error(task_id):
         ),
         (
             'tests.unit_tests.app_test._raise_client_error',
-            {'message': 'Client made mistake.', 'status': 'error'}
+            {
+                'message': 'Task failed',
+                'errors': [{'message': 'Client made mistake.', 'files': None}],
+                'status': 'error'}
         )
     ]
 )

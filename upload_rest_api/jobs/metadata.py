@@ -11,13 +11,13 @@ from upload_rest_api.jobs.utils import api_background_job, ClientError
 
 
 @api_background_job
-def post_metadata(fpath, username, storage_id, task_id):
+def post_metadata(path, username, storage_id, task_id):
     """Create file metadata in Metax.
 
-    This function creates the metadata in Metax for the file(s) denoted
-    by fpath argument.
+    This function creates the metadata in Metax for the file or
+    directory denoted by path argument.
 
-    :param str fpath: file path
+    :param str path: relative path to file/directory
     :param str username: current user
     :param str storage_id: pas storage identifier in Metax
     :param str task_id: mongo dentifier of the task
@@ -29,12 +29,13 @@ def post_metadata(fpath, username, storage_id, task_id):
 
     project = database.user(username).get_project()
 
-    fpath, fname = utils.get_upload_path(project, fpath, root_upload_path)
-    fpath = os.path.join(fpath, fname)
-    ret_path = utils.get_return_path(project, fpath, root_upload_path)
+    dirname, basename = utils.get_upload_path(project, path,
+                                              root_upload_path)
+    fpath = os.path.join(dirname, basename)
+    return_path = utils.get_return_path(project, fpath, root_upload_path)
 
     database.tasks.update_message(
-        task_id, "Creating metadata: {}".format(ret_path)
+        task_id, "Creating metadata: {}".format(return_path)
     )
 
     if os.path.isdir(fpath):
@@ -54,10 +55,17 @@ def post_metadata(fpath, username, storage_id, task_id):
         metax_client.post_metadata(fpaths, root_upload_path, username,
                                    storage_id)
     except ResourceAlreadyExistsError as error:
-        raise ClientError(error.message) from error
+        try:
+            failed_files = [file_['object']['file_path']
+                            for file_ in error.response.json()['failed']]
+        except KeyError:
+            # Most likely only one file was posted so Metax response
+            # format is different
+            failed_files = [return_path]
+        raise ClientError(error.message, files=failed_files)
 
     database.tasks.update_message(task_id,
-                                  "Metadata created: {}".format(ret_path))
+                                  "Metadata created: {}".format(return_path))
 
 
 @api_background_job
