@@ -51,17 +51,18 @@ def api_background_job(func):
 
         try:
             result = func(*args, **kwargs)
-        except Exception as exception:
+        except ClientError as exception:
             tasks.update_status(task_id, "error")
-            if isinstance(exception, ClientError):
-                tasks.update_message(task_id, "Task failed")
-                tasks.update_error(task_id, exception.message, exception.files)
-            else:
-                tasks.update_message(task_id, "Internal server error")
+            tasks.update_message(task_id, "Task failed")
+            tasks.update_error(task_id, exception.message, exception.files)
+        except Exception:
+            tasks.update_status(task_id, "error")
+            tasks.update_message(task_id, "Internal server error")
             raise
-
-        tasks.update_status(task_id, "done")
-        return result
+        else:
+            tasks.update_status(task_id, "done")
+            tasks.update_message(task_id, result)
+            return result
 
     return wrapper
 

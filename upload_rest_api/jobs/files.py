@@ -38,7 +38,4 @@ def delete_files(fpath, username, task_id):
     rmtree(fpath)
     database.user(username).update_used_quota(root_upload_path)
 
-    database.tasks.update_message(
-        task_id,
-        "Deleted files and metadata: {}".format(ret_path)
-    )
+    return "Deleted files and metadata: {}".format(ret_path)

@@ -1126,6 +1126,7 @@ def _modify_task_info(task_id):
     tasks = database.Database().tasks
     tasks.update_message(task_id, "foo")
     tasks.update_status(task_id, "bar")
+    return "baz"
 
 
 @jobs.api_background_job
@@ -1145,7 +1146,7 @@ def _raise_client_error(task_id):
     [
         (
             'tests.unit_tests.app_test._modify_task_info',
-            {'message': 'foo', 'status': 'done'}
+            {'message': 'baz', 'status': 'done'}
         ),
         (
             'tests.unit_tests.app_test._raise_general_exception',

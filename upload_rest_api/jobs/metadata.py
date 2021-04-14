@@ -64,8 +64,7 @@ def post_metadata(path, username, storage_id, task_id):
             failed_files = [return_path]
         raise ClientError(error.message, files=failed_files)
 
-    database.tasks.update_message(task_id,
-                                  "Metadata created: {}".format(return_path))
+    return "Metadata created: {}".format(return_path)
 
 
 @api_background_job
@@ -106,7 +105,4 @@ def delete_metadata(fpath, username, task_id):
     except md.MetaxClientError as error:
         raise ClientError(str(error)) from error
 
-    database.tasks.update_message(
-        task_id,
-        "{} files deleted".format(response['deleted_files_count'])
-    )
+    return "{} files deleted".format(response['deleted_files_count'])
