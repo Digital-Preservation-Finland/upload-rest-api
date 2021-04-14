@@ -589,7 +589,7 @@ def test_delete_file(app, test_auth, requests_mock, mock_mongo):
 
 
 @pytest.mark.parametrize(
-    ['path', 'data'],
+    ['path', 'expected_data'],
     [
         # All files of user
         (
@@ -606,7 +606,7 @@ def test_delete_file(app, test_auth, requests_mock, mock_mongo):
             '/',
             {
                 'identifier': 'foo',
-                'directories': ['dir1', 'dir2'],
+                'directories': ['dir2', 'dir1'],
                 'files': ['file1.txt']
             }
         ),
@@ -630,13 +630,13 @@ def test_delete_file(app, test_auth, requests_mock, mock_mongo):
         )
     ]
 )
-def test_get_files(app, test_auth, path, data, requests_mock):
+def test_get_files(app, test_auth, path, expected_data, requests_mock):
     """Test GET for directories.
 
     :param app: Flask app
     :param test_auth: authentication headers
     :param path: directory path to be tested
-    :param data: expected data
+    :param data: expected response data
     """
     requests_mock.get(
         'https://metax.fd-test.csc.fi/rest/v1/directories/files',
@@ -664,7 +664,10 @@ def test_get_files(app, test_auth, path, data, requests_mock):
     test_client = app.test_client()
     response = test_client.get("/v1/files" + path, headers=test_auth)
     assert response.status_code == 200
-    assert json.loads(response.data) == data
+    data = json.loads(response.data)
+    for key in data.keys():
+        assert data[key] == expected_data[key] \
+            or set(data[key]) == set(expected_data[key])
 
 
 def test_get_directory_without_identifier(app, test_auth, requests_mock):
