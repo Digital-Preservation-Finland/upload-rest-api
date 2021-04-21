@@ -30,7 +30,7 @@ install3:
 	python3 ./setup.py install -O1 --prefix="${PREFIX}" --root="${DESTDIR}" --record=INSTALLED_FILES
 
 test:
-	py.test  tests/unit_tests -v \
+	pytest-3  tests/unit_tests -v \
 	    --junitprefix=upload_rest_api --junitxml=junit.xml
 
 coverage:
