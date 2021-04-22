@@ -37,6 +37,7 @@ BuildRequires:  pytest
 BuildRequires:  python-mongomock
 BuildRequires:  python-mock
 BuildRequires:  python-fakeredis
+BuildRequires:  python2-requests-mock
 
 %description
 REST API for file uploads to passipservice.csc.fi

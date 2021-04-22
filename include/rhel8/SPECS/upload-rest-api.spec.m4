@@ -35,6 +35,7 @@ BuildRequires:  python3-setuptools
 BuildRequires:  python3-pytest
 BuildRequires:  python3-mongomock
 BuildRequires:  python3-mock
+BuildRequires:  python3-requests-mock
 # TODO: python3-fakeredis hasn't been packaged yet
 # BuildRequires:  python3-fakeredis
 
