@@ -28,7 +28,7 @@ unit-test-python27:
   tags:
     - docker
   script:
-    - 'unit-test-virtualenv.sh'
+    - 'PYTHON=python2 unit-test-virtualenv.sh'
   except:
     - master
 

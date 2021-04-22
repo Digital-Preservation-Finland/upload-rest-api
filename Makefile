@@ -1,6 +1,7 @@
 DESTDIR ?= /
 PREFIX ?= /usr
-ETC=${DESTDIR}/etc
+ETC = ${DESTDIR}/etc
+PYTHON ?= python3
 
 install:
 	mkdir -p "${ETC}"
@@ -30,11 +31,11 @@ install3:
 	python3 ./setup.py install -O1 --prefix="${PREFIX}" --root="${DESTDIR}" --record=INSTALLED_FILES
 
 test:
-	pytest-3  tests/unit_tests -v \
+	${PYTHON} -m pytest tests/unit_tests -v \
 	    --junitprefix=upload_rest_api --junitxml=junit.xml
 
 coverage:
-	py.test tests --cov=upload_rest_api --cov-report=html
+	${PYTHON} -m pytest tests --cov=upload_rest_api --cov-report=html
 	coverage report -m
 	coverage html
 	coverage xml
