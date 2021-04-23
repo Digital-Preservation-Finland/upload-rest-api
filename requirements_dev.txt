@@ -10,9 +10,12 @@ fakeredis ; python_version >= '3.6'
 
 # Install requirements
 
-flask==0.10.1
-werkzeug==0.9.1
-pymongo
+flask==0.10.1 ; python_version == '2.7'
+Werkzeug==0.9.1 ; python_version == '2.7'
+flask==1.1.2 ; python_version >= '3.6'
+Werkzeug==1.0.1 ; python_version >= '3.6'
+pymongo==3.6.0 ; python_version == '2.7'
+pymongo==3.6.1 ; python_version >= '3.6'
 file-magic
 six
 futures
