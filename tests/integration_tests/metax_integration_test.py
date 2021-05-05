@@ -11,7 +11,6 @@ tests still do not work.
 import getpass
 import json
 import os
-import time
 from runpy import run_path
 
 from metax_access import Metax
@@ -46,18 +45,6 @@ def _upload_file(client, url, auth, fpath):
             headers=auth
         )
 
-    return response
-
-
-def _wait_response(test_client, test_auth, response):
-    if response.status_code == 202:
-        status = "pending"
-        polling_url = json.loads(response.data)["polling_url"]
-        while status == "pending":
-            time.sleep(0.5)
-            response = test_client.get(polling_url, headers=test_auth)
-            data = json.loads(response.data)
-            status = data['status']
     return response
 
 

@@ -3,27 +3,12 @@ import io
 import json
 import os
 import shutil
-import time
 
 import pytest
 from rq import SimpleWorker
 
 import upload_rest_api.database as database
 import upload_rest_api.jobs as jobs
-
-
-def _contains_symlinks(fpath):
-    """Check if fpath or any subdirectories contains symlinks.
-
-    :param fpath: Path to directory to check
-    :returns: True if any symlinks are found else False
-    """
-    for dirpath, _, files in os.walk(fpath):
-        for _file in files:
-            if os.path.islink("%s/%s" % (dirpath, _file)):
-                return True
-
-    return False
 
 
 def _set_user_quota(users, username, quota, used_quota):
@@ -45,17 +30,6 @@ def _upload_file(client, url, auth, fpath):
         )
 
     return response
-
-
-def _wait_response(test_client, response, test_auth):
-    status = "pending"
-    polling_url = json.loads(response.data)["polling_url"]
-    while status == "pending":
-        time.sleep(0.1)
-        response = test_client.get(polling_url, headers=test_auth)
-        data = json.loads(response.data)
-        status = data['status']
-    return response, polling_url
 
 
 def _request_accepted(response):

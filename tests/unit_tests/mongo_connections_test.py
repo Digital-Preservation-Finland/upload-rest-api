@@ -1,7 +1,4 @@
 """Tests for ``upload_rest_api.app`` module."""
-import json
-import time
-
 import pymongo
 import mock
 
@@ -20,20 +17,6 @@ def _upload_archive(client, auth):
         assert response.status_code == 202
 
     return response
-
-
-def _wait_response(client, response, auth, sleep):
-    status = "pending"
-    polling_url = json.loads(response.data)["polling_url"]
-    while status == "pending":
-        time.sleep(sleep)
-        response = client.get(polling_url, headers=auth)
-        data = json.loads(response.data)
-        status = data["status"]
-
-    assert response.status_code == 200
-    assert status == "done"
-    return response, polling_url
 
 
 def test_upload_archive(app, test_auth, background_job_runner):
