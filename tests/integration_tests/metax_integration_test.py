@@ -9,7 +9,6 @@ configuration file, the test will prompt password from user, but some
 tests still do not work.
 """
 import getpass
-import json
 import os
 from runpy import run_path
 
@@ -101,15 +100,15 @@ def test_gen_metadata_root(
     # Finish the background job
     response = background_job_runner(test_client, "metadata", response)
     assert response.status_code == 200
-    assert json.loads(response.data)['message'] == 'Metadata created: /'
-    assert json.loads(response.data)['status'] == 'done'
+    assert response.json['message'] == 'Metadata created: /'
+    assert response.json['status'] == 'done'
 
     # All files should be found in Metax
     for file_path in ["integration/test1/test1.txt",
                       "integration/test2/test2.txt"]:
         response = test_client.get("/v1/files/{}".format(file_path),
                                    headers=test_auth)
-        file_identifier = json.loads(response.data)['metax_identifier']
+        file_identifier = response.json['metax_identifier']
         assert Metax(
             URL,
             USER,
@@ -123,11 +122,11 @@ def test_gen_metadata_root(
     )
     assert response.status_code == 200
     if dataset:
-        assert json.loads(response.data)["metax"].startswith(
+        assert response.json["metax"].startswith(
             "Metadata is part of a dataset"
         )
     else:
-        assert json.loads(response.data)["metax"]["deleted_files_count"] == 1
+        assert response.json["metax"]["deleted_files_count"] == 1
 
     # Test that test1.txt was removed from Metax but test2.txt is still
     # there
@@ -176,14 +175,14 @@ def test_gen_metadata_file(
     )
     response = background_job_runner(test_client, "metadata", response)
     assert response.status_code == 200
-    assert json.loads(response.data)['message'] \
+    assert response.json['message'] \
         == 'Metadata created: /integration/test1/test1.txt'
-    assert json.loads(response.data)['status'] == 'done'
+    assert response.json['status'] == 'done'
 
     # Metadata for test1.txt should be found in Metax
     response = test_client.get("/v1/files/integration/test1/test1.txt",
                                headers=test_auth)
-    file_identifier = json.loads(response.data)['metax_identifier']
+    file_identifier = response.json['metax_identifier']
     assert Metax(URL, USER, PASSWORD).get_file(file_identifier)['file_path'] \
         == "/integration/test1/test1.txt"
 
@@ -191,9 +190,8 @@ def test_gen_metadata_file(
     response = test_client.delete("/v1/files", headers=test_auth)
     response = background_job_runner(test_client, "files", response)
     assert response.status_code == 200
-    assert json.loads(response.data)["message"] \
-        == 'Deleted files and metadata: /'
-    assert json.loads(response.data)["status"] == 'done'
+    assert response.json["message"] == 'Deleted files and metadata: /'
+    assert response.json["status"] == 'done'
 
     # Test that no test_project files are found in Metax
     metax_client = MetaxClient(URL, USER, PASSWORD)
@@ -239,7 +237,7 @@ def test_delete_metadata(
     # Metadata for test1.txt should be found in Metax
     response = test_client.get("/v1/files/integration/test1/test1.txt",
                                headers=test_auth)
-    file_identifier = json.loads(response.data)['metax_identifier']
+    file_identifier = response.json['metax_identifier']
     assert Metax(URL, USER, PASSWORD).get_file(file_identifier)['file_path'] \
         == "/integration/test1/test1.txt"
 
@@ -262,12 +260,12 @@ def test_delete_metadata(
     assert response.status_code == 200
 
     if accepted_dataset:
-        assert json.loads(response.data)["message"] \
+        assert response.json["message"] \
             == "Metadata is part of an accepted dataset"
-        assert json.loads(response.data)["status"] == 'error'
+        assert response.json["status"] == 'error'
     else:
-        assert json.loads(response.data)["message"] == "1 files deleted"
-        assert json.loads(response.data)["status"] == 'done'
+        assert response.json["message"] == "1 files deleted"
+        assert response.json["status"] == 'done'
 
     metax_client = MetaxClient(URL, USER, PASSWORD)
     files_dict = metax_client.get_files_dict("test_project")
@@ -282,9 +280,8 @@ def test_delete_metadata(
         test_client, "files", poll_response
     )
     assert response.status_code == 200
-    assert json.loads(response.data)["message"] \
-        == "Deleted files and metadata: /"
-    assert json.loads(response.data)["status"] == "done"
+    assert response.json["message"] == "Deleted files and metadata: /"
+    assert response.json["status"] == "done"
 
     # Test that no test_project files are found in Metax
     files_dict = metax_client.get_files_dict("test_project")

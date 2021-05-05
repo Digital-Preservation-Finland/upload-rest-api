@@ -1,5 +1,4 @@
 """Configure py.test default values and functionality."""
-import json
 import os
 import sys
 from base64 import b64encode
@@ -124,7 +123,7 @@ def background_job_runner(test_auth):
         """
         # Get the task ID from the polling URL from the response
         # provided to the client
-        polling_url = json.loads(response.data)["polling_url"]
+        polling_url = response.json["polling_url"]
         task_id = polling_url.split("/")[-1]
 
         # Ensure the task can be found in the correct queue and complete
@@ -140,12 +139,11 @@ def background_job_runner(test_auth):
 
         # Check that the task API reports the task as having finished
         response = test_client.get(polling_url, headers=test_auth)
-        data = json.loads(response.data)
 
-        assert data["status"] != "pending"
+        assert response.json["status"] != "pending"
 
         if expect_success:
-            assert data["status"] == "done"
+            assert response.json["status"] == "done"
 
         return response
 

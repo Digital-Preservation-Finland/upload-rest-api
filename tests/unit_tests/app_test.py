@@ -1,6 +1,5 @@
 """Tests for ``upload_rest_api.app`` module."""
 import io
-import json
 import os
 import shutil
 
@@ -236,9 +235,8 @@ def test_upload_archive_overwrite_directory(
 
     # Trying to upload same archive again should return 409 - Conflict
     response = _upload_file(test_client, url, test_auth, archive)
-    data = json.loads(response.data)
     assert response.status_code == 409
-    assert data["error"] == "Directory 'dataset' already exists"
+    assert response.json["error"] == "Directory 'dataset' already exists"
 
 
 @pytest.mark.parametrize(
@@ -272,10 +270,9 @@ def test_upload_archive_overwrite_file(
         test_client, "upload", response, expect_success=False
     )
 
-    data = json.loads(response.data)
     assert response.status_code == 200
-    assert data["status"] == "error"
-    assert data["errors"][0]["message"] \
+    assert response.json["status"] == "error"
+    assert response.json["errors"][0]["message"] \
         == "File 'test/test.txt' already exists"
 
 
@@ -323,10 +320,9 @@ def test_upload_two_archives(
     response = background_job_runner(
         test_client, "upload", response
     )
-    data = json.loads(response.data)
     assert response.status_code == 200
-    assert data["status"] == "done"
-    assert data["message"] == "Archive uploaded and extracted"
+    assert response.json["status"] == "done"
+    assert response.json["message"] == "Archive uploaded and extracted"
 
 
 @pytest.mark.parametrize("dirpath", [
@@ -367,30 +363,27 @@ def test_upload_archive_concurrent(
     )
     # poll with response's polling_url
     if _request_accepted(response_1):
-        polling_url = json.loads(response_1.data)["polling_url"]
+        polling_url = response_1.json["polling_url"]
         response_1 = background_job_runner(test_client, "upload", response_1)
-        data = json.loads(response_1.data)
         assert response_1.status_code == 200
-        assert data["status"] == "done"
-        assert data["message"] == "Archive uploaded and extracted"
+        assert response_1.json["status"] == "done"
+        assert response_1.json["message"] == "Archive uploaded and extracted"
 
         response_1 = test_client.delete(polling_url, headers=test_auth)
         assert response_1.status_code == 404
-        data = json.loads(response_1.data)
-        assert data["status"] == "Not found"
+        assert response_1.json["status"] == "Not found"
 
     # poll with response's polling_url
     if _request_accepted(response_2):
-        polling_url = json.loads(response_2.data)["polling_url"]
+        polling_url = response_2.json["polling_url"]
         response_2 = background_job_runner(test_client, "upload", response_2)
-        data = json.loads(response_2.data)
         assert response_2.status_code == 200
-        assert data["status"] == "done"
-        assert data["message"] == "Archive uploaded and extracted"
+        assert response_2.json["status"] == "done"
+        assert response_2.json["message"] == "Archive uploaded and extracted"
 
         response_2 = test_client.delete(polling_url, headers=test_auth)
         assert response_2.status_code == 404
-        data = json.loads(response_2.data)
+        data = response_2.json
         assert data["status"] == "Not found"
 
     fpath = os.path.join(upload_path, "test_project")
@@ -440,9 +433,8 @@ def test_upload_invalid_archive(
             test_client, "upload", response, expect_success=False
         )
 
-    data = json.loads(response.data)
     assert response.status_code == 200
-    assert data["errors"][0]["message"] \
+    assert response.json["errors"][0]["message"] \
         == "File 'test/link' has unsupported type: SYM"
 
     fpath = os.path.join(upload_path, "test_project")
@@ -473,9 +465,8 @@ def test_upload_file_as_archive(app, test_auth, background_job_runner):
             test_client, "upload", response, expect_success=False
         )
 
-    data = json.loads(response.data)
     assert response.status_code == 400
-    assert data["error"] == "Uploaded file is not a supported archive"
+    assert response.json["error"] == "Uploaded file is not a supported archive"
 
 
 def test_get_file(app, test_auth, test2_auth, test3_auth, mock_mongo):
@@ -494,11 +485,10 @@ def test_get_file(app, test_auth, test2_auth, test3_auth, mock_mongo):
     response = test_client.get("/v1/files/test.txt", headers=test_auth)
 
     assert response.status_code == 200
-    data = json.loads(response.data)
 
-    assert data["file_path"] == "/test.txt"
-    assert data["md5"] == "150b62e4e7d58c70503bd5fc8a26463c"
-    assert data["metax_identifier"] == "None"
+    assert response.json["file_path"] == "/test.txt"
+    assert response.json["md5"] == "150b62e4e7d58c70503bd5fc8a26463c"
+    assert response.json["metax_identifier"] == "None"
 
     # GET file with user test2, which is in the same project
     response = test_client.get("/v1/files/test.txt", headers=test2_auth)
@@ -550,7 +540,7 @@ def test_delete_file(app, test_auth, requests_mock, mock_mongo):
     )
 
     assert response.status_code == 200
-    assert json.loads(response.data)["metax"] == {'deleted_files_count': 1}
+    assert response.json["metax"] == {'deleted_files_count': 1}
     assert not os.path.isfile(fpath)
     assert mock_mongo.upload.checksums.count({}) == 0
 
@@ -638,10 +628,9 @@ def test_get_files(app, test_auth, path, expected_data, requests_mock):
     test_client = app.test_client()
     response = test_client.get("/v1/files" + path, headers=test_auth)
     assert response.status_code == 200
-    data = json.loads(response.data)
-    for key in data.keys():
-        assert data[key] == expected_data[key] \
-            or set(data[key]) == set(expected_data[key])
+    for key in response.json.keys():
+        assert response.json[key] == expected_data[key] \
+            or set(response.json[key]) == set(expected_data[key])
 
 
 def test_get_directory_without_identifier(app, test_auth, requests_mock):
@@ -666,9 +655,9 @@ def test_get_directory_without_identifier(app, test_auth, requests_mock):
     test_client = app.test_client()
     response = test_client.get("v1/files/test_directory", headers=test_auth)
     assert response.status_code == 200
-    assert json.loads(response.data) == {'directories': [],
-                                         'files': [],
-                                         'identifier': None}
+    assert response.json == {'directories': [],
+                             'files': [],
+                             'identifier': None}
 
 
 def test_delete_files(
@@ -730,8 +719,7 @@ def test_delete_files(
         response = background_job_runner(test_client, "files", response)
 
     assert response.status_code == 200
-    assert json.loads(response.data)["message"] \
-        == 'Deleted files and metadata: /test'
+    assert response.json["message"] == 'Deleted files and metadata: /test'
     assert not os.path.exists(os.path.split(test_path_2)[0])
     assert checksums.count({}) == 1
 
@@ -746,8 +734,7 @@ def test_delete_files(
         response = background_job_runner(test_client, "files", response)
 
     assert response.status_code == 200
-    assert json.loads(response.data)["message"] \
-        == "Deleted files and metadata: /"
+    assert response.json["message"] == "Deleted files and metadata: /"
     assert not os.path.exists(os.path.split(test_path_1)[0])
     assert checksums.count({}) == 0
 
@@ -823,7 +810,7 @@ def test_delete_metadata(
         response = background_job_runner(test_client, "metadata", response)
 
     assert response.status_code == 200
-    assert json.loads(response.data)["message"] == "1 files deleted"
+    assert response.json["message"] == "1 files deleted"
     assert adapter.last_request.json() == ['bar']
 
     # DELETE metadata for single file
@@ -835,8 +822,7 @@ def test_delete_metadata(
         response = background_job_runner(test_client, "metadata", response)
 
     assert response.status_code == 200
-    assert json.loads(response.data)["message"] \
-        == "1 files deleted"
+    assert response.json["message"] == "1 files deleted"
 
 
 def test_delete_metadata_dataset_accepted(
@@ -905,7 +891,7 @@ def test_delete_metadata_dataset_accepted(
     if _request_accepted(response):
         response = background_job_runner(test_client, "metadata", response)
 
-    assert json.loads(response.data)["message"] == "0 files deleted"
+    assert response.json["message"] == "0 files deleted"
     assert adapter.last_request is None
 
     # DELETE metadata for single file
@@ -918,8 +904,7 @@ def test_delete_metadata_dataset_accepted(
             test_client, "metadata", response, expect_success=False
         )
 
-    response = json.loads(response.data)
-    assert response["errors"][0]["message"] \
+    assert response.json["errors"][0]["message"] \
         == "Metadata is part of an accepted dataset"
 
 
@@ -943,7 +928,7 @@ def test_post_metadata(app, test_auth, requests_mock, background_job_runner):
         response = background_job_runner(test_client, "metadata", response)
 
     assert response.status_code == 200
-    assert json.loads(response.data) == {
+    assert response.json == {
         "message": "Metadata created: /",
         "status": "done"
     }
@@ -1071,7 +1056,7 @@ def test_post_metadata_failure(app, test_auth, requests_mock,
         )
 
     assert response.status_code == 200
-    assert json.loads(response.data) == expected_response
+    assert response.json == expected_response
 
 
 def test_reverse_proxy_polling_url(app, test_auth):
@@ -1089,9 +1074,9 @@ def test_reverse_proxy_polling_url(app, test_auth):
         headers=test_auth,
         environ_base={"HTTP_X_FORWARDED_HOST": "reverse_proxy"}
     )
-    polling_url = json.loads(response.data)["polling_url"]
-
-    assert polling_url.startswith("http://reverse_proxy/v1/tasks/")
+    assert response.json["polling_url"].startswith(
+        "http://reverse_proxy/v1/tasks/"
+    )
 
 
 @jobs.api_background_job
@@ -1155,12 +1140,11 @@ def test_query_task(app, mock_redis, test_auth, task_func, expected_response):
     # Task should be pending
     test_client = app.test_client()
     response = test_client.get("/v1/tasks/{}".format(job), headers=test_auth)
-    assert json.loads(response.data) == {'message': 'processing',
-                                         'status': 'pending'}
+    assert response.json == {'message': 'processing', 'status': 'pending'}
 
     # Run job. Task should be finished (status: done) or failed (status:
     # error).
     SimpleWorker([jobs.get_job_queue("upload")],
                  connection=mock_redis).work(burst=True)
     response = test_client.get("/v1/tasks/{}".format(job), headers=test_auth)
-    assert json.loads(response.data) == expected_response
+    assert response.json == expected_response
