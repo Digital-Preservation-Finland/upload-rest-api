@@ -24,7 +24,7 @@ Start local development/test server::
 
 Start rq workers that read jobs from queues: `files`, `metadata`, and `upload`::
 
-    rq worker files metadata upload
+    rq worker -c upload_rest_api.rq_config --queue-class "upload_rest_api.jobs.BackgroundJobQueue" files metadata upload
 
 Create a user using CLI. The command returns username and password::
 
