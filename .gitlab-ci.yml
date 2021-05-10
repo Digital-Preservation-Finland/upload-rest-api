@@ -23,15 +23,6 @@ unit-test:
   except:
     - master
 
-unit-test-python27:
-  stage: local-test
-  tags:
-    - docker
-  script:
-    - 'PYTHON=python2 unit-test-virtualenv.sh'
-  except:
-    - master
-
 unit-test-python36:
   stage: local-test
   tags:

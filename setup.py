@@ -18,7 +18,6 @@ def main():
             "six",
             "redis",
             "rq",
-            "futures; python_version == '2.7'",
             "metax_access@git+https://gitlab.csc.fi/dpres/"
             "metax-access.git@develop",
             "archive_helpers@git+https://gitlab.csc.fi/dpres/"
