@@ -3,16 +3,14 @@ from __future__ import unicode_literals
 
 import hashlib
 import os
-from datetime import datetime
+from datetime import datetime, timezone
 from uuid import uuid4
 
-import six
-
 import magic
-from metax_access import (DS_STATE_ACCEPTED_TO_DIGITAL_PRESERVATION,
-                          DS_STATE_IN_DIGITAL_PRESERVATION,
-                          Metax)
+import six
 import upload_rest_api.database as db
+from metax_access import (DS_STATE_ACCEPTED_TO_DIGITAL_PRESERVATION,
+                          DS_STATE_IN_DIGITAL_PRESERVATION, Metax)
 from upload_rest_api.config import CONFIG
 
 PAS_FILE_STORAGE_ID = "urn:nbn:fi:att:file-storage-pas"
@@ -46,14 +44,16 @@ def _get_mimetype(fpath):
 
 def iso8601_timestamp(fpath):
     """Return last access time in ISO 8601 format."""
-    timestamp = datetime.utcfromtimestamp(os.stat(fpath).st_atime)
+    timestamp = datetime.fromtimestamp(
+        os.stat(fpath).st_atime, tz=timezone.utc
+    ).replace(microsecond=0)
     return "{}+00:00".format(timestamp.replace(microsecond=0).isoformat())
 
 
 def _timestamp_now():
     """Return current time in ISO 8601 format."""
-    timestamp = datetime.utcnow()
-    return "{}+00:00".format(timestamp.replace(microsecond=0).isoformat())
+    timestamp = datetime.now(timezone.utc).replace(microsecond=0)
+    return timestamp.isoformat()
 
 
 def get_metax_path(fpath, root_upload_path):
