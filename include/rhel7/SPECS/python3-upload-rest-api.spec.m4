@@ -27,7 +27,6 @@ Requires:       python3
 Requires:       python36-flask
 Requires:       python36-pymongo
 Requires:       python3-magic
-Requires:       python36-six
 Requires:       python3-rq
 Requires:       python3-metax-access
 Requires:       python3-archive-helpers
@@ -60,7 +59,7 @@ usermod -aG %{user_group} %{user_name}
 
 %install
 rm -rf $RPM_BUILD_ROOT
-make install3 PREFIX="%{_prefix}" DESTDIR="%{buildroot}"
+make install PREFIX="%{_prefix}" DESTDIR="%{buildroot}"
 mkdir -p %{buildroot}/var/spool/upload
 
 # Rename executable to prevent name collision with Python 2 RPM

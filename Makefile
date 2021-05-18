@@ -9,21 +9,6 @@ install:
 	# Cleanup temporary files
 	rm -f INSTALLED_FILES
 
-	# Use Python setuptools
-	python ./setup.py install -O1 --prefix="${PREFIX}" --root="${DESTDIR}" --record=INSTALLED_FILES
-
-	# Remove requires.txt from egg-info because it contains PEP 508 URL requirements
-	# that break siptools-research on systems that use old version of
-	# python setuptools (older than v.20.2)
-	rm ${DESTDIR}${PREFIX}/lib/python2.7/site-packages/*.egg-info/requires.txt
-	sed -i '/\.egg-info\/requires.txt$$/d' INSTALLED_FILES
-
-install3:
-	mkdir -p "${ETC}"
-
-	# Cleanup temporary files
-	rm -f INSTALLED_FILES
-
 	# Copy config files
 	cp include/etc/upload_rest_api.conf ${ETC}/
 

@@ -2,8 +2,6 @@
 
 Functionality for uploading and extracting an archive.
 """
-from __future__ import unicode_literals
-
 import os
 
 from flask import Blueprint, safe_join, request

@@ -1,6 +1,4 @@
 """REST api for querying upload status."""
-
-from __future__ import unicode_literals
 import json
 
 from flask import Blueprint, jsonify

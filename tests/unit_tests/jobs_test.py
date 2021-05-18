@@ -1,6 +1,4 @@
 """Unit tests for background jobs."""
-from __future__ import unicode_literals
-
 import pytest
 from rq import SimpleWorker
 from upload_rest_api.jobs.utils import (api_background_job,

@@ -2,9 +2,6 @@
 been accessed within given time frame. This script can be set to run
 periodically using cron.
 """
-from __future__ import unicode_literals
-from __future__ import print_function
-
 import errno
 import os
 import time

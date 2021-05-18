@@ -1,6 +1,4 @@
 """Unit tests for database module."""
-from __future__ import unicode_literals
-
 import binascii
 import json
 import re

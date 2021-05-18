@@ -15,7 +15,6 @@ def main():
             "flask",
             "pymongo",
             "file-magic",
-            "six",
             "redis",
             "rq",
             "metax_access@git+https://gitlab.csc.fi/dpres/"

@@ -1,6 +1,4 @@
 """REST api for uploading files into passipservice."""
-from __future__ import unicode_literals
-
 import logging
 
 import upload_rest_api.authentication as auth

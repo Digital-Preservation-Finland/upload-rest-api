@@ -27,7 +27,6 @@ Requires:       python3
 Requires:       python3-flask
 Requires:       python3-pymongo
 Requires:       python3-magic
-Requires:       python3-six
 Requires:       python3-rq
 Requires:       metax-access
 Requires:       archive-helpers
@@ -61,7 +60,7 @@ usermod -aG %{user_group} %{user_name}
 
 %install
 rm -rf $RPM_BUILD_ROOT
-make install3 PREFIX="%{_prefix}" DESTDIR="%{buildroot}"
+make install PREFIX="%{_prefix}" DESTDIR="%{buildroot}"
 mkdir -p %{buildroot}/var/spool/upload
 
 %post

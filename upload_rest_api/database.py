@@ -1,6 +1,4 @@
 """Module for accessing user database."""
-from __future__ import print_function, unicode_literals
-
 import binascii
 import hashlib
 import os

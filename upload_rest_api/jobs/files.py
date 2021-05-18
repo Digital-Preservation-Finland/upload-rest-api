@@ -1,6 +1,4 @@
 """Files API background jobs."""
-from __future__ import unicode_literals
-
 import json
 from shutil import rmtree
 

@@ -1,6 +1,4 @@
 """Tests for ``upload_rest_api.app`` module."""
-from __future__ import unicode_literals
-
 import json
 import time
 

@@ -1,6 +1,4 @@
 """Upload module background jobs."""
-from __future__ import unicode_literals
-
 import json
 import logging
 import os.path

@@ -1,6 +1,4 @@
 """Module for handling the file uploads."""
-from __future__ import unicode_literals
-
 import os
 import tarfile
 import zipfile

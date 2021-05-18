@@ -1,13 +1,10 @@
 """Module for generating basic file metadata and posting it to Metax."""
-from __future__ import unicode_literals
-
 import hashlib
 import os
 from datetime import datetime, timezone
 from uuid import uuid4
 
 import magic
-import six
 import upload_rest_api.database as db
 from metax_access import (DS_STATE_ACCEPTED_TO_DIGITAL_PRESERVATION,
                           DS_STATE_IN_DIGITAL_PRESERVATION, Metax)
@@ -39,7 +36,7 @@ def _get_mimetype(fpath):
     mimetype = _magic.file(fpath)
     _magic.close()
 
-    return six.text_type(mimetype)
+    return mimetype
 
 
 def iso8601_timestamp(fpath):
@@ -72,8 +69,8 @@ def _generate_metadata(fpath, root_upload_path, project, storage_id,
     file_path = get_metax_path(fpath, root_upload_path)
 
     metadata = {
-        "identifier": six.text_type(uuid4().urn),
-        "file_name": six.text_type(os.path.split(fpath)[1]),
+        "identifier": str(uuid4().urn),
+        "file_name": str(os.path.split(fpath)[1]),
         "file_format": _get_mimetype(fpath),
         "byte_size": os.stat(fpath).st_size,
         "file_path": file_path,
@@ -230,7 +227,7 @@ class MetaxClient(object):
 
         # Retrieve "file -> dataset" association map
         file_ids = [
-            file_["identifier"] for file_ in six.itervalues(files_dict)
+            file_["identifier"] for file_ in files_dict.values()
         ]
         file2datasets = {}
         if file_ids:
@@ -239,7 +236,7 @@ class MetaxClient(object):
         # Delete metadata if file exists in fpaths AND it doesn't have
         # any datasets
         file_ids_to_delete = []
-        for metax_path, file_ in six.iteritems(files_dict):
+        for metax_path, file_ in files_dict.items():
             path_exists = metax_path in fpaths
             dataset_exists = file2datasets.get(file_["identifier"], None)
 
@@ -276,7 +273,7 @@ class MetaxClient(object):
                 "Metadata is part of an accepted dataset"
             )
 
-        file_id = six.text_type(file_metadata["id"])
+        file_id = str(file_metadata["id"])
         return self.client.delete_file(file_id)
 
     def delete_all_metadata(self, project, fpath, root_upload_path,
@@ -313,14 +310,14 @@ class MetaxClient(object):
             # an API call.
             file_ids_to_delete = [
                 file_["identifier"] for metax_path, file_
-                in six.iteritems(files_to_delete)
+                in files_to_delete.items()
                 if not self.file_has_accepted_dataset(metax_path, files_dict)
             ]
         else:
             # Delete metadata for files that don't belong to datasets
             file_ids = [
                 file_["identifier"] for file_
-                in six.itervalues(files_to_delete)
+                in files_to_delete.values()
             ]
             # Retrieve related datasets in a single bulk operation
             file2datasets = {}
@@ -329,7 +326,7 @@ class MetaxClient(object):
 
             file_ids_to_delete = [
                 file_["identifier"] for metax_path, file_
-                in six.iteritems(files_to_delete)
+                in files_to_delete.items()
                 if not file2datasets.get(file_["identifier"], None)
             ]
 

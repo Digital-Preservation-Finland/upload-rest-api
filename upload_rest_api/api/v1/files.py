@@ -3,8 +3,6 @@
 Functionality for uploading, querying and deleting files from the
 server.
 """
-from __future__ import unicode_literals
-
 import os
 
 from flask import Blueprint, current_app, jsonify, request, safe_join, url_for

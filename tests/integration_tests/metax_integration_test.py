@@ -6,8 +6,6 @@ that the metadata is correctly posted and deleted.
 These tests require the METAX_URL, METAX_USER and METAX_PASSWORD to be
 defined in /etc/upload_rest_api.conf.
 """
-from __future__ import unicode_literals
-
 import getpass
 import json
 import os

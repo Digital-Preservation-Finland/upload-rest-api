@@ -1,6 +1,4 @@
 """Module for authenticating users."""
-from __future__ import unicode_literals
-
 from hmac import compare_digest
 
 from flask import request, abort

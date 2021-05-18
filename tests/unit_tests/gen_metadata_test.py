@@ -1,6 +1,4 @@
 """Unit tests for metadata generation."""
-from __future__ import unicode_literals
-
 import os
 
 import pytest
