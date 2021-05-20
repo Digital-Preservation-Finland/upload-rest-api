@@ -128,7 +128,6 @@ def save_archive(database, fpath, upload_dir):
         dir_path = safe_join(dir_path, upload_dir)
         if os.path.isdir(dir_path):
             raise OverwriteError("Directory '%s' already exists" % upload_dir)
-        os.makedirs(dir_path)
 
     _save_stream(fpath)
 

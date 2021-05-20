@@ -382,6 +382,7 @@ def test_archive_integrity_validation(app, test_auth, checksum,
     with open('tests/data/test.tar.gz', "rb") as test_file:
         response = test_client.post(
             '/v1/archives',
+            query_string={'dir': 'test_directory'},
             input_stream=test_file,
             headers=headers
         )
@@ -390,6 +391,14 @@ def test_archive_integrity_validation(app, test_auth, checksum,
     assert response.status_code == expected_status_code
     for key in expected_response:
         assert response.json[key] == expected_response[key]
+
+    # Target directory should not have created yet
+    assert not os.path.exists(
+        os.path.join(app.config.get('UPLOAD_PATH'),
+                     'test_project',
+                     'test_directory')
+    )
+
 
 
 @pytest.mark.parametrize(
