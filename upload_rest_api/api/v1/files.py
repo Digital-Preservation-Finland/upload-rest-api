@@ -75,12 +75,14 @@ def upload_file(fpath):
     file_path = os.path.join(file_path, file_name)
     try:
         response = up.save_file(database, project, file_path)
-    except (up.OverwriteError) as error:
-        return utils.make_response(409, str(error))
-
-    database.user(request.authorization.username).update_used_quota(
-        current_app.config.get("UPLOAD_PATH")
-    )
+    except up.OverwriteError as error:
+        response = utils.make_response(409, str(error))
+    except up.DataIntegrityError as error:
+        response = utils.make_response(400, str(error))
+    else:
+        database.user(request.authorization.username).update_used_quota(
+            current_app.config.get("UPLOAD_PATH")
+        )
 
     return response
 

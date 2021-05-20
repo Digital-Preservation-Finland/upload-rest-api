@@ -55,6 +55,14 @@ def _save_stream(fpath, chunk_size=1024*1024):
                 break
             f_out.write(chunk)
 
+    # Verify integrity of uploaded file if checksum was provided
+    if request.content_md5 \
+            and request.content_md5 != gen_metadata.md5_digest(fpath):
+        os.remove(fpath)
+        raise DataIntegrityError(
+            'Checksum of uploaded file does not match provided checksum.'
+        )
+
     os.chmod(fpath, 0o664)
 
 
@@ -68,6 +76,10 @@ class QuotaError(Exception):
 
 class UploadPendingError(Exception):
     """Exception for a pending upload."""
+
+
+class DataIntegrityError(Exception):
+    """Exception for trying to overwrite a existing file."""
 
 
 def save_file(database, project, fpath):

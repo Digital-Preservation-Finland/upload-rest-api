@@ -155,6 +155,64 @@ def test_upload_outside(app, test_auth):
 
 
 @pytest.mark.parametrize(
+    ('checksum', 'expected_status_code', 'expected_response'),
+    [
+        # The actual md5sum of tests/data/test.txt
+        (
+            '150b62e4e7d58c70503bd5fc8a26463c',
+            200,
+            {
+                'file_path': '/test_path',
+                'md5': '150b62e4e7d58c70503bd5fc8a26463c',
+                'status': 'created',
+            }
+
+        ),
+        # Invalid md5sum
+        (
+            'foo',
+            400,
+            {
+                'code': 400,
+                'error': 'Checksum of uploaded file does not match provided'
+                ' checksum.'
+            }
+        )
+    ]
+)
+def test_file_integrity_validation(app, test_auth, checksum,
+                                   expected_status_code,
+                                   expected_response):
+    """Test ntegrity validation of uploaded file.
+
+    Upload file with checksum provided in HTTP request header.
+
+    :param app: Flask app
+    :param test_auth: authentication headers
+    :param cheksum: checksum included in HTTP headers
+    :param expected_status_code: expected status of response from API
+    :param expected_response: expected JSON response from API
+    """
+    # Create HTTP request headers with checksum
+    headers = {'Content-Md5': checksum}
+    headers.update(test_auth)
+
+    # Post archive
+    test_client = app.test_client()
+    with open('tests/data/test.txt', "rb") as test_file:
+        response = test_client.post(
+            '/v1/files/test_path',
+            input_stream=test_file,
+            headers=headers
+        )
+
+    # Check response
+    assert response.status_code == expected_status_code
+    for key in expected_response:
+        assert response.json[key] == expected_response[key]
+
+
+@pytest.mark.parametrize(
     ["archive", "dirpath"],
     [
         ("tests/data/test.zip", ""),
@@ -277,6 +335,64 @@ def test_upload_archive_overwrite_file(
 
 
 @pytest.mark.parametrize(
+    ('checksum', 'expected_status_code', 'expected_response'),
+    [
+        # The actual md5sum of tests/data/test.tar.gz
+        (
+            '78b925c44b7425e90686fb104ee0569b',
+            202,
+            {
+                'file_path': '/',
+                'message': 'Uploading archive',
+                'status': 'pending',
+            }
+
+        ),
+        # Invalid md5sum
+        (
+            'foo',
+            400,
+            {
+                'code': 400,
+                'error': 'Checksum of uploaded file does not match provided'
+                ' checksum.'
+            }
+        )
+    ]
+)
+def test_archive_integrity_validation(app, test_auth, checksum,
+                                      expected_status_code,
+                                      expected_response):
+    """Test integrity validation of uploaded archive.
+
+    Upload archive with checksum provided in HTTP request header.
+
+    :param app: Flask app
+    :param test_auth: authentication headers
+    :param cheksum: checksum included in HTTP headers
+    :param expected_status_code: expected status of response from API
+    :param expected_response: expected JSON response from API
+    """
+    # Create HTTP request headers with checksum
+    headers = {'Content-Md5': checksum}
+    headers.update(test_auth)
+
+    # Post archive
+    test_client = app.test_client()
+    with open('tests/data/test.tar.gz', "rb") as test_file:
+        response = test_client.post(
+            '/v1/archives',
+            input_stream=test_file,
+            headers=headers
+        )
+
+    # Check response
+    assert response.status_code == expected_status_code
+    for key in expected_response:
+        assert response.json[key] == expected_response[key]
+
+
+@pytest.mark.parametrize(
     ["archive1", "url1", "archive2", "url2"],
     [
         (
@@ -285,7 +401,8 @@ def test_upload_archive_overwrite_file(
             "tests/data/dir1_file2.tar",
             "/v1/archives"
         ),
-        # TODO: For some reason this test case fails
+        # TODO: For some reason this test case fails. See issue
+        # TPASPKT-722
         # (
         #     "tests/data/file1.tar",
         #     "/v1/archives?dir=dir1",

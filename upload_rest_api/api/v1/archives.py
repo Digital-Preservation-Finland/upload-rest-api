@@ -39,12 +39,14 @@ def upload_archive():
     try:
         response = up.save_archive(database, file_path, upload_dir)
     except (MemberOverwriteError, up.OverwriteError) as error:
-        return utils.make_response(409, str(error))
+        response = utils.make_response(409, str(error))
     except MemberTypeError as error:
-        return utils.make_response(415, str(error))
+        response = utils.make_response(415, str(error))
     except MemberNameError as error:
-        return utils.make_response(400, str(error))
+        response = utils.make_response(400, str(error))
     except up.QuotaError as error:
-        return utils.make_response(413, str(error))
+        response = utils.make_response(413, str(error))
+    except up.DataIntegrityError as error:
+        response = utils.make_response(400, str(error))
 
     return response
