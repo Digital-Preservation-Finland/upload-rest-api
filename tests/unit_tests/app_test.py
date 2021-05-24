@@ -116,7 +116,7 @@ def test_user_quota(app, test_auth, mock_mongo):
 def test_used_quota(app, test_auth, mock_mongo, requests_mock):
     """Test that used quota is calculated correctly."""
     # Mock Metax
-    requests_mock.get("https://metax.fd-test.csc.fi/rest/v1/files?limit=10000&"
+    requests_mock.get("https://metax.fd-test.csc.fi/rest/v2/files?limit=10000&"
                       "project_identifier=test_project",
                       json={'next': None, 'results': []})
 
@@ -633,14 +633,14 @@ def test_delete_file(app, test_auth, requests_mock, mock_mongo):
         ]
     }
     # Mock Metax
-    requests_mock.get("https://metax.fd-test.csc.fi/rest/v1/files?limit=10000&"
+    requests_mock.get("https://metax.fd-test.csc.fi/rest/v2/files?limit=10000&"
                       "project_identifier=test_project",
                       json=response)
 
-    requests_mock.post("https://metax.fd-test.csc.fi/rest/v1/files/datasets",
+    requests_mock.post("https://metax.fd-test.csc.fi/rest/v2/files/datasets",
                        json={})
 
-    requests_mock.delete("https://metax.fd-test.csc.fi/rest/v1/files/foo",
+    requests_mock.delete("https://metax.fd-test.csc.fi/rest/v2/files/foo",
                          json='/test.txt')
 
     test_client = app.test_client()
@@ -721,7 +721,7 @@ def test_get_files(app, test_auth, path, expected_data, requests_mock):
     :param data: expected response data
     """
     requests_mock.get(
-        'https://metax.fd-test.csc.fi/rest/v1/directories/files',
+        'https://metax.fd-test.csc.fi/rest/v2/directories/files',
         json={'identifier': 'foo', 'directories': []}
     )
 
@@ -766,7 +766,7 @@ def test_get_directory_without_identifier(app, test_auth, requests_mock):
 
     # Metax responds with 404, which means that test directory metadata
     # does not (yet) exist in Metax.
-    requests_mock.get('https://metax.fd-test.csc.fi/rest/v1/directories/'
+    requests_mock.get('https://metax.fd-test.csc.fi/rest/v2/directories/'
                       'files',
                       status_code=404)
 
@@ -804,14 +804,14 @@ def test_delete_files(
         ]
     }
     # Mock Metax
-    requests_mock.get("https://metax.fd-test.csc.fi/rest/v1/files?limit=10000&"
+    requests_mock.get("https://metax.fd-test.csc.fi/rest/v2/files?limit=10000&"
                       "project_identifier=test_project",
                       json=response)
 
-    requests_mock.post("https://metax.fd-test.csc.fi/rest/v1/files/datasets",
+    requests_mock.post("https://metax.fd-test.csc.fi/rest/v2/files/datasets",
                        json={})
 
-    requests_mock.delete("https://metax.fd-test.csc.fi/rest/v1/files",
+    requests_mock.delete("https://metax.fd-test.csc.fi/rest/v2/files",
                          json=['/test/test.txt'])
 
     test_client = app.test_client()
@@ -842,7 +842,7 @@ def test_delete_files(
     assert checksums.count({}) == 1
 
     # DELETE the whole project
-    requests_mock.delete("https://metax.fd-test.csc.fi/rest/v1/files",
+    requests_mock.delete("https://metax.fd-test.csc.fi/rest/v2/files",
                          json=['/test.txt'])
     response = test_client.delete(
         "/v1/files",
@@ -890,19 +890,19 @@ def test_delete_metadata(
         ]
     }
     # Mock Metax
-    requests_mock.get("https://metax.fd-test.csc.fi/rest/v1/files?limit=10000&"
+    requests_mock.get("https://metax.fd-test.csc.fi/rest/v2/files?limit=10000&"
                       "project_identifier=test_project",
                       json=response)
-    requests_mock.post("https://metax.fd-test.csc.fi/rest/v1/files/datasets",
+    requests_mock.post("https://metax.fd-test.csc.fi/rest/v2/files/datasets",
                        json=['dataset_identifier'])
-    requests_mock.get("https://metax.fd-test.csc.fi/rest/v1/datasets/"
+    requests_mock.get("https://metax.fd-test.csc.fi/rest/v2/datasets/"
                       "dataset_identifier",
                       json={"preservation_state": 75})
     adapter = requests_mock.delete(
-        "https://metax.fd-test.csc.fi/rest/v1/files",
+        "https://metax.fd-test.csc.fi/rest/v2/files",
         json={"deleted_files_count": 1}
     )
-    requests_mock.delete("https://metax.fd-test.csc.fi/rest/v1/files/foo",
+    requests_mock.delete("https://metax.fd-test.csc.fi/rest/v2/files/foo",
                          json={})
 
     test_client = app.test_client()
@@ -971,20 +971,20 @@ def test_delete_metadata_dataset_accepted(
         ]
     }
     # Mock Metax
-    requests_mock.get("https://metax.fd-test.csc.fi/rest/v1/files?limit=10000&"
+    requests_mock.get("https://metax.fd-test.csc.fi/rest/v2/files?limit=10000&"
                       "project_identifier=test_project",
                       json=response)
 
-    requests_mock.post("https://metax.fd-test.csc.fi/rest/v1/files/datasets",
+    requests_mock.post("https://metax.fd-test.csc.fi/rest/v2/files/datasets",
                        json=['dataset_identifier'])
-    requests_mock.get("https://metax.fd-test.csc.fi/rest/v1/datasets/"
+    requests_mock.get("https://metax.fd-test.csc.fi/rest/v2/datasets/"
                       "dataset_identifier",
                       json={"preservation_state": 80})
     adapter = requests_mock.delete(
-        "https://metax.fd-test.csc.fi/rest/v1/files",
+        "https://metax.fd-test.csc.fi/rest/v2/files",
         json={"deleted_files_count": 0}
     )
-    requests_mock.delete("https://metax.fd-test.csc.fi/rest/v1/files/foo",
+    requests_mock.delete("https://metax.fd-test.csc.fi/rest/v2/files/foo",
                          json={})
 
     test_client = app.test_client()
@@ -1037,7 +1037,7 @@ def test_post_metadata(app, test_auth, requests_mock, background_job_runner):
 
     # Mock Metax HTTP response
     requests_mock.post(
-        "https://metax.fd-test.csc.fi/rest/v1/files/",
+        "https://metax.fd-test.csc.fi/rest/v2/files/",
         json={"success": [], "failed": ["fail1", "fail2"]}
     )
 
@@ -1163,7 +1163,7 @@ def test_post_metadata_failure(app, test_auth, requests_mock,
     )
 
     # Mock Metax HTTP response
-    requests_mock.post("https://metax.fd-test.csc.fi/rest/v1/files/",
+    requests_mock.post("https://metax.fd-test.csc.fi/rest/v2/files/",
                        status_code=400,
                        json=metax_response)
 

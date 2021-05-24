@@ -82,7 +82,7 @@ def test_metax_ssl_verification(requests_mock, verify):
     :param requests_mock: HTTP request mocker
     :param verify: value for MetaxClient `verify` parameter
     """
-    requests_mock.get('https://foo/rest/v1/datasets/qux', json={})
+    requests_mock.get('https://foo/rest/v2/datasets/qux', json={})
 
     md.MetaxClient(url='https://foo',
                    user='bar',

@@ -67,14 +67,14 @@ def test_delete_files(app, test_auth, requests_mock, background_job_runner):
             } for i in range(1000)
         ]
     }
-    requests_mock.get("https://metax.fd-test.csc.fi/rest/v1/files?limit=10000&"
+    requests_mock.get("https://metax.fd-test.csc.fi/rest/v2/files?limit=10000&"
                       "project_identifier=test_project",
                       json=response)
 
-    requests_mock.post("https://metax.fd-test.csc.fi/rest/v1/files/datasets",
+    requests_mock.post("https://metax.fd-test.csc.fi/rest/v2/files/datasets",
                        json={})
 
-    requests_mock.delete("https://metax.fd-test.csc.fi/rest/v1/files",
+    requests_mock.delete("https://metax.fd-test.csc.fi/rest/v2/files",
                          json=['test/%i.txt' % i for i in range(1000)])
 
     with mock.patch(
@@ -96,7 +96,7 @@ def test_post_metadata(app, test_auth, requests_mock, background_job_runner):
     _upload_archive(client, test_auth)
 
     # Mock Metax HTTP response
-    requests_mock.post("https://metax.fd-test.csc.fi/rest/v1/files/",
+    requests_mock.post("https://metax.fd-test.csc.fi/rest/v2/files/",
                        json={"foo": "bar"})
 
     with mock.patch(
@@ -130,21 +130,21 @@ def test_delete_metadata(app, test_auth, requests_mock, background_job_runner):
             } for i in range(1000)
         ]
     }
-    requests_mock.get("https://metax.fd-test.csc.fi/rest/v1/files?limit=10000&"
+    requests_mock.get("https://metax.fd-test.csc.fi/rest/v2/files?limit=10000&"
                       "project_identifier=test_project",
                       json=response)
 
-    requests_mock.post("https://metax.fd-test.csc.fi/rest/v1/files/datasets",
+    requests_mock.post("https://metax.fd-test.csc.fi/rest/v2/files/datasets",
                        json=['dataset_identifier'])
 
-    requests_mock.get("https://metax.fd-test.csc.fi/rest/v1/datasets/"
+    requests_mock.get("https://metax.fd-test.csc.fi/rest/v2/datasets/"
                       "dataset_identifier",
                       json={"preservation_state": 75})
 
-    requests_mock.delete("https://metax.fd-test.csc.fi/rest/v1/files",
+    requests_mock.delete("https://metax.fd-test.csc.fi/rest/v2/files",
                          json={"deleted_files_count": 1000})
 
-    requests_mock.delete("https://metax.fd-test.csc.fi/rest/v1/files/foo",
+    requests_mock.delete("https://metax.fd-test.csc.fi/rest/v2/files/foo",
                          json={})
 
     with mock.patch(
