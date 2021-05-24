@@ -44,7 +44,7 @@ def iso8601_timestamp(fpath):
     timestamp = datetime.fromtimestamp(
         os.stat(fpath).st_atime, tz=timezone.utc
     ).replace(microsecond=0)
-    return "{}+00:00".format(timestamp.replace(microsecond=0).isoformat())
+    return timestamp.replace(microsecond=0).isoformat()
 
 
 def _timestamp_now():
