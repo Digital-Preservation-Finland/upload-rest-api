@@ -23,18 +23,6 @@ SALT_LEN = 20
 ITERATIONS = 200000
 HASH_ALG = "sha512"
 
-# Default MongoDB document size is 4 MB, but let's use 2 MB just to be
-# sure.
-MESSAGE_CHUNK_SIZE = 2000000
-
-
-def _iter_chunks(data, size=MESSAGE_CHUNK_SIZE):
-    """Split data into chunks of given size and yield them one at a
-    time.
-    """
-    for i in range(0, len(data), size):
-        yield data[i:i + size]
-
 
 def get_random_string(chars):
     """Generate random string.
@@ -498,12 +486,6 @@ class Tasks(object):
         """
         tasks = list(self.tasks.find({"project": project, "status": status}))
 
-        # Populate the message field by fetching the chunks, if any
-        for task in tasks:
-            message = self._get_message(task)
-            if message:
-                task["message"] = message
-
         return tasks
 
     def _sync_task_status(self, task):
@@ -543,55 +525,7 @@ class Tasks(object):
             # Synchronize RQ and MongoDB state if they're out of sync
             task = self._sync_task_status(task)
 
-            message = self._get_message(task)
-            if message:
-                task["message"] = message
-
         return task
-
-    def _get_message(self, task):
-        """Get the individual chunk documents and return the
-        reconstructed message.
-        """
-        task_id = task["_id"]
-        chunk_count = task.get("message_chunks", 0)
-
-        if chunk_count == 0:
-            return None
-
-        chunks = self.task_messages.find({
-            "task_id": task_id,
-            "chunk_id": {"$in": list(range(0, chunk_count))}
-        })
-        chunks = list(chunks)
-        chunks.sort(key=lambda entry: entry["chunk_id"])
-
-        message = "".join([chunk["chunk"] for chunk in chunks])
-
-        return message
-
-    def _set_message(self, task_id, message):
-        """Create the individual message chunks.
-
-        :returns: The amount of chunks used to save the message
-        """
-        chunk_count = 0
-        for i, chunk in enumerate(_iter_chunks(message)):
-            self.task_messages.update_one(
-                {"task_id": task_id, "chunk_id": i},
-                {
-                    "$set": {
-                        "task_id": task_id,
-                        "chunk_id": i,
-                        "chunk": chunk
-                    }
-                },
-                upsert=True
-            )
-
-            chunk_count += 1
-
-        return chunk_count
 
     def update_status(self, task_id, status):
         """Update status of the task.
@@ -599,12 +533,13 @@ class Tasks(object):
         :param str task_id: task id as string
         :param str status: new status for the task
         """
-        if not self.exists(task_id):
-            raise TaskNotFoundError("Task '%s' not found" % task_id)
-        self.tasks.update_one(
+        result = self.tasks.update_one(
             {"_id": ObjectId(task_id)},
             {"$set": {"status": status}}
         )
+
+        if result.matched_count == 0:
+            raise TaskNotFoundError("Task '%s' not found" % task_id)
 
     def update_message(self, task_id, message):
         """Update message of the task.
@@ -612,17 +547,12 @@ class Tasks(object):
         :param str task_id: task id as string
         :param str message: new message for the task
         """
-        if not self.exists(task_id):
-            raise TaskNotFoundError("Task '%s' not found" % task_id)
-
-        chunk_count = self._set_message(
-            task_id=ObjectId(task_id),
-            message=message
-        )
-        self.tasks.update_one(
+        result = self.tasks.update_one(
             {"_id": ObjectId(task_id)},
-            {"$set": {"message_chunks": chunk_count}}
+            {"$set": {"message": message}}
         )
+        if result.matched_count == 0:
+            raise TaskNotFoundError("Task '%s' not found" % task_id)
 
     def update_error(self, task_id, error_message, files=None):
         """Update error information of the task.
@@ -631,10 +561,7 @@ class Tasks(object):
         :param str error_message: Error message
         :param list files: Files that caused error
         """
-        if not self.exists(task_id):
-            raise TaskNotFoundError("Task '%s' not found" % task_id)
-
-        self.tasks.update_one(
+        result = self.tasks.update_one(
             {
                 "_id": ObjectId(task_id)
             },
@@ -650,26 +577,8 @@ class Tasks(object):
             }
         )
 
-    def update_md5(self, task_id, md5):
-        """Update md5 of the task.
-
-        :param str task_id: task id as string
-        :param str md5: new md5 for the task
-        """
-        if not self.exists(task_id):
+        if result.matched_count == 0:
             raise TaskNotFoundError("Task '%s' not found" % task_id)
-        self.tasks.update_one(
-            {"_id": ObjectId(task_id)},
-            {"$set": {"md5": md5}}
-        )
-
-    def exists(self, task_id):
-        """Check if the task is found in the db.
-
-        :param str task_id: task id as string
-        :return True if task exists
-        """
-        return self.tasks.find_one({"_id": ObjectId(task_id)}) is not None
 
     def get_all_tasks(self):
         """Return all tasks."""

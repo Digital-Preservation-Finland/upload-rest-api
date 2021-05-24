@@ -1,7 +1,9 @@
 """Unit tests for database module."""
 import binascii
-import json
 import re
+
+import bson
+import pytest
 
 import upload_rest_api.database as db
 
@@ -168,11 +170,9 @@ def test_async_task_update(tasks_col):
     assert task["status"] == "done"
     assert "message" not in task
     tasks_col.update_message(task_id_1, "Message")
-    tasks_col.update_md5(task_id_1, "123456789")
     task = tasks_col.get(task_id_1)
     assert task["status"] == "done"
     assert task["message"] == "Message"
-    assert task["md5"] == "123456789"
 
 
 def test_async_task_delete(tasks_col):
@@ -190,50 +190,16 @@ def test_async_task_delete(tasks_col):
     assert tasks_col.delete([task_id_1, task_id_2]) == 2
 
 
-def test_async_task_large_message(tasks_col):
-    """Test updating a task with a large message and ensure it is split
-    into multiple chunks correctly.
+@pytest.mark.parametrize('method',
+                         ['update_status', 'update_message', 'update_error'])
+def test_task_not_found(tasks_col, method):
+    """Test that error is raised if task is not found.
+
+    :param tasks_col: Tasks object
+    :param method: method to be tested
     """
-    biggus_dictus = {
-        "spam": ["lorem ipsum {}".format(i) for i in range(0, 200000)],
-        "eggs": ["ipsum lorem {}".format(i) for i in range(0, 200000)],
-        "ham": ["blah blah blah {}".format(i) for i in range(0, 200000)],
-    }
-    # JSON-encoded dict is ~13 MB in size
-    message = json.dumps(biggus_dictus)
+    # Create valid random identifier
+    task_identifier = bson.objectid.ObjectId()
 
-    task_id = tasks_col.create("test_project")
-    tasks_col.update_message(task_id, message)
-
-    # Message can be retrieved through 'get' and 'find'
-    task = tasks_col.get(task_id)
-    assert task["message"] == message
-
-    task = tasks_col.find("test_project", "pending")[0]
-    assert task["message"] == message
-
-    # Per 2 MB chunk size, message was split into 7 chunks
-    assert tasks_col.task_messages.count({"task_id": task_id}) == 7
-
-    tasks_col.delete([task_id])
-
-    # Message is deleted as well
-    assert tasks_col.task_messages.count({"task_id": task_id}) == 0
-
-
-def test_async_task_include_message(tasks_col):
-    """Test retrieving tasks without task messages."""
-    task_id_a = tasks_col.create("test_project_a")
-    task_id_b = tasks_col.create("test_project_b")
-    tasks_col.update_message(task_id_a, "Test message 1")
-    tasks_col.update_message(task_id_b, "Test message 2")
-
-    all_tasks = tasks_col.get_all_tasks()
-
-    assert all_tasks[0]["_id"] == task_id_a
-    assert all_tasks[1]["_id"] == task_id_b
-
-    # Messages are not included when retrieving all tasks, as it would
-    # consume a ton of memory otherwise
-    assert "message" not in all_tasks[0]
-    assert "message" not in all_tasks[1]
+    with pytest.raises(db.TaskNotFoundError, match='Task .* not found'):
+        tasks_col.__getattribute__(method)(task_identifier, 'bar')
