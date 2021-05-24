@@ -32,26 +32,6 @@ def _get_dir_tree(project, fpath, root_upload_path):
     return file_dict
 
 
-def _get_dir_files(fpath):
-    """Return all files in directory.
-
-    :param fpath: path to directory,
-    :returns: List of files in directory
-    """
-    return [x for x in os.listdir(fpath)
-            if os.path.isfile(os.path.join(fpath, x))]
-
-
-def _get_dir_subdirectories(fpath):
-    """Return all subdirectories in directory.
-
-    :param fpath: path to directory,
-    :returns: List of subdirectories in directory
-    """
-    return [x for x in os.listdir(fpath)
-            if os.path.isdir(os.path.join(fpath, x))]
-
-
 @FILES_API_V1.route("/<path:fpath>", methods=["POST"])
 def upload_file(fpath):
     """Save the uploaded file at <UPLOAD_PATH>/project/fpath.
@@ -123,10 +103,15 @@ def get_path(fpath):
         except metax_access.DirectoryNotAvailableError:
             identifier = None
 
+        # Create a list of directories and files to avoid scanning the
+        # directory twice
+        # pylint: disable=unnecessary-comprehension
+        entries = [entry for entry in os.scandir(fpath)]
+
         response = {
             'identifier': identifier,
-            'directories': _get_dir_subdirectories(fpath),
-            'files': _get_dir_files(fpath)
+            'directories': [entry.name for entry in entries if entry.is_dir()],
+            'files':  [entry.name for entry in entries if entry.is_file()]
         }
 
     else:
