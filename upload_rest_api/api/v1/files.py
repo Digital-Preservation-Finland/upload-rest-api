@@ -105,8 +105,7 @@ def get_path(fpath):
 
         # Create a list of directories and files to avoid scanning the
         # directory twice
-        # pylint: disable=unnecessary-comprehension
-        entries = [entry for entry in os.scandir(fpath)]
+        entries = list(os.scandir(fpath))
 
         response = {
             'identifier': identifier,
