@@ -193,17 +193,14 @@ def test_file_integrity_validation(app, test_auth, checksum,
     :param expected_status_code: expected status of response from API
     :param expected_response: expected JSON response from API
     """
-    # Create HTTP request headers with checksum
-    headers = {'Content-Md5': checksum}
-    headers.update(test_auth)
-
     # Post archive
     test_client = app.test_client()
     with open('tests/data/test.txt', "rb") as test_file:
         response = test_client.post(
             '/v1/files/test_path',
+            query_string={'md5': checksum},
             input_stream=test_file,
-            headers=headers
+            headers=test_auth
         )
 
     # Check response
@@ -373,18 +370,14 @@ def test_archive_integrity_validation(app, test_auth, checksum,
     :param expected_status_code: expected status of response from API
     :param expected_response: expected JSON response from API
     """
-    # Create HTTP request headers with checksum
-    headers = {'Content-Md5': checksum}
-    headers.update(test_auth)
-
     # Post archive
     test_client = app.test_client()
     with open('tests/data/test.tar.gz', "rb") as test_file:
         response = test_client.post(
             '/v1/archives',
-            query_string={'dir': 'test_directory'},
+            query_string={'dir': 'test_directory', 'md5': checksum},
             input_stream=test_file,
-            headers=headers
+            headers=test_auth
         )
 
     # Check response
@@ -398,7 +391,6 @@ def test_archive_integrity_validation(app, test_auth, checksum,
                      'test_project',
                      'test_directory')
     )
-
 
 
 @pytest.mark.parametrize(
