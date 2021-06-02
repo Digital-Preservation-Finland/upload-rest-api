@@ -212,11 +212,12 @@ def test_gen_metadata_file(
 )
 def test_delete_metadata(
         app, accepted_dataset, test_auth, background_job_runner):
-    """Verifies that metadata is 1) deleted for a file belonging to a
+    """Test metadata deletion.
+
+    Verifies that metadata is 1) deleted for a file belonging to a
     dataset not accepted to preservation and is 2) not deleted when file
     belongs to dataset accepted to preservation.
     """
-
     test_client = app.test_client()
 
     # Upload integration.zip, which is extracted by the server
@@ -261,7 +262,7 @@ def test_delete_metadata(
 
     if accepted_dataset:
         assert response.json["message"] \
-            == "Metadata is part of an accepted dataset"
+            == "Task failed"
         assert response.json["status"] == 'error'
     else:
         assert response.json["message"] == "1 files deleted"
