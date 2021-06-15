@@ -32,9 +32,8 @@ def _request_accepted(response):
         ("tests/data/test.tar.gz", ""),
         ("tests/data/test.tar.gz", "directory"),
         ("tests/data/test.tar.gz", "directory/subdirectory"),
-        # TODO: For some reason only relative paths are allowed, so this
-        # test case fails
-        # ("tests/data/test.tar.gz", "/directory"),
+        ("tests/data/test.tar.gz", "/directory"),
+        ("tests/data/test.tar.gz", "///directory"),
     ]
 )
 def test_upload_archive(
@@ -61,7 +60,7 @@ def test_upload_archive(
         response = background_job_runner(test_client, "upload", response)
     assert response.status_code == 200
 
-    fpath = os.path.join(upload_path, "test_project", dirpath)
+    fpath = os.path.join(upload_path, "test_project", dirpath.lstrip("/"))
     text_file = os.path.join(fpath, "test", "test.txt")
     archive_file = os.path.join(fpath, os.path.split(archive)[1])
 
@@ -262,7 +261,8 @@ def test_upload_two_archives(
 @pytest.mark.parametrize("dirpath", [
     "../",
     "dataset/../../",
-    "/dataset"
+    "/../",
+    "///../"
 ])
 def test_upload_invalid_dir(dirpath, app, test_auth):
     """Test that trying to extract outside the project return 404."""

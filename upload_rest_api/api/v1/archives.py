@@ -28,7 +28,7 @@ def upload_archive():
     if response:
         return response
 
-    upload_dir = request.args.get("dir", default=None)
+    upload_dir = request.args.get("dir", default="").lstrip("/")
     file_path, file_name = utils.get_tmp_upload_path()
 
     # Create directory if it does not exist
