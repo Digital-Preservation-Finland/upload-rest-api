@@ -223,7 +223,7 @@ def test_get_file(app, test_auth, test2_auth, test3_auth, mock_mongo):
 
     assert response.json["file_path"] == "/test.txt"
     assert response.json["md5"] == "150b62e4e7d58c70503bd5fc8a26463c"
-    assert response.json["metax_identifier"] == "None"
+    assert response.json["metax_identifier"] is None
 
     # GET file with user test2, which is in the same project
     response = test_client.get("/v1/files/test.txt", headers=test2_auth)

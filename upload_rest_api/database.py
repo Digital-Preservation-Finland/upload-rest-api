@@ -387,7 +387,7 @@ class Files(object):
         _file = self.files.find_one({"file_path": fpath})
 
         if _file is None:
-            return "None"
+            return None
 
         return _file["_id"]
 
