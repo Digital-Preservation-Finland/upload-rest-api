@@ -119,13 +119,13 @@ def _setup_modify_args(subparsers):
     )
 
 
-def _cleanup_files(args):
+def _cleanup_files(_args):
     """Clean files from the disk."""
     deleted_count = clean_disk()
     print("Cleaned %d files" % deleted_count)
 
 
-def _cleanup_mongo(args):
+def _cleanup_mongo(_args):
     """Clean identifiers from the mongo."""
     deleted_count = clean_mongo()
     print("Cleaned %d identifiers" % deleted_count)
@@ -199,13 +199,9 @@ def _generate_metadata(args):
         raise ValueError("Output file exists")
 
     conf = run_path("/etc/upload_rest_api.conf")
-    upload_path = conf["UPLOAD_PATH"]
-    database = db.Database()
     username = args.user
-    project = database.user(username).get_project()
-    project_path = os.path.join(
-        upload_path, project
-    )
+    project = db.Database().user(username).get_project()
+    project_path = os.path.join(conf["UPLOAD_PATH"], project)
     metax_client = md.MetaxClient(conf["METAX_URL"],
                                   conf["METAX_USER"],
                                   conf["METAX_PASSWORD"],
@@ -218,7 +214,7 @@ def _generate_metadata(args):
 
     # POST metadata to Metax
     response = metax_client.post_metadata(
-        fpaths, upload_path, username, md.PAS_FILE_STORAGE_ID
+        fpaths, conf["UPLOAD_PATH"], username, md.PAS_FILE_STORAGE_ID
     )
 
     print("Success: %d" % len(response["success"]))

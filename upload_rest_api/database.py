@@ -89,7 +89,7 @@ class TaskNotFoundError(Exception):
     """Exception for querying a task, which does not exist."""
 
 
-class Database(object):
+class Database:
     """Class for accessing data in mongodb."""
 
     def __init__(self):
@@ -142,7 +142,7 @@ class Database(object):
         return Tasks(self.client)
 
 
-class User(object):
+class User:
     """Class for managing users in the database."""
 
     def __init__(self, client, username, quota=5*1024**3):
@@ -316,7 +316,7 @@ class User(object):
         return self.users.find_one({"_id": self.username}) is not None
 
 
-class Checksums(object):
+class Checksums:
     """Class for managing checksums in the database."""
 
     def __init__(self, client):
@@ -367,7 +367,7 @@ class Checksums(object):
         }
 
 
-class Files(object):
+class Files:
     """Class for managing files in the database."""
 
     def __init__(self, client):
@@ -431,7 +431,7 @@ class Files(object):
         return [document["_id"] for document in documents]
 
 
-class Tasks(object):
+class Tasks:
     """Class for managing tasks in the database."""
 
     def __init__(self, client):

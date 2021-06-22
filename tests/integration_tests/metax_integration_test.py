@@ -49,7 +49,9 @@ def _upload_file(client, url, auth, fpath):
 
 @pytest.fixture(autouse=True)
 def clean_metax():
-    """DELETE all metadata from Metax that might be left from previous
+    """Clean Metax.
+
+    DELETE all metadata from Metax that might be left from previous
     runs.
     """
     metax_client = MetaxClient(URL, USER, PASSWORD)
@@ -74,7 +76,9 @@ def integration_mock_setup(app, mock_config):
 def test_gen_metadata_root(
         app, dataset, test_auth, monkeypatch, background_job_runner
 ):
-    """Test that calling /v1/metadata produces correct metadata for all
+    """Test metadata generation for root directory.
+
+    Test that calling /v1/metadata produces correct metadata for all
     files of the project and metadata is removed when the file is
     removed.
     """
@@ -147,7 +151,9 @@ def test_gen_metadata_root(
 )
 def test_gen_metadata_file(
         app, dataset, test_auth, monkeypatch, background_job_runner):
-    """Test that generating metadata for a single file works and the
+    """Test metadadata generation for single file.
+
+    Test that generating metadata for a single file works and the
     metadata is removed when project is deleted.
     """
     if dataset:
@@ -303,7 +309,9 @@ def test_delete_metadata(
 )
 def test_disk_cleanup(
         app, dataset, test_auth, monkeypatch, background_job_runner):
-    """Test that cleanup script removes file metadata from Metax if it
+    """Test file metadata clean up.
+
+    Test that cleanup script removes file metadata from Metax if it
     is not associated with any dataset.
     """
     # Mock configuration parsing
@@ -358,13 +366,15 @@ def test_disk_cleanup(
 def test_mongo_cleanup(
         app, test_auth, monkeypatch, background_job_runner
 ):
-    """Test that cleaning files from mongo deletes all files that
-    haven't been posted to Metax.
+    """Test database cleanup.
+
+    Test that cleaning files from mongo deletes all files that haven't
+    been posted to Metax.
     """
     test_client = app.test_client()
 
     # Mock Files mongo connection
-    def _mock_init(self, client):
+    def _mock_init(self, _client):
         host = app.config.get("MONGO_HOST")
         port = app.config.get("MONGO_PORT")
         self.files = pymongo.MongoClient(host, port).upload.files
@@ -435,9 +445,9 @@ def _create_dataset_with_file(accepted_dataset, dataset_file_data_block):
                         % str(resp.content))
     try:
         dataset = resp.json()
-    except Exception:
+    except Exception as exception:
         raise Exception("Error retrieving dataset template from metax: %s"
-                        % str(resp.content))
+                        % str(resp.content)) from exception
 
     dataset["research_dataset"]['files'] = []
     dataset["research_dataset"]['directories'] = []
