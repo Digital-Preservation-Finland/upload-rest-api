@@ -2,6 +2,7 @@
 import binascii
 import hashlib
 import os
+import pathlib
 import random
 import time
 from runpy import run_path
@@ -169,6 +170,13 @@ class User:
             self.username, quota, salt, digest.decode("utf-8")
         )
 
+    @property
+    def project_directory(self):
+        """Directory for project files."""
+        conf = parse_conf("/etc/upload_rest_api.conf")
+        return pathlib.Path(conf["UPLOAD_PATH"],
+                            secure_filename(self.get_project()))
+
     def create(self, project, password=None):
         """Add new user to the database.
 
@@ -201,6 +209,8 @@ class User:
                 "used_quota": 0
             }
         )
+
+        self.project_directory.mkdir(exist_ok=True)
 
         return passwd
 

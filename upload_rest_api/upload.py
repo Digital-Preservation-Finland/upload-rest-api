@@ -122,8 +122,7 @@ def save_archive(database, fpath, upload_dir):
     :returns: HTTP Response
     """
     username = request.authorization.username
-    project = database.user(username).get_project()
-    dir_path = utils.get_project_path(project)
+    dir_path = database.user(username).project_directory
     if upload_dir:
         dir_path = safe_join(dir_path, upload_dir)
         if os.path.isdir(dir_path):

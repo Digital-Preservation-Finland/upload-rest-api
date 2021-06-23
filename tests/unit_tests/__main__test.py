@@ -1,5 +1,6 @@
 """Tests for ``upload_rest_api.__main__`` module."""
 import sys
+import pathlib
 
 import mock
 import pytest
@@ -46,15 +47,20 @@ def test_get(capsys):
     assert out == "test1\ntest2\n"
 
 
-def test_create_user(mock_mongo):
-    """Test creating user test."""
+def test_create_user(mock_mongo, mock_config):
+    """Test creating user test.
+
+    User should be added to database and project directory should be
+    created.
+    """
     with mock.patch.object(
         sys, 'argv',
-        ['upload-rest-api', 'create', 'test', 'test']
+        ['upload-rest-api', 'create', 'test_user', 'test_project']
     ):
         upload_rest_api.__main__.main()
 
-    assert mock_mongo.upload.users.count({"_id": "test"}) == 1
+    assert mock_mongo.upload.users.count({"_id": "test_user"}) == 1
+    assert pathlib.Path(mock_config['UPLOAD_PATH'], 'test_project').exists()
 
 
 @pytest.mark.usefixtures('mock_mongo')

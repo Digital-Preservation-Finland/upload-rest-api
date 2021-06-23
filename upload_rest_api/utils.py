@@ -35,14 +35,6 @@ def get_upload_path(project, file_path, root_upload_path=None):
     return os.path.normpath(joined_path), secure_fname
 
 
-def get_project_path(project):
-    """Get upload path for a given project."""
-    root_upload_path = CONFIG.get("UPLOAD_PATH")
-    project = secure_filename(project)
-
-    return safe_join(root_upload_path, project)
-
-
 def get_tmp_upload_path():
     """Get temporary unique upload path for tar and zip files."""
     tmp_upload_path = os.path.join(CONFIG.get("UPLOAD_TMP_PATH"))

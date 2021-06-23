@@ -1,5 +1,6 @@
 """Unit tests for database module."""
 import binascii
+import pathlib
 import re
 
 import bson
@@ -20,7 +21,7 @@ def test_dir_size():
     assert db.get_dir_size("tests/data/test") == 0
 
 
-def test_create_user(user):
+def test_create_user(user, mock_config):
     """Test creation of new user."""
     users = user.users
     user.username = "test"
@@ -46,6 +47,24 @@ def test_create_user(user):
 
     project = user_dict["project"]
     assert project == "test_project"
+
+    assert (pathlib.Path(mock_config["UPLOAD_PATH"]) / "test_project").is_dir()
+
+
+def test_create_two_users(user):
+    """Test creating two users with same project."""
+    users = user.users
+
+    user.username = "test_user1"
+    user.create("test_project")
+
+    user.username = "test_user2"
+    user.create("test_project")
+
+    user1_project = users.find_one({"_id": "test_user1"})["project"]
+    user2_project = users.find_one({"_id": "test_user2"})["project"]
+
+    assert user1_project == user2_project == "test_project"
 
 
 def test_delete_user(user):
