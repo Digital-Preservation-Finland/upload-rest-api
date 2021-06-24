@@ -2,31 +2,18 @@
 import os
 import time
 import shutil
-from runpy import run_path
 
 import upload_rest_api.cleanup as clean
 
 
-def test_no_expired_files(app, monkeypatch):
+def test_no_expired_files(mock_config):
     """Test that files that are not too old are not removed nor
     are the access times changed by the cleanup itself.
     """
-    def _parse_conf(_fpath):
-        """Parse conf from include/etc/upload_rest_api.conf if fpath
-        doesn't exist.
-        """
-        conf = run_path("include/etc/upload_rest_api.conf")
-        conf["CLEANUP_TIMELIM"] = 10
-        conf["UPLOAD_PATH"] = app.config.get("UPLOAD_PATH")
-
-        return conf
-
-    monkeypatch.setattr(clean, "parse_conf", _parse_conf)
-
-    upload_path = app.config.get("UPLOAD_PATH")
+    mock_config["CLEANUP_TIMELIM"] = 10
 
     # Make test directory with test.txt file
-    dirpath = os.path.join(upload_path, "test")
+    dirpath = os.path.join(mock_config["UPLOAD_PATH"], "test")
     fpath = os.path.join(dirpath, "test.txt")
     os.makedirs(dirpath)
     shutil.copy("tests/data/test.txt", fpath)
@@ -48,23 +35,12 @@ def test_no_expired_files(app, monkeypatch):
     assert os.stat(fpath).st_mtime == last_access
 
 
-def test_expired_files(app, mock_mongo, monkeypatch):
+def test_expired_files(mock_mongo, mock_config):
     """Test that all the expired files and empty directories are
     removed.
     """
-    def _parse_conf(_fpath):
-        """Parse conf from include/etc/upload_rest_api.conf if fpath
-        doesn't exist.
-        """
-        conf = run_path("include/etc/upload_rest_api.conf")
-        conf["CLEANUP_TIMELIM"] = 10
-        conf["UPLOAD_PATH"] = app.config.get("UPLOAD_PATH")
-
-        return conf
-
-    monkeypatch.setattr(clean, "parse_conf", _parse_conf)
-
-    upload_path = app.config.get("UPLOAD_PATH")
+    mock_config["CLEANUP_TIMELIM"] = 10
+    upload_path = mock_config["UPLOAD_PATH"]
 
     # Make test directories with test.txt files
     fpath = os.path.join(upload_path, "test/test.txt")
@@ -99,19 +75,13 @@ def test_expired_files(app, mock_mongo, monkeypatch):
     assert os.path.isfile(fpath)
 
 
-def test_expired_tasks(app, mock_mongo, monkeypatch):
+def test_expired_tasks(mock_mongo, requests_mock, mock_config):
     """Test that only expired tasks are removed."""
-    def _parse_conf(_fpath):
-        """Parse conf from include/etc/upload_rest_api.conf if fpath
-        doesn't exist.
-        """
-        conf = run_path("include/etc/upload_rest_api.conf")
-        conf["CLEANUP_TIMELIM"] = 1
-        conf["UPLOAD_PATH"] = app.config.get("UPLOAD_PATH")
+    # Mock Metax HTTP responses
+    requests_mock.get('https://metax.fd-test.csc.fi/rest/v2/files',
+                      json={'next': None, 'results': []})
 
-        return conf
-
-    monkeypatch.setattr(clean, "parse_conf", _parse_conf)
+    mock_config["CLEANUP_TIMELIM"] = 1
 
     # Add tasks to mongo
     tasks = mock_mongo.upload.tasks

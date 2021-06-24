@@ -19,19 +19,6 @@ sys.path.insert(
 )
 
 
-@pytest.fixture(autouse=True)
-def parse_conf(monkeypatch):
-    """Parse conf from include/etc/upload_rest_api.conf."""
-    monkeypatch.setattr(
-        db, "parse_conf",
-        lambda conf: run_path("include/etc/upload_rest_api.conf")
-    )
-    monkeypatch.setattr(
-        "upload_rest_api.config.get_config",
-        lambda: run_path("include/etc/upload_rest_api.conf")
-    )
-
-
 @pytest.yield_fixture(scope="function")
 def upload_tmpdir(tmpdir):
     """Temporary directory for uploads."""
@@ -39,7 +26,7 @@ def upload_tmpdir(tmpdir):
     yield tmpdir.join("upload")
 
 
-@pytest.yield_fixture(scope="function")
+@pytest.yield_fixture(scope="function", autouse=True)
 def mock_config(monkeypatch, upload_tmpdir):
     """Mock the generic configuration located in
     `upload_rest_api.config` that is accessible whether Flask is active

@@ -44,7 +44,6 @@ def test_index(app, test_auth, wrong_auth):
     assert response.status_code == 401
 
 
-@pytest.mark.usefixtures('mock_config')
 def test_upload(app, test_auth, mock_mongo):
     """Test uploading a plain text file."""
     test_client = app.test_client()
@@ -105,7 +104,9 @@ def test_user_quota(app, test_auth, mock_mongo):
     assert response.status_code == 413
 
     # Check that the file was not actually created
-    assert not os.path.isdir(os.path.join(upload_path, "test_project"))
+    assert not os.path.isdir(os.path.join(upload_path,
+                                          "test_project",
+                                          "test.zip"))
 
 
 def test_used_quota(app, test_auth, mock_mongo, requests_mock):
@@ -209,7 +210,6 @@ def test_get_file(app, test_auth, test2_auth, test3_auth, mock_mongo):
     test_client = app.test_client()
     upload_path = app.config.get("UPLOAD_PATH")
 
-    os.makedirs(os.path.join(upload_path, "test_project"))
     fpath = os.path.join(upload_path, "test_project/test.txt")
     shutil.copy("tests/data/test.txt", fpath)
     mock_mongo.upload.checksums.insert_one({
@@ -264,7 +264,6 @@ def test_delete_file(app, test_auth, requests_mock, mock_mongo):
     upload_path = app.config.get("UPLOAD_PATH")
     fpath = os.path.join(upload_path, "test_project/test.txt")
 
-    os.makedirs(os.path.join(upload_path, "test_project"))
     shutil.copy("tests/data/test.txt", fpath)
     mock_mongo.upload.checksums.insert_one({"_id": fpath, "checksum": "foo"})
 

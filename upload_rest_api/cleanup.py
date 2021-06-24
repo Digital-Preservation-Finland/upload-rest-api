@@ -5,8 +5,8 @@ periodically using cron.
 import errno
 import os
 import time
-from runpy import run_path
 
+import upload_rest_api.config
 import upload_rest_api.database as db
 import upload_rest_api.gen_metadata as md
 
@@ -54,14 +54,9 @@ def _clean_old_tasks(time_lim):
             tasks.delete_one(task["_id"])
 
 
-def parse_conf(fpath):
-    """Parse config from file fpath."""
-    return run_path(fpath)
-
-
 def _get_projects():
     """Return a list of all projects with files uploaded."""
-    conf = parse_conf("/etc/upload_rest_api.conf")
+    conf = upload_rest_api.config.CONFIG
     upload_path = conf["UPLOAD_PATH"]
     dirs = []
 
@@ -106,7 +101,7 @@ def clean_project(project, fpath, metax=True):
 
     :returns: Number of deleted files
     """
-    conf = parse_conf("/etc/upload_rest_api.conf")
+    conf = upload_rest_api.config.CONFIG
     time_lim = conf["CLEANUP_TIMELIM"]
     upload_path = conf["UPLOAD_PATH"]
 
@@ -155,7 +150,7 @@ def clean_disk(metax=True):
 
     :returns: Count of deleted files
     """
-    conf = parse_conf("/etc/upload_rest_api.conf")
+    conf = upload_rest_api.config.CONFIG
     upload_path = conf["UPLOAD_PATH"]
     deleted_count = 0
 
@@ -175,7 +170,7 @@ def clean_mongo():
 
     :returns: Count of cleaned Mongo documents
     """
-    conf = parse_conf("/etc/upload_rest_api.conf")
+    conf = upload_rest_api.config.CONFIG
     url = conf["METAX_URL"]
     user = conf["METAX_USER"]
     password = conf["METAX_PASSWORD"]

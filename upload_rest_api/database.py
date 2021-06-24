@@ -5,7 +5,6 @@ import os
 import pathlib
 import random
 import time
-from runpy import run_path
 from string import ascii_letters, digits
 
 import pymongo
@@ -15,6 +14,8 @@ from flask import safe_join
 from rq.exceptions import NoSuchJobError
 from rq.job import Job
 from werkzeug.utils import secure_filename
+
+import upload_rest_api.config
 
 # Password vars
 PASSWD_LEN = 20
@@ -73,11 +74,6 @@ def get_dir_size(fpath):
     return size
 
 
-def parse_conf(fpath):
-    """Parse config from file fpath."""
-    return run_path(fpath)
-
-
 class UserExistsError(Exception):
     """Exception for trying to create a user, which already exists."""
 
@@ -95,7 +91,7 @@ class Database:
 
     def __init__(self):
         """Initialize connection to mongodb."""
-        conf = parse_conf("/etc/upload_rest_api.conf")
+        conf = upload_rest_api.config.CONFIG
         self.client = pymongo.MongoClient(conf["MONGO_HOST"],
                                           conf["MONGO_PORT"])
 
@@ -173,7 +169,7 @@ class User:
     @property
     def project_directory(self):
         """Directory for project files."""
-        conf = parse_conf("/etc/upload_rest_api.conf")
+        conf = upload_rest_api.config.CONFIG
         return pathlib.Path(conf["UPLOAD_PATH"],
                             secure_filename(self.get_project()))
 

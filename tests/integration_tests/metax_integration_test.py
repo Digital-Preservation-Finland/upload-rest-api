@@ -3,10 +3,9 @@
 URL endpoints that send requests to Metax are tested. Tests make sure
 that the metadata is correctly posted and deleted.
 
-These tests require the METAX_URL, METAX_USER and METAX_PASSWORD to be
-defined in /etc/upload_rest_api.conf. If password is not found in
-configuration file, the test will prompt password from user, but some
-tests still do not work.
+These tests require the METAX_PASSWORD variable to be defined in
+/etc/upload_rest_api.conf. If password is not found in configuration
+file, the test will prompt password from user.
 """
 import getpass
 import os
@@ -68,7 +67,6 @@ def integration_mock_setup(app, mock_config):
     mock_config["METAX_PASSWORD"] = PASSWORD
 
 
-@pytest.mark.usefixtures('mock_config')
 @pytest.mark.parametrize(
     "dataset", [True, False],
     ids=["File has a dataset", "File has no dataset"]
@@ -308,24 +306,15 @@ def test_delete_metadata(
     ids=["File has a dataset", "File has no dataset"]
 )
 def test_disk_cleanup(
-        app, dataset, test_auth, monkeypatch, background_job_runner):
+    app, dataset, test_auth, monkeypatch, background_job_runner, mock_config
+):
     """Test file metadata clean up.
 
     Test that cleanup script removes file metadata from Metax if it
     is not associated with any dataset.
     """
-    # Mock configuration parsing
-    def _mock_conf(fpath):
-        if not os.path.isfile(fpath):
-            fpath = "include/etc/upload_rest_api.conf"
-
-        conf = run_path(fpath)
-        conf["UPLOAD_PATH"] = app.config.get("UPLOAD_PATH")
-        conf["CLEANUP_TIMELIM"] = -1
-
-        return conf
-
-    monkeypatch.setattr(clean, "parse_conf", _mock_conf)
+    # Mock configuration
+    mock_config["CLEANUP_TIMELIM"] = -1
 
     if dataset:
         # Mock file_has_dataset to always return True
@@ -364,13 +353,17 @@ def test_disk_cleanup(
 
 
 def test_mongo_cleanup(
-        app, test_auth, monkeypatch, background_job_runner
+        app, test_auth, monkeypatch, background_job_runner, mock_config
 ):
     """Test database cleanup.
 
     Test that cleaning files from mongo deletes all files that haven't
     been posted to Metax.
     """
+    # Mock configuration
+    mock_config["METAX_PASSWORD"] = PASSWORD
+    mock_config["CLEANUP_TIMELIM"] = -1
+
     test_client = app.test_client()
 
     # Mock Files mongo connection
@@ -380,20 +373,6 @@ def test_mongo_cleanup(
         self.files = pymongo.MongoClient(host, port).upload.files
 
     monkeypatch.setattr(db.Files, "__init__", _mock_init)
-
-    # Mock configuration parsing
-    def _mock_conf(fpath):
-        if not os.path.isfile(fpath):
-            fpath = "include/etc/upload_rest_api.conf"
-
-        conf = run_path(fpath)
-        conf["METAX_PASSWORD"] = PASSWORD
-        conf["UPLOAD_PATH"] = app.config.get("UPLOAD_PATH")
-        conf["CLEANUP_TIMELIM"] = -1
-
-        return conf
-
-    monkeypatch.setattr(clean, "parse_conf", _mock_conf)
 
     files_col = db.Database().files
 

@@ -2,8 +2,8 @@
 import os
 import argparse
 import json
-from runpy import run_path
 
+import upload_rest_api.config
 import upload_rest_api.database as db
 import upload_rest_api.gen_metadata as md
 from upload_rest_api.cleanup import clean_disk, clean_mongo
@@ -198,7 +198,7 @@ def _generate_metadata(args):
     if os.path.exists(args.output):
         raise ValueError("Output file exists")
 
-    conf = run_path("/etc/upload_rest_api.conf")
+    conf = upload_rest_api.config.CONFIG
     username = args.user
     project = db.Database().user(username).get_project()
     project_path = os.path.join(conf["UPLOAD_PATH"], project)
