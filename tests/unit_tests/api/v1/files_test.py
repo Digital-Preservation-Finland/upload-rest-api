@@ -1,5 +1,6 @@
 """Tests for ``upload_rest_api.api.v1.files`` module."""
 import os
+import pathlib
 import shutil
 
 import pytest
@@ -31,16 +32,15 @@ def _request_accepted(response):
     return response.status_code == 202
 
 
-def test_index(app, test_auth, wrong_auth):
-    """Test the application index page with correct
-    and incorrect credentials.
-    """
-    test_client = app.test_client()
-
-    response = test_client.get("/", headers=test_auth)
+def test_index(app, test_auth):
+    """Test the application index page."""
+    response = app.test_client().get("/", headers=test_auth)
     assert response.status_code == 404
 
-    response = test_client.get("/", headers=wrong_auth)
+
+def test_incorrect_authentication(app, wrong_auth):
+    """Test index page with incorrect authentication credentials."""
+    response = app.test_client().get("/", headers=wrong_auth)
     assert response.status_code == 401
 
 
@@ -394,87 +394,86 @@ def test_get_directory_without_identifier(app, test_auth, requests_mock):
                              'identifier': None}
 
 
-def test_delete_files(
-        app, test_auth, requests_mock, mock_mongo, background_job_runner
+@pytest.mark.parametrize('target', ['/test', '/'])
+def test_delete_directory(
+    app, test_auth, requests_mock, mock_mongo, background_job_runner, target
 ):
-    """Test DELETE for the whole project and a single dir."""
-    response = {
-        "next": None,
-        "results": [
-            {
-                "id": "foo",
-                "identifier": "foo",
-                "file_path": "/test.txt",
-                "file_storage": {
-                    "identifier": "urn:nbn:fi:att:file-storage-pas"
-                }
-            },
-            {
-                "id": "bar",
-                "identifier": "bar",
-                "file_path": "/test/test.txt",
-                "file_storage": {
-                    "identifier": "urn:nbn:fi:att:file-storage-pas"
-                }
-            }
-        ]
-    }
+    """Test deleting a directory."""
+    # Create test data
+    test_client = app.test_client()
+
+    _upload_file(test_client,
+                 '/v1/files/test.txt',
+                 test_auth,
+                 'tests/data/test.txt')
+
+    _upload_file(test_client,
+                 '/v1/files/test/test.txt',
+                 test_auth,
+                 'tests/data/test.txt')
+
+    # Find the target files
+    project_directory \
+        = pathlib.Path(app.config.get("UPLOAD_PATH")) / 'test_project'
+    target_files = list()
+    for root, _, files in os.walk(project_directory / target.strip('/')):
+        target_files += [pathlib.Path(root) / file_ for file_ in files]
+
     # Mock Metax
     requests_mock.get("https://metax.fd-test.csc.fi/rest/v2/files?limit=10000&"
                       "project_identifier=test_project",
-                      json=response)
+                      json={'results': [], 'next': None})
 
     requests_mock.post("https://metax.fd-test.csc.fi/rest/v2/files/datasets",
                        json={})
 
     requests_mock.delete("https://metax.fd-test.csc.fi/rest/v2/files",
-                         json=['/test/test.txt'])
+                         json=target_files)
+
+    # Delete a directory
+    response = test_client.delete(f"/v1/files{target}", headers=test_auth)
+    if _request_accepted(response):
+        response = background_job_runner(test_client, "files", response)
+    assert response.status_code == 200
+    assert response.json["message"] \
+        == f'Deleted files and metadata: {target}'
+
+    # The files in target directory should be deleted. Other files
+    # should still exist.
+    for file_ in [project_directory / 'test.txt',
+                  project_directory / 'test/test.txt']:
+        if file_ in target_files:
+            assert not file_.exists()
+            assert not mock_mongo.upload.checksums.find_one(
+                {"_id": str(file_)}
+            )
+        else:
+            assert file_.exists()
+            assert mock_mongo.upload.checksums.find_one({"_id": str(file_)})
+
+    # The target directory and subdirectories should be deleted. Other
+    # directories should still exist.
+    for directory in ['/test', '/']:
+        path = project_directory / directory.strip('/')
+        assert directory.startswith(target) is not path.exists()
+
+
+def test_delete_empty_project(app, test_auth, requests_mock,
+                              background_job_runner):
+    """Test DELETE for project that does not have any files."""
+    # Mock Metax
+    requests_mock.get("https://metax.fd-test.csc.fi/rest/v2/files?limit=10000&"
+                      "project_identifier=test_project",
+                      json={"next": None, "results": []})
 
     test_client = app.test_client()
-    upload_path = app.config.get("UPLOAD_PATH")
-    test_path_1 = os.path.join(upload_path, "test_project/test.txt")
-    test_path_2 = os.path.join(upload_path, "test_project/test/test.txt")
 
-    os.makedirs(os.path.join(upload_path, "test_project", "test/"))
-    shutil.copy("tests/data/test.txt", test_path_1)
-    shutil.copy("tests/data/test.txt", test_path_2)
-    checksums = mock_mongo.upload.checksums
-    checksums.insert_many([
-        {"_id": test_path_1, "checksum": "foo"},
-        {"_id": test_path_2, "checksum": "foo"},
-    ])
-
-    # DELETE single directory
-    response = test_client.delete(
-        "/v1/files/test",
-        headers=test_auth
-    )
+    # DELETE project
+    response = test_client.delete("/v1/files", headers=test_auth)
     if _request_accepted(response):
         response = background_job_runner(test_client, "files", response)
-
     assert response.status_code == 200
-    assert response.json["message"] == 'Deleted files and metadata: /test'
-    assert not os.path.exists(os.path.split(test_path_2)[0])
-    assert checksums.count({}) == 1
-
-    # DELETE the whole project
-    requests_mock.delete("https://metax.fd-test.csc.fi/rest/v2/files",
-                         json=['/test.txt'])
-    response = test_client.delete(
-        "/v1/files",
-        headers=test_auth
-    )
-    if _request_accepted(response):
-        response = background_job_runner(test_client, "files", response)
-
-    assert response.status_code == 200
-    assert response.json["message"] == "Deleted files and metadata: /"
-    assert not os.path.exists(os.path.split(test_path_1)[0])
-    assert checksums.count({}) == 0
 
     # DELETE project that does not exist
-    response = test_client.delete(
-        "/v1/files",
-        headers=test_auth
-    )
+    response = test_client.delete("/v1/files", headers=test_auth)
     assert response.status_code == 404
