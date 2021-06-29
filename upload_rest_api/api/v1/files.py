@@ -5,9 +5,8 @@ server.
 """
 import os
 
-from flask import Blueprint, current_app, jsonify, request, safe_join, url_for
+from flask import Blueprint, current_app, jsonify, request, url_for
 import metax_access
-from werkzeug.utils import secure_filename
 
 import upload_rest_api.database as db
 import upload_rest_api.gen_metadata as md
@@ -119,6 +118,8 @@ def get_path(fpath):
     return response
 
 
+@FILES_API_V1.route("/", defaults={'fpath': ""}, methods=["DELETE"],
+                    strict_slashes=False)
 @FILES_API_V1.route("/<path:fpath>", methods=["DELETE"])
 def delete_path(fpath):
     """Delete fpath under user's project.
@@ -204,43 +205,4 @@ def get_files():
 
     response = jsonify(_get_dir_tree(user, fpath))
     response.status_code = 200
-    return response
-
-
-@FILES_API_V1.route("", methods=["DELETE"], strict_slashes=False)
-def delete_files():
-    """Delete all files of a user.
-
-    :returns: HTTP Response
-    """
-    username = request.authorization.username
-    project = db.Database().user(username).get_project()
-    root_upload_path = current_app.config.get("UPLOAD_PATH")
-    fpath = safe_join(root_upload_path, secure_filename(project))
-
-    if not os.path.exists(fpath):
-        return utils.make_response(404, "No files found")
-
-    task_id = enqueue_background_job(
-        task_func="upload_rest_api.jobs.files.delete_files",
-        queue_name=FILES_QUEUE,
-        username=username,
-        job_kwargs={
-            "fpath": fpath,
-            "username": username
-        }
-    )
-
-    polling_url = utils.get_polling_url(TASK_STATUS_API_V1.name, task_id)
-    response = jsonify({
-        "file_path": "/",
-        "message": "Deleting files and metadata",
-        "polling_url": polling_url,
-        "status": "pending"
-    })
-    location = url_for(TASK_STATUS_API_V1.name + ".task_status",
-                       task_id=task_id)
-    response.headers[b'Location'] = location
-    response.status_code = 202
-
     return response

@@ -394,7 +394,7 @@ def test_get_directory_without_identifier(app, test_auth, requests_mock):
                              'identifier': None}
 
 
-@pytest.mark.parametrize('target', ['/test', '/'])
+@pytest.mark.parametrize('target', ['/test', '/', ''])
 def test_delete_directory(
     app, test_auth, requests_mock, mock_mongo, background_job_runner, target
 ):
@@ -436,7 +436,7 @@ def test_delete_directory(
         response = background_job_runner(test_client, "files", response)
     assert response.status_code == 200
     assert response.json["message"] \
-        == f'Deleted files and metadata: {target}'
+        == f'Deleted files and metadata: /{target.strip("/")}'
 
     # The files in target directory should be deleted. Other files
     # should still exist.
