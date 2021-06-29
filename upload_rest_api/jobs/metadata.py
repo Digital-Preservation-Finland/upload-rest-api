@@ -27,12 +27,11 @@ def post_metadata(path, username, storage_id, task_id):
     metax_client = md.MetaxClient()
     database = db.Database()
 
-    project = database.user(username).get_project()
+    user = database.user(username)
 
-    dirname, basename = utils.get_upload_path(project, path,
-                                              root_upload_path)
+    dirname, basename = utils.get_upload_path(user, path)
     fpath = os.path.join(dirname, basename)
-    return_path = utils.get_return_path(project, fpath, root_upload_path)
+    return_path = utils.get_return_path(user, fpath)
 
     database.tasks.update_message(
         task_id, "Creating metadata: {}".format(return_path)
@@ -83,10 +82,10 @@ def delete_metadata(fpath, username, task_id):
     metax_client = md.MetaxClient()
     database = db.Database()
 
-    project = database.user(username).get_project()
-    fpath, fname = utils.get_upload_path(project, fpath, root_upload_path)
+    user = database.user(username)
+    fpath, fname = utils.get_upload_path(user, fpath)
     fpath = os.path.join(fpath, fname)
-    ret_path = utils.get_return_path(project, fpath, root_upload_path)
+    ret_path = utils.get_return_path(user, fpath)
     database.tasks.update_message(
         task_id, "Deleting metadata: %s" % ret_path
     )
@@ -101,7 +100,10 @@ def delete_metadata(fpath, username, task_id):
         raise ClientError("File not found")
 
     try:
-        response = delete_func(project, fpath, root_upload_path, force=True)
+        response = delete_func(user.get_project(),
+                               fpath,
+                               root_upload_path,
+                               force=True)
     except md.MetaxClientError as error:
         raise ClientError(str(error)) from error
 

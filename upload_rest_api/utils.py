@@ -1,36 +1,30 @@
 """upload-rest-api utility functions."""
 import os
+import pathlib
 import uuid
 try:
     from urllib.parse import urlparse, urlunparse
 except ImportError:  # Python 2
     from urlparse import urlparse, urlunparse
 
-from flask import request, current_app, jsonify, safe_join, url_for
+from flask import request, jsonify, safe_join, url_for
 from werkzeug.utils import secure_filename
 
 
 from upload_rest_api.config import CONFIG
 
 
-def get_upload_path(project, file_path, root_upload_path=None):
+def get_upload_path(user, file_path):
     """Get upload path for file.
 
-    :param project: project identifier
+    :param user: user object
     :param file_path: relative file path
-    :param root_upload_path: root upload path
     :returns: tuple that contains real path of directory and file
               name
     """
-    if not root_upload_path:
-        root_upload_path = CONFIG.get("UPLOAD_PATH")
-
     fpath, fname = os.path.split(file_path)
     secure_fname = secure_filename(fname)
-    secure_project = secure_filename(project)
-
-    joined_path = safe_join(root_upload_path, secure_project)
-    joined_path = safe_join(joined_path, fpath)
+    joined_path = safe_join(user.project_directory, fpath)
 
     return os.path.normpath(joined_path), secure_fname
 
@@ -44,17 +38,21 @@ def get_tmp_upload_path():
     return fpath, fname
 
 
-def get_return_path(project, fpath, root_upload_path=None):
-    """Splice upload_path and project from fpath and return the path
-    shown to the user and POSTed to Metax.
+def get_return_path(user, fpath):
+    """Get path relative to project directory of user.
+
+    Splice project path from fpath and return the path shown to the user
+    and POSTed to Metax.
+
+    :param user: user object
+    :param fpath: full path
+    :returns: string presentation of relative path
     """
-    if not root_upload_path:
-        root_upload_path = current_app.config.get("UPLOAD_PATH")
+    path = pathlib.Path(fpath).relative_to(user.project_directory)
 
-    base_path = safe_join(root_upload_path, project)
-    ret_path = os.path.normpath(fpath[len(base_path):])
+    path_string = f"/{path}" if path != pathlib.Path('.') else '/'
 
-    return ret_path if ret_path != "." else "/"
+    return path_string
 
 
 def make_response(status_code, message):

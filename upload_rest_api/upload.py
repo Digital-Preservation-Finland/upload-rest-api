@@ -82,7 +82,7 @@ class DataIntegrityError(Exception):
     """Exception for data corruption during a transfer."""
 
 
-def save_file(database, project, fpath):
+def save_file(database, user, fpath):
     """Save the posted file on disk at fpath by reading
     the upload stream in 1MB chunks.
 
@@ -100,7 +100,7 @@ def save_file(database, project, fpath):
     # Add file checksum to mongo
     md5 = gen_metadata.md5_digest(fpath)
     database.checksums.insert_one(os.path.abspath(fpath), md5)
-    file_path = utils.get_return_path(project, fpath)
+    file_path = utils.get_return_path(user, fpath)
     response = jsonify({
         "file_path": file_path,
         "md5": md5,

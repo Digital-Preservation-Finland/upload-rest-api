@@ -23,13 +23,15 @@ def delete_files(fpath, username, task_id):
     # Remove metadata from Metax
     metax_client = md.MetaxClient()
     database = db.Database()
-    project = database.user(username).get_project()
-    ret_path = utils.get_return_path(project, fpath, root_upload_path)
+    user = database.user(username)
+    ret_path = utils.get_return_path(user, fpath)
     database.tasks.update_message(
         task_id,
         "Deleting files and metadata: %s" % ret_path
     )
-    metax_client.delete_all_metadata(project, fpath, root_upload_path)
+    metax_client.delete_all_metadata(user.get_project(),
+                                     fpath,
+                                     root_upload_path)
 
     # Remove checksum from mongo
     database.checksums.delete_dir(fpath)

@@ -24,9 +24,8 @@ def post_metadata(fpath):
     :returns: HTTP Response
     """
     username = request.authorization.username
-    project = db.Database().user(username).get_project()
-    root_upload_path = current_app.config.get("UPLOAD_PATH")
-    file_path, fname = utils.get_upload_path(project, fpath, root_upload_path)
+    user = db.Database().user(username)
+    file_path, fname = utils.get_upload_path(user, fpath)
     file_path = os.path.join(file_path, fname)
 
     storage_id = current_app.config.get("STORAGE_ID")
@@ -42,7 +41,7 @@ def post_metadata(fpath):
     )
 
     polling_url = utils.get_polling_url(TASK_STATUS_API_V1.name, task_id)
-    ret_path = utils.get_return_path(project, file_path, root_upload_path)
+    ret_path = utils.get_return_path(user, file_path)
     response = jsonify({
         "file_path": ret_path,
         "message": "Creating metadata",
@@ -70,9 +69,8 @@ def delete_metadata(fpath):
     :returns: HTTP Response
     """
     username = request.authorization.username
-    project = db.Database().user(username).get_project()
-    root_upload_path = current_app.config.get("UPLOAD_PATH")
-    file_path, fname = utils.get_upload_path(project, fpath, root_upload_path)
+    user = db.Database().user(username)
+    file_path, fname = utils.get_upload_path(user, fpath)
     file_path = os.path.join(file_path, fname)
 
     task_id = enqueue_background_job(
@@ -86,7 +84,7 @@ def delete_metadata(fpath):
     )
 
     polling_url = utils.get_polling_url(TASK_STATUS_API_V1.name, task_id)
-    ret_path = utils.get_return_path(project, file_path, root_upload_path)
+    ret_path = utils.get_return_path(user, file_path)
     response = jsonify({
         "file_path": ret_path,
         "message": "Deleting metadata",

@@ -19,11 +19,11 @@ from upload_rest_api.jobs.utils import FILES_QUEUE, enqueue_background_job
 FILES_API_V1 = Blueprint("files_v1", __name__, url_prefix="/v1/files")
 
 
-def _get_dir_tree(project, fpath, root_upload_path):
+def _get_dir_tree(user, fpath):
     """Return with dir tree from fpath as a dict."""
     file_dict = {}
     for dirpath, _, files in os.walk(fpath):
-        path = utils.get_return_path(project, dirpath, root_upload_path)
+        path = utils.get_return_path(user, dirpath)
         file_dict[path] = files
 
     if "." in file_dict:
@@ -40,13 +40,13 @@ def upload_file(fpath):
     """
     username = request.authorization.username
     database = db.Database()
-    project = database.user(username).get_project()
+    user = database.user(username)
 
     response = up.validate_upload(database)
     if response:
         return response
 
-    file_path, file_name = utils.get_upload_path(project, fpath)
+    file_path, file_name = utils.get_upload_path(user, fpath)
 
     # Create directory if it does not exist
     if not os.path.exists(file_path):
@@ -54,7 +54,7 @@ def upload_file(fpath):
 
     file_path = os.path.join(file_path, file_name)
     try:
-        response = up.save_file(database, project, file_path)
+        response = up.save_file(database, user, file_path)
     except up.OverwriteError as error:
         response = utils.make_response(409, str(error))
     except up.DataIntegrityError as error:
@@ -76,11 +76,11 @@ def get_path(fpath):
     """
     username = request.authorization.username
     database = db.Database()
-    project = database.user(username).get_project()
-    root_upload_path = current_app.config.get("UPLOAD_PATH")
-    fpath, fname = utils.get_upload_path(project, fpath, root_upload_path)
+    user = database.user(username)
+
+    fpath, fname = utils.get_upload_path(user, fpath)
     fpath = os.path.join(fpath, fname)
-    return_path = utils.get_return_path(project, fpath, root_upload_path)
+    return_path = utils.get_return_path(user, fpath)
 
     if os.path.isfile(fpath):
         response = {
@@ -98,7 +98,7 @@ def get_path(fpath):
             verify=current_app.config.get("METAX_SSL_VERIFICATION")
         )
         try:
-            identifier = metax.get_project_directory(project,
+            identifier = metax.get_project_directory(user.get_project(),
                                                      return_path)['identifier']
         except metax_access.DirectoryNotAvailableError:
             identifier = None
@@ -131,15 +131,16 @@ def delete_path(fpath):
     root_upload_path = current_app.config.get("UPLOAD_PATH")
     username = request.authorization.username
     database = db.Database()
-    project = database.user(username).get_project()
-    fpath, fname = utils.get_upload_path(project, fpath)
+    user = database.user(username)
+    fpath, fname = utils.get_upload_path(user, fpath)
     fpath = os.path.join(fpath, fname)
 
     if os.path.isfile(fpath):
         # Remove metadata from Metax
         try:
-            response = md.MetaxClient().delete_file_metadata(project, fpath,
-                                                             root_upload_path)
+            response = md.MetaxClient().delete_file_metadata(
+                user.get_project(), fpath, root_upload_path
+            )
         except md.MetaxClientError as exception:
             response = str(exception)
 
@@ -161,7 +162,8 @@ def delete_path(fpath):
 
         polling_url = utils.get_polling_url(TASK_STATUS_API_V1.name, task_id)
         response = jsonify({
-            "file_path": fpath[len(os.path.join(root_upload_path, project)):],
+            "file_path": fpath[len(os.path.join(root_upload_path,
+                                                user.get_project())):],
             "message": "Deleting files and metadata",
             "polling_url": polling_url,
             "status": "pending"
@@ -178,7 +180,7 @@ def delete_path(fpath):
     database.user(username).update_used_quota(root_upload_path)
 
     response = jsonify({
-        "file_path": utils.get_return_path(project, fpath, root_upload_path),
+        "file_path": utils.get_return_path(user, fpath),
         "message": "deleted",
         "metax": response
     })
@@ -194,14 +196,13 @@ def get_files():
     :return: HTTP Response
     """
     username = request.authorization.username
-    project = db.Database().user(username).get_project()
-    root_upload_path = current_app.config.get("UPLOAD_PATH")
-    fpath = safe_join(root_upload_path, secure_filename(project))
+    user = db.Database().user(username)
+    fpath = user.project_directory
 
     if not os.path.exists(fpath):
         return utils.make_response(404, "No files found")
 
-    response = jsonify(_get_dir_tree(project, fpath, root_upload_path))
+    response = jsonify(_get_dir_tree(user, fpath))
     response.status_code = 200
     return response
 
