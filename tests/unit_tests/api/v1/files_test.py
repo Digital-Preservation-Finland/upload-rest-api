@@ -451,15 +451,13 @@ def test_delete_directory(
             assert file_.exists()
             assert mock_mongo.upload.checksums.find_one({"_id": str(file_)})
 
-    # The target directory and subdirectories should be deleted. Other
-    # directories should still exist.
-    for directory in ['/test', '/']:
-        path = project_directory / directory.strip('/')
-        assert directory.startswith(target) is not path.exists()
+    # The target directory and subdirectories should be deleted. Project
+    # directory should still exist.
+    assert not (project_directory / 'test').exists()
+    assert project_directory.exists()
 
 
-def test_delete_empty_project(app, test_auth, requests_mock,
-                              background_job_runner):
+def test_delete_empty_project(app, test_auth, requests_mock):
     """Test DELETE for project that does not have any files."""
     # Mock Metax
     requests_mock.get("https://metax.fd-test.csc.fi/rest/v2/files?limit=10000&"
@@ -468,12 +466,7 @@ def test_delete_empty_project(app, test_auth, requests_mock,
 
     test_client = app.test_client()
 
-    # DELETE project
-    response = test_client.delete("/v1/files", headers=test_auth)
-    if _request_accepted(response):
-        response = background_job_runner(test_client, "files", response)
-    assert response.status_code == 200
-
-    # DELETE project that does not exist
+    # Try to delete project
     response = test_client.delete("/v1/files", headers=test_auth)
     assert response.status_code == 404
+    assert response.json['error'] == "No files found"

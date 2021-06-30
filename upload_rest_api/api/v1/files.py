@@ -147,6 +147,12 @@ def delete_path(fpath):
         database.checksums.delete_one(os.path.abspath(upload_path))
         os.remove(upload_path)
 
+    elif upload_path.exists() \
+            and upload_path.samefile(user.project_directory) \
+            and not any(upload_path.iterdir()):
+        # Trying to delete empty project directory
+        return utils.make_response(404, "No files found")
+
     elif os.path.isdir(upload_path):
         # Remove all file metadata of files under fpath from Metax
         task_id = enqueue_background_job(
@@ -196,9 +202,6 @@ def get_files():
     username = request.authorization.username
     user = db.Database().user(username)
     fpath = user.project_directory
-
-    if not os.path.exists(fpath):
-        return utils.make_response(404, "No files found")
 
     response = jsonify(_get_dir_tree(user, fpath))
     response.status_code = 200

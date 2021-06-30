@@ -1,5 +1,5 @@
 """Files API background jobs."""
-from shutil import rmtree
+import shutil
 
 import upload_rest_api.database as db
 import upload_rest_api.gen_metadata as md
@@ -36,8 +36,19 @@ def delete_files(fpath, username, task_id):
     # Remove checksum from mongo
     database.checksums.delete_dir(fpath)
 
-    # Remove project directory and update used_quota
-    rmtree(fpath)
-    database.user(username).update_used_quota(root_upload_path)
+    # Remove files
+    if fpath.samefile(user.project_directory):
+        # Remove all content of project directory
+        for child in fpath.iterdir():
+            if child.is_file():
+                child.unlink()
+            else:
+                shutil.rmtree(child)
+    else:
+        # Remove the whole directory
+        shutil.rmtree(fpath)
+
+    # Update used_quota
+    user.update_used_quota(root_upload_path)
 
     return "Deleted files and metadata: {}".format(ret_path)
