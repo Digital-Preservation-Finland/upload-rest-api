@@ -18,15 +18,14 @@ def get_upload_path(user, file_path):
     """Get upload path for file.
 
     :param user: user object
-    :param file_path: relative file path
-    :returns: tuple that contains real path of directory and file
-              name
+    :param file_path: file path relative to project directory of user
+    :returns: full path of file
     """
-    fpath, fname = os.path.split(file_path)
-    secure_fname = secure_filename(fname)
-    joined_path = safe_join(user.project_directory, fpath)
+    dirname, basename = os.path.split(file_path)
+    secure_fname = secure_filename(basename)
+    joined_path = safe_join(user.project_directory, dirname)
 
-    return os.path.normpath(joined_path), secure_fname
+    return pathlib.Path(joined_path).resolve() / secure_fname
 
 
 def get_tmp_upload_path():

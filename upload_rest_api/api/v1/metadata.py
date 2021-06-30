@@ -25,8 +25,7 @@ def post_metadata(fpath):
     """
     username = request.authorization.username
     user = db.Database().user(username)
-    file_path, fname = utils.get_upload_path(user, fpath)
-    file_path = os.path.join(file_path, fname)
+    file_path = utils.get_upload_path(user, fpath)
 
     storage_id = current_app.config.get("STORAGE_ID")
     task_id = enqueue_background_job(
@@ -70,8 +69,7 @@ def delete_metadata(fpath):
     """
     username = request.authorization.username
     user = db.Database().user(username)
-    file_path, fname = utils.get_upload_path(user, fpath)
-    file_path = os.path.join(file_path, fname)
+    file_path = utils.get_upload_path(user, fpath)
 
     task_id = enqueue_background_job(
         task_func="upload_rest_api.jobs.metadata.delete_metadata",

@@ -45,15 +45,13 @@ def upload_file(fpath):
     if response:
         return response
 
-    file_path, file_name = utils.get_upload_path(user, fpath)
+    upload_path = utils.get_upload_path(user, fpath)
 
     # Create directory if it does not exist
-    if not os.path.exists(file_path):
-        os.makedirs(file_path)
+    os.makedirs(upload_path.parent, exist_ok=True)
 
-    file_path = os.path.join(file_path, file_name)
     try:
-        response = up.save_file(database, user, file_path)
+        response = up.save_file(database, user, upload_path)
     except up.OverwriteError as error:
         response = utils.make_response(409, str(error))
     except up.DataIntegrityError as error:
@@ -77,19 +75,20 @@ def get_path(fpath):
     database = db.Database()
     user = database.user(username)
 
-    fpath, fname = utils.get_upload_path(user, fpath)
-    fpath = os.path.join(fpath, fname)
-    return_path = utils.get_return_path(user, fpath)
+    upload_path = utils.get_upload_path(user, fpath)
+    return_path = utils.get_return_path(user, upload_path)
 
-    if os.path.isfile(fpath):
+    if os.path.isfile(upload_path):
         response = {
             "file_path": return_path,
-            "identifier": database.files.get_identifier(fpath),
-            "md5": database.checksums.get_checksum(os.path.abspath(fpath)),
-            "timestamp": md.iso8601_timestamp(fpath)
+            "identifier": database.files.get_identifier(upload_path),
+            "md5": database.checksums.get_checksum(
+                os.path.abspath(upload_path)
+            ),
+            "timestamp": md.iso8601_timestamp(upload_path)
         }
 
-    elif os.path.isdir(fpath):
+    elif os.path.isdir(upload_path):
         metax = metax_access.Metax(
             url=current_app.config.get("METAX_URL"),
             user=current_app.config.get("METAX_USER"),
@@ -104,7 +103,7 @@ def get_path(fpath):
 
         # Create a list of directories and files to avoid scanning the
         # directory twice
-        entries = list(os.scandir(fpath))
+        entries = list(os.scandir(upload_path))
 
         response = {
             'identifier': identifier,
@@ -133,38 +132,36 @@ def delete_path(fpath):
     username = request.authorization.username
     database = db.Database()
     user = database.user(username)
-    fpath, fname = utils.get_upload_path(user, fpath)
-    fpath = os.path.join(fpath, fname)
+    upload_path = utils.get_upload_path(user, fpath)
 
-    if os.path.isfile(fpath):
+    if os.path.isfile(upload_path):
         # Remove metadata from Metax
         try:
             response = md.MetaxClient().delete_file_metadata(
-                user.get_project(), fpath, root_upload_path
+                user.get_project(), upload_path, root_upload_path
             )
         except md.MetaxClientError as exception:
             response = str(exception)
 
         # Remove checksum from mongo
-        database.checksums.delete_one(os.path.abspath(fpath))
-        os.remove(fpath)
+        database.checksums.delete_one(os.path.abspath(upload_path))
+        os.remove(upload_path)
 
-    elif os.path.isdir(fpath):
-        # Remove all file metadata of files under dir fpath from Metax
+    elif os.path.isdir(upload_path):
+        # Remove all file metadata of files under fpath from Metax
         task_id = enqueue_background_job(
             task_func="upload_rest_api.jobs.files.delete_files",
             queue_name=FILES_QUEUE,
             username=username,
             job_kwargs={
-                "fpath": fpath,
+                "fpath": upload_path,
                 "username": username
             }
         )
 
         polling_url = utils.get_polling_url(TASK_STATUS_API_V1.name, task_id)
         response = jsonify({
-            "file_path": fpath[len(os.path.join(root_upload_path,
-                                                user.get_project())):],
+            "file_path": utils.get_return_path(user, upload_path),
             "message": "Deleting files and metadata",
             "polling_url": polling_url,
             "status": "pending"
@@ -181,7 +178,7 @@ def delete_path(fpath):
     database.user(username).update_used_quota(root_upload_path)
 
     response = jsonify({
-        "file_path": utils.get_return_path(user, fpath),
+        "file_path": utils.get_return_path(user, upload_path),
         "message": "deleted",
         "metax": response
     })

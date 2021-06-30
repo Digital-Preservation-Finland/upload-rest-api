@@ -1,13 +1,15 @@
 """Module for generating basic file metadata and posting it to Metax."""
 import hashlib
 import os
+import pathlib
 from datetime import datetime, timezone
 from uuid import uuid4
 
 import magic
-import upload_rest_api.database as db
 from metax_access import (DS_STATE_ACCEPTED_TO_DIGITAL_PRESERVATION,
                           DS_STATE_IN_DIGITAL_PRESERVATION, Metax)
+
+import upload_rest_api.database as db
 from upload_rest_api.config import CONFIG
 
 PAS_FILE_STORAGE_ID = "urn:nbn:fi:att:file-storage-pas"
@@ -55,7 +57,7 @@ def _timestamp_now():
 
 def get_metax_path(fpath, root_upload_path):
     """Return file_path that is stored in Metax."""
-    file_path = "/%s" % (fpath[len(root_upload_path)+1:])
+    file_path = "/%s" % fpath.relative_to(root_upload_path)
     file_path = os.path.abspath(file_path)
     project = file_path.split("/")[1]
 
@@ -66,7 +68,7 @@ def _generate_metadata(fpath, root_upload_path, project, storage_id,
                        checksums):
     """Generate metadata in json format."""
     timestamp = iso8601_timestamp(fpath)
-    file_path = get_metax_path(fpath, root_upload_path)
+    file_path = get_metax_path(pathlib.Path(fpath), root_upload_path)
 
     metadata = {
         "identifier": str(uuid4().urn),
@@ -294,7 +296,8 @@ class MetaxClient(object):
         for dirpath, _, files in os.walk(fpath):
             for _file in files:
                 fpath = os.path.join(dirpath, _file)
-                metax_path = get_metax_path(fpath, root_upload_path)
+                metax_path = get_metax_path(pathlib.Path(fpath),
+                                            root_upload_path)
                 if metax_path not in files_dict:
                     continue
                 storage_id = files_dict[metax_path]["storage_identifier"]

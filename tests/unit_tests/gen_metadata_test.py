@@ -1,5 +1,6 @@
 """Unit tests for metadata generation."""
 import os
+import pathlib
 
 import pytest
 
@@ -19,7 +20,7 @@ def test_metax_path(fpath, upload_path, expected):
     """Test fpath is sliced properly and returns path
     /project/<path:fpath>.
     """
-    assert md.get_metax_path(fpath, upload_path) == expected
+    assert md.get_metax_path(pathlib.Path(fpath), upload_path) == expected
 
 
 def test_md5():

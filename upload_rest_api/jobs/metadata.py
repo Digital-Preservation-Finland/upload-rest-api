@@ -29,8 +29,7 @@ def post_metadata(path, username, storage_id, task_id):
 
     user = database.user(username)
 
-    dirname, basename = utils.get_upload_path(user, path)
-    fpath = os.path.join(dirname, basename)
+    fpath = utils.get_upload_path(user, path)
     return_path = utils.get_return_path(user, fpath)
 
     database.tasks.update_message(
@@ -83,8 +82,7 @@ def delete_metadata(fpath, username, task_id):
     database = db.Database()
 
     user = database.user(username)
-    fpath, fname = utils.get_upload_path(user, fpath)
-    fpath = os.path.join(fpath, fname)
+    fpath = utils.get_upload_path(user, fpath)
     ret_path = utils.get_return_path(user, fpath)
     database.tasks.update_message(
         task_id, "Deleting metadata: %s" % ret_path
