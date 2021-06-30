@@ -17,9 +17,9 @@ def main():
             "file-magic",
             "redis",
             "rq",
-            "metax_access@git+https://gitlab.csc.fi/dpres/"
+            "metax_access@git+https://gitlab.ci.csc.fi/dpres/"
             "metax-access.git@develop",
-            "archive_helpers@git+https://gitlab.csc.fi/dpres/"
+            "archive_helpers@git+https://gitlab.ci.csc.fi/dpres/"
             "archive-helpers.git@develop"
         ],
         entry_points={
