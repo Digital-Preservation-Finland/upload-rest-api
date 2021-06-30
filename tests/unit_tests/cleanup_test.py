@@ -1,7 +1,8 @@
 """Unit tests for the cleanup.py script."""
 import os
-import time
+import pathlib
 import shutil
+import time
 
 import upload_rest_api.cleanup as clean
 
@@ -73,6 +74,38 @@ def test_expired_files(mock_mongo, mock_config):
 
     # upload_path/test/test.txt should not be removed
     assert os.path.isfile(fpath)
+
+
+def test_all_files_expired(mock_mongo, mock_config):
+    """Test cleanup for expired project.
+
+    Project directory should not be removed even if all files are
+    expired.
+    """
+    mock_config["CLEANUP_TIMELIM"] = 10
+    upload_path = pathlib.Path(mock_config["UPLOAD_PATH"])
+    project_path = upload_path / "test_project"
+    project_path.mkdir()
+
+    # Create old testfile
+    old_file = project_path / "test.txt"
+    old_file.write_text('foo')
+    os.utime(old_file, (0, 0))
+
+    # Add checksums to mongo
+    checksums = mock_mongo.upload.checksums
+    checksums.insert_many([
+        {"_id": str(old_file), "checksum": "foo"},
+    ])
+
+    # Clean all files older than 10s
+    clean.clean_disk(metax=False)
+
+    # The old file should be removed, and project directory should be
+    # empty
+    assert not old_file.exists()
+    assert project_path.exists()
+    assert not any(project_path.iterdir())
 
 
 def test_expired_tasks(mock_mongo, requests_mock, mock_config):
