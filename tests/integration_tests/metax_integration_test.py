@@ -108,7 +108,7 @@ def test_gen_metadata_root(
                       "integration/test2/test2.txt"]:
         response = test_client.get("/v1/files/{}".format(file_path),
                                    headers=test_auth)
-        file_identifier = response.json['metax_identifier']
+        file_identifier = response.json['identifier']
         assert Metax(
             URL,
             USER,
@@ -182,7 +182,7 @@ def test_gen_metadata_file(
     # Metadata for test1.txt should be found in Metax
     response = test_client.get("/v1/files/integration/test1/test1.txt",
                                headers=test_auth)
-    file_identifier = response.json['metax_identifier']
+    file_identifier = response.json['identifier']
     assert Metax(URL, USER, PASSWORD).get_file(file_identifier)['file_path'] \
         == "/integration/test1/test1.txt"
 
@@ -238,7 +238,7 @@ def test_delete_metadata(
     # Metadata for test1.txt should be found in Metax
     response = test_client.get("/v1/files/integration/test1/test1.txt",
                                headers=test_auth)
-    file_identifier = response.json['metax_identifier']
+    file_identifier = response.json['identifier']
     assert Metax(URL, USER, PASSWORD).get_file(file_identifier)['file_path'] \
         == "/integration/test1/test1.txt"
 

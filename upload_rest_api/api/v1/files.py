@@ -85,7 +85,7 @@ def get_path(fpath):
     if os.path.isfile(fpath):
         response = {
             "file_path": return_path,
-            "metax_identifier": database.files.get_identifier(fpath),
+            "identifier": database.files.get_identifier(fpath),
             "md5": database.checksums.get_checksum(os.path.abspath(fpath)),
             "timestamp": md.iso8601_timestamp(fpath)
         }
