@@ -1,13 +1,12 @@
 """upload-rest-api utility functions."""
 import os
 import pathlib
-import uuid
 try:
     from urllib.parse import urlparse, urlunparse
 except ImportError:  # Python 2
     from urlparse import urlparse, urlunparse
 
-from flask import request, jsonify, safe_join, url_for
+from flask import request, safe_join, url_for
 from werkzeug.utils import secure_filename
 
 
@@ -28,13 +27,6 @@ def get_upload_path(user, file_path):
     return pathlib.Path(joined_path).resolve() / secure_fname
 
 
-def get_tmp_upload_path():
-    """Get temporary unique upload path for tar and zip files."""
-    tmp_upload_path = os.path.join(CONFIG.get("UPLOAD_TMP_PATH"))
-    fpath = safe_join(tmp_upload_path, str(uuid.uuid4()))
-    fpath, fname = os.path.split(fpath)
-
-    return fpath, fname
 
 
 def get_return_path(user, fpath):
@@ -52,13 +44,6 @@ def get_return_path(user, fpath):
     path_string = f"/{path}" if path != pathlib.Path('.') else '/'
 
     return path_string
-
-
-def make_response(status_code, message):
-    """Return jsonified default error message."""
-    response = jsonify({"code": status_code, "error": message})
-    response.status_code = status_code
-    return response
 
 
 def get_polling_url(name, task_id):

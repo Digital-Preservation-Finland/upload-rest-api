@@ -1,9 +1,12 @@
 """Module for handling the file uploads."""
 import os
+import pathlib
 import tarfile
+import uuid
 import zipfile
 
-from flask import current_app, jsonify, request, safe_join, url_for
+from flask import current_app
+import werkzeug
 
 import upload_rest_api.gen_metadata as gen_metadata
 import upload_rest_api.utils as utils
@@ -13,24 +16,11 @@ from upload_rest_api.jobs.utils import UPLOAD_QUEUE, enqueue_background_job
 SUPPORTED_TYPES = ("application/octet-stream",)
 
 
-def _request_exceeds_quota(database):
-    """Check whether the request exceeds users quota.
-
-    :returns: True if the request exceeds user's quota else False
-    """
-    username = request.authorization.username
-    user = database.user(username)
-    quota = user.get_quota() - user.get_used_quota()
-
-    return quota - request.content_length < 0
-
-
-def _check_extraction_size(database, archive_path, username):
+def _check_extraction_size(user, archive_path):
     """Check whether extracting the archive exceeds users quota.
 
     :returns: Tuple (quota, used_quota, extracted_size)
     """
-    user = database.user(username)
     quota = user.get_quota()
     used_quota = user.get_used_quota()
 
@@ -44,161 +34,149 @@ def _check_extraction_size(database, archive_path, username):
     return quota, used_quota, size
 
 
-def _save_stream(fpath, chunk_size=1024*1024):
-    """Save the file into fpath by reading the stream in chunks
-    of chunk_size bytes.
+def _save_stream(fpath, stream, checksum, chunk_size=1024*1024):
+    """Save the file from request stream.
+
+    Request content is saved to file by reading the stream in chunks of
+    chunk_size bytes. If checksum is provided, MD5 sum of file is
+    compared to provided MD5 sum. Raises error if checksums do not
+    match.
+
+    :param fpath: file path
+    :param stream: HTTP request stream
+    :param checksum: MD5 checksum of file
+    :returns: ``None``
     """
     with open(fpath, "wb") as f_out:
         while True:
-            chunk = request.stream.read(chunk_size)
+            chunk = stream.read(chunk_size)
             if chunk == b'':
                 break
             f_out.write(chunk)
 
     # Verify integrity of uploaded file if checksum was provided
-    if 'md5' in request.args \
-            and request.args['md5'] != gen_metadata.md5_digest(fpath):
+    if checksum and checksum != gen_metadata.md5_digest(fpath):
         os.remove(fpath)
-        raise DataIntegrityError(
+        raise werkzeug.exceptions.BadRequest(
             'Checksum of uploaded file does not match provided checksum.'
         )
 
     os.chmod(fpath, 0o664)
 
 
-class OverwriteError(Exception):
-    """Exception for trying to overwrite a existing file."""
-
-
-class QuotaError(Exception):
-    """Exception for exceeding to quota."""
-
-
-class UploadPendingError(Exception):
-    """Exception for a pending upload."""
-
-
-class DataIntegrityError(Exception):
-    """Exception for data corruption during a transfer."""
-
-
-def save_file(database, user, fpath):
-    """Save the posted file on disk at fpath by reading
-    the upload stream in 1MB chunks.
+def save_file(database, user, stream, checksum, upload_path):
+    """Save the posted file on disk.
 
     :param database: Database object
-    :param project: File's project
-    :param fpath: Path where to save the file
-    :returns: HTTP Response
+    :param user: User object
+    :param stream: HTTP request stream
+    :param checksum: MD5 checksum of file, or ``None`` if unknown
+    :param upload_path: Upload path, relative to project directory
+    :returns: MD5 checksum for file (generated from file)
     """
+    file_path = user.project_directory / upload_path
+
     # Write the file if it does not exist already
-    if not os.path.exists(fpath):
-        _save_stream(fpath)
+    file_path.parent.mkdir(parents=True, exist_ok=True)
+    if not file_path.exists():
+        _save_stream(file_path, stream, checksum)
     else:
-        raise OverwriteError("File already exists")
+        raise werkzeug.exceptions.Conflict("File already exists")
 
     # Add file checksum to mongo
-    md5 = gen_metadata.md5_digest(fpath)
-    database.checksums.insert_one(os.path.abspath(fpath), md5)
-    file_path = utils.get_return_path(user, fpath)
-    response = jsonify({
-        "file_path": file_path,
-        "md5": md5,
-        "status": "created"
-    })
-    response.status_code = 200
+    md5 = gen_metadata.md5_digest(file_path)
+    database.checksums.insert_one(str(file_path.resolve()), md5)
 
-    return response
+    # Update quota
+    user.update_used_quota(current_app.config.get("UPLOAD_PATH"))
+
+    return md5
 
 
-def save_archive(database, fpath, upload_dir):
-    """Uploads the archive on disk at fpath by reading
-    the upload stream in 1MB chunks. Extracts the archive file
-    and checks that no symlinks are created.
+def save_archive(user, stream, checksum, upload_path):
+    """Save archive on disk and enqueue extraction job.
 
-    :param database: Database object
-    :param fpath: Path where to save the file
-    :param upload_dir: Directory to which the archive is extracted
-    :returns: HTTP Response
+    Archive is saved to file by reading the upload stream in 1MB
+    chunks. Archive file is extracted and it is ensured that no symlinks
+    are created.
+
+    :param user: User object
+    :param stream: HTTP request stream
+    :param checksum: MD5 checksum of file, or ``None`` if unknown
+    :param upload_path: upload directory, relative to project directory
+    :returns: Url of archive extraction task
     """
-    username = request.authorization.username
-    dir_path = database.user(username).project_directory
-    if upload_dir:
-        dir_path = safe_join(dir_path, upload_dir)
-        if os.path.isdir(dir_path):
-            raise OverwriteError("Directory '%s' already exists" % upload_dir)
+    dir_path = user.project_directory / upload_path
 
-    _save_stream(fpath)
+    if dir_path.is_dir() and not dir_path.samefile(user.project_directory):
+        raise werkzeug.exceptions.Conflict(
+            f"Directory '{upload_path}' already exists"
+        )
+
+    # Save stream to temporary file
+    tmp_path = pathlib.Path(current_app.config.get("UPLOAD_TMP_PATH"))
+    fpath = tmp_path / str(uuid.uuid4())
+    fpath.parent.mkdir(exist_ok=True)
+    _save_stream(fpath, stream, checksum)
 
     # If zip or tar file was uploaded, extract all files
     if zipfile.is_zipfile(fpath) or tarfile.is_tarfile(fpath):
         # Check the uncompressed size
-        quota, used_quota, extracted_size = _check_extraction_size(
-            database, fpath, username
-        )
+        quota, used_quota, extracted_size = _check_extraction_size(user, fpath)
         if quota - used_quota - extracted_size < 0:
             # Remove the archive and raise an exception
             os.remove(fpath)
-            raise QuotaError("Quota exceeded")
+            raise werkzeug.exceptions.RequestEntityTooLarge("Quota exceeded")
 
-        database.user(username).set_used_quota(used_quota + extracted_size)
+        user.set_used_quota(used_quota + extracted_size)
         task_id = enqueue_background_job(
             task_func="upload_rest_api.jobs.upload.extract_task",
             queue_name=UPLOAD_QUEUE,
-            username=username,
+            username=user.username,
             job_kwargs={
                 "fpath": fpath,
                 "dir_path": dir_path
             }
         )
-        polling_url = utils.get_polling_url(TASK_STATUS_API_V1.name, task_id)
-        response = jsonify({
-            "file_path": "/",
-            "message": "Uploading archive",
-            "polling_url": polling_url,
-            "status": "pending"
-        })
-        location = url_for(TASK_STATUS_API_V1.name + ".task_status",
-                           task_id=task_id)
-        response.headers[b'Location'] = location
-        response.status_code = 202
     else:
         os.remove(fpath)
-        response = utils.make_response(
-            400, "Uploaded file is not a supported archive"
+        raise werkzeug.exceptions.BadRequest(
+            "Uploaded file is not a supported archive"
         )
 
-    return response
+    return utils.get_polling_url(TASK_STATUS_API_V1.name, task_id)
 
 
-def validate_upload(database):
+def validate_upload(user, content_length, content_type):
     """Validate the upload request.
 
-    :returns: `None` if the validation succeeds. Otherwise error
-              response if validation failed.
+    Raises error if upload request is not valid.
+
+    :param user: User object
+    :param content_length: Content length of HTTP request
+    :param content_type: Content type of HTTP request
+    :returns: `None`
     """
-    response = None
-
-    # Update used_quota also at the start of the function
-    # since multiple users might by using the same project
-    database.user(request.authorization.username).update_used_quota(
-        current_app.config.get("UPLOAD_PATH")
-    )
-
-    # Check that Content-Length header is provided
-    if request.content_length is None:
-        response = utils.make_response(400, "Missing Content-Length header")
-
-    # Check that Content-Type is supported if the header is provided
-    content_type = request.content_type
-    if content_type and content_type not in SUPPORTED_TYPES:
-        response = utils.make_response(
-            415, "Unsupported Content-Type: %s" % content_type
+    # Check that Content-Length header is provided and uploaded file is
+    # not too large
+    if content_length is None:
+        raise werkzeug.exceptions.LengthRequired(
+            "Missing Content-Length header"
+        )
+    if content_length > current_app.config.get("MAX_CONTENT_LENGTH"):
+        raise werkzeug.exceptions.RequestEntityTooLarge(
+            "Max single file size exceeded"
         )
 
-    # Check user quota
-    if request.content_length > current_app.config.get("MAX_CONTENT_LENGTH"):
-        response = utils.make_response(413, "Max single file size exceeded")
-    elif _request_exceeds_quota(database):
-        response = utils.make_response(413, "Quota exceeded")
-    return response
+    # Check whether the request exceeds users quota. Update used quota
+    # first, since multiple users might by using the same project
+    user.update_used_quota(current_app.config.get("UPLOAD_PATH"))
+    remaining_quota = user.get_quota() - user.get_used_quota()
+    if remaining_quota - content_length < 0:
+        raise werkzeug.exceptions.RequestEntityTooLarge("Quota exceeded")
+
+    # Check that Content-Type is supported if the header is provided
+    if content_type and content_type not in SUPPORTED_TYPES:
+        raise werkzeug.exceptions.UnsupportedMediaType(
+            f"Unsupported Content-Type: {content_type}"
+        )

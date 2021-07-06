@@ -2,9 +2,7 @@
 
 Functionality for uploading and extracting an archive.
 """
-import os
-
-from flask import Blueprint, safe_join, request
+from flask import Blueprint, safe_join, request, jsonify, abort
 
 from archive_helpers.extract import (
     MemberNameError, MemberOverwriteError, MemberTypeError
@@ -12,7 +10,6 @@ from archive_helpers.extract import (
 
 import upload_rest_api.upload as up
 import upload_rest_api.database as db
-import upload_rest_api.utils as utils
 
 ARCHIVES_API_V1 = Blueprint("archives_v1", __name__, url_prefix="/v1/archives")
 
@@ -23,30 +20,33 @@ def upload_archive():
 
     :returns: HTTP Response
     """
-    database = db.Database()
-    response = up.validate_upload(database)
-    if response:
-        return response
+    user = db.Database().user(request.authorization.username)
+    up.validate_upload(user, request.content_length, request.content_type)
 
-    upload_dir = request.args.get("dir", default="").lstrip("/")
-    file_path, file_name = utils.get_tmp_upload_path()
+    upload_path = safe_join("",
+                            request.args.get('dir', default='').lstrip('/'))
 
-    # Create directory if it does not exist
-    if not os.path.exists(file_path):
-        os.makedirs(file_path)
-
-    file_path = safe_join(file_path, file_name)
     try:
-        response = up.save_archive(database, file_path, upload_dir)
-    except (MemberOverwriteError, up.OverwriteError) as error:
-        response = utils.make_response(409, str(error))
+        polling_url = up.save_archive(user,
+                                      request.stream,
+                                      request.args.get('md5', None),
+                                      upload_path)
+    except (MemberOverwriteError) as error:
+        abort(409, str(error))
     except MemberTypeError as error:
-        response = utils.make_response(415, str(error))
+        abort(415, str(error))
     except MemberNameError as error:
-        response = utils.make_response(400, str(error))
-    except up.QuotaError as error:
-        response = utils.make_response(413, str(error))
-    except up.DataIntegrityError as error:
-        response = utils.make_response(400, str(error))
+        abort(400, str(error))
+
+    response = jsonify(
+        {
+            "file_path": "/",
+            "message": "Uploading archive",
+            "polling_url": polling_url,
+            "status": "pending"
+        }
+    )
+    response.headers[b'Location'] = polling_url
+    response.status_code = 202
 
     return response

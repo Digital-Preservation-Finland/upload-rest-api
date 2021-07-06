@@ -56,19 +56,28 @@ def test_upload_archive(
 
     url = "/v1/archives?dir={}".format(dirpath) if dirpath else "/v1/archives"
     response = _upload_file(test_client, url, test_auth, archive)
-    if _request_accepted(response):
-        response = background_job_runner(test_client, "upload", response)
-    assert response.status_code == 200
+    assert response.status_code == 202
+    assert response.json['file_path'] == '/'
+    assert response.json["message"] == "Uploading archive"
+    assert response.json["polling_url"].startswith(
+        'http://localhost/v1/tasks/'
+    )
+    assert response.json["status"] == "pending"
+    assert response.headers['Location'] == response.json["polling_url"]
 
-    fpath = os.path.join(upload_path, "test_project", dirpath.lstrip("/"))
-    text_file = os.path.join(fpath, "test", "test.txt")
-    archive_file = os.path.join(fpath, os.path.split(archive)[1])
+    # Complete the task and check task status
+    response = background_job_runner(test_client, "upload", response)
+    assert response.status_code == 200 
+    assert response.json['status'] == 'done'
 
     # test.txt is correctly extracted
+    fpath = os.path.join(upload_path, "test_project", dirpath.lstrip("/"))
+    text_file = os.path.join(fpath, "test", "test.txt")
     assert os.path.isfile(text_file)
     assert "test" in io.open(text_file, "rt").read()
 
     # archive file is removed
+    archive_file = os.path.join(fpath, os.path.split(archive)[1])
     assert not os.path.isfile(archive_file)
 
     # checksum is added to mongo
@@ -274,6 +283,7 @@ def test_upload_invalid_dir(dirpath, app, test_auth):
         "tests/data/test.zip"
     )
     assert response.status_code == 404
+    assert response.json['error'] == "Page not found"
 
 
 def test_upload_archive_concurrent(
@@ -401,3 +411,38 @@ def test_upload_file_as_archive(app, test_auth, background_job_runner):
 
     assert response.status_code == 400
     assert response.json["error"] == "Uploaded file is not a supported archive"
+
+
+def test_upload_large_archive(app, test_auth):
+    """Test uploading too large archive."""
+    app.config["MAX_CONTENT_LENGTH"] = 1
+
+    response = _upload_file(app.test_client(),
+                            '/v1/archives',
+                            test_auth,
+                            'tests/data/test.tar.gz')
+
+    assert response.status_code == 413
+    assert response.json['error'] == 'Max single file size exceeded'
+
+
+def test_upload_unsupported_content(app, test_auth):
+    """Test uploading unsupported content type."""
+    response = app.test_client().post('/v1/archives',
+                                      headers=test_auth,
+                                      content_length='1',
+                                      content_type='foo')
+
+    assert response.status_code == 415
+    assert response.json['error'] == "Unsupported Content-Type: foo"
+
+
+def test_upload_unknown_content_length(app, test_auth):
+    """Test uploading archive without Content-Length header."""
+    response = app.test_client().post('/v1/archives',
+                                      headers=test_auth,
+                                      content_length=None,
+                                      content_type="application/octet-stream")
+
+    assert response.status_code == 411
+    assert response.json['error'] == "Missing Content-Length header"

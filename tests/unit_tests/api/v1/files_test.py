@@ -36,6 +36,7 @@ def test_index(app, test_auth):
     """Test the application index page."""
     response = app.test_client().get("/", headers=test_auth)
     assert response.status_code == 404
+    assert response.json['error'] == 'Page not found'
 
 
 def test_incorrect_authentication(app, wrong_auth):
@@ -55,6 +56,9 @@ def test_upload(app, test_auth, mock_mongo):
         test_auth, "tests/data/test.txt"
     )
     assert response.status_code == 200
+    assert response.json['md5'] == '150b62e4e7d58c70503bd5fc8a26463c'
+    assert response.json['status'] == 'created'
+    assert response.json['file_path'] == '/test.txt'
 
     fpath = os.path.join(upload_path, "test_project/test.txt")
     assert os.path.isfile(fpath)
@@ -84,6 +88,7 @@ def test_upload_max_size(app, test_auth):
         test_auth, "tests/data/test.txt"
     )
     assert response.status_code == 413
+    assert response.json['error'] == "Max single file size exceeded"
 
     # Check that file was not saved on the server
     fpath = os.path.join(upload_path, "test/test.txt")
@@ -102,6 +107,7 @@ def test_user_quota(app, test_auth, mock_mongo):
         test_auth, "tests/data/test.zip"
     )
     assert response.status_code == 413
+    assert response.json['error'] == "Quota exceeded"
 
     # Check that the file was not actually created
     assert not os.path.isdir(os.path.join(upload_path,
@@ -148,6 +154,37 @@ def test_upload_outside(app, test_auth):
         test_auth, "tests/data/test.txt"
     )
     assert response.status_code == 404
+    assert response.json['error'] == 'Page not found'
+
+
+def test_unsupported_content(app, test_auth):
+    """Test uploading unsupported type."""
+    client = app.test_client()
+
+    response = client.post(
+        '/v1/files/test',
+        headers=test_auth,
+        content_length=1,
+        content_type='foo'
+    )
+
+    assert response.status_code == 415
+    assert response.json['error'] == "Unsupported Content-Type: foo"
+
+
+def test_unknown_content_length(app, test_auth):
+    """Test uploading file without Content-Lengt header."""
+    client = app.test_client()
+
+    response = client.post(
+        '/v1/files/test',
+        headers=test_auth,
+        content_length=None,
+        content_type='application/octet-stream',
+    )
+
+    assert response.status_code == 411
+    assert response.json['error'] == "Missing Content-Length header"
 
 
 @pytest.mark.parametrize(
@@ -232,6 +269,7 @@ def test_get_file(app, test_auth, test2_auth, test3_auth, mock_mongo):
     # GET file with user test3, which is not in the same project
     response = test_client.get("/v1/files/test.txt", headers=test3_auth)
     assert response.status_code == 404
+    assert response.json['error'] == 'File not found'
 
 
 def test_delete_file(app, test_auth, requests_mock, mock_mongo):
@@ -284,6 +322,7 @@ def test_delete_file(app, test_auth, requests_mock, mock_mongo):
         headers=test_auth
     )
     assert response.status_code == 404
+    assert response.json['error'] == 'File not found'
 
 
 @pytest.mark.parametrize(

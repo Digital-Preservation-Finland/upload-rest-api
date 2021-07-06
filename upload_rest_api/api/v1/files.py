@@ -5,7 +5,8 @@ server.
 """
 import os
 
-from flask import Blueprint, current_app, jsonify, request, url_for
+from flask import (Blueprint, current_app, jsonify, request, safe_join,
+                   url_for, abort)
 import metax_access
 
 import upload_rest_api.database as db
@@ -37,31 +38,25 @@ def upload_file(fpath):
 
     :returns: HTTP Response
     """
-    username = request.authorization.username
     database = db.Database()
-    user = database.user(username)
+    user = database.user(request.authorization.username)
+    upload_path = safe_join("", fpath)
 
-    response = up.validate_upload(database)
-    if response:
-        return response
+    up.validate_upload(user, request.content_length, request.content_type)
 
-    upload_path = utils.get_upload_path(user, fpath)
+    md5 = up.save_file(database,
+                       user,
+                       request.stream,
+                       request.args.get('md5', None),
+                       upload_path)
 
-    # Create directory if it does not exist
-    upload_path.parent.mkdir(parents=True, exist_ok=True)
-
-    try:
-        response = up.save_file(database, user, upload_path)
-    except up.OverwriteError as error:
-        response = utils.make_response(409, str(error))
-    except up.DataIntegrityError as error:
-        response = utils.make_response(400, str(error))
-    else:
-        database.user(request.authorization.username).update_used_quota(
-            current_app.config.get("UPLOAD_PATH")
-        )
-
-    return response
+    return jsonify(
+        {
+            'file_path': f"/{upload_path}",
+            'md5': md5,
+            'status': 'created'
+        }
+    )
 
 
 @FILES_API_V1.route("/", defaults={'fpath': ""}, methods=["GET"])
@@ -112,7 +107,7 @@ def get_path(fpath):
         }
 
     else:
-        return utils.make_response(404, "File not found")
+        abort(404, "File not found")
 
     return response
 
@@ -151,7 +146,7 @@ def delete_path(fpath):
             and upload_path.samefile(user.project_directory) \
             and not any(upload_path.iterdir()):
         # Trying to delete empty project directory
-        return utils.make_response(404, "No files found")
+        abort(404, "No files found")
 
     elif os.path.isdir(upload_path):
         # Remove all file metadata of files under fpath from Metax
@@ -179,7 +174,7 @@ def delete_path(fpath):
         return response
 
     else:
-        return utils.make_response(404, "File not found")
+        abort(404, "File not found")
 
     database.user(username).update_used_quota(root_upload_path)
 
@@ -202,6 +197,9 @@ def get_files():
     username = request.authorization.username
     user = db.Database().user(username)
     fpath = user.project_directory
+
+    if not os.path.exists(fpath):
+        abort(404, "No files found")
 
     response = jsonify(_get_dir_tree(user, fpath))
     response.status_code = 200
