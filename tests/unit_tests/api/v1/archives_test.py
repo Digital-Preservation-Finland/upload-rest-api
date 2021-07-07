@@ -1,6 +1,6 @@
 """Tests for ``upload_rest_api.app`` module."""
-import io
 import os
+import pathlib
 
 import pytest
 
@@ -51,7 +51,7 @@ def test_upload_archive(
     :param background_job_runner: RQ job mocker
     """
     test_client = app.test_client()
-    upload_path = app.config.get("UPLOAD_PATH")
+    upload_path = pathlib.Path(app.config.get("UPLOAD_PATH"))
     checksums = mock_mongo.upload.checksums
 
     url = "/v1/archives?dir={}".format(dirpath) if dirpath else "/v1/archives"
@@ -67,22 +67,22 @@ def test_upload_archive(
 
     # Complete the task and check task status
     response = background_job_runner(test_client, "upload", response)
-    assert response.status_code == 200 
+    assert response.status_code == 200
     assert response.json['status'] == 'done'
 
     # test.txt is correctly extracted
-    fpath = os.path.join(upload_path, "test_project", dirpath.lstrip("/"))
-    text_file = os.path.join(fpath, "test", "test.txt")
-    assert os.path.isfile(text_file)
-    assert "test" in io.open(text_file, "rt").read()
+    fpath = upload_path / "test_project" / dirpath.lstrip("/")
+    text_file = fpath / "test" / "test.txt"
+    assert text_file.is_file()
+    assert "test" in text_file.read_text()
 
     # archive file is removed
-    archive_file = os.path.join(fpath, os.path.split(archive)[1])
-    assert not os.path.isfile(archive_file)
+    archive_file = fpath / os.path.split(archive)[1]
+    assert not archive_file.is_file()
 
     # checksum is added to mongo
     assert checksums.count({}) == 1
-    checksum = checksums.find_one({"_id": text_file})["checksum"]
+    checksum = checksums.find_one({"_id": str(text_file)})["checksum"]
     assert checksum == "150b62e4e7d58c70503bd5fc8a26463c"
 
 
@@ -294,7 +294,7 @@ def test_upload_archive_concurrent(
     No files should be extracted outside the project directory.
     """
     test_client = app.test_client()
-    upload_path = app.config.get("UPLOAD_PATH")
+    upload_path = pathlib.Path(app.config.get("UPLOAD_PATH"))
     checksums = mock_mongo.upload.checksums
 
     response_1 = _upload_file(
@@ -330,29 +330,27 @@ def test_upload_archive_concurrent(
         data = response_2.json
         assert data["status"] == "Not found"
 
-    fpath = os.path.join(upload_path, "test_project")
+    fpath = upload_path / "test_project"
 
     # test.txt files correctly extracted
-    test_text_file = os.path.join(fpath, "test", "test.txt")
-    test_2_text_file = os.path.join(fpath, "test2", "test.txt")
-    assert os.path.isfile(test_text_file)
-    assert "test" in io.open(test_text_file, "rt").read()
-    assert os.path.isfile(test_2_text_file)
-    assert "test" in io.open(test_2_text_file, "rt").read()
+    test_text_file = fpath / "test" / "test.txt"
+    test_2_text_file = fpath / "test2" / "test.txt"
+    assert test_text_file.is_file()
+    assert "test" in test_text_file.read_text()
+    assert test_2_text_file.is_file()
+    assert "test" in test_2_text_file.read_text()
 
     # archive file is removed
-    archive_file1 = os.path.join(fpath,
-                                 os.path.split("tests/data/test.zip")[1])
-    archive_file2 = os.path.join(fpath,
-                                 os.path.split("tests/data/test2.zip")[1])
-    assert not os.path.isfile(archive_file1)
-    assert not os.path.isfile(archive_file2)
+    archive_file1 = fpath / os.path.split("tests/data/test.zip")[1]
+    archive_file2 = fpath / os.path.split("tests/data/test2.zip")[1]
+    assert not archive_file1.is_file()
+    assert not archive_file2.is_file()
 
     # checksum is added to mongo
     assert checksums.count() == 2
-    checksum = checksums.find_one({"_id": test_text_file})["checksum"]
+    checksum = checksums.find_one({"_id": str(test_text_file)})["checksum"]
     assert checksum == "150b62e4e7d58c70503bd5fc8a26463c"
-    checksum = checksums.find_one({"_id": test_2_text_file})["checksum"]
+    checksum = checksums.find_one({"_id": str(test_2_text_file)})["checksum"]
     assert checksum == "150b62e4e7d58c70503bd5fc8a26463c"
 
 
@@ -366,7 +364,7 @@ def test_upload_invalid_archive(
     and doesn't create any files.
     """
     test_client = app.test_client()
-    upload_path = app.config.get("UPLOAD_PATH")
+    upload_path = pathlib.Path(app.config.get("UPLOAD_PATH"))
     checksums = mock_mongo.upload.checksums
 
     response = _upload_file(
@@ -381,15 +379,15 @@ def test_upload_invalid_archive(
     assert response.json["errors"][0]["message"] \
         == "File 'test/link' has unsupported type: SYM"
 
-    fpath = os.path.join(upload_path, "test_project")
-    text_file = os.path.join(fpath, "test", "test.txt")
-    archive_file = os.path.join(fpath, os.path.split(archive)[1])
+    fpath = upload_path / "test_project"
+    text_file = fpath / "test" / "test.txt"
+    archive_file = fpath / os.path.split(archive)[1]
 
     # test.txt is not extracted
-    assert not os.path.isfile(text_file)
+    assert not text_file.is_file()
 
     # archive file is removed
-    assert not os.path.isfile(archive_file)
+    assert not archive_file.is_file()
 
     # no checksums are added to mongo
     assert checksums.count({}) == 0

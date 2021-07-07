@@ -1,8 +1,13 @@
 # Testing requirements
 
 mongomock
-pytest
-pytest-cov
+# Use pytest version that is available on centos7 to avoid deprecation warnings
+pytest==2.9.2
+# Pytest-warnings is required for pytest<3.1
+pytest-warnings
+# pytest-cov 2.5.1 is available for centos7. Newest versions are not compatible
+# with pytest 2.9.2
+pytest-cov==2.5.1
 mock
 requests-mock
 fakeredis
@@ -10,6 +15,9 @@ fakeredis
 # Install requirements
 
 flask==1.1.2
+# itsdangerous 1.1.0 is available on centos7. Newest versions will cause
+# deprecation warnings with flask 1.1.2
+itsdangerous==1.1.0
 Werkzeug==1.0.1
 pymongo==3.6.1
 file-magic

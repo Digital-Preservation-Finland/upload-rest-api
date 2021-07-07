@@ -60,12 +60,13 @@ def test_upload(app, test_auth, mock_mongo):
     assert response.json['status'] == 'created'
     assert response.json['file_path'] == '/test.txt'
 
-    fpath = os.path.join(upload_path, "test_project/test.txt")
-    assert os.path.isfile(fpath)
-    assert open(fpath, "rb").read() == open("tests/data/test.txt", "rb").read()
+    fpath = pathlib.Path(upload_path, "test_project/test.txt")
+    assert fpath.is_file()
+    assert fpath.read_bytes() \
+        == pathlib.Path("tests/data/test.txt").read_bytes()
 
     # Check that the uploaded files checksum was added to mongo
-    checksum = checksums.find_one({"_id": fpath})["checksum"]
+    checksum = checksums.find_one({"_id": str(fpath)})["checksum"]
     assert checksum == "150b62e4e7d58c70503bd5fc8a26463c"
 
     # Test that trying to upload the file again returns 409 Conflict
