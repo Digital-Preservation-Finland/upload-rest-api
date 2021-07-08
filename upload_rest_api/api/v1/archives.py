@@ -40,7 +40,7 @@ def upload_archive():
 
     response = jsonify(
         {
-            "file_path": "/",
+            "file_path": f"/{upload_path}",
             "message": "Uploading archive",
             "polling_url": polling_url,
             "status": "pending"

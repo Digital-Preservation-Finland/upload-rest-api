@@ -57,7 +57,7 @@ def test_upload_archive(
     url = "/v1/archives?dir={}".format(dirpath) if dirpath else "/v1/archives"
     response = _upload_file(test_client, url, test_auth, archive)
     assert response.status_code == 202
-    assert response.json['file_path'] == '/'
+    assert response.json['file_path'] == '/{}'.format(dirpath.strip('/'))
     assert response.json["message"] == "Uploading archive"
     assert response.json["polling_url"].startswith(
         'http://localhost/v1/tasks/'
@@ -163,7 +163,7 @@ def test_upload_archive_overwrite_file(
             '78b925c44b7425e90686fb104ee0569b',
             202,
             {
-                'file_path': '/',
+                'file_path': '/test_directory',
                 'message': 'Uploading archive',
                 'status': 'pending',
             }
