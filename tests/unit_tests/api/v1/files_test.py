@@ -441,7 +441,7 @@ def test_delete_directory(
     # The files in target directory should be deleted. Other files
     # should still exist.
     for file_ in [project_directory / 'test.txt',
-                  project_directory / 'test/test.txt']:
+                  project_directory / 'test' / 'test.txt']:
         if file_ in target_files:
             assert not file_.exists()
             assert not mock_mongo.upload.checksums.find_one(

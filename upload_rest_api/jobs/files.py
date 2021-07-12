@@ -14,7 +14,7 @@ def delete_files(fpath, username, task_id):
     """Delete files and metadata denoted by fpath directory under user's
     project. The whole directory is recursively removed.
 
-    :param str fpath: path to directory
+    :param pathlib.Path fpath: path to directory
     :param str username: current user
     :param str task_id: mongo dentifier of the task
     """
