@@ -48,7 +48,7 @@ def upload_file(fpath):
     upload_path = utils.get_upload_path(user, fpath)
 
     # Create directory if it does not exist
-    os.makedirs(upload_path.parent, exist_ok=True)
+    upload_path.parent.mkdir(parents=True, exist_ok=True)
 
     try:
         response = up.save_file(database, user, upload_path)
