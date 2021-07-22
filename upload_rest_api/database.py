@@ -138,6 +138,11 @@ class Database:
         """Return tasks collection."""
         return Tasks(self.client)
 
+    @property
+    def uploads(self):
+        """Return uploads collection"""
+        return Uploads(self.client)
+
 
 class User:
     """Class for managing users in the database."""
@@ -591,3 +596,54 @@ class Tasks:
         # Messages are *not* included in the response to prevent
         # unnecessary memory usage
         return self.tasks.find()
+
+
+class Uploads:
+    """Class for managing pending uploads in the database"""
+    def __init__(self, client):
+        """Initialize Tasks instance."""
+        self.uploads = client.upload.uploads
+
+    def create(self, user, file_path, resource):
+        """Create one upload document.
+
+        :param User user: User initiating the upload
+        :param str file_path: Path to the final location of the file
+        :param resource: tus resource corresponding to the upload
+        :returns: ID of the created upload instance
+        """
+        return self.uploads.insert_one({
+            # Resource ID contains an UUID, making it safe to use as an
+            # unique identifier
+            "_id": resource.identifier,
+            "file_path": file_path,
+            "username": user.username,
+            "size": resource.upload_length
+        }).inserted_id
+
+    def delete_one(self, identifier):
+        """Delete one Upload document.
+
+        :param str identifier: Resource ID of the document to be removed
+        :returns: Number of documents deleted
+
+        .. note::
+
+            This will *not* remove the corresponding tus workspace from disk.
+        """
+        return self.uploads.delete_one(
+            {"_id": identifier}
+        ).deleted_count
+
+    def get_user_allocated_quota(self, user):
+        """Get the amount of bytes currently allocated for an user's tus
+        uploads.
+
+        This can be checked to prevent the user from initiating too many
+        uploads that would exhaust the user's quota.
+
+        :param user: User initiating the upload
+        """
+        uploads = self.uploads.find({"username": user.username})
+
+        return sum(upload["size"] for upload in uploads)

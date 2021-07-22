@@ -20,7 +20,9 @@ def main():
             "metax_access@git+https://gitlab.ci.csc.fi/dpres/"
             "metax-access.git@develop",
             "archive_helpers@git+https://gitlab.ci.csc.fi/dpres/"
-            "archive-helpers.git@develop"
+            "archive-helpers.git@develop",
+            "flask_tus_io@git+https://gitlab.ci.csc.fi/dpres/"
+            "flask-tus-io@develop"
         ],
         entry_points={
             "console_scripts": [

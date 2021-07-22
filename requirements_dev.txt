@@ -29,3 +29,4 @@ rq<1.9.0
 
 git+https://gitlab.ci.csc.fi/dpres/metax-access.git@develop#egg=metax_access
 git+https://gitlab.ci.csc.fi/dpres/archive-helpers.git@develop#egg=archive_helpers
+git+https://gitlab.ci.csc.fi/dpres/flask-tus-io.git@develop#egg=flask_tus_io

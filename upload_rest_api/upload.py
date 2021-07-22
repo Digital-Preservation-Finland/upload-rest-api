@@ -83,6 +83,26 @@ def save_file(database, user, stream, checksum, upload_path):
     else:
         raise werkzeug.exceptions.Conflict("File already exists")
 
+    md5 = save_file_into_db(
+        file_path=file_path,
+        database=database,
+        user=user
+    )
+    return md5
+
+
+def save_file_into_db(file_path, database, user):
+    """
+    Save the file metadata into the database. This assumes the file has been
+    placed into its final location.
+
+    :param str file_path: Path to the file
+    :param database: upload_rest_api database instance
+    :param user: User database instance
+
+    :returns: MD5 checksum of the file
+    :rtype: str
+    """
     # Add file checksum to mongo
     md5 = gen_metadata.md5_digest(file_path)
     database.checksums.insert_one(str(file_path.resolve()), md5)

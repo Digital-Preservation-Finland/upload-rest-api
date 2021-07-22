@@ -34,9 +34,11 @@ def mock_config(monkeypatch, upload_tmpdir):
     """
     projects_path = upload_tmpdir.join("projects")
     temp_upload_path = upload_tmpdir.join("tmp")
+    temp_tus_path = upload_tmpdir.join("tus")
 
     projects_path.mkdir()
     temp_upload_path.mkdir()
+    temp_tus_path.mkdir()
 
     mock_config_ = run_path("include/etc/upload_rest_api.conf")
 
@@ -52,6 +54,8 @@ def mock_config(monkeypatch, upload_tmpdir):
 
     monkeypatch.setitem(CONFIG, "UPLOAD_PATH", str(projects_path))
     monkeypatch.setitem(CONFIG, "UPLOAD_TMP_PATH", str(temp_upload_path))
+
+    monkeypatch.setitem(CONFIG, "TUS_API_SPOOL_PATH", str(temp_tus_path))
 
     yield CONFIG
 
@@ -179,8 +183,27 @@ def app(mock_mongo, mock_config, monkeypatch):
     flask_app.config["TESTING"] = True
     flask_app.config["UPLOAD_PATH"] = mock_config["UPLOAD_PATH"]
     flask_app.config["UPLOAD_TMP_PATH"] = mock_config["UPLOAD_TMP_PATH"]
+    flask_app.config["TUS_API_SPOOL_PATH"] = mock_config["TUS_API_SPOOL_PATH"]
 
     yield flask_app
+
+
+@pytest.fixture(scope="function")
+def database(mock_mongo):
+    """
+    :returns: Database instance
+    :rtype: upload_rest_api.database.Database instance
+    """
+    return db.Database()
+
+
+@pytest.yield_fixture(scope="function")
+def test_client(app):
+    """
+    Flask test client fixture
+    """
+    with app.test_client() as test_client_:
+        yield test_client_
 
 
 @pytest.fixture(scope="function")

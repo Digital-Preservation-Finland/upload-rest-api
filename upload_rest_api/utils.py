@@ -1,6 +1,7 @@
 """upload-rest-api utility functions."""
 import os
 import pathlib
+
 try:
     from urllib.parse import urlparse, urlunparse
 except ImportError:  # Python 2
@@ -25,8 +26,6 @@ def get_upload_path(user, file_path):
     joined_path = safe_join(user.project_directory, dirname)
 
     return pathlib.Path(joined_path).resolve() / secure_fname
-
-
 
 
 def get_return_path(user, fpath):

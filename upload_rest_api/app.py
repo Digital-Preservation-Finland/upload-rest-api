@@ -1,13 +1,14 @@
 """REST api for uploading files into passipservice."""
 import logging
 
+import upload_rest_api.authentication as auth
 from flask import Flask
 from upload_rest_api.api.v1.archives import ARCHIVES_API_V1
-from upload_rest_api.api.v1.errorhandlers import (http_error_500,
-                                                  http_error_404,
+from upload_rest_api.api.v1.errorhandlers import (http_error_404,
+                                                  http_error_500,
                                                   http_error_generic)
-import upload_rest_api.authentication as auth
 from upload_rest_api.api.v1.files import FILES_API_V1
+from upload_rest_api.api.v1 import files_tus
 from upload_rest_api.api.v1.metadata import METADATA_API_V1
 from upload_rest_api.api.v1.tasks import TASK_STATUS_API_V1
 
@@ -59,6 +60,8 @@ def create_app():
     app.register_blueprint(ARCHIVES_API_V1)
     app.register_blueprint(METADATA_API_V1)
     app.register_blueprint(TASK_STATUS_API_V1)
+
+    files_tus.register_blueprint(app)
 
     # Register error handlers
     for status_code in [400, 401, 405, 409, 411, 413, 415]:
