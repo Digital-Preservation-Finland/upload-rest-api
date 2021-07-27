@@ -22,7 +22,7 @@ def main():
             "archive_helpers@git+https://gitlab.ci.csc.fi/dpres/"
             "archive-helpers.git@develop",
             "flask_tus_io@git+https://gitlab.ci.csc.fi/dpres/"
-            "flask-tus-io@develop"
+            "flask-tus-io.git@develop"
         ],
         entry_points={
             "console_scripts": [
