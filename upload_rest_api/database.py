@@ -395,7 +395,7 @@ class Files:
 
     def get_identifier(self, fpath):
         """Get file_identifier based on file_path."""
-        _file = self.files.find_one({"file_path": fpath})
+        _file = self.files.find_one({"file_path": str(fpath)})
 
         if _file is None:
             return None
