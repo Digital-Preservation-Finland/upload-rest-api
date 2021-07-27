@@ -1,6 +1,8 @@
+---
 stages:
   - rpm-package
   - local-test
+  - distributed-test
 
 rpm-package-rhel7:
   stage: rpm-package
@@ -31,3 +33,22 @@ unit-test-python36:
     - 'unit-test-virtualenv.sh python36'
   except:
     - master
+
+e2e-localhost-siptools-research:
+  stage: local-test
+  script:
+    - 'e2e-fairdata.sh dpres-research-rest-api e2e-localhost'
+  except:
+    - develop
+    - master
+    - tags
+
+e2e-distributed-siptools-research:
+  stage: distributed-test
+  tags:
+    - pouta-gitlab-runner1
+  script:
+    - 'e2e-fairdata.sh dpres-research-rest-api e2e-distributed'
+  only:
+    - develop
+    - tags
