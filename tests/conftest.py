@@ -360,17 +360,10 @@ def user_token_auth(mock_mongo):
 
 
 @pytest.fixture(scope="function")
-def admin_auth(mock_mongo):
+def admin_auth(mock_mongo, mock_config):
     """Return credentials header containing a token with admin privileges"""
-    token_data = db.Database().tokens.create(
-        name="Admin test token",
-        username="admin",
-        projects=None,
-        expiration_date=None,
-        admin=True
-    )
-    tokenn = token_data["token"]
+    mock_config["ADMIN_TOKEN"] = "fddps-admin"
 
     return {
-        "Authorization": f"Bearer {token}"
+        "Authorization": "Bearer fddps-admin"
     }

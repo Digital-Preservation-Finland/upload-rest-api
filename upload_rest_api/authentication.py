@@ -1,6 +1,7 @@
 """Module for authenticating users."""
 from hmac import compare_digest
 
+from upload_rest_api.config import CONFIG
 import upload_rest_api.database as db
 from flask import abort, g, request
 from werkzeug.local import LocalProxy
@@ -93,6 +94,18 @@ def _auth_user_by_token():
 
     token = authorization.split(" ")[1]
 
+    # Check for pre-configured admin token
+    admin_token = CONFIG.get("ADMIN_TOKEN", None)
+
+    if token == admin_token:
+        g.current_user = CurrentUser(
+            username="admin",
+            projects=None,
+            admin=True
+        )
+        return True
+
+    # Check if it's a token in the database
     database = db.Database()
 
     try:
@@ -152,7 +165,7 @@ def authenticate():
 
     Returns 401 - Unauthorized access for wrong username or password
     """
-    # Try authenticating using token first, if available
+    # Try authenticating using token first
     if _auth_user_by_token():
         return
 
