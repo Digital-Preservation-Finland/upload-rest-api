@@ -4,6 +4,7 @@ periodically using cron.
 """
 import errno
 import os
+import pathlib
 import time
 
 import upload_rest_api.config
@@ -80,7 +81,7 @@ def _clean_file(_file, upload_path, fpaths, file_dict=None, metax_client=None):
     :returns: None
     """
     if metax_client is not None and file_dict is not None:
-        metax_path = md.get_metax_path(_file, upload_path)
+        metax_path = md.get_metax_path(pathlib.Path(_file), upload_path)
 
         if not metax_client.file_has_dataset(metax_path, file_dict):
             fpaths.append(metax_path)
@@ -96,7 +97,6 @@ def clean_project(project, fpath, metax=True):
 
     :param project: Project identifier used to search files from Metax
     :param fpath: Path to the dir to cleanup
-    :param time_lim: Time limit in seconds
     :param metax: Boolean. if True metadata is removed also from Metax
 
     :returns: Number of deleted files

@@ -147,3 +147,24 @@ def test_expired_tasks(mock_mongo, requests_mock, mock_config):
     time.sleep(2)
     clean.clean_mongo()
     assert tasks.count() == 0
+
+
+def test_clean_project(mock_config, requests_mock):
+    """Test cleaning project."""
+    project = 'foo'
+    project_path = pathlib.Path(mock_config['UPLOAD_PATH']) / project
+
+    # Mock metax
+    requests_mock.get('https://metax.fd-test.csc.fi/rest/v2/files',
+                      json={'next': None, 'results': []})
+
+    # Create a old test file in project directory
+    project_path.mkdir()
+    testfile = project_path / 'testfile1'
+    testfile.write_text('foo')
+    os.utime(testfile, (0, 0))
+    assert testfile.is_file()
+
+    # Clean project and check that the old file has been removed
+    clean.clean_project(project, project_path, metax=True)
+    assert not testfile.is_file()
