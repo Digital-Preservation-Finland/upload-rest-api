@@ -348,9 +348,21 @@ class Checksums:
 
     def delete(self, filepaths):
         """Delete multiple checksum docs."""
-        return self.checksums.delete_many(
-            {"_id": {"$in": filepaths}}
-        ).deleted_count
+        # Split list of file path names to delete into chunks as a workaround
+        # to MongoDB's 16 MB query size limitation.
+        # 10,000 path names per chunk is enough provided path names are no
+        # longer than 1,600 characters.
+        file_path_chunks = [
+            filepaths[i:i+10000] for i in range(0, len(filepaths), 10000)
+        ]
+
+        deleted_count = 0
+        for chunk in file_path_chunks:
+            deleted_count += self.checksums.delete_many(
+                {"_id": {"$in": chunk}}
+            ).deleted_count
+
+        return deleted_count
 
     def delete_dir(self, dirpath):
         """Delete all file checksums found under dirpath."""
@@ -361,7 +373,7 @@ class Checksums:
                 fpath = os.path.abspath(fpath)
                 filepaths.append(fpath)
 
-        self.delete(filepaths)
+        return self.delete(filepaths)
 
     def get_checksum(self, filepath):
         """Get checksum of a single file."""

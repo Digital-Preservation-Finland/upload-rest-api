@@ -241,6 +241,17 @@ def tasks_col(mock_mongo):
 
 
 @pytest.fixture(scope="function")
+def checksums_col(mock_mongo):
+    """Initialize and return Checksums instance with db connection through
+    mongomock.
+    """
+    checksums_col = db.Database().checksums
+    checksums_col.checksums = mock_mongo.upload.checksums
+
+    return checksums_col
+
+
+@pytest.fixture(scope="function")
 def test_auth():
     """Return correct credentials header."""
     return {

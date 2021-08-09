@@ -222,3 +222,31 @@ def test_task_not_found(tasks_col, method):
 
     with pytest.raises(db.TaskNotFoundError, match='Task .* not found'):
         tasks_col.__getattribute__(method)(task_identifier, 'bar')
+
+
+def test_checksums_delete_chunks(checksums_col):
+    """
+    Test deleting a large amount of checksums. The deletion queries are
+    split into chunks internally to prevent exceeding MongoDB's query size
+    limit.
+    """
+    # 20,100 checksums will be added
+    for i in range(0, 201):
+        checksums_col.insert([
+            {"_id": f"/path/{(i*100)+j}", "checksum": "foobar"}
+            for j in range(0, 100)
+        ])
+
+    assert checksums_col.checksums.count_documents({}) == 20100
+
+    # Delete all but the last 3 checksum entries using `delete`
+    paths_to_delete = [f"/path/{i}" for i in range(0, 20097)]
+    assert checksums_col.delete(paths_to_delete) == 20097
+
+    # 3 checksums are left
+    assert checksums_col.get_checksums() == {
+        "/path/20097": "foobar",
+        "/path/20098": "foobar",
+        "/path/20099": "foobar"
+    }
+
