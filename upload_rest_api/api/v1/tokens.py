@@ -81,6 +81,8 @@ def list_tokens():
         entry["identifier"] = entry["_id"]
         del entry["_id"]
         del entry["token_hash"]
+        if entry["expiration_date"]:
+            entry["expiration_date"] = entry["expiration_date"].isoformat()
 
     return jsonify({
         "tokens": token_entries

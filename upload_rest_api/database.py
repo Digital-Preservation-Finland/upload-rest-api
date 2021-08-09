@@ -739,18 +739,7 @@ class Tokens:
         }
 
         self.tokens.insert_one(data)
-
-        # Cache the token in Redis.
-        redis = get_redis_connection()
-        redis_data = data.copy()
-        del redis_data["token_hash"]
-        if expiration_date:
-            redis_data["expiration_date"] = expiration_date.isoformat()
-
-        redis.set(
-            f"fddps-token:{token_hash}", json.dumps(redis_data),
-            ex=30 * 60  # Cache token for 30 minutes
-        )
+        self._cache_token_data_to_redis(data)
 
         # Include the token in the initial creation request.
         # Only the SHA256 hash will be stored in the database.
@@ -758,6 +747,30 @@ class Tokens:
         del data["token_hash"]
 
         return data
+
+    def _cache_token_data_to_redis(self, data):
+        """
+        Cache given token data to Redis.
+
+        :param dict data: Dictionary to cache, as returned by pymongo
+        """
+        from upload_rest_api.jobs.utils import get_redis_connection
+
+        redis = get_redis_connection()
+
+        redis_data = data.copy()
+        token_hash = redis_data["token_hash"]
+
+        del redis_data["token_hash"]
+
+        expiration_date = redis_data["expiration_date"]
+        if expiration_date:
+            redis_data["expiration_date"] = expiration_date.isoformat()
+
+        redis.set(
+            f"fddps-token:{token_hash}", json.dumps(redis_data),
+            ex=30 * 60  # Cache token for 30 minutes
+        )
 
     def get_by_token(self, token):
         """
@@ -790,6 +803,9 @@ class Tokens:
                 result["expiration_date"] = result["expiration_date"].replace(
                     tzinfo=datetime.timezone.utc
                 )
+
+            if result:
+                self._cache_token_data_to_redis(result)
 
         if not result:
             raise ValueError("Token not found")
