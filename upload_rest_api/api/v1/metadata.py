@@ -1,13 +1,11 @@
 """REST api for uploading files into passipservice."""
-import os
-
-from flask import Blueprint, jsonify, request, current_app, url_for
+import os.path
 
 import upload_rest_api.database as db
 import upload_rest_api.utils as utils
+from flask import Blueprint, abort, current_app, jsonify, request, url_for
 from upload_rest_api.api.v1.tasks import TASK_STATUS_API_V1
-from upload_rest_api.jobs.utils import enqueue_background_job, METADATA_QUEUE
-
+from upload_rest_api.jobs.utils import METADATA_QUEUE, enqueue_background_job
 
 METADATA_API_V1 = Blueprint("metadata_v1", __name__, url_prefix="/v1/metadata")
 
@@ -26,6 +24,9 @@ def post_metadata(fpath):
     username = request.authorization.username
     user = db.Database().user(username)
     file_path = utils.get_upload_path(user, fpath)
+
+    if not os.path.exists(file_path):
+        abort(404, "File not found")
 
     storage_id = current_app.config.get("STORAGE_ID")
     task_id = enqueue_background_job(

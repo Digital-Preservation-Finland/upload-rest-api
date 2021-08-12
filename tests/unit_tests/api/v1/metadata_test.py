@@ -213,6 +213,21 @@ def test_post_metadata(app, test_auth, requests_mock, background_job_runner):
     }
 
 
+def test_post_metadata_missing_path(
+        app, test_auth, requests_mock, test_client):
+    """
+    Test posting file metadata to Metax when the local file does not exist
+    """
+    response = test_client.post(
+        "/v1/metadata/this/does/not/exist", headers=test_auth
+    )
+    assert response.status_code == 404
+    assert response.json == {
+        "code": 404,
+        "error": "File not found"
+    }
+
+
 @pytest.mark.parametrize(
     ('metax_response', 'expected_response'),
     [

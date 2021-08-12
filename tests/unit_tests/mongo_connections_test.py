@@ -90,7 +90,7 @@ def test_delete_files(app, test_auth, requests_mock, background_job_runner):
         assert connect.call_count < 10
 
 
-def test_post_metadata(app, test_auth, requests_mock, background_job_runner):
+def test_post_metadata(app, test_auth, requests_mock):
     """Test posting file metadata to Metax."""
     client = app.test_client()
     _upload_archive(client, test_auth)
@@ -104,9 +104,8 @@ def test_post_metadata(app, test_auth, requests_mock, background_job_runner):
         return_value=pymongo.MongoClient()
     ) as connect:
         response = client.post("/v1/metadata/test/", headers=test_auth)
-        background_job_runner(
-            client, "metadata", response, expect_success=False
-        )
+        assert response.status_code == 404
+        assert connect.call_count > 0
         assert connect.call_count < 10
 
 
