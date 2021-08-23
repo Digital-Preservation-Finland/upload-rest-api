@@ -237,7 +237,7 @@ def test_checksums_delete_chunks(checksums_col):
             for j in range(0, 100)
         ])
 
-    assert checksums_col.checksums.count_documents({}) == 20100
+    assert checksums_col.checksums.count({}) == 20100
 
     # Delete all but the last 3 checksum entries using `delete`
     paths_to_delete = [f"/path/{i}" for i in range(0, 20097)]

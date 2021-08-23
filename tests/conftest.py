@@ -1,22 +1,32 @@
 """Configure py.test default values and functionality."""
 import os
+import pprint
 import sys
 from base64 import b64encode
 from runpy import run_path
 
-import fakeredis
-import mongomock
 import pytest
-from rq import SimpleWorker
-
 import upload_rest_api.app as app_module
 import upload_rest_api.database as db
+from rq import SimpleWorker
 from upload_rest_api.jobs.utils import get_job_queue
+
+import fakeredis
+from mongobox import MongoBox
 
 # Prefer modules from source directory rather than from site-python
 sys.path.insert(
     0, os.path.join(os.path.abspath(os.path.dirname(__file__)), '..')
 )
+
+
+def pytest_addoption(parser):
+    """
+    Add custom flag for printing all queries done during the test
+    """
+    parser.addoption("--log-queries", action="store_true",
+                     help=("Print a list of MongoDB queries performed during "
+                           "the test."))
 
 
 @pytest.yield_fixture(scope="function")
@@ -68,12 +78,59 @@ def patch_hashing_iters(monkeypatch):
     monkeypatch.setattr(db, "ITERATIONS", 2000)
 
 
-@pytest.fixture(autouse=True)
-def mock_mongo(monkeypatch):
-    """Patch pymongo.MongoClient() with mock client."""
-    mongoclient = mongomock.MongoClient()
-    monkeypatch.setattr('pymongo.MongoClient', lambda *args: mongoclient)
-    return mongoclient
+@pytest.yield_fixture(autouse=True, scope="session")
+def test_mongo():
+    """
+    Initialize MongoDB test instance and return MongoDB client instance for
+    the database
+    """
+    box = MongoBox()
+    box.start()
+
+    client = box.client()
+    client.PORT = box.port
+
+    yield client
+
+    box.stop()
+
+
+@pytest.fixture(scope="function", autouse=True)
+def patch_mongo(test_mongo, monkeypatch):
+    """
+    Monkeypatch pymongo to use the test instance and clear the database
+    before each test
+    """
+    test_mongo.drop_database("upload")
+    monkeypatch.setattr("pymongo.MongoClient", lambda *args: test_mongo)
+
+
+@pytest.yield_fixture(autouse=True)
+def db_logging_fx(patch_mongo, test_mongo, request):
+    """
+    Optionally print list of database queries made during a test.
+
+    If --log-queries flag is provided to pytest, all the database queries made
+    during the test and it's setup are printed to stdout.
+    """
+    test_mongo.upload.command("profile", 2)
+    yield
+
+    if request.config.getoption("--log-queries"):
+        queries = []
+
+        for entry in test_mongo.upload.system.profile.find({}):
+            try:
+                queries.append(
+                    entry["command"]
+                )
+            except KeyError:
+                pass
+
+        print()
+        print("{} QUERIES were sent".format(len(queries)))
+        print()
+        pprint.pprint(queries, indent=4)
 
 
 @pytest.yield_fixture(scope="function", autouse=True)
@@ -141,13 +198,13 @@ def background_job_runner(test_auth):
     return wrapper
 
 
-def init_db(mock_mongo):
+def init_db(test_mongo):
     """Initialize user db."""
-    mock_mongo.drop_database("upload")
+    test_mongo.drop_database("upload")
 
     # test user
     user = db.Database().user("test")
-    user.users = mock_mongo.upload.users
+    user.users = test_mongo.upload.users
     user.create("test_project", password="test")
 
     # test2 user with same project
@@ -160,7 +217,7 @@ def init_db(mock_mongo):
 
 
 @pytest.yield_fixture(scope="function")
-def app(mock_mongo, mock_config, monkeypatch):
+def app(test_mongo, mock_config, monkeypatch):
     """Create temporary upload directory and app, which uses it.
 
     Temp dirs are cleaned after use.
@@ -178,7 +235,9 @@ def app(mock_mongo, mock_config, monkeypatch):
     monkeypatch.setattr(app_module, "configure_app", _mock_configure_app)
 
     flask_app = app_module.create_app()
-    init_db(mock_mongo)
+    init_db(test_mongo)
+
+    monkeypatch.setattr("pymongo.MongoClient", lambda *args: test_mongo)
 
     flask_app.config["TESTING"] = True
     flask_app.config["UPLOAD_PATH"] = mock_config["UPLOAD_PATH"]
@@ -189,7 +248,7 @@ def app(mock_mongo, mock_config, monkeypatch):
 
 
 @pytest.fixture(scope="function")
-def database(mock_mongo):
+def database(test_mongo):
     """
     :returns: Database instance
     :rtype: upload_rest_api.database.Database instance
@@ -207,46 +266,46 @@ def test_client(app):
 
 
 @pytest.fixture(scope="function")
-def user(mock_mongo):
+def user(test_mongo):
     """Initialize and return User instance with db connection through
-    mongomock.
+    Mongobox.
     """
     test_user = db.Database().user("test_user")
-    test_user.users = mock_mongo.upload.users
+    test_user.users = test_mongo.upload.users
 
     return test_user
 
 
 @pytest.fixture(scope="function")
-def files_col(mock_mongo):
+def files_col(test_mongo):
     """Initialize and return Files instance with db connection through
-    mongomock.
+    Mongobox.
     """
     files_coll = db.Database().files
-    files_coll.files = mock_mongo.upload.files
+    files_coll.files = test_mongo.upload.files
 
     return files_coll
 
 
 @pytest.fixture(scope="function")
-def tasks_col(mock_mongo):
+def tasks_col(test_mongo):
     """Initialize and return Tasks instance with db connection through
-    mongomock.
+    Mongobox.
     """
     tasks_col = db.Database().tasks
-    tasks_col.tasks = mock_mongo.upload.tasks
-    tasks_col.task_messages = mock_mongo.upload.task_messages
+    tasks_col.tasks = test_mongo.upload.tasks
+    tasks_col.task_messages = test_mongo.upload.task_messages
 
     return tasks_col
 
 
 @pytest.fixture(scope="function")
-def checksums_col(mock_mongo):
+def checksums_col(test_mongo):
     """Initialize and return Checksums instance with db connection through
-    mongomock.
+    Mongobox.
     """
     checksums_col = db.Database().checksums
-    checksums_col.checksums = mock_mongo.upload.checksums
+    checksums_col.checksums = test_mongo.upload.checksums
 
     return checksums_col
 

@@ -33,7 +33,7 @@ Requires:       python3-archive-helpers
 Requires:       python3-flask-tus-io
 BuildRequires:  python3-setuptools
 BuildRequires:  python36-pytest
-BuildRequires:  python3-mongomock
+BuildRequires:  python3-mongobox
 BuildRequires:  python36-mock
 BuildRequires:  python3-fakeredis
 BuildRequires:  python3-requests-mock

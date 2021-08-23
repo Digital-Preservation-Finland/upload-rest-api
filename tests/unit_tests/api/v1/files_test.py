@@ -45,11 +45,11 @@ def test_incorrect_authentication(app, wrong_auth):
     assert response.status_code == 401
 
 
-def test_upload(app, test_auth, mock_mongo):
+def test_upload(app, test_auth, test_mongo):
     """Test uploading a plain text file."""
     test_client = app.test_client()
     upload_path = app.config.get("UPLOAD_PATH")
-    checksums = mock_mongo.upload.checksums
+    checksums = test_mongo.upload.checksums
 
     response = _upload_file(
         test_client, "/v1/files/test.txt",
@@ -96,11 +96,11 @@ def test_upload_max_size(app, test_auth):
     assert not os.path.isfile(fpath)
 
 
-def test_user_quota(app, test_auth, mock_mongo):
+def test_user_quota(app, test_auth, test_mongo):
     """Test uploading files larger than allowed by user quota."""
     test_client = app.test_client()
     upload_path = app.config.get("UPLOAD_PATH")
-    users = mock_mongo.upload.users
+    users = test_mongo.upload.users
 
     _set_user_quota(users, "test", 200, 0)
     response = _upload_file(
@@ -116,7 +116,7 @@ def test_user_quota(app, test_auth, mock_mongo):
                                           "test.zip"))
 
 
-def test_used_quota(app, test_auth, mock_mongo, requests_mock):
+def test_used_quota(app, test_auth, test_mongo, requests_mock):
     """Test that used quota is calculated correctly."""
     # Mock Metax
     requests_mock.get("https://metax.fd-test.csc.fi/rest/v2/files?limit=10000&"
@@ -124,7 +124,7 @@ def test_used_quota(app, test_auth, mock_mongo, requests_mock):
                       json={'next': None, 'results': []})
 
     test_client = app.test_client()
-    users = mock_mongo.upload.users
+    users = test_mongo.upload.users
 
     # Upload two 31B txt files
     _upload_file(
@@ -243,14 +243,14 @@ def test_file_integrity_validation(app, test_auth, checksum,
         assert response.json[key] == expected_response[key]
 
 
-def test_get_file(app, test_auth, test2_auth, test3_auth, mock_mongo):
+def test_get_file(app, test_auth, test2_auth, test3_auth, test_mongo):
     """Test GET for single file."""
     test_client = app.test_client()
     upload_path = app.config.get("UPLOAD_PATH")
 
     fpath = os.path.join(upload_path, "test_project/test.txt")
     shutil.copy("tests/data/test.txt", fpath)
-    mock_mongo.upload.checksums.insert_one({
+    test_mongo.upload.checksums.insert_one({
         "_id": fpath, "checksum": "150b62e4e7d58c70503bd5fc8a26463c"
     })
 
@@ -273,7 +273,7 @@ def test_get_file(app, test_auth, test2_auth, test3_auth, mock_mongo):
     assert response.json['error'] == 'File not found'
 
 
-def test_delete_file(app, test_auth, requests_mock, mock_mongo):
+def test_delete_file(app, test_auth, requests_mock, test_mongo):
     """Test DELETE for single file."""
     response = {
         "next": None,
@@ -304,7 +304,7 @@ def test_delete_file(app, test_auth, requests_mock, mock_mongo):
     fpath = os.path.join(upload_path, "test_project/test.txt")
 
     shutil.copy("tests/data/test.txt", fpath)
-    mock_mongo.upload.checksums.insert_one({"_id": fpath, "checksum": "foo"})
+    test_mongo.upload.checksums.insert_one({"_id": fpath, "checksum": "foo"})
 
     # DELETE file that exists
     response = test_client.delete(
@@ -315,7 +315,7 @@ def test_delete_file(app, test_auth, requests_mock, mock_mongo):
     assert response.status_code == 200
     assert response.json["metax"] == {'deleted_files_count': 1}
     assert not os.path.isfile(fpath)
-    assert mock_mongo.upload.checksums.count({}) == 0
+    assert test_mongo.upload.checksums.count({}) == 0
 
     # DELETE file that does not exist
     response = test_client.delete(
@@ -436,7 +436,7 @@ def test_get_directory_without_identifier(app, test_auth, requests_mock):
 
 @pytest.mark.parametrize('target', ['/test', '/', ''])
 def test_delete_directory(
-    app, test_auth, requests_mock, mock_mongo, background_job_runner, target
+    app, test_auth, requests_mock, test_mongo, background_job_runner, target
 ):
     """Test deleting a directory."""
     # Create test data
@@ -484,12 +484,12 @@ def test_delete_directory(
                   project_directory / 'test' / 'test.txt']:
         if file_ in target_files:
             assert not file_.exists()
-            assert not mock_mongo.upload.checksums.find_one(
+            assert not test_mongo.upload.checksums.find_one(
                 {"_id": str(file_)}
             )
         else:
             assert file_.exists()
-            assert mock_mongo.upload.checksums.find_one({"_id": str(file_)})
+            assert test_mongo.upload.checksums.find_one({"_id": str(file_)})
 
     # The target directory and subdirectories should be deleted. Project
     # directory should still exist.

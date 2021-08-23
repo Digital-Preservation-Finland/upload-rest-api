@@ -36,7 +36,7 @@ def test_no_expired_files(mock_config):
     assert os.stat(fpath).st_mtime == last_access
 
 
-def test_expired_files(mock_mongo, mock_config):
+def test_expired_files(test_mongo, mock_config):
     """Test that all the expired files and empty directories are
     removed.
     """
@@ -52,7 +52,7 @@ def test_expired_files(mock_mongo, mock_config):
     shutil.copy("tests/data/test.txt", fpath_expired)
 
     # Add checksums to mongo
-    checksums = mock_mongo.upload.checksums
+    checksums = test_mongo.upload.checksums
     checksums.insert_many([
         {"_id": fpath, "checksum": "foo"},
         {"_id": fpath_expired, "checksum": "foo"}
@@ -76,7 +76,7 @@ def test_expired_files(mock_mongo, mock_config):
     assert os.path.isfile(fpath)
 
 
-def test_all_files_expired(mock_mongo, mock_config):
+def test_all_files_expired(test_mongo, mock_config):
     """Test cleanup for expired project.
 
     Project directory should not be removed even if all files are
@@ -93,7 +93,7 @@ def test_all_files_expired(mock_mongo, mock_config):
     os.utime(old_file, (0, 0))
 
     # Add checksums to mongo
-    checksums = mock_mongo.upload.checksums
+    checksums = test_mongo.upload.checksums
     checksums.insert_many([
         {"_id": str(old_file), "checksum": "foo"},
     ])
@@ -108,7 +108,7 @@ def test_all_files_expired(mock_mongo, mock_config):
     assert not any(project_path.iterdir())
 
 
-def test_expired_tasks(mock_mongo, requests_mock, mock_config):
+def test_expired_tasks(test_mongo, requests_mock, mock_config):
     """Test that only expired tasks are removed."""
     # Mock Metax HTTP responses
     requests_mock.get('https://metax.fd-test.csc.fi/rest/v2/files',
@@ -117,7 +117,7 @@ def test_expired_tasks(mock_mongo, requests_mock, mock_config):
     mock_config["CLEANUP_TIMELIM"] = 1
 
     # Add tasks to mongo
-    tasks = mock_mongo.upload.tasks
+    tasks = test_mongo.upload.tasks
     tasks.insert_one({"project": "project_1",
                       "timestamp": time.time(),
                       "status": 'pending'})

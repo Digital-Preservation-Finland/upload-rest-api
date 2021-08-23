@@ -1,6 +1,6 @@
 # Testing requirements
 
-mongomock
+mongobox
 # Use pytest version that is available on centos7 to avoid deprecation warnings
 pytest==2.9.2
 # Pytest-warnings is required for pytest<3.1

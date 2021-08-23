@@ -37,7 +37,7 @@ def _request_accepted(response):
     ]
 )
 def test_upload_archive(
-        archive, dirpath, app, test_auth, mock_mongo, background_job_runner
+        archive, dirpath, app, test_auth, test_mongo, background_job_runner
 ):
     """Test that uploaded archive is extracted.
 
@@ -47,12 +47,12 @@ def test_upload_archive(
     :param url dirpath: Directory path where archive is extracted
     :param app: Flask app
     :param test_auth: authentication headers
-    :param mock_mongo: Mongoclient
+    :param test_mongo: Mongoclient
     :param background_job_runner: RQ job mocker
     """
     test_client = app.test_client()
     upload_path = pathlib.Path(app.config.get("UPLOAD_PATH"))
-    checksums = mock_mongo.upload.checksums
+    checksums = test_mongo.upload.checksums
 
     url = "/v1/archives?dir={}".format(dirpath) if dirpath else "/v1/archives"
     response = _upload_file(test_client, url, test_auth, archive)
@@ -287,7 +287,7 @@ def test_upload_invalid_dir(dirpath, app, test_auth):
 
 
 def test_upload_archive_concurrent(
-        app, test_auth, mock_mongo, background_job_runner
+        app, test_auth, test_mongo, background_job_runner
 ):
     """Test that uploaded archive is extracted.
 
@@ -295,7 +295,7 @@ def test_upload_archive_concurrent(
     """
     test_client = app.test_client()
     upload_path = pathlib.Path(app.config.get("UPLOAD_PATH"))
-    checksums = mock_mongo.upload.checksums
+    checksums = test_mongo.upload.checksums
 
     response_1 = _upload_file(
         test_client, "/v1/archives", test_auth,
@@ -359,13 +359,13 @@ def test_upload_archive_concurrent(
     "tests/data/symlink.tar.gz"
 ])
 def test_upload_invalid_archive(
-        archive, app, test_auth, mock_mongo, background_job_runner):
+        archive, app, test_auth, test_mongo, background_job_runner):
     """Test that trying to upload a archive with symlinks returns error
     and doesn't create any files.
     """
     test_client = app.test_client()
     upload_path = pathlib.Path(app.config.get("UPLOAD_PATH"))
-    checksums = mock_mongo.upload.checksums
+    checksums = test_mongo.upload.checksums
 
     response = _upload_file(
         test_client, "/v1/archives", test_auth, archive

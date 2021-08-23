@@ -7,7 +7,7 @@ import pytest
 from flask_tus_io.resource import encode_tus_meta
 
 
-def test_upload(test_client, test_auth, mock_mongo):
+def test_upload(test_client, test_auth, test_mongo):
     """
     Test uploading a small file
     """
@@ -57,10 +57,10 @@ def test_upload(test_client, test_auth, mock_mongo):
 
     assert resp.status_code == 204  # NO CONTENT
 
-    users = mock_mongo.upload.users
+    users = test_mongo.upload.users
 
     # Uploaded file was added to database
-    checksums = list(mock_mongo.upload.checksums.find())
+    checksums = list(test_mongo.upload.checksums.find())
     assert len(checksums) == 1
     assert checksums[0]["_id"].endswith("test.txt")
     assert checksums[0]["checksum"] == "a5d1741953bf0c12b7a097f58944e474"

@@ -19,6 +19,10 @@ test:
 	${PYTHON} -m pytest tests/unit_tests -v \
 	    --junitprefix=upload_rest_api --junitxml=junit.xml
 
+test-with-db-logging:
+	${PYTHON} -m pytest tests/unit_tests -vs --log-queries \
+		--junitprefix=upload_rest_api --junitxml=junit.xml
+
 coverage:
 	${PYTHON} -m pytest tests --cov=upload_rest_api --cov-report=html
 	coverage report -m

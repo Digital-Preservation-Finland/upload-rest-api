@@ -26,7 +26,7 @@ def _request_accepted(response):
 
 
 def test_delete_metadata(
-        app, test_auth, requests_mock, mock_mongo, background_job_runner
+        app, test_auth, requests_mock, test_mongo, background_job_runner
 ):
     """Test DELETE metadata for a directory and a single dir."""
     response = {
@@ -74,7 +74,7 @@ def test_delete_metadata(
     os.makedirs(os.path.join(upload_path, "test_project", "test/"))
     shutil.copy("tests/data/test.txt", test_path_1)
     shutil.copy("tests/data/test.txt", test_path_2)
-    checksums = mock_mongo.upload.checksums
+    checksums = test_mongo.upload.checksums
     checksums.insert_many([
         {"_id": test_path_1, "checksum": "foo"},
         {"_id": test_path_2, "checksum": "foo"},
@@ -105,7 +105,7 @@ def test_delete_metadata(
 
 
 def test_delete_metadata_dataset_accepted(
-        app, test_auth, requests_mock, mock_mongo, background_job_runner
+        app, test_auth, requests_mock, test_mongo, background_job_runner
 ):
     """Test DELETE metadata for a directory and a single file when
     dataset state is accepted to digital preservation.
@@ -156,7 +156,7 @@ def test_delete_metadata_dataset_accepted(
     os.makedirs(os.path.join(upload_path, "test_project", "test/"))
     shutil.copy("tests/data/test.txt", test_path_1)
     shutil.copy("tests/data/test.txt", test_path_2)
-    checksums = mock_mongo.upload.checksums
+    checksums = test_mongo.upload.checksums
     checksums.insert_many([
         {"_id": test_path_1, "checksum": "foo"},
         {"_id": test_path_2, "checksum": "foo"},
