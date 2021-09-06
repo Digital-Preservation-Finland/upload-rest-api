@@ -92,7 +92,8 @@ def test_upload_archive(
         "directory",
         "directory/subdirectory",
         "/directory",
-        "///directory"
+        "///directory",
+        "directory/"
     ]
 )
 def test_upload_archive_to_dirpath(
