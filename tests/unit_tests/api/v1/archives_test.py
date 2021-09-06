@@ -26,25 +26,21 @@ def _request_accepted(response):
 
 
 @pytest.mark.parametrize(
-    ["archive", "dirpath"],
-    [
-        ("tests/data/test.zip", ""),
-        ("tests/data/test.tar.gz", ""),
-        ("tests/data/test.tar.gz", "directory"),
-        ("tests/data/test.tar.gz", "directory/subdirectory"),
-        ("tests/data/test.tar.gz", "/directory"),
-        ("tests/data/test.tar.gz", "///directory"),
-    ]
+    "archive", ["tests/data/test.zip", "tests/data/test.tar.gz"]
 )
 def test_upload_archive(
-        archive, dirpath, app, test_auth, test_mongo, background_job_runner
+        archive, app, test_auth, test_mongo, background_job_runner
 ):
-    """Test that uploaded archive is extracted.
+    """Test uploading archive.
 
-    No files should be extracted outside the project directory.
+    Test that:
+
+    * API response contains correct message
+    * Files are extracted to correct location
+    * Archive file is removed after extraction
+    * Checksums of files in archive are added to database
 
     :param archive: path to test archive
-    :param url dirpath: Directory path where archive is extracted
     :param app: Flask app
     :param test_auth: authentication headers
     :param test_mongo: Mongoclient
@@ -54,10 +50,10 @@ def test_upload_archive(
     upload_path = pathlib.Path(app.config.get("UPLOAD_PATH"))
     checksums = test_mongo.upload.checksums
 
-    url = "/v1/archives?dir={}".format(dirpath) if dirpath else "/v1/archives"
+    url = "/v1/archives"
     response = _upload_file(test_client, url, test_auth, archive)
     assert response.status_code == 202
-    assert response.json['file_path'] == '/{}'.format(dirpath.strip('/'))
+    assert response.json['file_path'] == '/'
     assert response.json["message"] == "Uploading archive"
     assert response.json["polling_url"].startswith(
         'http://localhost/v1/tasks/'
@@ -65,25 +61,67 @@ def test_upload_archive(
     assert response.json["status"] == "pending"
     assert response.headers['Location'] == response.json["polling_url"]
 
+    # archive file is saved to temporary path
+    upload_tmp_path = pathlib.Path(app.config.get("UPLOAD_TMP_PATH"))
+    tmp_files = [path for path in upload_tmp_path.iterdir() if path.is_file()]
+    assert len(tmp_files) == 1
+
     # Complete the task and check task status
     response = background_job_runner(test_client, "upload", response)
     assert response.status_code == 200
     assert response.json['status'] == 'done'
 
     # test.txt is correctly extracted
-    fpath = upload_path / "test_project" / dirpath.lstrip("/")
+    fpath = upload_path / "test_project"
     text_file = fpath / "test" / "test.txt"
     assert text_file.is_file()
     assert "test" in text_file.read_text()
 
     # archive file is removed
-    archive_file = fpath / os.path.split(archive)[1]
-    assert not archive_file.is_file()
+    assert not tmp_files[0].is_file()
 
     # checksum is added to mongo
     assert checksums.count({}) == 1
     checksum = checksums.find_one({"_id": str(text_file)})["checksum"]
     assert checksum == "150b62e4e7d58c70503bd5fc8a26463c"
+
+
+@pytest.mark.parametrize(
+    "dirpath",
+    [
+        "directory",
+        "directory/subdirectory",
+        "/directory",
+        "///directory"
+    ]
+)
+def test_upload_archive_to_dirpath(
+        dirpath, app, test_auth, background_job_runner
+):
+    """Test that archive is extracted to path given as parameter.
+
+    :param dirpath: Directory path where archive is extracted
+    :param app: Flask app
+    :param test_auth: authentication headers
+    :param background_job_runner: RQ job mocker
+    """
+    test_client = app.test_client()
+
+    url = "/v1/archives?dir={}".format(dirpath)
+    response \
+        = _upload_file(test_client, url, test_auth, 'tests/data/test.tar.gz')
+    assert response.status_code == 202
+    assert response.json['file_path'] == '/{}'.format(dirpath.strip('/'))
+
+    # Complete the task
+    response = background_job_runner(test_client, "upload", response)
+
+    # test.txt is correctly extracted
+    text_file = (pathlib.Path(app.config.get("UPLOAD_PATH"))
+                 / 'test_project' / dirpath.lstrip('/')
+                 / "test" / "test.txt")
+    assert text_file.is_file()
+    assert "test" in text_file.read_text()
 
 
 @pytest.mark.parametrize(
