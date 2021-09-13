@@ -1,54 +1,11 @@
 ---
-stages:
-  - rpm-package
-  - local-test
-  - distributed-test
 
-rpm-package-rhel7:
-  stage: rpm-package
-  script:
-    - 'rpm-package.sh'
-  except:
-    - master
+variables:
+  CI_PYTHON_3: "yes"
 
-rpm-package-rhel8:
-  stage: rpm-package
-  script:
-    - 'rpm-package.sh rhel8'
-  except:
-    - master
-
-unit-test:
-  stage: local-test
-  script:
-    - 'unit-test.sh'
-  except:
-    - master
-
-unit-test-python36:
-  stage: local-test
-  tags:
-    - docker
-  script:
-    - 'unit-test-virtualenv.sh python36'
-  except:
-    - master
-
-e2e-localhost-siptools-research:
-  stage: local-test
-  script:
-    - 'e2e-fairdata.sh dpres-research-rest-api e2e-localhost'
-  except:
-    - develop
-    - master
-    - tags
-
-e2e-distributed-siptools-research:
-  stage: distributed-test
-  tags:
-    - pouta-gitlab-runner1
-  script:
-    - 'e2e-fairdata.sh dpres-research-rest-api e2e-distributed'
-  only:
-    - develop
-    - tags
+include:
+  - project: 'dpres/gitlab-ci-pipeline'
+    ref: master
+    file:
+      - '/pipeline/common.yml'
+      - '/pipeline/fddps.yml'
