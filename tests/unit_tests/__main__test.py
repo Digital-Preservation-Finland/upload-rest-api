@@ -266,3 +266,114 @@ def test_delete_project(database, monkeypatch):
     upload_rest_api.__main__.main()
 
     assert not database.projects.get("test_project")
+
+
+@pytest.mark.usefixtures("test_mongo")
+def test_migrate_database_projects(database, monkeypatch, capsys):
+    """Test migrating users and projects to be separate database entities"""
+    database.client.upload.projects.insert([
+        {
+            "_id": "test_project_a",
+            "used_quota": 20,
+            "quota": 2000
+        }
+    ])
+
+    database.client.upload.users.insert([
+        {
+            "_id": "test_user_a",
+            "salt": "salt_a",
+            "digest": "digest_a",
+            "projects": ["test_project_a"],
+        },
+        {
+            "_id": "test_user_b",
+            "salt": "salt_b",
+            "digest": "digest_b",
+            "project": "test_project_b",
+            "quota": 4000,
+            "used_quota": 40
+        },
+        {
+            "_id": "test_user_c",
+            "salt": "salt_c",
+            "digest": "digest_c",
+            "project": "test_project_c",
+            "quota": 6000,
+            "used_quota": 60
+        }
+    ])
+
+    monkeypatch.setattr(
+        sys, "argv",
+        ["upload-rest-api", "migrate-database-projects"]
+    )
+
+    # Perform the database migration
+    upload_rest_api.__main__.main()
+
+    out, _ = capsys.readouterr()
+    assert "2 user(s) to migrate" in out
+    assert "Migrated user 'test_user_a'" not in out
+    assert "Migrated user 'test_user_b'" in out
+    assert "Migrated user 'test_user_c'" in out
+
+    users = []
+    projects = []
+
+    for suffix in ("a", "b", "c"):
+        user = database.client.upload.users.find_one(
+            {"_id": f"test_user_{suffix}"}
+        )
+
+        users.append(user)
+
+        project = database.client.upload.projects.find_one(
+            {"_id": f"test_project_{suffix}"}
+        )
+        projects.append(project)
+
+    assert users == [
+        {
+            "_id": "test_user_a",
+            "salt": "salt_a",
+            "digest": "digest_a",
+            "projects": ["test_project_a"]
+        },
+        {
+            "_id": "test_user_b",
+            "salt": "salt_b",
+            "digest": "digest_b",
+            "projects": ["test_project_b"]
+        },
+        {
+            "_id": "test_user_c",
+            "salt": "salt_c",
+            "digest": "digest_c",
+            "projects": ["test_project_c"]
+        }
+    ]
+
+    assert projects == [
+        {
+            "_id": "test_project_a",
+            "used_quota": 20,
+            "quota": 2000
+        },
+        {
+            "_id": "test_project_b",
+            "used_quota": 40,
+            "quota": 4000
+        },
+        {
+            "_id": "test_project_c",
+            "used_quota": 60,
+            "quota": 6000
+        }
+    ]
+
+    # Running the migration again does nothing
+    upload_rest_api.__main__.main()
+
+    out, _ = capsys.readouterr()
+    assert "0 user(s) to migrate" in out

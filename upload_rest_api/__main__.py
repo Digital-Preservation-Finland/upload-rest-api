@@ -32,6 +32,7 @@ def _parse_args():
     _setup_create_project_args(subparsers)
     _setup_modify_project_args(subparsers)
     _setup_delete_project_args(subparsers)
+    _setup_migrate_database_projects_args(subparsers)
 
     # Parse arguments and return the arguments
     return parser.parse_args()
@@ -179,6 +180,16 @@ def _setup_delete_project_args(subparsers):
     )
     parser.set_defaults(func=_delete_project)
     parser.add_argument('project')
+
+
+def _setup_migrate_database_projects_args(subparsers):
+    """Define migrate-database-projects subparser and its arguments."""
+    # TODO: Remove this CLI command once all environments have been migrated
+    parser = subparsers.add_parser(
+        'migrate-database-projects',
+        help="Perform database migration to separate user and project entries"
+    )
+    parser.set_defaults(func=_migrate_database_projects)
 
 
 def _cleanup_tokens(_args):
@@ -369,6 +380,41 @@ def _delete_project(args):
     """Delete a project."""
     db.Database().projects.delete(args.project)
     print("Project was deleted")
+
+
+def _migrate_database_projects(args):
+    """Perform database migration to separate users and projects."""
+    database = db.Database()
+
+    users_to_migrate = list(
+        database.client.upload.users.find(
+            {"quota": {"$exists": True}}
+        )
+    )
+
+    print(f"{len(users_to_migrate)} user(s) to migrate")
+
+    for user in users_to_migrate:
+        print(f"Migrating user '{user['_id']}'")
+
+        project = {
+            "_id": user["project"],
+            "quota": user["quota"],
+            "used_quota": user["used_quota"]
+        }
+        # Create project first
+        database.client.upload.projects.insert_one(project)
+
+        # Update user
+        database.client.upload.users.update(
+            {"_id": user["_id"]},
+            {
+                "$unset": {"quota": 1, "used_quota": 1, "project": 1},
+                "$set": {"projects": [user["project"]]}
+            }
+        )
+
+        print(f"Migrated user '{user['_id']}'")
 
 
 def main():
