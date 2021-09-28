@@ -92,13 +92,15 @@ def test_gen_metadata_root(
 
     # Upload integration.zip, which is extracted by the server
     response = _upload_file(
-        test_client, "/v1/archives",
+        test_client, "/v1/archives/test_project",
         test_auth, "tests/data/integration.zip"
     )
     background_job_runner(test_client, "upload", response)
 
     # Generate and POST metadata for all the files in test_project
-    response = test_client.post("/v1/metadata/*", headers=test_auth)
+    response = test_client.post(
+        "/v1/metadata/test_project/*", headers=test_auth
+    )
     # Finish the background job
     response = background_job_runner(test_client, "metadata", response)
     assert response.status_code == 200
@@ -108,7 +110,7 @@ def test_gen_metadata_root(
     # All files should be found in Metax
     for file_path in ["integration/test1/test1.txt",
                       "integration/test2/test2.txt"]:
-        response = test_client.get("/v1/files/{}".format(file_path),
+        response = test_client.get(f"/v1/files/test_project/{file_path}",
                                    headers=test_auth)
         file_identifier = response.json['identifier']
         assert Metax(
@@ -119,7 +121,7 @@ def test_gen_metadata_root(
 
     # DELETE single file
     response = test_client.delete(
-        "/v1/files/integration/test1/test1.txt",
+        "/v1/files/test_project/integration/test1/test1.txt",
         headers=test_auth
     )
     assert response.status_code == 200
@@ -167,14 +169,14 @@ def test_gen_metadata_file(
 
     # Upload integration.zip, which is extracted by the server
     response = _upload_file(
-        test_client, "/v1/archives",
+        test_client, "/v1/archives/test_project",
         test_auth, "tests/data/integration.zip"
     )
     background_job_runner(test_client, "upload", response)
 
     # Generate and POST metadata for file test1.txt in test_project
     response = test_client.post(
-        "/v1/metadata/integration/test1/test1.txt",
+        "/v1/metadata/test_project/integration/test1/test1.txt",
         headers=test_auth
     )
     response = background_job_runner(test_client, "metadata", response)
@@ -184,14 +186,16 @@ def test_gen_metadata_file(
     assert response.json['status'] == 'done'
 
     # Metadata for test1.txt should be found in Metax
-    response = test_client.get("/v1/files/integration/test1/test1.txt",
-                               headers=test_auth)
+    response = test_client.get(
+        "/v1/files/test_project/integration/test1/test1.txt",
+        headers=test_auth
+    )
     file_identifier = response.json['identifier']
     assert Metax(URL, USER, PASSWORD).get_file(file_identifier)['file_path'] \
         == "/integration/test1/test1.txt"
 
     # DELETE whole project
-    response = test_client.delete("/v1/files", headers=test_auth)
+    response = test_client.delete("/v1/files/test_project", headers=test_auth)
     response = background_job_runner(test_client, "files", response)
     assert response.status_code == 200
     assert response.json["message"] == 'Deleted files and metadata: /'
@@ -226,22 +230,24 @@ def test_delete_metadata(
 
     # Upload integration.zip, which is extracted by the server
     poll_response = _upload_file(
-        test_client, "/v1/archives",
+        test_client, "/v1/archives/test_project",
         test_auth, "tests/data/integration.zip"
     )
     background_job_runner(test_client, "upload", poll_response)
 
     # Generate and POST metadata for file test1.txt in test_project
     poll_response = test_client.post(
-        "/v1/metadata/integration/test1/test1.txt",
+        "/v1/metadata/test_project/integration/test1/test1.txt",
         headers=test_auth
     )
     response = background_job_runner(test_client, "metadata", poll_response)
     assert response.status_code == 200
 
     # Metadata for test1.txt should be found in Metax
-    response = test_client.get("/v1/files/integration/test1/test1.txt",
-                               headers=test_auth)
+    response = test_client.get(
+        "/v1/files/test_project/integration/test1/test1.txt",
+        headers=test_auth
+    )
     file_identifier = response.json['identifier']
     assert Metax(URL, USER, PASSWORD).get_file(file_identifier)['file_path'] \
         == "/integration/test1/test1.txt"
@@ -254,7 +260,7 @@ def test_delete_metadata(
 
     # Delete metadata for file test1.txt in test_project
     poll_response = test_client.delete(
-        "/v1/metadata/integration/test1/test1.txt",
+        "/v1/metadata/test_project/integration/test1/test1.txt",
         headers=test_auth
     )
     response = background_job_runner(
@@ -280,7 +286,9 @@ def test_delete_metadata(
         assert not files_dict
 
     # DELETE whole project
-    poll_response = test_client.delete("/v1/files", headers=test_auth)
+    poll_response = test_client.delete(
+        "/v1/files/test_project", headers=test_auth
+    )
     response = background_job_runner(
         test_client, "files", poll_response
     )
@@ -328,14 +336,16 @@ def test_disk_cleanup(
 
     # Upload integration.zip, which is extracted by the server
     poll_response = _upload_file(
-        test_client, "/v1/archives",
+        test_client, "/v1/archives/test_project",
         test_auth, "tests/data/integration.zip"
     )
     response = background_job_runner(test_client, "upload", poll_response)
     assert response.status_code == 200
 
     # Generate and POST metadata for all the files in test_project
-    poll_response = test_client.post("/v1/metadata/*", headers=test_auth)
+    poll_response = test_client.post(
+        "/v1/metadata/test_project/*", headers=test_auth
+    )
     response = background_job_runner(test_client, "metadata", poll_response)
     assert response.status_code == 200
 
@@ -388,14 +398,16 @@ def test_mongo_cleanup(
 
     # Upload integration.zip, which is extracted by the server
     poll_response = _upload_file(
-        test_client, "/v1/archives",
+        test_client, "/v1/archives/test_project",
         test_auth, "tests/data/integration.zip"
     )
     response = background_job_runner(test_client, "upload", poll_response)
     assert response.status_code == 200
 
     # Generate and POST metadata for all the files in test_project
-    poll_response = test_client.post("/v1/metadata/*", headers=test_auth)
+    poll_response = test_client.post(
+        "/v1/metadata/test_project/*", headers=test_auth
+    )
     response = background_job_runner(test_client, "metadata", poll_response)
     assert response.status_code == 200
 
