@@ -1,5 +1,6 @@
 """Tests for ``upload_rest_api.__main__`` module."""
 import datetime
+import json
 import pathlib
 import sys
 
@@ -9,18 +10,32 @@ import upload_rest_api.__main__
 import upload_rest_api.database as db
 
 
+@pytest.mark.usefixtures('testmongo')
+@pytest.fixture('function')
+def command_runner(capsys, monkeypatch):
+    """
+    Fixture to run an `upload-rest-api` command with given parameters and
+    return an (out, err) tuple.
+
+    :returns: (out, err) tuple
+    """
+    def wrapper(args):
+        with mock.patch.object(sys, "argv", ["upload-rest-api"] + args):
+            upload_rest_api.__main__.main()
+
+        return capsys.readouterr()
+
+    return wrapper
+
+
 @mock.patch('upload_rest_api.__main__.clean_mongo')
 @mock.patch('upload_rest_api.__main__.clean_disk')
 @pytest.mark.parametrize("command", ("files", "mongo"))
-def test_cleanup(mock_clean_disk, mock_clean_mongo, command):
+def test_cleanup(mock_clean_disk, mock_clean_mongo, command, command_runner):
     """Test that correct function is called from main function when
     cleanup-files or cleanup-mongo command is used.
     """
-    with mock.patch.object(
-        sys, 'argv',
-        ['upload-rest-api', 'cleanup-%s' % command]
-    ):
-        upload_rest_api.__main__.main()
+    command_runner([f"cleanup-{command}"])
 
     if command == "files":
         mock_clean_disk.assert_called()
@@ -30,7 +45,7 @@ def test_cleanup(mock_clean_disk, mock_clean_mongo, command):
         mock_clean_mongo.assert_called()
 
 
-def test_cleanup_tokens(database, capsys, monkeypatch):
+def test_cleanup_tokens(database, command_runner):
     """
     Test cleaning session tokens using the CLI command
     """
@@ -52,12 +67,8 @@ def test_cleanup_tokens(database, capsys, monkeypatch):
             session=True
         )
 
-    monkeypatch.setattr("sys.argv", ["upload-rest-api", "cleanup-tokens"])
-
-    upload_rest_api.__main__.main()
-
     # Only the last token exists
-    out, _ = capsys.readouterr()
+    out, _ = command_runner(["cleanup-tokens"])
     assert out == "Cleaned 2 expired token(s)\n"
 
     assert database.tokens.tokens.count() == 1
@@ -66,76 +77,87 @@ def test_cleanup_tokens(database, capsys, monkeypatch):
 
 
 @pytest.mark.usefixtures('test_mongo')
-def test_get(capsys):
-    """Test get command."""
+def test_get_users(command_runner):
+    """Test `get --users` command."""
     database = db.Database()
     database.user("test1").create(projects=["test_project"])
     database.user("test2").create(projects=["test_project"])
 
-    with mock.patch.object(
-        sys, 'argv',
-        ['upload-rest-api', 'get', '--users']
-    ):
-        upload_rest_api.__main__.main()
-
-    out, _ = capsys.readouterr()
+    out, _ = command_runner(["get", "--users"])
     assert out == "test1\ntest2\n"
 
 
-def test_create_user(test_mongo, mock_config):
+@pytest.mark.usefixtures('test_mongo')
+def test_get_projects(command_runner, database):
+    """Test `get --projects` command."""
+    database.projects.create("test_project_o")
+    database.projects.create("test_project_q")
+    database.projects.create("test_project_r")
+
+    out, _ = command_runner(["get", "--projects"])
+
+    assert "test_project_o\ntest_project_q\ntest_project_r" in out
+
+
+@pytest.mark.usefixtures('test_mongo')
+def test_get_project(command_runner, database):
+    """Test `get --project <id>` command."""
+    database.projects.create("test_project_a", quota=1248)
+
+    # Existing project
+    out, _ = command_runner(["get", "--project", "test_project_a"])
+
+    data = json.loads(out)
+    assert data == {
+        "_id": "test_project_a",
+        "used_quota": 0,
+        "quota": 1248
+    }
+
+    # Project not found
+    out, _ = command_runner(["get", "--project", "test_project_b"])
+
+    assert "Project not found" in out
+
+
+def test_create_user(test_mongo, mock_config, command_runner):
     """Test creating user test.
 
     User should be added to database and project directory should be
     created.
     """
-    with mock.patch.object(
-        sys, 'argv',
-        ['upload-rest-api', 'create-user', 'test_user']
-    ):
-        upload_rest_api.__main__.main()
+    command_runner(["create-user", "test_user"])
 
     assert test_mongo.upload.users.count({"_id": "test_user"}) == 1
 
 
 @pytest.mark.usefixtures('test_mongo')
-def test_create_existing_user():
+def test_create_existing_user(command_runner):
     """Test that creating a user that already exists raises
     UserExistsError.
     """
     db.Database().user("test").create(projects=["test_project"])
-    with mock.patch.object(
-        sys, 'argv',
-        ['upload-rest-api', 'create-user', 'test']
-    ):
-        with pytest.raises(db.UserExistsError):
-            upload_rest_api.__main__.main()
+    with pytest.raises(db.UserExistsError):
+        command_runner(["create-user", "test"])
 
 
-def test_delete_user(test_mongo):
+def test_delete_user(test_mongo, command_runner):
     """Test deletion of an existing user."""
     db.Database().user("test").create(projects=["test_project"])
-    with mock.patch.object(
-        sys, 'argv',
-        ['upload-rest-api', 'delete-user', 'test']
-    ):
-        upload_rest_api.__main__.main()
+    command_runner(["delete-user", "test"])
 
     assert test_mongo.upload.users.count({"_id": "test"}) == 0
 
 
 @pytest.mark.usefixtures('test_mongo')
-def test_delete_user_fail():
+def test_delete_user_fail(command_runner):
     """Test deletion of an user that does not exist."""
-    with mock.patch.object(
-        sys, 'argv',
-        ['upload-rest-api', 'delete-user', 'test']
-    ):
-        with pytest.raises(db.UserNotFoundError):
-            upload_rest_api.__main__.main()
+    with pytest.raises(db.UserNotFoundError):
+        command_runner(["delete-user", "test"])
 
 
 @pytest.mark.usefixtures('test_mongo')
-def test_grant_user_projects(database, monkeypatch):
+def test_grant_user_projects(database, command_runner):
     """Test granting the user access to projects."""
     user = db.Database().user("test")
     user.create(projects=["test_project"])
@@ -143,15 +165,9 @@ def test_grant_user_projects(database, monkeypatch):
     database.projects.create("test_project_2", 2000)
     database.projects.create("test_project_3", 2000)
 
-    monkeypatch.setattr(
-        sys, "argv",
-        [
-            'upload-rest-api', 'grant-user-projects', "test",
-            "test_project_2", "test_project_3"
-        ]
-    )
-
-    upload_rest_api.__main__.main()
+    command_runner([
+        'grant-user-projects', "test", "test_project_2", "test_project_3"
+    ])
 
     assert user.get_projects() == [
         "test_project", "test_project_2", "test_project_3"
@@ -159,75 +175,48 @@ def test_grant_user_projects(database, monkeypatch):
 
 
 @pytest.mark.usefixtures('test_mongo')
-def test_grant_user_projects_nonexistent_project(database, monkeypatch):
+def test_grant_user_projects_nonexistent_project(database, command_runner):
     """Test granting the user access to project that does not exist."""
     user = db.Database().user("test")
     user.create(projects=["test_project"])
 
-    monkeypatch.setattr(
-        sys, 'argv',
-        [
-            'upload-rest-api', 'grant-user-projects', "test",
-            "test_project_2"
-        ]
-    )
-
     with pytest.raises(db.ProjectNotFoundError) as exc:
-        upload_rest_api.__main__.main()
+        command_runner([
+            'grant-user-projects', "test", "test_project_2"
+        ])
 
     assert str(exc.value) == "Project 'test_project_2' not found"
 
 
 @pytest.mark.usefixtures('test_mongo')
-def test_grant_user_projects_nonexistent_user(database, monkeypatch):
+def test_grant_user_projects_nonexistent_user(
+        database, monkeypatch, command_runner):
     """Test granting a nonexistent user access to a project."""
     database.projects.create("test_project")
 
-    monkeypatch.setattr(
-        sys, 'argv',
-        [
-            'upload-rest-api', 'grant-user-projects', "fake_user",
-            "test_project"
-        ]
-    )
-
     with pytest.raises(db.UserNotFoundError) as exc:
-        upload_rest_api.__main__.main()
+        command_runner([
+            "grant-user-projects", "fake_user", "test_project"
+        ])
 
     assert str(exc.value) == "User 'fake_user' not found"
 
 
 @pytest.mark.usefixtures('test_mongo')
-def test_revoke_user_projects(database, monkeypatch):
+def test_revoke_user_projects(database, command_runner):
     """Test granting the user access to projects."""
     user = db.Database().user("test")
     user.create(projects=["test_project"])
 
-    monkeypatch.setattr(
-        sys, "argv",
-        [
-            'upload-rest-api', 'revoke-user-projects', "test",
-            "test_project"
-        ]
-    )
-
-    upload_rest_api.__main__.main()
+    command_runner(["revoke-user-projects", "test", "test_project"])
 
     assert user.get_projects() == []
 
 
 @pytest.mark.usefixtures("test_mongo")
-def test_create_project(database, monkeypatch):
+def test_create_project(database, command_runner):
     """Test creating a new project."""
-    monkeypatch.setattr(
-        sys, "argv",
-        [
-            "upload-rest-api", "create-project",
-            "test_project", "--quota", "2468"
-        ]
-    )
-
-    upload_rest_api.__main__.main()
+    command_runner(["create-project", "test_project", "--quota", "2468"])
 
     project = database.projects.get("test_project")
     assert project["quota"] == 2468
@@ -235,41 +224,30 @@ def test_create_project(database, monkeypatch):
 
 
 @pytest.mark.usefixtures("test_mongo")
-def test_create_project_already_exists(database, monkeypatch):
+def test_create_project_already_exists(database, command_runner):
     """Test creating a project that already exists."""
     database.projects.create("test_project", quota=2048)
 
-    monkeypatch.setattr(
-        sys, "argv",
-        [
-            "upload-rest-api", "create-project", "test_project",
-            "--quota", "2048"
-        ]
-    )
-
     with pytest.raises(db.ProjectExistsError) as exc:
-        upload_rest_api.__main__.main()
+        command_runner([
+            "create-project", "test_project", "--quota", "2048"
+        ])
 
     assert str(exc.value) == "Project 'test_project' already exists"
 
 
 @pytest.mark.usefixtures("test_mongo")
-def test_delete_project(database, monkeypatch):
+def test_delete_project(database, command_runner):
     """Test deleting a project"""
     database.projects.create("test_project", quota=2048)
 
-    monkeypatch.setattr(
-        sys, "argv",
-        ["upload-rest-api", "delete-project", "test_project"]
-    )
-
-    upload_rest_api.__main__.main()
+    command_runner(["delete-project", "test_project"])
 
     assert not database.projects.get("test_project")
 
 
 @pytest.mark.usefixtures("test_mongo")
-def test_migrate_database_projects(database, monkeypatch, capsys):
+def test_migrate_database_projects(database, command_runner):
     """Test migrating users and projects to be separate database entities"""
     database.client.upload.projects.insert([
         {
@@ -304,15 +282,7 @@ def test_migrate_database_projects(database, monkeypatch, capsys):
         }
     ])
 
-    monkeypatch.setattr(
-        sys, "argv",
-        ["upload-rest-api", "migrate-database-projects"]
-    )
-
-    # Perform the database migration
-    upload_rest_api.__main__.main()
-
-    out, _ = capsys.readouterr()
+    out, _ = command_runner(["migrate-database-projects"])
     assert "2 user(s) to migrate" in out
     assert "Migrated user 'test_user_a'" not in out
     assert "Migrated user 'test_user_b'" in out
@@ -373,7 +343,5 @@ def test_migrate_database_projects(database, monkeypatch, capsys):
     ]
 
     # Running the migration again does nothing
-    upload_rest_api.__main__.main()
-
-    out, _ = capsys.readouterr()
+    out, _ = command_runner(["migrate-database-projects"])
     assert "0 user(s) to migrate" in out

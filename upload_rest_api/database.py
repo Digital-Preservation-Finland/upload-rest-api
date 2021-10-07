@@ -961,6 +961,13 @@ class Projects:
         """
         return self.projects.find_one({"_id": identifier})
 
+    def get_all_projects(self):
+        """Return all project documents
+
+        :returns: list of projects
+        """
+        return list(self.projects.find())
+
     @classmethod
     def get_project_directory(cls, project_id):
         """

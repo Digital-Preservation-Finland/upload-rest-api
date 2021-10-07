@@ -70,9 +70,14 @@ def _setup_get_user_args(subparsers):
     )
     parser.set_defaults(func=_get)
     parser.add_argument('--user', help="Get one user")
+    parser.add_argument('--project', help="Get one project")
     parser.add_argument(
         '--users', action="store_true", default=False,
         help="Get all users"
+    )
+    parser.add_argument(
+        '--projects', action="store_true", default=False,
+        help="Get all projects"
     )
     parser.add_argument(
         '--identifier',
@@ -235,6 +240,22 @@ def _get_users(args):
         print(json.dumps(response, indent=4))
 
 
+def _get_projects(args):
+    """Get projects from mongo."""
+    database = db.Database()
+
+    if args.projects:
+        projects = database.projects.get_all_projects()
+        for project in projects:
+            print(project["_id"])
+    elif args.project:
+        project = database.projects.get(args.project)
+        if project:
+            print(json.dumps(project, indent=4))
+        else:
+            print("Project not found")
+
+
 def _get_checksums(args):
     """Get checksums from mongo."""
     database = db.Database()
@@ -269,6 +290,7 @@ def _get_identifiers(args):
 def _get(args):
     """Get mongo documents."""
     _get_users(args)
+    _get_projects(args)
     _get_checksums(args)
     _get_identifiers(args)
 
