@@ -1,11 +1,12 @@
 """Commandline interface for upload_rest_api package."""
-import os
 import argparse
 import json
+import os
 
 import upload_rest_api.config
 import upload_rest_api.database as db
 import upload_rest_api.gen_metadata as md
+from pymongo.errors import DuplicateKeyError
 from upload_rest_api.cleanup import clean_disk, clean_mongo
 
 
@@ -403,7 +404,11 @@ def _migrate_database_projects(args):
             "used_quota": user["used_quota"]
         }
         # Create project first
-        database.client.upload.projects.insert_one(project)
+        try:
+            database.client.upload.projects.insert_one(project)
+        except DuplicateKeyError:
+            # Project already exists
+            print(f"Project {user['project']} already exists! Skipping it...")
 
         # Update user
         database.client.upload.users.update(
