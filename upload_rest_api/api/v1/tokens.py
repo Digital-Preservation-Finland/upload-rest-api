@@ -85,12 +85,15 @@ def create_session_token():
     try:
         user = db.user(username).get()
     except UserNotFoundError:
+        # Create the user automatically if one doesn't exist.
+        # Since fddps-frontend tries to create a session token immediately
+        # this ensures the user can be managed after they have logged in
+        # at least once.
+        # Administrator can later create and/or grant any needed projects;
+        # by default the user cannot do anything.
         user = db.user(username)
-        user.quota = 0
-        # TODO: Remove project creation once we have refactored users and
-        # projects into separate collections.
-        # By default each new user should have no project.
-        user.create(f"{username}_project")
+        user.create()
+        user = user.get()
 
     result = db.tokens.create(
         name=f"{username} session token",

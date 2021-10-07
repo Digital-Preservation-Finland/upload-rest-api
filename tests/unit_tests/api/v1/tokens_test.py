@@ -135,6 +135,26 @@ def test_create_session_token_missing_username(test_client, admin_auth):
     assert response.json["error"] == "'username' is required"
 
 
+def test_create_session_token_new_user_created(
+        test_client, admin_auth, database):
+    """
+    Create a session token for a nonexistent user and ensure that the
+    user is automatically created.
+    """
+    response = test_client.post(
+        "/v1/tokens/create_session",
+        data={"username": "acme_org/user"},
+        headers=admin_auth
+    )
+
+    assert response.json["token"]
+
+    # User should be created without any default projects
+    user = database.user("acme_org/user").get()
+    assert user["_id"] == "acme_org/user"
+    assert user["projects"] == []
+
+
 def test_list_tokens(test_client, admin_auth):
     """
     Create multiple tokens and ensure they're included in the token
