@@ -1,6 +1,7 @@
 """Unit tests for module authentication."""
-import pytest
+import base64
 
+import pytest
 import upload_rest_api.authentication as auth
 import upload_rest_api.database as db
 
@@ -25,8 +26,15 @@ def test_auth_user_by_password(test_client, user, password, result):
     usersdoc = db.Database().user('test_user')
     usersdoc.create('test_project', 'test_password')
 
+    auth_hash = base64.urlsafe_b64encode(
+        f"{user}:{password}".encode("utf-8")
+    ).decode("utf-8")
+    auth_header = f"Basic {auth_hash}"
+
     # pylint: disable=protected-access
-    response = test_client.get("/v1/", auth=(user, password))
+    response = test_client.get(
+        "/v1/", headers={"Authorization": auth_header}
+    )
     if result:
         # Authentication passes, and 404 is returned
         assert response.status_code == 404

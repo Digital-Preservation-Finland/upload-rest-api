@@ -72,6 +72,13 @@ class CurrentUser:
         # Only the admin can list tokens
         return self.admin
 
+    def is_allowed_to_list_projects(self, username):
+        """
+        Check if the user is allowed to list projects for a given user
+        """
+        # Only the admin or the user itself can list projects
+        return self.admin or username == self.username
+
 
 # pylint: disable=invalid-name
 current_user = LocalProxy(lambda: g.current_user)
