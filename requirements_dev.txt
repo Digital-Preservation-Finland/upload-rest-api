@@ -21,7 +21,6 @@ itsdangerous==1.1.0
 Werkzeug==1.0.1
 pymongo==3.6.1
 file-magic
-futures
 redis
 # RQ v1.9.0 is causing errors like:
 #    redis.exceptions.ResponseError: unknown command 'CLIENT'
