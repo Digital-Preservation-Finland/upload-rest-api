@@ -26,39 +26,41 @@ Start rq workers that read jobs from queues: `files`, `metadata`, and `upload`::
 
     rq worker -c upload_rest_api.rq_config --queue-class "upload_rest_api.jobs.BackgroundJobQueue" files metadata upload
 
-Create a user using CLI. The command returns username and password::
+Create a user and project using CLI::
 
-    python upload_rest_api create <user> <project>
+    upload-rest-api create-user <user>
+    upload-rest-api create-project --quota <quota> <project>
+    upload-rest-api grant-user-projects <user> <project>
 
 POST file::
 
-    curl -X POST -T <path-to-file> -u <user:password> localhost:5000/v1/files/<path-to-file-on-server>
+    curl -X POST -T <path-to-file> -u <user:password> localhost:5000/v1/files/<project>/<path-to-file-on-server>
 
 GET file::
 
-    curl -u <user>:<password> localhost:5000/v1/files/<path-to-file-on-server>
+    curl -u <user>:<password> localhost:5000/v1/files/<project>/<path-to-file-on-server>
 
 DELETE file::
 
-    curl -X DELETE -u <user>:<password> localhost:5000/v1/files/<path-to-file-on-server>
+    curl -X DELETE -u <user>:<password> localhost:5000/v1/files/<project>/<path-to-file-on-server>
 
 POST file metadata to Metax::
 
-    curl -X POST -u <user>:<password> localhost:5000/v1/metadata/<path-to-file-or-dir>
+    curl -X POST -u <user>:<password> localhost:5000/v1/metadata/<project>/<path-to-file-or-dir>
 
 If the given path resolves to a directory, all files inside the directory and its
 subdirectories are posted to Metax. POST metadata of all uploaded files to Metax::
 
-    curl -X POST -u <user>:<password> localhost:5000/v1/metadata/*
+    curl -X POST -u <user>:<password> localhost:5000/v1/metadata/<project>/*
 
 DELETE file metadata from Metax::
 
-    curl -X DELETE -u <user>:<password> localhost:5000/v1/metadata/<path-to-file-or-dir>
+    curl -X DELETE -u <user>:<password> localhost:5000/v1/metadata/<project>/<path-to-file-or-dir>
 
 If the given path resolves to a directory, all files inside the directory and its
 subdirectories are deleted from Metax. Delete metadata of all uploaded files from Metax::
 
-    curl -X DELETE -u <user>:<password> localhost:5000/v1/metadata/*
+    curl -X DELETE -u <user>:<password> localhost:5000/v1/metadata/<project>/*
 
 Copyright
 ---------
