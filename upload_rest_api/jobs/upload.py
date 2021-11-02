@@ -4,7 +4,7 @@ import tarfile
 import zipfile
 
 from archive_helpers.extract import (MemberNameError, MemberOverwriteError,
-                                     MemberTypeError, extract)
+                                     MemberTypeError, ExtractError, extract)
 
 import upload_rest_api.database as db
 import upload_rest_api.gen_metadata as gen_metadata
@@ -76,7 +76,7 @@ def extract_task(fpath, dir_path, task_id):
     )
     try:
         extract(fpath, dir_path)
-    except (MemberNameError, MemberTypeError, MemberOverwriteError) as error:
+    except (MemberNameError, MemberTypeError, MemberOverwriteError, ExtractError) as error:
         # Remove the archive and set task's state
         os.remove(fpath)
         raise ClientError(str(error)) from error

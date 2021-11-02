@@ -483,3 +483,20 @@ def test_upload_unknown_content_length(app, test_auth):
 
     assert response.status_code == 411
     assert response.json['error'] == "Missing Content-Length header"
+
+
+def test_upload_blank_tar(app, test_auth, background_job_runner):
+    """Test that trying to upload a blank tar file returns an error."""
+    test_client = app.test_client()
+
+    response = _upload_file(
+        test_client, "/v1/archives", test_auth, "tests/data/blank_tar.tar"
+    )
+    if _request_accepted(response):
+        response = background_job_runner(
+            test_client, "upload", response, expect_success=False
+        )
+    assert response.status_code == 200
+    assert response.json["errors"][0]["message"] == (
+        "Blank tar archives are not supported."
+    )
