@@ -29,6 +29,7 @@ def test_create_token(test_client, admin_auth, database):
     assert token_data["projects"] == ["test_project_1", "test_project_2"]
     assert not token_data["expiration_date"]
     assert not token_data["admin"]
+    assert not token_data["session"]
 
 
 def test_create_token_permission_denied(test_client, user_token_auth):
@@ -94,6 +95,44 @@ def test_create_token_error(test_client, admin_auth, params, expected_error):
 
     assert response.status_code == 400
     assert response.json["error"] == expected_error
+
+
+def test_create_session_token(test_client, admin_auth, database):
+    """
+    Create a token using the `/create_session` API endpoint
+    """
+    response = test_client.post(
+        "/v1/tokens/create_session",
+        data={"username": "test"},
+        headers=admin_auth
+    )
+
+    # Token was created
+    token = response.json["token"]
+    assert token
+
+    # Token has correct permissions
+    token_data = database.tokens.get_by_token(token)
+
+    assert token_data["name"] == "test session token"
+    assert token_data["username"] == "test"
+    assert token_data["projects"] == ["test_project"]
+    assert token_data["expiration_date"]
+    assert token_data["session"]
+
+
+def test_create_session_token_missing_username(test_client, admin_auth):
+    """
+    Try creating session token with missing username
+    """
+    response = test_client.post(
+        "/v1/tokens/create_session",
+        data={},
+        headers=admin_auth
+    )
+
+    assert response.status_code == 400
+    assert response.json["error"] == "'username' is required"
 
 
 def test_list_tokens(test_client, admin_auth):
@@ -227,7 +266,6 @@ def test_delete_token_token_id_not_provided(
     """
     Try deleting a token without providing a token ID
     """
-    token_id = database.tokens.find("test_user")[0]["_id"]
     response = test_client.delete(
         "/v1/tokens/",
         data={

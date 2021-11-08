@@ -1,10 +1,10 @@
 """Tests for ``upload_rest_api.__main__`` module."""
-import sys
+import datetime
 import pathlib
+import sys
 
 import mock
 import pytest
-
 import upload_rest_api.__main__
 import upload_rest_api.database as db
 
@@ -28,6 +28,41 @@ def test_cleanup(mock_clean_disk, mock_clean_mongo, command):
     else:
         mock_clean_disk.assert_not_called()
         mock_clean_mongo.assert_called()
+
+
+def test_cleanup_tokens(database, capsys, monkeypatch):
+    """
+    Test cleaning session tokens using the CLI command
+    """
+    # Create 3 tokens with varying expiration dates. All but the last one
+    # are expired and should be cleaned by this script.
+    now = datetime.datetime.now(datetime.timezone.utc)
+    token_entries = [
+        ("Token 1", now - datetime.timedelta(seconds=30)),
+        ("Token 2", now - datetime.timedelta(seconds=0)),
+        ("Token 3", now + datetime.timedelta(seconds=30)),  # Not expired
+    ]
+
+    for name, expiration_date in token_entries:
+        database.tokens.create(
+            name=name,
+            username="test",
+            projects=[],
+            expiration_date=expiration_date,
+            session=True
+        )
+
+    monkeypatch.setattr("sys.argv", ["upload-rest-api", "cleanup-tokens"])
+
+    upload_rest_api.__main__.main()
+
+    # Only the last token exists
+    out, _ = capsys.readouterr()
+    assert out == "Cleaned 2 expired token(s)\n"
+
+    assert database.tokens.tokens.count() == 1
+    token = next(database.tokens.tokens.find())
+    assert token["name"] == "Token 3"
 
 
 @pytest.mark.usefixtures('test_mongo')

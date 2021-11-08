@@ -9,9 +9,11 @@ import datetime
 import dateutil.parser
 from flask import Blueprint, abort, jsonify, request
 from upload_rest_api.authentication import current_user
-from upload_rest_api.database import Database
+from upload_rest_api.database import Database, UserNotFoundError
 
 TOKEN_API_V1 = Blueprint("tokens_v1", __name__, url_prefix="/v1/tokens")
+
+SESSION_TOKEN_PERIOD = datetime.timedelta(hours=1)
 
 
 @TOKEN_API_V1.route("/create", methods=["POST"])
@@ -54,6 +56,47 @@ def create_token():
         name=name,
         username=username,
         projects=projects,
+        expiration_date=expiration_date
+    )
+
+    return jsonify({
+        "identifier": result["_id"],
+        "token": result["token"]
+    })
+
+
+@TOKEN_API_V1.route("/create_session", methods=["POST"])
+def create_session_token():
+    """
+    Create temporary session token for a given user with access to all
+    projects
+    """
+    if not current_user.is_allowed_to_create_tokens():
+        abort(403, "User does not have permission to create tokens")
+
+    username = request.form.get("username", None)
+    if not username:
+        abort(400, "'username' is required")
+
+    expiration_date = \
+        datetime.datetime.now(tz=datetime.timezone.utc) + SESSION_TOKEN_PERIOD
+
+    db = Database()
+    try:
+        user = db.user(username).get()
+    except UserNotFoundError:
+        user = db.user(username)
+        user.quota = 0
+        # TODO: Remove project creation once we have refactored users and
+        # projects into separate collections.
+        # By default each new user should have no project.
+        user.create(f"{username}_project")
+
+    result = db.tokens.create(
+        name=f"{username} session token",
+        username=username,
+        projects=[user["project"]],
+        session=True,
         expiration_date=expiration_date
     )
 

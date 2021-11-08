@@ -16,6 +16,7 @@ import dateutil.parser
 import pymongo
 import upload_rest_api.config
 from bson.binary import Binary
+from bson.codec_options import CodecOptions
 from bson.objectid import ObjectId
 from flask import safe_join
 from rq.exceptions import NoSuchJobError
@@ -683,17 +684,12 @@ class Tokens:
         """Initialize Tokens instance."""
         self.tokens = client.upload.get_collection(
             "tokens",
-            # FIXME: mongomock doesn't support custom CodecOptions yet,
-            # so this has been commented for the time being.
-            # This means we have to manually update each returned datetime
-            # object with the time zone information.
-            #
-            # CodecOptions(tz_aware=True, tzinfo=datetime.timezone.utc)
+            CodecOptions(tz_aware=True, tzinfo=datetime.timezone.utc)
         )
 
     def create(
             self, name, username, projects, expiration_date=None,
-            admin=False):
+            admin=False, all_projects=False, session=False):
         """Create one token
 
         :param str name: User-provided name for the token
@@ -705,6 +701,9 @@ class Tokens:
         :param bool admin: Whether the token has admin privileges.
                            This means the token can be used for creating,
                            listing and removing tokens, among other things.
+        :param bool session: Whether the token is a temporary session token.
+                             Session tokens are automatically cleaned up
+                             periodically without user interaction.
         """
         from upload_rest_api.jobs.utils import get_redis_connection
 
@@ -735,6 +734,7 @@ class Tokens:
             "projects": projects,
             "token_hash": token_hash,
             "expiration_date": expiration_date,
+            "session": session,
             "admin": admin
         }
 
@@ -748,7 +748,8 @@ class Tokens:
 
         return data
 
-    def _cache_token_data_to_redis(self, data):
+    @classmethod
+    def _cache_token_data_to_redis(cls, data):
         """
         Cache given token data to Redis.
 
@@ -799,10 +800,6 @@ class Tokens:
             result = self.tokens.find_one({
                 "token_hash": token_hash
             })
-            if result and result["expiration_date"]:
-                result["expiration_date"] = result["expiration_date"].replace(
-                    tzinfo=datetime.timezone.utc
-                )
 
             if result:
                 self._cache_token_data_to_redis(result)
@@ -855,6 +852,21 @@ class Tokens:
 
     def find(self, username):
         """
-        Find all tokens belonging to an user
+        Find all user-created tokens belonging to an user
         """
-        return list(self.tokens.find({"username": username}))
+        return list(
+            self.tokens.find({"username": username, "session": False})
+        )
+
+    def clean_session_tokens(self):
+        """
+        Remove expired session tokens
+        """
+        now = datetime.datetime.now(datetime.timezone.utc)
+
+        return self.tokens.delete_many(
+            {
+                "session": True,
+                "expiration_date": {"$lte": now, "$ne": None}
+            }
+        ).deleted_count

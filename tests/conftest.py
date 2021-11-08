@@ -343,7 +343,7 @@ def wrong_auth():
 
 
 @pytest.fixture(scope="function")
-def user_token_auth(mock_mongo):
+def user_token_auth(test_mongo):
     """Returns credentials header containing an user token"""
     token_data = db.Database().tokens.create(
         name="User test token",
@@ -360,7 +360,7 @@ def user_token_auth(mock_mongo):
 
 
 @pytest.fixture(scope="function")
-def admin_auth(mock_mongo, mock_config):
+def admin_auth(test_mongo, mock_config):
     """Return credentials header containing a token with admin privileges"""
     mock_config["ADMIN_TOKEN"] = "fddps-admin"
 

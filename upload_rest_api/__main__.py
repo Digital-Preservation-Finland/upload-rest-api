@@ -19,6 +19,7 @@ def _parse_args():
 
     # Add the alternative commands
     subparsers = parser.add_subparsers(title='Available commands')
+    _setup_cleanup_tokens_args(subparsers)
     _setup_cleanup_files_args(subparsers)
     _setup_cleanup_mongo_args(subparsers)
     _setup_generate_metadata_args(subparsers)
@@ -29,6 +30,14 @@ def _parse_args():
 
     # Parse arguments and return the arguments
     return parser.parse_args()
+
+
+def _setup_cleanup_tokens_args(subparsers):
+    """Define cleanup-tokens subparser and its arguments."""
+    parser = subparsers.add_parser(
+        'cleanup-tokens', help='Clean expired session tokens from database'
+    )
+    parser.set_defaults(func=_cleanup_tokens)
 
 
 def _setup_cleanup_files_args(subparsers):
@@ -117,6 +126,14 @@ def _setup_modify_args(subparsers):
         '--password', action="store_true", default=False,
         help="Generate new password"
     )
+
+
+def _cleanup_tokens(_args):
+    """Clean expired session tokens from the database"""
+    database = db.Database()
+
+    deleted_count = database.tokens.clean_session_tokens()
+    print(f"Cleaned {deleted_count} expired token(s)")
 
 
 def _cleanup_files(_args):
