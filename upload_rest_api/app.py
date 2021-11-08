@@ -12,6 +12,7 @@ from upload_rest_api.api.v1 import files_tus
 from upload_rest_api.api.v1.metadata import METADATA_API_V1
 from upload_rest_api.api.v1.tasks import TASK_STATUS_API_V1
 from upload_rest_api.api.v1.tokens import TOKEN_API_V1
+from upload_rest_api.api.v1.users import USERS_API_V1
 
 try:
     # Newer Werkzeug
@@ -62,6 +63,7 @@ def create_app():
     app.register_blueprint(METADATA_API_V1)
     app.register_blueprint(TASK_STATUS_API_V1)
     app.register_blueprint(TOKEN_API_V1)
+    app.register_blueprint(USERS_API_V1)
 
     files_tus.register_blueprint(app)
 
