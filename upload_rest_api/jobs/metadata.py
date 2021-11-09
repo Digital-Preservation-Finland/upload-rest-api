@@ -31,7 +31,7 @@ def post_metadata(path, project_id, storage_id, task_id):
     return_path = utils.get_return_path(project_id, fpath)
 
     database.tasks.update_message(
-        task_id, "Creating metadata: {}".format(return_path)
+        task_id, f"Creating metadata: {return_path}"
     )
 
     if os.path.isdir(fpath):
@@ -60,7 +60,7 @@ def post_metadata(path, project_id, storage_id, task_id):
             failed_files = [return_path]
         raise ClientError(error.message, files=failed_files)
 
-    return "Metadata created: {}".format(return_path)
+    return f"Metadata created: {return_path}"
 
 
 @api_background_job

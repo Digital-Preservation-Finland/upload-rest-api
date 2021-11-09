@@ -3,12 +3,12 @@ import logging
 
 import upload_rest_api.authentication as auth
 from flask import Flask
+from upload_rest_api.api.v1 import files_tus
 from upload_rest_api.api.v1.archives import ARCHIVES_API_V1
 from upload_rest_api.api.v1.errorhandlers import (http_error_404,
                                                   http_error_500,
                                                   http_error_generic)
 from upload_rest_api.api.v1.files import FILES_API_V1
-from upload_rest_api.api.v1 import files_tus
 from upload_rest_api.api.v1.metadata import METADATA_API_V1
 from upload_rest_api.api.v1.tasks import TASK_STATUS_API_V1
 from upload_rest_api.api.v1.tokens import TOKEN_API_V1

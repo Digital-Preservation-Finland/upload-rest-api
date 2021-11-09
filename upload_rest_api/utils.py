@@ -21,7 +21,9 @@ def get_upload_path(project_id, file_path):
     """
     dirname, basename = os.path.split(file_path)
     secure_fname = secure_filename(basename)
-    joined_path = safe_join(Projects.get_project_directory(project_id), dirname)
+    joined_path = safe_join(
+        Projects.get_project_directory(project_id), dirname
+    )
 
     return pathlib.Path(joined_path).resolve() / secure_fname
 

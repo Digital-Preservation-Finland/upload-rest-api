@@ -5,10 +5,9 @@ import tarfile
 import uuid
 import zipfile
 
-import upload_rest_api.gen_metadata as gen_metadata
-import upload_rest_api.utils as utils
 import werkzeug
 from flask import current_app
+from upload_rest_api import gen_metadata, utils
 from upload_rest_api.api.v1.tasks import TASK_STATUS_API_V1
 from upload_rest_api.database import Database, Projects
 from upload_rest_api.jobs.utils import UPLOAD_QUEUE, enqueue_background_job

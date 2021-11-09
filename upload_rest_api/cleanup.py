@@ -90,6 +90,7 @@ def _clean_file(_file, upload_path, fpaths, file_dict=None, metax_client=None):
         os.remove(_file)
 
 
+# pylint: disable=too-many-locals
 def clean_project(project_id, fpath, metax=True):
     """Remove all files of a given project that haven't been accessed
     within time_lim seconds. If the removed file has a Metax file entry

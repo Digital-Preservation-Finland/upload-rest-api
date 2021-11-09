@@ -123,7 +123,7 @@ class MetaxClientError(Exception):
     """Generic error raised by MetaxClient."""
 
 
-class MetaxClient(object):
+class MetaxClient:
     """Class for handling Metax metadata."""
 
     def __init__(self, url=None, user=None, password=None, verify=None):

@@ -2,10 +2,10 @@
 Event handler for the /files_tus/v1 endpoint.
 """
 import flask_tus_io
-from flask import Blueprint, abort, request, safe_join
+from flask import Blueprint, abort, safe_join
 from upload_rest_api import database, upload
 from upload_rest_api.authentication import current_user
-from upload_rest_api.database import Database, Projects, Uploads
+from upload_rest_api.database import Database, Projects
 from upload_rest_api.upload import save_file_into_db
 
 FILES_TUS_API_V1 = Blueprint(
@@ -52,7 +52,8 @@ def _upload_started(workspace, resource):
             project["quota"]  # User's total quota
             - project["used_quota"]  # Finished and saved uploads
             - allocated_quota  # Disk space allocated for unfinished uploads
-            - upload_length  # Disk space that will be allocated for this upload
+            # Disk space that will be allocated for this upload
+            - upload_length
         )
 
         if remaining_quota < 0:
@@ -66,8 +67,8 @@ def _upload_started(workspace, resource):
             content_type="application/octet-stream"
         )
 
-        # Check if the file exists: either an upload has been initiated with the
-        # same path, or a file already exists at the final location
+        # check if the file exists: either an upload has been initiated with
+        # the same path, or a file already exists at the final location
         file_exists = (
             file_path.exists()
             or db.uploads.uploads.find_one({"file_path": str(file_path)})
@@ -98,7 +99,6 @@ def _upload_completed(workspace, resource):
     """
     db = database.Database()
     uploads = db.uploads
-    user = db.user(request.authorization.username)
 
     project_id = resource.upload_metadata["project_id"]
     fpath = resource.upload_metadata["file_path"]

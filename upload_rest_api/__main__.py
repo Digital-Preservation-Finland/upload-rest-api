@@ -209,13 +209,13 @@ def _cleanup_tokens(_args):
 def _cleanup_files(_args):
     """Clean files from the disk."""
     deleted_count = clean_disk()
-    print("Cleaned %d files" % deleted_count)
+    print(f"Cleaned {deleted_count} files")
 
 
 def _cleanup_mongo(_args):
     """Clean identifiers from the mongo."""
     deleted_count = clean_mongo()
-    print("Cleaned %d identifiers" % deleted_count)
+    print(f"Cleaned {deleted_count} identifiers")
 
 
 def _get_users(args):
@@ -318,13 +318,14 @@ def _generate_metadata(args):
         fpaths, conf["UPLOAD_PATH"], project, md.PAS_FILE_STORAGE_ID
     )
 
-    print("Success: %d" % len(response["success"]))
-    print("Failed: %d" % len(response["failed"]))
+    print(f"Success: {len(response['success'])}")
+    print(f"Failed: {len(response['failed'])}")
 
     # Write created identifiers to output file
-    with open(args.output, "w") as f_out:
+    with open(args.output, "wt", encoding="utf-8") as f_out:
         for _file_md in response["success"]:
-            f_out.write("%s\t%s\t%s\t%s\n" % (
+            # pylint: disable=consider-using-f-string
+            f_out.write("{}\t{}\t{}\t{}\n".format(
                 _file_md["object"]["parent_directory"]["identifier"],
                 _file_md["object"]["identifier"],
                 _file_md["object"]["checksum"]["value"],
@@ -336,7 +337,7 @@ def _create_user(args):
     """Create a new user."""
     user = db.Database().user(args.username)
     passwd = user.create()
-    print("%s:%s" % (args.username, passwd))
+    print(f"{args.username}:{passwd}")
 
 
 def _grant_user_projects(args):
@@ -405,7 +406,7 @@ def _delete_project(args):
     print("Project was deleted")
 
 
-def _migrate_database_projects(args):
+def _migrate_database_projects(_):
     """Perform database migration to separate users and projects."""
     database = db.Database()
 

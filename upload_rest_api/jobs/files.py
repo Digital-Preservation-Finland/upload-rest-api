@@ -52,4 +52,4 @@ def delete_files(fpath, project_id, task_id):
     # Update used_quota
     database.projects.update_used_quota(project_id, root_upload_path)
 
-    return "Deleted files and metadata: {}".format(ret_path)
+    return f"Deleted files and metadata: {ret_path}"

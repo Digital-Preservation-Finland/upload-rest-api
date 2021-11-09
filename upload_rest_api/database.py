@@ -23,9 +23,8 @@ from pymongo.errors import DuplicateKeyError
 from redis import Redis
 from rq.exceptions import NoSuchJobError
 from rq.job import Job
-from werkzeug.utils import secure_filename
-
 from upload_rest_api.config import CONFIG
+from werkzeug.utils import secure_filename
 
 # Password vars
 PASSWD_LEN = 20
@@ -231,8 +230,10 @@ class User:
                     "salt": salt,
                 }
             )
-        except DuplicateKeyError:
-            raise UserExistsError(f"User '{self.username}' already exists")
+        except DuplicateKeyError as exc:
+            raise UserExistsError(
+                f"User '{self.username}' already exists"
+            ) from exc
 
         return passwd
 
@@ -284,7 +285,7 @@ class User:
         """Delete existing user."""
         # Raise exception if user does not exist
         if not self.exists():
-            raise UserNotFoundError("User '%s' not found" % self.username)
+            raise UserNotFoundError(f"User '{self.username}' not found")
 
         self.users.delete_one({"_id": self.username})
 
@@ -292,7 +293,7 @@ class User:
         """Return existing user."""
         # Raise exception if user does not exist
         if not self.exists():
-            raise UserNotFoundError("User '%s' not found" % self.username)
+            raise UserNotFoundError(f"User '{self.username}' not found")
 
         return self.users.find_one({"_id": self.username})
 
@@ -300,7 +301,7 @@ class User:
         """Return existing user with digest in utf8 format."""
         # Raise exception if user does not exist
         if not self.exists():
-            raise UserNotFoundError("User '%s' not found" % self.username)
+            raise UserNotFoundError(f"User '{self.username}' not found")
 
         user = self.users.find_one({"_id": self.username})
         user["digest"] = binascii.hexlify(user["digest"]).decode("utf-8")
@@ -311,7 +312,7 @@ class User:
         """Return the overall quota of the user."""
         # Raise exception if user does not exist
         if not self.exists():
-            raise UserNotFoundError("User '%s' not found" % self.username)
+            raise UserNotFoundError(f"User '{self.username}' not found")
 
         return self.users.find_one({"_id": self.username})["quota"]
 
@@ -319,7 +320,7 @@ class User:
         """Return the used quota of the user."""
         # Raise exception if user does not exist
         if not self.exists():
-            raise UserNotFoundError("User '%s' not found" % self.username)
+            raise UserNotFoundError(f"User '{self.username}' not found")
 
         return self.users.find_one({"_id": self.username})["used_quota"]
 
@@ -327,7 +328,7 @@ class User:
         """Set the quota of the user."""
         # Raise exception if user does not exist
         if not self.exists():
-            raise UserNotFoundError("User '%s' not found" % self.username)
+            raise UserNotFoundError(f"User '{self.username}' not found")
 
         self.users.update_one(
             {"_id": self.username},
@@ -338,7 +339,7 @@ class User:
         """Set the used quota of the user."""
         # Raise exception if user does not exist
         if not self.exists():
-            raise UserNotFoundError("User '%s' not found" % self.username)
+            raise UserNotFoundError(f"User '{self.username}' not found")
 
         self.users.update_one(
             {"_id": self.username},
@@ -349,7 +350,7 @@ class User:
         """Get user projects."""
         result = self.users.find_one({"_id": self.username})
         if not result:
-            raise UserNotFoundError("User '%s' not found" % self.username)
+            raise UserNotFoundError(f"User '{self.username}' not found")
 
         return result["projects"]
 
@@ -593,7 +594,7 @@ class Tasks:
         )
 
         if result.matched_count == 0:
-            raise TaskNotFoundError("Task '%s' not found" % task_id)
+            raise TaskNotFoundError(f"Task '{task_id}' not found")
 
     def update_message(self, task_id, message):
         """Update message of the task.
@@ -606,7 +607,7 @@ class Tasks:
             {"$set": {"message": message}}
         )
         if result.matched_count == 0:
-            raise TaskNotFoundError("Task '%s' not found" % task_id)
+            raise TaskNotFoundError(f"Task '{task_id}' not found")
 
     def update_error(self, task_id, error_message, files=None):
         """Update error information of the task.
@@ -632,7 +633,7 @@ class Tasks:
         )
 
         if result.matched_count == 0:
-            raise TaskNotFoundError("Task '%s' not found" % task_id)
+            raise TaskNotFoundError(f"Task '{task_id}' not found")
 
     def get_all_tasks(self):
         """Return all tasks."""
@@ -905,8 +906,10 @@ class Projects:
         try:
             self.projects.insert_one(result)
             self.get_project_directory(identifier).mkdir(exist_ok=True)
-        except DuplicateKeyError:
-            raise ProjectExistsError(f"Project '{identifier}' already exists")
+        except DuplicateKeyError as exc:
+            raise ProjectExistsError(
+                f"Project '{identifier}' already exists"
+            ) from exc
 
         return result
 

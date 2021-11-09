@@ -31,7 +31,7 @@ class ClientError(Exception):
 
     def __init__(self, message, files=None):
         """Init ClientError."""
-        super(ClientError, self).__init__(message)
+        super().__init__(message)
         self.message = message
         self.files = files
 
@@ -72,7 +72,7 @@ def get_job_queue(queue_name):
     :param str queue_name: Queue name
     """
     if queue_name not in JOB_QUEUE_NAMES:
-        raise ValueError("Queue {} does not exist".format(queue_name))
+        raise ValueError(f"Queue {queue_name} does not exist")
 
     redis = db.get_redis_connection()
 

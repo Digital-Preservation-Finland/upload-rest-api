@@ -14,14 +14,18 @@ import upload_rest_api.database as db
 ARCHIVES_API_V1 = Blueprint("archives_v1", __name__, url_prefix="/v1/archives")
 
 
-@ARCHIVES_API_V1.route("/<string:project_id>", methods=["POST"], strict_slashes=False)
+@ARCHIVES_API_V1.route(
+    "/<string:project_id>", methods=["POST"], strict_slashes=False
+)
 def upload_archive(project_id):
     """Upload and extract the archive at <UPLOAD_PATH>/project.
 
     :returns: HTTP Response
     """
     database = db.Database()
-    up.validate_upload(project_id, request.content_length, request.content_type)
+    up.validate_upload(
+        project_id, request.content_length, request.content_type
+    )
 
     upload_path = safe_join("",
                             request.args.get('dir', default='').lstrip('/'))

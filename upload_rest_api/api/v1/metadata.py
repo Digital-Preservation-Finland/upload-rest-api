@@ -1,12 +1,11 @@
 """REST api for uploading files into passipservice."""
 import os.path
 
-import upload_rest_api.database as db
-import upload_rest_api.utils as utils
-from flask import Blueprint, abort, current_app, jsonify, request, url_for
+from flask import Blueprint, abort, current_app, jsonify, url_for
+from upload_rest_api import utils
 from upload_rest_api.api.v1.tasks import TASK_STATUS_API_V1
-from upload_rest_api.jobs.utils import METADATA_QUEUE, enqueue_background_job
 from upload_rest_api.authentication import current_user
+from upload_rest_api.jobs.utils import METADATA_QUEUE, enqueue_background_job
 
 METADATA_API_V1 = Blueprint("metadata_v1", __name__, url_prefix="/v1/metadata")
 
