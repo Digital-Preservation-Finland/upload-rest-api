@@ -1,21 +1,26 @@
 """Module for accessing user database."""
 import binascii
+import datetime
 import hashlib
+import json
 import os
 import pathlib
 import random
+import secrets
 import time
+import uuid
 from string import ascii_letters, digits
 
+import dateutil
+import dateutil.parser
 import pymongo
+import upload_rest_api.config
 from bson.binary import Binary
 from bson.objectid import ObjectId
 from flask import safe_join
 from rq.exceptions import NoSuchJobError
 from rq.job import Job
 from werkzeug.utils import secure_filename
-
-import upload_rest_api.config
 
 # Password vars
 PASSWD_LEN = 20
@@ -86,6 +91,12 @@ class TaskNotFoundError(Exception):
     """Exception for querying a task, which does not exist."""
 
 
+class TokenInvalidError(Exception):
+    """
+    Token is invalid, either because it does not exist or because it expired.
+    """
+
+
 class Database:
     """Class for accessing data in mongodb."""
 
@@ -142,6 +153,11 @@ class Database:
     def uploads(self):
         """Return uploads collection"""
         return Uploads(self.client)
+
+    @property
+    def tokens(self):
+        """Return tokens collection"""
+        return Tokens(self.client)
 
 
 class User:
@@ -659,3 +675,170 @@ class Uploads:
         uploads = self.uploads.find({"username": user.username})
 
         return sum(upload["size"] for upload in uploads)
+
+
+class Tokens:
+    """Class for managing user tokens"""
+    def __init__(self, client):
+        """Initialize Tokens instance."""
+        self.tokens = client.upload.get_collection(
+            "tokens",
+            # FIXME: mongomock doesn't support custom CodecOptions yet,
+            # so this has been commented for the time being.
+            # This means we have to manually update each returned datetime
+            # object with the time zone information.
+            #
+            # CodecOptions(tz_aware=True, tzinfo=datetime.timezone.utc)
+        )
+
+    def create(
+            self, name, username, projects, expiration_date=None,
+            admin=False):
+        """Create one token
+
+        :param str name: User-provided name for the token
+        :param str username: Username the token is intended for
+        :param list projects: List of projects that the token will grant access
+                              to
+        :param expiration_date: Optional expiration date as datetime.datetime
+                                instance
+        :param bool admin: Whether the token has admin privileges.
+                           This means the token can be used for creating,
+                           listing and removing tokens, among other things.
+        """
+        from upload_rest_api.jobs.utils import get_redis_connection
+
+        # Token contains 256 bits of randomness per Python doc recommendation
+        token = f"fddps-{secrets.token_urlsafe(32)}"
+
+        # Expiration date is optional, but if provided, it must have
+        # time zone information
+        is_valid_expiration_date = (
+            not expiration_date
+            or (
+                isinstance(expiration_date, datetime.datetime)
+                and expiration_date.tzinfo
+            )
+        )
+
+        if not is_valid_expiration_date:
+            raise TypeError("expiration_date is not a valid datetime object")
+
+        token_hash = hashlib.sha256(token.encode("utf-8")).hexdigest()
+        data = {
+            # _id is only used to identify the token, but it doesn't
+            # allow authorization. This is used when the user wants to specify
+            # a created token (eg. when deleting an existing token).
+            "_id": str(uuid.uuid4()),
+            "name": name,
+            "username": username,
+            "projects": projects,
+            "token_hash": token_hash,
+            "expiration_date": expiration_date,
+            "admin": admin
+        }
+
+        self.tokens.insert_one(data)
+
+        # Cache the token in Redis.
+        redis = get_redis_connection()
+        redis_data = data.copy()
+        del redis_data["token_hash"]
+        if expiration_date:
+            redis_data["expiration_date"] = expiration_date.isoformat()
+
+        redis.set(
+            f"fddps-token:{token_hash}", json.dumps(redis_data),
+            ex=30 * 60  # Cache token for 30 minutes
+        )
+
+        # Include the token in the initial creation request.
+        # Only the SHA256 hash will be stored in the database.
+        data["token"] = token
+        del data["token_hash"]
+
+        return data
+
+    def get_by_token(self, token):
+        """
+        Get the token from the database using the token itself
+
+        .. note::
+
+            This does not validate the token. Use `get_and_validate` instead
+            if that is required.
+        """
+        from upload_rest_api.jobs.utils import get_redis_connection
+
+        token_hash = hashlib.sha256(token.encode("utf-8")).hexdigest()
+
+        redis = get_redis_connection()
+
+        result = redis.get(f"fddps-token:{token_hash}")
+        if result:
+            result = json.loads(result)
+            if result["expiration_date"]:
+                result["expiration_date"] = dateutil.parser.parse(
+                    result["expiration_date"]
+                )
+        else:
+            # Token not in Redis cache, use MongoDB instead
+            result = self.tokens.find_one({
+                "token_hash": token_hash
+            })
+            if result and result["expiration_date"]:
+                result["expiration_date"] = result["expiration_date"].replace(
+                    tzinfo=datetime.timezone.utc
+                )
+
+        if not result:
+            raise ValueError("Token not found")
+
+        return result
+
+    def get_and_validate(self, token):
+        """
+        Get the token from the database and validate it
+
+        :raises TokenInvalidError: Token is invalid
+        """
+        try:
+            result = self.get_by_token(token=token)
+        except ValueError as exc:
+            raise TokenInvalidError("Token not found") from exc
+
+        if not result["expiration_date"]:
+            # No expiration date, meaning token is automatically valid
+            return result
+
+        now = datetime.datetime.now(datetime.timezone.utc)
+
+        if result["expiration_date"] < now:
+            raise TokenInvalidError("Token has expired")
+
+        return result
+
+    def delete(self, identifier):
+        """
+        Delete the given token
+
+        :returns: Number of deleted documents, either 1 or 0
+        """
+        from upload_rest_api.jobs.utils import get_redis_connection
+
+        redis = get_redis_connection()
+
+        # We need to know the token hash in order to delete it from Redis as
+        # well
+        token_hash = self.tokens.find_one({"_id": identifier})["token_hash"]
+
+        result = self.tokens.delete_one({"_id": identifier}).deleted_count
+        redis.delete(f"fddps-token:{token_hash}")
+
+        return result
+
+    def find(self, username):
+        """
+        Find all tokens belonging to an user
+        """
+        return list(self.tokens.find({"username": username}))

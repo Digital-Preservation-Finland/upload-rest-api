@@ -13,8 +13,8 @@ import upload_rest_api.database as db
         ('false_user', 'test_password', False)
     ]
 )
-def test_auth_user(user, password, result):
-    """Test _auth_user() function with different username-password
+def test_auth_user_by_password(test_client, user, password, result):
+    """Test HTTP Basic authentication using different username-password
     combinations.
 
     :param user: username of user
@@ -26,4 +26,10 @@ def test_auth_user(user, password, result):
     usersdoc.create('test_project', 'test_password')
 
     # pylint: disable=protected-access
-    assert auth._auth_user(user, password) is result
+    response = test_client.get("/v1/", auth=(user, password))
+    if result:
+        # Authentication passes, and 404 is returned
+        assert response.status_code == 404
+    else:
+        # Authentication shouldn't pass, and 401 should be returned
+        assert response.status_code == 401

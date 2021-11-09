@@ -340,3 +340,37 @@ def wrong_auth():
     return {
         "Authorization": "Basic %s" % b64encode(b"admin:admin").decode("utf-8")
     }
+
+
+@pytest.fixture(scope="function")
+def user_token_auth(mock_mongo):
+    """Returns credentials header containing an user token"""
+    token_data = db.Database().tokens.create(
+        name="User test token",
+        username="test_user",
+        projects=["test_project_1", "test_project_2"],
+        expiration_date=None,
+        admin=False
+    )
+    token = token_data["token"]
+
+    return {
+        "Authorization": f"Bearer {token}"
+    }
+
+
+@pytest.fixture(scope="function")
+def admin_auth(mock_mongo):
+    """Return credentials header containing a token with admin privileges"""
+    token_data = db.Database().tokens.create(
+        name="Admin test token",
+        username="admin",
+        projects=None,
+        expiration_date=None,
+        admin=True
+    )
+    tokenn = token_data["token"]
+
+    return {
+        "Authorization": f"Bearer {token}"
+    }
