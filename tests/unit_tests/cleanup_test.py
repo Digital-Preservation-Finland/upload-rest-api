@@ -118,17 +118,17 @@ def test_expired_tasks(test_mongo, requests_mock, mock_config):
 
     # Add tasks to mongo
     tasks = test_mongo.upload.tasks
-    tasks.insert_one({"project": "project_1",
+    tasks.insert_one({"project_id": "project_1",
                       "timestamp": time.time(),
                       "status": 'pending'})
-    tasks.insert_one({"project": "project_2",
+    tasks.insert_one({"project_id": "project_2",
                       "timestamp": time.time(),
                       "status": 'pending'})
     time.sleep(2)
-    tasks.insert_one({"project": "project_3",
+    tasks.insert_one({"project_id": "project_3",
                       "timestamp": time.time(),
                       "status": 'pending'})
-    tasks.insert_one({"project": "project_4",
+    tasks.insert_one({"project_id": "project_4",
                       "timestamp": time.time(),
                       "status": 'pending'})
     assert tasks.count() == 4
@@ -139,7 +139,7 @@ def test_expired_tasks(test_mongo, requests_mock, mock_config):
     tasks_left = tasks.find()
     projects = []
     for task in tasks_left:
-        projects.append(task['project'])
+        projects.append(task['project_id'])
     projects.sort()
     assert len(projects) == 2
     assert projects[0] == "project_3"

@@ -6,12 +6,6 @@ import shutil
 import pytest
 
 
-def _set_user_quota(users, username, quota, used_quota):
-    """Set quota and used quota of user username."""
-    users.update_one({"_id": username}, {"$set": {"quota": quota}})
-    users.update_one({"_id": username}, {"$set": {"used_quota": used_quota}})
-
-
 def _upload_file(client, url, auth, fpath):
     """Send POST request to given URL with file fpath.
 
@@ -52,7 +46,7 @@ def test_upload(app, test_auth, test_mongo):
     checksums = test_mongo.upload.checksums
 
     response = _upload_file(
-        test_client, "/v1/files/test.txt",
+        test_client, "/v1/files/test_project/test.txt",
         test_auth, "tests/data/test.txt"
     )
     assert response.status_code == 200
@@ -71,7 +65,7 @@ def test_upload(app, test_auth, test_mongo):
 
     # Test that trying to upload the file again returns 409 Conflict
     response = _upload_file(
-        test_client, "/v1/files/test.txt",
+        test_client, "/v1/files/test_project/test.txt",
         test_auth, "tests/data/test.txt"
     )
     assert response.status_code == 409
@@ -85,7 +79,7 @@ def test_upload_max_size(app, test_auth):
     upload_path = app.config.get("UPLOAD_PATH")
 
     response = _upload_file(
-        test_client, "/v1/files/test.txt",
+        test_client, "/v1/files/test_project/test.txt",
         test_auth, "tests/data/test.txt"
     )
     assert response.status_code == 413
@@ -96,15 +90,15 @@ def test_upload_max_size(app, test_auth):
     assert not os.path.isfile(fpath)
 
 
-def test_user_quota(app, test_auth, test_mongo):
+def test_user_quota(app, database, test_auth, test_mongo):
     """Test uploading files larger than allowed by user quota."""
     test_client = app.test_client()
     upload_path = app.config.get("UPLOAD_PATH")
-    users = test_mongo.upload.users
 
-    _set_user_quota(users, "test", 200, 0)
+    database.projects.set_quota("test_project", 200)
+    database.projects.set_used_quota("test_project", 0)
     response = _upload_file(
-        test_client, "/v1/files/test.zip",
+        test_client, "/v1/files/test_project/test.zip",
         test_auth, "tests/data/test.zip"
     )
     assert response.status_code == 413
@@ -116,7 +110,7 @@ def test_user_quota(app, test_auth, test_mongo):
                                           "test.zip"))
 
 
-def test_used_quota(app, test_auth, test_mongo, requests_mock):
+def test_used_quota(app, database, test_auth, test_mongo, requests_mock):
     """Test that used quota is calculated correctly."""
     # Mock Metax
     requests_mock.get("https://metax.fd-test.csc.fi/rest/v2/files?limit=10000&"
@@ -124,26 +118,26 @@ def test_used_quota(app, test_auth, test_mongo, requests_mock):
                       json={'next': None, 'results': []})
 
     test_client = app.test_client()
-    users = test_mongo.upload.users
 
     # Upload two 31B txt files
     _upload_file(
-        test_client, "/v1/files/test1",
+        test_client, "/v1/files/test_project/test1",
         test_auth, "tests/data/test.txt"
     )
     _upload_file(
-        test_client, "/v1/files/test2",
+        test_client, "/v1/files/test_project/test2",
         test_auth, "tests/data/test.txt"
     )
-    used_quota = users.find_one({"_id": "test"})["used_quota"]
+
+    used_quota = database.projects.get("test_project")["used_quota"]
     assert used_quota == 62
 
     # Delete one of the files
     test_client.delete(
-        "/v1/files/test1",
+        "/v1/files/test_project/test1",
         headers=test_auth
     )
-    used_quota = users.find_one({"_id": "test"})["used_quota"]
+    used_quota = database.projects.get("test_project")["used_quota"]
     assert used_quota == 31
 
 
@@ -151,7 +145,7 @@ def test_upload_outside(app, test_auth):
     """Test uploading outside the user's dir."""
     test_client = app.test_client()
     response = _upload_file(
-        test_client, "/v1/files/../test.txt",
+        test_client, "/v1/files/test_project/../test.txt",
         test_auth, "tests/data/test.txt"
     )
     assert response.status_code == 404
@@ -163,7 +157,7 @@ def test_unsupported_content(app, test_auth):
     client = app.test_client()
 
     response = client.post(
-        '/v1/files/test',
+        '/v1/files/test_project/test',
         headers=test_auth,
         content_length=1,
         content_type='foo'
@@ -178,7 +172,7 @@ def test_unknown_content_length(app, test_auth):
     client = app.test_client()
 
     response = client.post(
-        '/v1/files/test',
+        '/v1/files/test_project/test',
         headers=test_auth,
         content_length=None,
         content_type='application/octet-stream',
@@ -231,7 +225,7 @@ def test_file_integrity_validation(app, test_auth, checksum,
     test_client = app.test_client()
     with open('tests/data/test.txt', "rb") as test_file:
         response = test_client.post(
-            '/v1/files/test_path',
+            '/v1/files/test_project/test_path',
             query_string={'md5': checksum},
             input_stream=test_file,
             headers=test_auth
@@ -255,7 +249,9 @@ def test_get_file(app, test_auth, test2_auth, test3_auth, test_mongo):
     })
 
     # GET file that exists
-    response = test_client.get("/v1/files/test.txt", headers=test_auth)
+    response = test_client.get(
+        "/v1/files/test_project/test.txt", headers=test_auth
+    )
 
     assert response.status_code == 200
 
@@ -264,13 +260,17 @@ def test_get_file(app, test_auth, test2_auth, test3_auth, test_mongo):
     assert response.json["identifier"] is None
 
     # GET file with user test2, which is in the same project
-    response = test_client.get("/v1/files/test.txt", headers=test2_auth)
+    response = test_client.get(
+        "/v1/files/test_project/test.txt", headers=test2_auth
+    )
     assert response.status_code == 200
 
     # GET file with user test3, which is not in the same project
-    response = test_client.get("/v1/files/test.txt", headers=test3_auth)
-    assert response.status_code == 404
-    assert response.json['error'] == 'File not found'
+    response = test_client.get(
+        "/v1/files/test_project/test.txt", headers=test3_auth
+    )
+    assert response.status_code == 403
+    assert response.json['error'] == 'No permission to access this project'
 
 
 def test_delete_file(app, test_auth, requests_mock, test_mongo):
@@ -308,7 +308,7 @@ def test_delete_file(app, test_auth, requests_mock, test_mongo):
 
     # DELETE file that exists
     response = test_client.delete(
-        "/v1/files/test.txt",
+        "/v1/files/test_project/test.txt",
         headers=test_auth
     )
 
@@ -319,7 +319,7 @@ def test_delete_file(app, test_auth, requests_mock, test_mongo):
 
     # DELETE file that does not exist
     response = test_client.delete(
-        "/v1/files/test.txt",
+        "/v1/files/test_project/test.txt",
         headers=test_auth
     )
     assert response.status_code == 404
@@ -331,7 +331,7 @@ def test_delete_file(app, test_auth, requests_mock, test_mongo):
     [
         # All files of user
         (
-            '',
+            '/?all=true',
             {
                 '/': ['file1.txt'],
                 '/dir1': ['file2.txt'],
@@ -400,7 +400,9 @@ def test_get_files(app, test_auth, path, expected_data, requests_mock):
 
     # Check the response
     test_client = app.test_client()
-    response = test_client.get("/v1/files" + path, headers=test_auth)
+    response = test_client.get(
+        "/v1/files/test_project" + path, headers=test_auth
+    )
     assert response.status_code == 200
     for key in response.json.keys():
         assert response.json[key] == expected_data[key] \
@@ -427,7 +429,9 @@ def test_get_directory_without_identifier(app, test_auth, requests_mock):
                       status_code=404)
 
     test_client = app.test_client()
-    response = test_client.get("v1/files/test_directory", headers=test_auth)
+    response = test_client.get(
+        "v1/files/test_project/test_directory", headers=test_auth
+    )
     assert response.status_code == 200
     assert response.json == {'directories': [],
                              'files': [],
@@ -443,12 +447,12 @@ def test_delete_directory(
     test_client = app.test_client()
 
     _upload_file(test_client,
-                 '/v1/files/test.txt',
+                 '/v1/files/test_project/test.txt',
                  test_auth,
                  'tests/data/test.txt')
 
     _upload_file(test_client,
-                 '/v1/files/test/test.txt',
+                 '/v1/files/test_project/test/test.txt',
                  test_auth,
                  'tests/data/test.txt')
 
@@ -471,7 +475,9 @@ def test_delete_directory(
                          json=target_files)
 
     # Delete a directory
-    response = test_client.delete(f"/v1/files{target}", headers=test_auth)
+    response = test_client.delete(
+        f"/v1/files/test_project{target}", headers=test_auth
+    )
     if _request_accepted(response):
         response = background_job_runner(test_client, "files", response)
     assert response.status_code == 200
@@ -507,6 +513,6 @@ def test_delete_empty_project(app, test_auth, requests_mock):
     test_client = app.test_client()
 
     # Try to delete project
-    response = test_client.delete("/v1/files", headers=test_auth)
+    response = test_client.delete("/v1/files/test_project", headers=test_auth)
     assert response.status_code == 404
     assert response.json['error'] == "No files found"

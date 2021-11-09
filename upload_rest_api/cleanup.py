@@ -90,12 +90,12 @@ def _clean_file(_file, upload_path, fpaths, file_dict=None, metax_client=None):
         os.remove(_file)
 
 
-def clean_project(project, fpath, metax=True):
+def clean_project(project_id, fpath, metax=True):
     """Remove all files of a given project that haven't been accessed
     within time_lim seconds. If the removed file has a Metax file entry
     and metax_client is provided, remove the Metax file entry as well.
 
-    :param project: Project identifier used to search files from Metax
+    :param project_id: Project identifier used to search files from Metax
     :param fpath: Path to the dir to cleanup
     :param metax: Boolean. if True metadata is removed also from Metax
 
@@ -118,7 +118,7 @@ def clean_project(project, fpath, metax=True):
             password=conf["METAX_PASSWORD"],
             verify=conf["METAX_SSL_VERIFICATION"]
         )
-        file_dict = metax_client.get_files_dict(project)
+        file_dict = metax_client.get_files_dict(project_id)
 
     # Remove all old files
     for dirpath, _, files in os.walk(fpath):
@@ -140,7 +140,7 @@ def clean_project(project, fpath, metax=True):
     # Remove Metax entries of deleted files that are not part of any
     # datasets
     if metax:
-        metax_client.delete_metadata(project, fpaths)
+        metax_client.delete_metadata(project_id, fpaths)
 
     return len(deleted_files)
 

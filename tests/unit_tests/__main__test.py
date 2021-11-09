@@ -69,8 +69,8 @@ def test_cleanup_tokens(database, capsys, monkeypatch):
 def test_get(capsys):
     """Test get command."""
     database = db.Database()
-    database.user("test1").create("test_project")
-    database.user("test2").create("test_project")
+    database.user("test1").create(projects=["test_project"])
+    database.user("test2").create(projects=["test_project"])
 
     with mock.patch.object(
         sys, 'argv',
@@ -90,12 +90,11 @@ def test_create_user(test_mongo, mock_config):
     """
     with mock.patch.object(
         sys, 'argv',
-        ['upload-rest-api', 'create', 'test_user', 'test_project']
+        ['upload-rest-api', 'create-user', 'test_user']
     ):
         upload_rest_api.__main__.main()
 
     assert test_mongo.upload.users.count({"_id": "test_user"}) == 1
-    assert pathlib.Path(mock_config['UPLOAD_PATH'], 'test_project').exists()
 
 
 @pytest.mark.usefixtures('test_mongo')
@@ -103,10 +102,10 @@ def test_create_existing_user():
     """Test that creating a user that already exists raises
     UserExistsError.
     """
-    db.Database().user("test").create("test_project")
+    db.Database().user("test").create(projects=["test_project"])
     with mock.patch.object(
         sys, 'argv',
-        ['upload-rest-api', 'create', 'test', 'test']
+        ['upload-rest-api', 'create-user', 'test']
     ):
         with pytest.raises(db.UserExistsError):
             upload_rest_api.__main__.main()
@@ -114,10 +113,10 @@ def test_create_existing_user():
 
 def test_delete_user(test_mongo):
     """Test deletion of an existing user."""
-    db.Database().user("test").create("test_project")
+    db.Database().user("test").create(projects=["test_project"])
     with mock.patch.object(
         sys, 'argv',
-        ['upload-rest-api', 'delete', 'test']
+        ['upload-rest-api', 'delete-user', 'test']
     ):
         upload_rest_api.__main__.main()
 
@@ -129,22 +128,141 @@ def test_delete_user_fail():
     """Test deletion of an user that does not exist."""
     with mock.patch.object(
         sys, 'argv',
-        ['upload-rest-api', 'delete', 'test']
+        ['upload-rest-api', 'delete-user', 'test']
     ):
         with pytest.raises(db.UserNotFoundError):
             upload_rest_api.__main__.main()
 
 
 @pytest.mark.usefixtures('test_mongo')
-def test_modify():
-    """Test modifying user quota and project."""
+def test_grant_user_projects(database, monkeypatch):
+    """Test granting the user access to projects."""
     user = db.Database().user("test")
-    user.create("test_project")
-    with mock.patch.object(
+    user.create(projects=["test_project"])
+
+    database.projects.create("test_project_2", 2000)
+    database.projects.create("test_project_3", 2000)
+
+    monkeypatch.setattr(
+        sys, "argv",
+        [
+            'upload-rest-api', 'grant-user-projects', "test",
+            "test_project_2", "test_project_3"
+        ]
+    )
+
+    upload_rest_api.__main__.main()
+
+    assert user.get_projects() == [
+        "test_project", "test_project_2", "test_project_3"
+    ]
+
+
+@pytest.mark.usefixtures('test_mongo')
+def test_grant_user_projects_nonexistent_project(database, monkeypatch):
+    """Test granting the user access to project that does not exist."""
+    user = db.Database().user("test")
+    user.create(projects=["test_project"])
+
+    monkeypatch.setattr(
         sys, 'argv',
-        ['upload-rest-api', 'modify', 'test', "--quota", "1", "--project", "X"]
-    ):
+        [
+            'upload-rest-api', 'grant-user-projects', "test",
+            "test_project_2"
+        ]
+    )
+
+    with pytest.raises(db.ProjectNotFoundError) as exc:
         upload_rest_api.__main__.main()
 
-    assert user.get_quota() == 1
-    assert user.get_project() == "X"
+    assert str(exc.value) == "Project 'test_project_2' not found"
+
+
+@pytest.mark.usefixtures('test_mongo')
+def test_grant_user_projects_nonexistent_user(database, monkeypatch):
+    """Test granting a nonexistent user access to a project."""
+    database.projects.create("test_project")
+
+    monkeypatch.setattr(
+        sys, 'argv',
+        [
+            'upload-rest-api', 'grant-user-projects', "fake_user",
+            "test_project"
+        ]
+    )
+
+    with pytest.raises(db.UserNotFoundError) as exc:
+        upload_rest_api.__main__.main()
+
+    assert str(exc.value) == "User 'fake_user' not found"
+
+
+@pytest.mark.usefixtures('test_mongo')
+def test_revoke_user_projects(database, monkeypatch):
+    """Test granting the user access to projects."""
+    user = db.Database().user("test")
+    user.create(projects=["test_project"])
+
+    monkeypatch.setattr(
+        sys, "argv",
+        [
+            'upload-rest-api', 'revoke-user-projects', "test",
+            "test_project"
+        ]
+    )
+
+    upload_rest_api.__main__.main()
+
+    assert user.get_projects() == []
+
+
+@pytest.mark.usefixtures("test_mongo")
+def test_create_project(database, monkeypatch):
+    """Test creating a new project."""
+    monkeypatch.setattr(
+        sys, "argv",
+        [
+            "upload-rest-api", "create-project",
+            "test_project", "--quota", "2468"
+        ]
+    )
+
+    upload_rest_api.__main__.main()
+
+    project = database.projects.get("test_project")
+    assert project["quota"] == 2468
+    assert project["used_quota"] == 0
+
+
+@pytest.mark.usefixtures("test_mongo")
+def test_create_project_already_exists(database, monkeypatch):
+    """Test creating a project that already exists."""
+    database.projects.create("test_project", quota=2048)
+
+    monkeypatch.setattr(
+        sys, "argv",
+        [
+            "upload-rest-api", "create-project", "test_project",
+            "--quota", "2048"
+        ]
+    )
+
+    with pytest.raises(db.ProjectExistsError) as exc:
+        upload_rest_api.__main__.main()
+
+    assert str(exc.value) == "Project 'test_project' already exists"
+
+
+@pytest.mark.usefixtures("test_mongo")
+def test_delete_project(database, monkeypatch):
+    """Test deleting a project"""
+    database.projects.create("test_project", quota=2048)
+
+    monkeypatch.setattr(
+        sys, "argv",
+        ["upload-rest-api", "delete-project", "test_project"]
+    )
+
+    upload_rest_api.__main__.main()
+
+    assert not database.projects.get("test_project")

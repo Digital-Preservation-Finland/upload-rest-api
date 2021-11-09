@@ -198,26 +198,28 @@ def background_job_runner(test_auth):
     return wrapper
 
 
-def init_db(test_mongo):
+def init_db(test_mongo, database):
     """Initialize user db."""
     test_mongo.drop_database("upload")
 
+    database.projects.create("test_project", quota=1000000)
+    database.projects.create("project", quota=12345678)
+
     # test user
-    user = db.Database().user("test")
-    user.users = test_mongo.upload.users
-    user.create("test_project", password="test")
+    user = database.user("test")
+    user.create(projects=["test_project"], password="test")
 
     # test2 user with same project
     user.username = "test2"
-    user.create("test_project", password="test")
+    user.create(projects=["test_project"], password="test")
 
     # test3 user with different project
     user.username = "test3"
-    user.create("project", password="test")
+    user.create(projects=["project"], password="test")
 
 
 @pytest.yield_fixture(scope="function")
-def app(test_mongo, mock_config, monkeypatch):
+def app(test_mongo, mock_config, database, monkeypatch):
     """Create temporary upload directory and app, which uses it.
 
     Temp dirs are cleaned after use.
@@ -235,7 +237,7 @@ def app(test_mongo, mock_config, monkeypatch):
     monkeypatch.setattr(app_module, "configure_app", _mock_configure_app)
 
     flask_app = app_module.create_app()
-    init_db(test_mongo)
+    init_db(test_mongo, database)
 
     monkeypatch.setattr("pymongo.MongoClient", lambda *args: test_mongo)
 
@@ -274,6 +276,13 @@ def user(test_mongo):
     test_user.users = test_mongo.upload.users
 
     return test_user
+
+
+@pytest.fixture(scope="function")
+def project(database):
+    """Initialize and return a project dict
+    """
+    return db.Database().projects.create("test_project")
 
 
 @pytest.fixture(scope="function")
@@ -343,12 +352,14 @@ def wrong_auth():
 
 
 @pytest.fixture(scope="function")
-def user_token_auth(test_mongo):
+# pylint: disable=unused-argument
+# usefixtures not supported in fixture functions
+def user_token_auth(test_client, test_mongo, database):
     """Returns credentials header containing an user token"""
     token_data = db.Database().tokens.create(
         name="User test token",
-        username="test_user",
-        projects=["test_project_1", "test_project_2"],
+        username="test",
+        projects=["test_project", "project"],
         expiration_date=None,
         admin=False
     )

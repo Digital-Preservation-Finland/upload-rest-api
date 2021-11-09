@@ -2,43 +2,43 @@
 import os
 import pathlib
 
+from flask import request, safe_join, url_for
+from upload_rest_api.database import Projects
+from werkzeug.utils import secure_filename
+
 try:
     from urllib.parse import urlparse, urlunparse
 except ImportError:  # Python 2
     from urlparse import urlparse, urlunparse
 
-from flask import request, safe_join, url_for
-from werkzeug.utils import secure_filename
 
-
-from upload_rest_api.config import CONFIG
-
-
-def get_upload_path(user, file_path):
+def get_upload_path(project_id, file_path):
     """Get upload path for file.
 
-    :param user: user object
+    :param project_id: project identifier
     :param file_path: file path relative to project directory of user
     :returns: full path of file
     """
     dirname, basename = os.path.split(file_path)
     secure_fname = secure_filename(basename)
-    joined_path = safe_join(user.project_directory, dirname)
+    joined_path = safe_join(Projects.get_project_directory(project_id), dirname)
 
     return pathlib.Path(joined_path).resolve() / secure_fname
 
 
-def get_return_path(user, fpath):
-    """Get path relative to project directory of user.
+def get_return_path(project_id, fpath):
+    """Get path relative to project directory.
 
     Splice project path from fpath and return the path shown to the user
     and POSTed to Metax.
 
-    :param user: user object
+    :param project_id: project identifier
     :param fpath: full path
     :returns: string presentation of relative path
     """
-    path = pathlib.Path(fpath).relative_to(user.project_directory)
+    path = pathlib.Path(fpath).relative_to(
+        Projects.get_project_directory(project_id)
+    )
 
     path_string = f"/{path}" if path != pathlib.Path('.') else '/'
 

@@ -82,7 +82,7 @@ def test_delete_metadata(
 
     # DELETE metadata for single directory
     response = test_client.delete(
-        "/v1/metadata/test",
+        "/v1/metadata/test_project/test",
         headers=test_auth
     )
     if _request_accepted(response):
@@ -94,7 +94,7 @@ def test_delete_metadata(
 
     # DELETE metadata for single file
     response = test_client.delete(
-        "/v1/metadata/test.txt",
+        "/v1/metadata/test_project/test.txt",
         headers=test_auth
     )
     if _request_accepted(response):
@@ -164,7 +164,7 @@ def test_delete_metadata_dataset_accepted(
 
     # DELETE metadata for single directory
     response = test_client.delete(
-        "/v1/metadata/test",
+        "/v1/metadata/test_project/test",
         headers=test_auth
     )
     if _request_accepted(response):
@@ -175,7 +175,7 @@ def test_delete_metadata_dataset_accepted(
 
     # DELETE metadata for single file
     response = test_client.delete(
-        "/v1/metadata/test.txt",
+        "/v1/metadata/test_project/test.txt",
         headers=test_auth
     )
     if _request_accepted(response):
@@ -193,7 +193,8 @@ def test_post_metadata(app, test_auth, requests_mock, background_job_runner):
 
     # Upload file to test instance
     _upload_file(
-        test_client, "/v1/files/foo", test_auth, "tests/data/test.txt"
+        test_client,
+        "/v1/files/test_project/foo", test_auth, "tests/data/test.txt"
     )
 
     # Mock Metax HTTP response
@@ -202,7 +203,9 @@ def test_post_metadata(app, test_auth, requests_mock, background_job_runner):
         json={"success": [], "failed": ["fail1", "fail2"]}
     )
 
-    response = test_client.post("/v1/metadata/*", headers=test_auth)
+    response = test_client.post(
+        "/v1/metadata/test_project/*", headers=test_auth
+    )
     if _request_accepted(response):
         response = background_job_runner(test_client, "metadata", response)
 
@@ -219,7 +222,7 @@ def test_post_metadata_missing_path(
     Test posting file metadata to Metax when the local file does not exist
     """
     response = test_client.post(
-        "/v1/metadata/this/does/not/exist", headers=test_auth
+        "/v1/metadata/test_project/this/does/not/exist", headers=test_auth
     )
     assert response.status_code == 404
     assert response.json == {
@@ -335,7 +338,8 @@ def test_post_metadata_failure(app, test_auth, requests_mock,
 
     # Upload file to test instance
     _upload_file(
-        test_client, "/v1/files/foo", test_auth, "tests/data/test.txt"
+        test_client, "/v1/files/test_project/foo", test_auth,
+        "tests/data/test.txt"
     )
 
     # Mock Metax HTTP response
@@ -343,7 +347,9 @@ def test_post_metadata_failure(app, test_auth, requests_mock,
                        status_code=400,
                        json=metax_response)
 
-    response = test_client.post("/v1/metadata/foo", headers=test_auth)
+    response = test_client.post(
+        "/v1/metadata/test_project/foo", headers=test_auth
+    )
     if _request_accepted(response):
         response = background_job_runner(
             test_client, "metadata", response, expect_success=False

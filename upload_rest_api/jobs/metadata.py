@@ -11,14 +11,14 @@ from upload_rest_api.jobs.utils import api_background_job, ClientError
 
 
 @api_background_job
-def post_metadata(path, username, storage_id, task_id):
+def post_metadata(path, project_id, storage_id, task_id):
     """Create file metadata in Metax.
 
     This function creates the metadata in Metax for the file or
     directory denoted by path argument.
 
     :param str path: relative path to file/directory
-    :param str username: current user
+    :param str project_id: project identifier
     :param str storage_id: pas storage identifier in Metax
     :param str task_id: mongo dentifier of the task
     """
@@ -27,10 +27,8 @@ def post_metadata(path, username, storage_id, task_id):
     metax_client = md.MetaxClient()
     database = db.Database()
 
-    user = database.user(username)
-
-    fpath = utils.get_upload_path(user, path)
-    return_path = utils.get_return_path(user, fpath)
+    fpath = utils.get_upload_path(project_id, path)
+    return_path = utils.get_return_path(project_id, fpath)
 
     database.tasks.update_message(
         task_id, "Creating metadata: {}".format(return_path)
@@ -50,7 +48,7 @@ def post_metadata(path, username, storage_id, task_id):
         raise ClientError("File not found")
 
     try:
-        metax_client.post_metadata(fpaths, root_upload_path, username,
+        metax_client.post_metadata(fpaths, root_upload_path, project_id,
                                    storage_id)
     except ResourceAlreadyExistsError as error:
         try:
@@ -66,14 +64,14 @@ def post_metadata(path, username, storage_id, task_id):
 
 
 @api_background_job
-def delete_metadata(fpath, username, task_id):
+def delete_metadata(fpath, project_id, task_id):
     """Delete file metadata.
 
     This function deletes the metadata in Metax for the file(s) denoted
     by fpath argument.
 
     :param str fpath: file path
-    :param str username: current user
+    :param str project_id: project identifier
     :param str task_id: mongo dentifier of the task
     """
     root_upload_path = CONFIG["UPLOAD_PATH"]
@@ -81,9 +79,8 @@ def delete_metadata(fpath, username, task_id):
     metax_client = md.MetaxClient()
     database = db.Database()
 
-    user = database.user(username)
-    fpath = utils.get_upload_path(user, fpath)
-    ret_path = utils.get_return_path(user, fpath)
+    fpath = utils.get_upload_path(project_id, fpath)
+    ret_path = utils.get_return_path(project_id, fpath)
     database.tasks.update_message(
         task_id, "Deleting metadata: %s" % ret_path
     )
@@ -98,10 +95,7 @@ def delete_metadata(fpath, username, task_id):
         raise ClientError("File not found")
 
     try:
-        response = delete_func(user.get_project(),
-                               fpath,
-                               root_upload_path,
-                               force=True)
+        response = delete_func(project_id, fpath, root_upload_path, force=True)
     except md.MetaxClientError as error:
         raise ClientError(str(error)) from error
 

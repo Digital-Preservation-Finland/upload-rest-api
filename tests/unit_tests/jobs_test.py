@@ -25,7 +25,7 @@ def test_enqueue_background_job_successful(tasks_col, mock_redis):
     job_id = enqueue_background_job(
         task_func="tests.unit_tests.jobs_test.successful_task",
         queue_name="upload",
-        username="test",
+        project_id="test_project",
         job_kwargs={"value": "spam"}
     )
 
@@ -60,7 +60,7 @@ def test_enqueue_background_job_failing(tasks_col, mock_redis):
     job_id = enqueue_background_job(
         task_func="tests.unit_tests.jobs_test.failing_task",
         queue_name="upload",
-        username="test",
+        project_id="test_project",
         job_kwargs={}
     )
 
@@ -101,7 +101,7 @@ def test_enqueue_background_job_failing_out_of_sync(tasks_col, mock_redis):
     job_id = enqueue_background_job(
         task_func="tests.unit_tests.jobs_test.failing_task",
         queue_name="upload",
-        username="test",
+        project_id="test_project",
         job_kwargs={}
     )
 
@@ -139,7 +139,7 @@ def test_enqueue_background_job_custom_timeout(mock_config, monkeypatch):
     job_id = enqueue_background_job(
         task_func="tests.unit_tests.jobs_test.failing_task",
         queue_name="upload",
-        username="test",
+        project_id="test_project",
         job_kwargs={}
     )
 

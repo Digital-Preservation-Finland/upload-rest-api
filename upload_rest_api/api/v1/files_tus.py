@@ -1,12 +1,12 @@
 """
 Event handler for the /files_tus/v1 endpoint.
 """
+import flask_tus_io
 from flask import Blueprint, abort, request, safe_join
 from upload_rest_api import database, upload
+from upload_rest_api.authentication import current_user
+from upload_rest_api.database import Database, Projects, Uploads
 from upload_rest_api.upload import save_file_into_db
-from upload_rest_api.database import Database, Uploads
-
-import flask_tus_io
 
 FILES_TUS_API_V1 = Blueprint(
     "files_tus_v1", __name__, url_prefix="/v1/files_tus"
@@ -31,20 +31,26 @@ def _upload_started(workspace, resource):
     Callback function called when a new upload is started
     """
     try:
-        db = database.Database()
-        user = db.user(request.authorization.username)
+        db = Database()
         uploads = db.uploads
 
         upload_length = resource.upload_length
+        project_id = resource.upload_metadata["project_id"]
         fpath = resource.upload_metadata["file_path"]
 
-        upload_path = safe_join("", fpath)
-        file_path = user.project_directory / upload_path
+        if not current_user.is_allowed_to_access_project(project_id):
+            abort(403)
 
-        allocated_quota = uploads.get_user_allocated_quota(user)
+        upload_path = safe_join("", fpath)
+        project_dir = Projects.get_project_directory(project_id)
+        file_path = project_dir / upload_path
+
+        project = db.projects.get(project_id)
+
+        allocated_quota = uploads.get_project_allocated_quota(project_id)
         remaining_quota = (
-            user.get_quota()  # User's total quota
-            - user.get_used_quota()  # Finished and saved uploads
+            project["quota"]  # User's total quota
+            - project["used_quota"]  # Finished and saved uploads
             - allocated_quota  # Disk space allocated for unfinished uploads
             - upload_length  # Disk space that will be allocated for this upload
         )
@@ -55,7 +61,7 @@ def _upload_started(workspace, resource):
 
         # Validate the user's quota and content type is not exceeded again.
         upload.validate_upload(
-            user=user,
+            project_id=project_id,
             content_length=resource.upload_length,
             content_type="application/octet-stream"
         )
@@ -75,7 +81,7 @@ def _upload_started(workspace, resource):
 
         # Quota is sufficient, create a new Upload entry
         uploads.create(
-            user=user,
+            project_id=project_id,
             file_path=str(file_path),
             resource=resource
         )
@@ -94,15 +100,17 @@ def _upload_completed(workspace, resource):
     uploads = db.uploads
     user = db.user(request.authorization.username)
 
+    project_id = resource.upload_metadata["project_id"]
     fpath = resource.upload_metadata["file_path"]
 
     upload_path = safe_join("", fpath)
-    file_path = user.project_directory / upload_path
+    project_dir = Projects.get_project_directory(project_id)
+    file_path = project_dir / upload_path
 
     try:
         # Validate the user's quota and content type again
         upload.validate_upload(
-            user=user,
+            project_id=project_id,
             content_length=resource.upload_length,
             content_type="application/octet-stream"
         )
@@ -119,7 +127,7 @@ def _upload_completed(workspace, resource):
     save_file_into_db(
         file_path=file_path,
         database=db,
-        user=user
+        project_id=project_id
     )
 
 

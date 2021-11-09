@@ -66,7 +66,7 @@ def create_app():
     files_tus.register_blueprint(app)
 
     # Register error handlers
-    for status_code in [400, 401, 405, 409, 411, 413, 415]:
+    for status_code in [400, 401, 403, 405, 409, 411, 413, 415]:
         app.register_error_handler(status_code, http_error_generic)
     app.register_error_handler(404, http_error_404)
     app.register_error_handler(500, http_error_500)

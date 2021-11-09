@@ -1,4 +1,4 @@
-"""Tests forimport base64 `upload_rest_api.api.v1.tokens` module"""
+"""Tests for `upload_rest_api.api.v1.tokens` module"""
 
 import pytest
 
@@ -12,7 +12,7 @@ def test_create_token(test_client, admin_auth, database):
         data={
             "name": "Test token",
             "username": "sso_test_user",
-            "projects": ",".join(["test_project_1", "test_project_2"]),
+            "projects": ",".join(["test_project", "project"]),
         },
         headers=admin_auth
     )
@@ -26,7 +26,7 @@ def test_create_token(test_client, admin_auth, database):
 
     assert token_data["name"] == "Test token"
     assert token_data["username"] == "sso_test_user"
-    assert token_data["projects"] == ["test_project_1", "test_project_2"]
+    assert token_data["projects"] == ["test_project", "project"]
     assert not token_data["expiration_date"]
     assert not token_data["admin"]
     assert not token_data["session"]
@@ -146,7 +146,7 @@ def test_list_tokens(test_client, admin_auth):
             data={
                 "name": f"Test token {i}",
                 "username": "sso_test_user",
-                "projects": ",".join(["test_project_1", "test_project_2"]),
+                "projects": ",".join(["test_project", "project"]),
             },
             headers=admin_auth
         )
@@ -165,7 +165,7 @@ def test_list_tokens(test_client, admin_auth):
     assert data["tokens"][0]["name"] == "Test token 0"
     assert data["tokens"][0]["username"] == "sso_test_user"
     assert data["tokens"][0]["projects"] == [
-        "test_project_1", "test_project_2"
+        "test_project", "project"
     ]
     assert not data["tokens"][0]["expiration_date"]
 
@@ -198,7 +198,7 @@ def test_delete_token(test_client, admin_auth, database):
         data={
             "name": "Test token",
             "username": "sso_test_user",
-            "projects": ",".join(["test_project_1", "test_project_2"]),
+            "projects": ",".join(["test_project", "project"]),
         },
         headers=admin_auth
     )
@@ -229,7 +229,7 @@ def test_delete_token_permission_denied(
     """
     Try deleting a token using an user token
     """
-    token_id = database.tokens.find("test_user")[0]["_id"]
+    token_id = database.tokens.find("test")[0]["_id"]
     response = test_client.delete(
         "/v1/tokens/",
         data={
@@ -244,12 +244,12 @@ def test_delete_token_permission_denied(
         "User does not have permission to delete tokens"
 
 
-def test_delete_token_username_not_provided(
-        test_client, user_token_auth, admin_auth, database):
+@pytest.mark.usefixtures("user_token_auth")
+def test_delete_token_username_not_provided(test_client, admin_auth, database):
     """
     Try deleting a token without providing an username
     """
-    token_id = database.tokens.find("test_user")[0]["_id"]
+    token_id = database.tokens.find("test")[0]["_id"]
     response = test_client.delete(
         "/v1/tokens/",
         data={
@@ -261,8 +261,7 @@ def test_delete_token_username_not_provided(
     assert response.json["error"] == "'username' not provided"
 
 
-def test_delete_token_token_id_not_provided(
-        test_client, user_token_auth, admin_auth, database):
+def test_delete_token_token_id_not_provided(test_client, admin_auth):
     """
     Try deleting a token without providing a token ID
     """

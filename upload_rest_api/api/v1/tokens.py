@@ -21,9 +21,6 @@ def create_token():
     """
     Create token for a given user and projects
     """
-    if not current_user.is_allowed_to_create_tokens():
-        abort(403, "User does not have permission to create tokens")
-
     name = request.form.get("name", None)
     if not name:
         abort(400, "'name' is required")
@@ -34,6 +31,9 @@ def create_token():
     username = request.form.get("username", None)
     if not username:
         abort(400, "'username' is required")
+
+    if not current_user.is_allowed_to_create_tokens(username):
+        abort(403, "User does not have permission to create tokens")
 
     projects = request.form.get("projects", None)
     if projects is None:
@@ -71,12 +71,12 @@ def create_session_token():
     Create temporary session token for a given user with access to all
     projects
     """
-    if not current_user.is_allowed_to_create_tokens():
-        abort(403, "User does not have permission to create tokens")
-
     username = request.form.get("username", None)
     if not username:
         abort(400, "'username' is required")
+
+    if not current_user.is_allowed_to_create_tokens(username):
+        abort(403, "User does not have permission to create tokens")
 
     expiration_date = \
         datetime.datetime.now(tz=datetime.timezone.utc) + SESSION_TOKEN_PERIOD
@@ -95,7 +95,7 @@ def create_session_token():
     result = db.tokens.create(
         name=f"{username} session token",
         username=username,
-        projects=[user["project"]],
+        projects=user["projects"],
         session=True,
         expiration_date=expiration_date
     )

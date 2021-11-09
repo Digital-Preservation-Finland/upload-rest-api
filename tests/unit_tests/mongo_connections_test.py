@@ -10,7 +10,7 @@ def _upload_archive(client, auth):
     """
     with open("tests/data/1000_files.tar.gz", "rb") as archive:
         response = client.post(
-            "/v1/archives",
+            "/v1/archives/test_project",
             input_stream=archive,
             headers=auth
         )
@@ -43,7 +43,7 @@ def test_get_files(app, test_auth, background_job_runner):
         return_value=pymongo.MongoClient()
     ) as connect:
         # GET whole project
-        client.get("/v1/files", headers=test_auth)
+        client.get("/v1/files/test_project/?all=true", headers=test_auth)
         assert connect.call_count == 2
 
 
@@ -83,7 +83,7 @@ def test_delete_files(app, test_auth, requests_mock, background_job_runner):
     ) as connect:
         # DELETE the whole project
         response = client.delete(
-            "/v1/files",
+            "/v1/files/test_project",
             headers=test_auth
         )
         background_job_runner(client, "files", response)
@@ -103,7 +103,7 @@ def test_post_metadata(app, test_auth, requests_mock):
         "pymongo.MongoClient",
         return_value=pymongo.MongoClient()
     ) as connect:
-        response = client.post("/v1/metadata/test/", headers=test_auth)
+        response = client.post("/v1/metadata/test_project/test/", headers=test_auth)
         assert response.status_code == 404
         assert connect.call_count > 0
         assert connect.call_count < 10
@@ -152,7 +152,7 @@ def test_delete_metadata(app, test_auth, requests_mock, background_job_runner):
     ) as connect:
         # DELETE project metadata
         response = client.delete(
-            "/v1/metadata/test/",
+            "/v1/metadata/test_project/test/",
             headers=test_auth
         )
         background_job_runner(client, "metadata", response)

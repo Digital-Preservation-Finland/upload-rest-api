@@ -93,21 +93,20 @@ def get_job_queue(queue_name):
     return BackgroundJobQueue(queue_name, connection=redis)
 
 
-def enqueue_background_job(task_func, queue_name, username, job_kwargs):
+def enqueue_background_job(task_func, queue_name, project_id, job_kwargs):
     """Create a task ID and enqueue a RQ job.
 
     :param str task_func: Python function to run as a string to import
                           eg. "upload_rest_api.jobs.upload.extract_archive"
     :param str queue_name: Queue used to run the job
-    :param str username: Username
+    :param str project_id: Project identifier
     :param dict job_kwargs: Keyword arguments to pass to the background
                             task
     """
     queue = get_job_queue(queue_name)
 
     database = db.Database()
-    project = database.user(username).get_project()
-    task_id = database.tasks.create(project)
+    task_id = database.tasks.create(project_id)
     database.tasks.update_message(task_id, "processing")
 
     job_kwargs["task_id"] = str(task_id)

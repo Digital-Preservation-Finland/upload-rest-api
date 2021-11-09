@@ -21,8 +21,6 @@ class CurrentUser:
         :param str username: Username for the current user.
                              If None, no user is authenticated.
         :param list projects: List of projects the user is allowed to access.
-                              If None, all of the user's projects are
-                              accessible.
         :param bool admin: Whether the current user is an admin.
                            Admin has every permission available.
         """
@@ -40,22 +38,19 @@ class CurrentUser:
         # uploading files.
         self.admin = admin
 
-    def is_allowed_to_access_project(self, username, project):
+    def is_allowed_to_access_project(self, project):
         """
         Check if the user has permission to the given project
         """
         if self.admin:
             return True
 
-        if self.username != username:
-            return False
-
         if self.projects is None or project in self.projects:
             return True
 
         return False
 
-    def is_allowed_to_create_tokens(self):
+    def is_allowed_to_create_tokens(self, username):
         """
         Check if the user can create tokens
         """
@@ -152,8 +147,7 @@ def _auth_user_by_password():
     if result:
         g.current_user = CurrentUser(
             username=user["_id"],
-            # HTTP Basic Auth grants access to all projects
-            projects=None,
+            projects=user["projects"],
             admin=False
         )
 

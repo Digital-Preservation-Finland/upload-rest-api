@@ -17,7 +17,7 @@ def test_reverse_proxy_polling_url(app, test_auth):
     # This is how Werkzeug (eg. all WSGI servers) read the HTTP headers for an
     # incoming request.
     response = test_client.post(
-        "/v1/metadata/*",
+        "/v1/metadata/test_project/*",
         headers=test_auth,
         environ_base={"HTTP_X_FORWARDED_HOST": "reverse_proxy"}
     )
@@ -80,7 +80,7 @@ def test_query_task(app, mock_redis, test_auth, task_func, expected_response):
     job = jobs.enqueue_background_job(
         task_func=task_func,
         queue_name="upload",
-        username="test",
+        project_id="test_project",
         job_kwargs={}
     )
 

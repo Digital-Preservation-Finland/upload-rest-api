@@ -23,10 +23,15 @@ def _parse_args():
     _setup_cleanup_files_args(subparsers)
     _setup_cleanup_mongo_args(subparsers)
     _setup_generate_metadata_args(subparsers)
-    _setup_get_args(subparsers)
-    _setup_create_args(subparsers)
-    _setup_delete_args(subparsers)
-    _setup_modify_args(subparsers)
+    _setup_get_user_args(subparsers)
+    _setup_create_user_args(subparsers)
+    _setup_grant_user_projects_args(subparsers)
+    _setup_revoke_user_projects_args(subparsers)
+    _setup_delete_user_args(subparsers)
+    _setup_modify_user_args(subparsers)
+    _setup_create_project_args(subparsers)
+    _setup_modify_project_args(subparsers)
+    _setup_delete_project_args(subparsers)
 
     # Parse arguments and return the arguments
     return parser.parse_args()
@@ -56,8 +61,8 @@ def _setup_cleanup_mongo_args(subparsers):
     parser.set_defaults(func=_cleanup_mongo)
 
 
-def _setup_get_args(subparsers):
-    """Define get subparser and its arguments."""
+def _setup_get_user_args(subparsers):
+    """Define get-user subparser and its arguments."""
     parser = subparsers.add_parser(
         'get', help='Get mongo documents'
     )
@@ -88,44 +93,92 @@ def _setup_generate_metadata_args(subparsers):
         'generate-metadata', help='Generate file metadata'
     )
     parser.set_defaults(func=_generate_metadata)
-    parser.add_argument('user')
+    parser.add_argument('project')
     parser.add_argument(
         '-o', '--output', default="identifiers.txt", help="Output filepath"
     )
 
 
-def _setup_create_args(subparsers):
-    """Define create subparser and its arguments."""
+def _setup_create_user_args(subparsers):
+    """Define create-user subparser and its arguments."""
     parser = subparsers.add_parser(
-        'create', help='Create a new user'
+        'create-user', help='Create a new user'
     )
-    parser.set_defaults(func=_create)
-    parser.add_argument('username')
-    parser.add_argument('project')
-
-
-def _setup_delete_args(subparsers):
-    """Define delete subparser and its arguments."""
-    parser = subparsers.add_parser(
-        'delete', help='Delete an existing user'
-    )
-    parser.set_defaults(func=_delete)
+    parser.set_defaults(func=_create_user)
     parser.add_argument('username')
 
 
-def _setup_modify_args(subparsers):
-    """Define modify subparser and its arguments."""
+def _setup_grant_user_projects_args(subparsers):
+    """Define grant-user-project subparser and its arguments."""
     parser = subparsers.add_parser(
-        'modify', help='Modify an existing user'
+        'grant-user-projects', help='Grant user access to project(s)'
     )
-    parser.set_defaults(func=_modify)
+    parser.set_defaults(func=_grant_user_projects)
     parser.add_argument('username')
-    parser.add_argument('--quota', type=int, help="Change user's quota")
-    parser.add_argument('--project', help="Change user's project")
+    parser.add_argument('project', nargs='+')
+
+
+def _setup_revoke_user_projects_args(subparsers):
+    """Define revoke-user-project subparser and its arguments."""
+    parser = subparsers.add_parser(
+        'revoke-user-projects', help='Revoke user access to project(s)'
+    )
+    parser.set_defaults(func=_revoke_user_projects)
+    parser.add_argument('username')
+    parser.add_argument('project', nargs='+')
+
+
+def _setup_delete_user_args(subparsers):
+    """Define delete-user subparser and its arguments."""
+    parser = subparsers.add_parser(
+        'delete-user', help='Delete an existing user'
+    )
+    parser.set_defaults(func=_delete_user)
+    parser.add_argument('username')
+
+
+def _setup_modify_user_args(subparsers):
+    """Define modify-user subparser and its arguments."""
+    parser = subparsers.add_parser(
+        'modify-user', help='Modify an existing user'
+    )
+    parser.set_defaults(func=_modify_user)
+    parser.add_argument('username')
     parser.add_argument(
         '--password', action="store_true", default=False,
         help="Generate new password"
     )
+
+
+def _setup_create_project_args(subparsers):
+    """Define create-project subparser and its arguments."""
+    parser = subparsers.add_parser(
+        'create-project', help='Create a new project'
+    )
+    parser.set_defaults(func=_create_project)
+    parser.add_argument('project')
+    parser.add_argument(
+        '--quota', type=int, required=True, help="Set project quota"
+    )
+
+
+def _setup_modify_project_args(subparsers):
+    """Define modify-project subparser and its arguments."""
+    parser = subparsers.add_parser(
+        'modify-project', help='Modify an existing project'
+    )
+    parser.set_defaults(func=_modify_project)
+    parser.add_argument('project')
+    parser.add_argument('--quota', type=int, help="Set project quota")
+
+
+def _setup_delete_project_args(subparsers):
+    """Define delete-project subparser and its arguments."""
+    parser = subparsers.add_parser(
+        'delete-project', help="Delete an existing project"
+    )
+    parser.set_defaults(func=_delete_project)
+    parser.add_argument('project')
 
 
 def _cleanup_tokens(_args):
@@ -165,9 +218,7 @@ def _get_users(args):
 
         response = {
             "_id": user["_id"],
-            "quota": user["quota"],
-            "used_quota": user["used_quota"],
-            "project": user["project"]
+            "projects": user["projects"]
         }
         print(json.dumps(response, indent=4))
 
@@ -216,8 +267,7 @@ def _generate_metadata(args):
         raise ValueError("Output file exists")
 
     conf = upload_rest_api.config.CONFIG
-    username = args.user
-    project = db.Database().user(username).get_project()
+    project = args.project
     project_path = os.path.join(conf["UPLOAD_PATH"], project)
     metax_client = md.MetaxClient(conf["METAX_URL"],
                                   conf["METAX_USER"],
@@ -231,7 +281,7 @@ def _generate_metadata(args):
 
     # POST metadata to Metax
     response = metax_client.post_metadata(
-        fpaths, conf["UPLOAD_PATH"], username, md.PAS_FILE_STORAGE_ID
+        fpaths, conf["UPLOAD_PATH"], project, md.PAS_FILE_STORAGE_ID
     )
 
     print("Success: %d" % len(response["success"]))
@@ -248,39 +298,77 @@ def _generate_metadata(args):
             ))
 
 
-def _create(args):
+def _create_user(args):
     """Create a new user."""
     user = db.Database().user(args.username)
-    passwd = user.create(args.project)
+    passwd = user.create()
     print("%s:%s" % (args.username, passwd))
 
 
-def _delete(args):
+def _grant_user_projects(args):
+    """Grant user access to project(s)"""
+    user = db.Database().user(args.username)
+    for project in args.project:
+        user.grant_project(project)
+
+
+def _revoke_user_projects(args):
+    """Revoke user access to project(s)"""
+    user = db.Database().user(args.username)
+    for project in args.project:
+        user.revoke_project(project)
+
+
+def _delete_user(args):
     """Delete an existing user."""
     db.Database().user(args.username).delete()
     print("Deleted")
 
 
-def _modify(args):
+def _modify_user(args):
     """Modify an existing user."""
     user = db.Database().user(args.username)
-    if args.quota:
-        user.set_quota(args.quota)
-    if args.project:
-        user.set_project(args.project)
     if args.password:
         passwd = user.change_password()
 
     user = user.get()
     response = {
         "_id": user["_id"],
-        "quota": user["quota"],
         "project": user["project"]
     }
     if args.password:
         response["password"] = passwd
 
     print(json.dumps(response, indent=4))
+
+
+def _create_project(args):
+    """Create a new project."""
+    project = db.Database().projects.create(
+        identifier=args.project, quota=args.quota
+    )
+    print(json.dumps(project, indent=4))
+
+
+def _modify_project(args):
+    """Modify an existing project."""
+    database = db.Database()
+
+    if not database.projects.get(args.project):
+        print(f"Project '{args.project}' does not exist.")
+        return
+
+    if args.quota is not None:
+        database.projects.set_quota(args.project, args.quota)
+
+    project = database.projects.get(args.project)
+    print(json.dumps(project, indent=4))
+
+
+def _delete_project(args):
+    """Delete a project."""
+    db.Database().projects.delete(args.project)
+    print("Project was deleted")
 
 
 def main():

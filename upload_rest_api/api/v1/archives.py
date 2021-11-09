@@ -14,23 +14,26 @@ import upload_rest_api.database as db
 ARCHIVES_API_V1 = Blueprint("archives_v1", __name__, url_prefix="/v1/archives")
 
 
-@ARCHIVES_API_V1.route("/", methods=["POST"], strict_slashes=False)
-def upload_archive():
+@ARCHIVES_API_V1.route("/<string:project_id>", methods=["POST"], strict_slashes=False)
+def upload_archive(project_id):
     """Upload and extract the archive at <UPLOAD_PATH>/project.
 
     :returns: HTTP Response
     """
-    user = db.Database().user(request.authorization.username)
-    up.validate_upload(user, request.content_length, request.content_type)
+    database = db.Database()
+    up.validate_upload(project_id, request.content_length, request.content_type)
 
     upload_path = safe_join("",
                             request.args.get('dir', default='').lstrip('/'))
 
     try:
-        polling_url = up.save_archive(user,
-                                      request.stream,
-                                      request.args.get('md5', None),
-                                      upload_path)
+        polling_url = up.save_archive(
+            database=database,
+            project_id=project_id,
+            stream=request.stream,
+            checksum=request.args.get('md5', None),
+            upload_path=upload_path
+        )
     except (MemberOverwriteError) as error:
         abort(409, str(error))
     except MemberTypeError as error:

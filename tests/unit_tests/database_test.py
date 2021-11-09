@@ -21,11 +21,13 @@ def test_dir_size():
     assert db.get_dir_size("tests/data/test") == 0
 
 
-def test_create_user(user, mock_config):
+def test_create_user(user, database, mock_config):
     """Test creation of new user."""
+    database.projects.create("test_project")
+
     users = user.users
     user.username = "test"
-    user.create("test_project")
+    user.create(projects=["test_project"])
 
     user_dict = users.find_one({"_id": "test"})
 
@@ -33,20 +35,14 @@ def test_create_user(user, mock_config):
     assert user.exists()
     assert user_dict == user.get()
 
-    salt = user_dict["salt"]
-    assert len(salt) == 20
+    assert len(user_dict["salt"]) == 20
+    assert len(user_dict["digest"]) == 64
+    assert user_dict["projects"] == ["test_project"]
 
-    used_quota = user_dict["used_quota"]
-    assert used_quota == 0
+    project_dict = database.projects.projects.find_one({"_id": "test_project"})
 
-    quota = user_dict["quota"]
-    assert quota == 5 * 1024**3
-
-    digest = user_dict["digest"]
-    assert len(digest) == 64
-
-    project = user_dict["project"]
-    assert project == "test_project"
+    assert project_dict["quota"] == 5 * 1024**3
+    assert project_dict["used_quota"] == 0
 
     assert (pathlib.Path(mock_config["UPLOAD_PATH"]) / "test_project").is_dir()
 
@@ -56,13 +52,13 @@ def test_create_two_users(user):
     users = user.users
 
     user.username = "test_user1"
-    user.create("test_project")
+    user.create(projects=["test_project"])
 
     user.username = "test_user2"
-    user.create("test_project")
+    user.create(projects=["test_project"])
 
-    user1_project = users.find_one({"_id": "test_user1"})["project"]
-    user2_project = users.find_one({"_id": "test_user2"})["project"]
+    user1_project = users.find_one({"_id": "test_user1"})["projects"][0]
+    user2_project = users.find_one({"_id": "test_user2"})["projects"][0]
 
     assert user1_project == user2_project == "test_project"
 
@@ -121,9 +117,6 @@ def test_store_identifiers(monkeypatch):
     monkeypatch.setattr(db, "_get_abs_path",
                         lambda path, _root_path, _project: path)
 
-    monkeypatch.setattr(db.User, "get_project",
-                        lambda self: "project_path")
-
     metax_response = [
         {"object": {"identifier": "pid:urn:1", "file_path": "1"}},
         {"object": {"identifier": "pid:urn:2", "file_path": "2"}},
@@ -131,22 +124,27 @@ def test_store_identifiers(monkeypatch):
     ]
 
     database = db.Database()
-    database.store_identifiers(metax_response, "/tmp", "user")
+    database.store_identifiers(metax_response, "/tmp", "project_path")
     assert database.files.get_all_ids() \
         == ["pid:urn:1", "pid:urn:2", "pid:urn:3"]
 
 
-def test_quota(user):
-    """Test get_quota() and set_quota() functions."""
-    users = user.users
-    users.insert_one({"_id": "test_user", "quota": 5 * 1024**3})
+def test_quota(database):
+    """Test set_used_quota() and set_quota() functions."""
+    database.projects.create("test_project")
+    project = database.projects.get("test_project")
 
-    # Get
-    assert user.get_quota() == 5 * 1024**3
+    assert project["quota"] == 5 * 1024**3
+    assert project["used_quota"] == 0
 
     # Set
-    user.set_quota(0)
-    assert users.find_one({"_id": "test_user"})["quota"] == 0
+    database.projects.set_quota("test_project", 1024)
+    database.projects.set_used_quota("test_project", 512)
+
+    # Get
+    project = database.projects.get("test_project")
+    assert project["quota"] == 1024
+    assert project["used_quota"] == 512
 
 
 def test_get_random_string():
@@ -221,7 +219,7 @@ def test_task_not_found(tasks_col, method):
     task_identifier = bson.objectid.ObjectId()
 
     with pytest.raises(db.TaskNotFoundError, match='Task .* not found'):
-        tasks_col.__getattribute__(method)(task_identifier, 'bar')
+        getattr(tasks_col, method)(task_identifier, 'bar')
 
 
 def test_checksums_delete_chunks(checksums_col):

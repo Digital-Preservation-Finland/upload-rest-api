@@ -10,12 +10,12 @@ from upload_rest_api.jobs.utils import api_background_job
 
 
 @api_background_job
-def delete_files(fpath, username, task_id):
+def delete_files(fpath, project_id, task_id):
     """Delete files and metadata denoted by fpath directory under user's
     project. The whole directory is recursively removed.
 
     :param pathlib.Path fpath: path to directory
-    :param str username: current user
+    :param str project: project identifier
     :param str task_id: mongo dentifier of the task
     """
     root_upload_path = CONFIG["UPLOAD_PATH"]
@@ -23,21 +23,22 @@ def delete_files(fpath, username, task_id):
     # Remove metadata from Metax
     metax_client = md.MetaxClient()
     database = db.Database()
-    user = database.user(username)
-    ret_path = utils.get_return_path(user, fpath)
+    ret_path = utils.get_return_path(project_id, fpath)
     database.tasks.update_message(
         task_id,
         "Deleting files and metadata: %s" % ret_path
     )
-    metax_client.delete_all_metadata(user.get_project(),
+    metax_client.delete_all_metadata(project_id,
                                      fpath,
                                      root_upload_path)
 
     # Remove checksum from mongo
     database.checksums.delete_dir(fpath)
 
+    project_dir = db.Projects.get_project_directory(project_id)
+
     # Remove files
-    if fpath.samefile(user.project_directory):
+    if fpath.samefile(project_dir):
         # Remove all content of project directory
         for child in fpath.iterdir():
             if child.is_file():
@@ -49,6 +50,6 @@ def delete_files(fpath, username, task_id):
         shutil.rmtree(fpath)
 
     # Update used_quota
-    user.update_used_quota(root_upload_path)
+    database.projects.update_used_quota(project_id, root_upload_path)
 
     return "Deleted files and metadata: {}".format(ret_path)

@@ -7,6 +7,7 @@ import pytest
 from flask_tus_io.resource import encode_tus_meta
 
 
+@pytest.mark.usefixtures("project")
 def test_upload(test_client, test_auth, test_mongo):
     """
     Test uploading a small file
@@ -14,6 +15,7 @@ def test_upload(test_client, test_auth, test_mongo):
     data = b"XyzzyXyzzy"
 
     upload_metadata = {
+        "project_id": "test_project",
         "filename": "test.txt",
         "file_path": "test.txt",
     }
@@ -57,15 +59,15 @@ def test_upload(test_client, test_auth, test_mongo):
 
     assert resp.status_code == 204  # NO CONTENT
 
-    users = test_mongo.upload.users
-
     # Uploaded file was added to database
     checksums = list(test_mongo.upload.checksums.find())
     assert len(checksums) == 1
     assert checksums[0]["_id"].endswith("test.txt")
     assert checksums[0]["checksum"] == "a5d1741953bf0c12b7a097f58944e474"
 
-    used_quota = users.find_one({"_id": "test"})["used_quota"]
+    used_quota = test_mongo.upload.projects.find_one(
+        {"_id": "test_project"}
+    )["used_quota"]
     assert used_quota == 10
 
     # Another upload to the same path can't be initiated
@@ -90,10 +92,10 @@ def test_upload_exceed_quota(test_client, test_auth, database):
     Upload one file and try uploading a second file which would exceed the
     quota
     """
-    user = database.user("test")
-    user.set_quota(15)
+    database.projects.set_quota("test_project", 15)
 
     upload_metadata = {
+        "project_id": "test_project",
         "filename": "test.txt",
         "file_path": "test.txt",
     }
@@ -144,6 +146,7 @@ def test_upload_exceed_quota(test_client, test_auth, database):
                 "Tus-Resumable": "1.0.0",
                 "Upload-Length": "10",
                 "Upload-Metadata": encode_tus_meta({
+                    "project_id": "test_project",
                     "filename": "test2.txt",
                     "file_path": "test2.txt"
                 })
@@ -160,8 +163,7 @@ def test_upload_parallel_upload_exceed_quota(test_client, test_auth, database):
     """
     Start enough parallel uploads to exceed the user quota
     """
-    user = database.user("test")
-    user.set_quota(4096)
+    database.projects.set_quota("test_project", 4096)
 
     # User has a quota of exactly 4096 bytes. Initiate three uploads,
     # the last of which will exceed this quota.
@@ -174,6 +176,7 @@ def test_upload_parallel_upload_exceed_quota(test_client, test_auth, database):
                     "Tus-Resumable": "1.0.0",
                     "Upload-Length": "2000",
                     "Upload-Metadata": encode_tus_meta({
+                        "project_id": "test_project",
                         "filename": "test{}.txt".format(i),
                         "file_path": "test{}.txt".format(i)
                     })
@@ -192,6 +195,7 @@ def test_upload_parallel_upload_exceed_quota(test_client, test_auth, database):
                 "Tus-Resumable": "1.0.0",
                 "Upload-Length": "97",
                 "Upload-Metadata": encode_tus_meta({
+                    "project_id": "test_project",
                     "filename": "test2.txt",
                     "file_path": "test2.txt"
                 })
@@ -204,11 +208,13 @@ def test_upload_parallel_upload_exceed_quota(test_client, test_auth, database):
     assert resp.json["error"] == "Remaining user quota too low"
 
 
-def test_upload_conflict(test_client, test_auth, database):
+@pytest.mark.usefixtures("database")
+def test_upload_conflict(test_client, test_auth):
     """
     Try initiating two uploads with the same file path
     """
     upload_metadata = {
+        "project_id": "test_project",
         "filename": "test.txt",
         "file_path": "test.txt"
     }

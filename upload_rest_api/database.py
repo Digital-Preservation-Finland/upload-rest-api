@@ -19,6 +19,7 @@ from bson.binary import Binary
 from bson.codec_options import CodecOptions
 from bson.objectid import ObjectId
 from flask import safe_join
+from pymongo.errors import DuplicateKeyError
 from rq.exceptions import NoSuchJobError
 from rq.job import Job
 from werkzeug.utils import secure_filename
@@ -88,6 +89,14 @@ class UserNotFoundError(Exception):
     """Exception for querying a user, which does not exist."""
 
 
+class ProjectExistsError(Exception):
+    """Exception for trying to create a project which already exists."""
+
+
+class ProjectNotFoundError(Exception):
+    """Exception for querying a project which does not exist."""
+
+
 class TaskNotFoundError(Exception):
     """Exception for querying a task, which does not exist."""
 
@@ -112,7 +121,7 @@ class Database:
         users = self.client.upload.users
         return sorted(users.find().distinct("_id"))
 
-    def store_identifiers(self, file_md_list, root_upload_path, username):
+    def store_identifiers(self, file_md_list, root_upload_path, project_id):
         """Store file identifiers and paths on disk to Mongo.
 
         :param file_md_list: List of created file metadata returned by
@@ -120,13 +129,12 @@ class Database:
         :returns: None
         """
         documents = []
-        project = self.user(username).get_project()
 
         for file_md in file_md_list:
             documents.append({
                 "_id": file_md["object"]["identifier"],
                 "file_path": _get_abs_path(file_md["object"]["file_path"],
-                                           root_upload_path, project)
+                                           root_upload_path, project_id)
             })
 
         self.files.insert(documents)
@@ -144,6 +152,11 @@ class Database:
     def files(self):
         """Return files collection."""
         return Files(self.client)
+
+    @property
+    def projects(self):
+        """Return projects collection."""
+        return Projects(self.client)
 
     @property
     def tasks(self):
@@ -164,14 +177,14 @@ class Database:
 class User:
     """Class for managing users in the database."""
 
-    def __init__(self, client, username, quota=5*1024**3):
+    def __init__(self, client, username):
         """Initialize User instances.
 
         :param username: Used as primary key _id
         """
         self.users = client.upload.users
         self.username = username
-        self.quota = quota
+        self.projects = []
 
     def __repr__(self):
         """User instance representation."""
@@ -181,33 +194,22 @@ class User:
             return "User not found"
 
         salt = user["salt"]
-        quota = user["quota"]
         digest = binascii.hexlify(user["digest"])
 
-        return "_id : %s\nquota : %d\nsalt : %s\ndigest : %s" % (
-            self.username, quota, salt, digest.decode("utf-8")
-        )
+        return f"_id: {self.username}\nsalt: {salt}\ndigest: {digest}"
 
-    @property
-    def project_directory(self):
-        """Directory for project files."""
-        conf = upload_rest_api.config.CONFIG
-        return pathlib.Path(conf["UPLOAD_PATH"],
-                            secure_filename(self.get_project()))
-
-    def create(self, project, password=None):
+    def create(self, projects=None, password=None):
         """Add new user to the database.
 
         Salt is always generated randomly, but password can be set by
         providing to optional argument password.
 
-        :param project: Project the user is associated with
+        :param projects: Projects the user is associated with.
         :param password: Password of the created user
         :returns: The password
         """
-        # Raise exception if user already exists
-        if self.exists():
-            raise UserExistsError("User '%s' already exists" % self.username)
+        if projects is None:
+            projects = []
 
         if password is not None:
             passwd = password
@@ -217,18 +219,17 @@ class User:
         salt = get_random_string(SALT_LEN)
         digest = hash_passwd(passwd, salt)
 
-        self.users.insert_one(
-            {
-                "_id": self.username,
-                "project": project,
-                "digest": digest,
-                "salt": salt,
-                "quota": self.quota,
-                "used_quota": 0
-            }
-        )
-
-        self.project_directory.mkdir(exist_ok=True)
+        try:
+            self.users.insert_one(
+                {
+                    "_id": self.username,
+                    "projects": projects,
+                    "digest": digest,
+                    "salt": salt,
+                }
+            )
+        except DuplicateKeyError:
+            raise UserExistsError(f"User '{self.username}' already exists")
 
         return passwd
 
@@ -247,6 +248,34 @@ class User:
         )
 
         return passwd
+
+    def grant_project(self, project):
+        """
+        Grant user access to the given project
+        """
+        db = Database()
+        if not db.projects.get(project):
+            raise ProjectNotFoundError(f"Project '{project}' not found")
+
+        result = self.users.update_one(
+            {"_id": self.username},
+            {"$addToSet": {"projects": project}}
+        )
+
+        if result.matched_count == 0:
+            raise UserNotFoundError(f"User '{self.username}' not found")
+
+    def revoke_project(self, project):
+        """
+        Revoke user access to the given project
+        """
+        result = self.users.update_one(
+            {"_id": self.username},
+            {"$pull": {"projects": project}}
+        )
+
+        if result.matched_count == 0:
+            raise UserNotFoundError(f"User '{self.username}' not found")
 
     def delete(self):
         """Delete existing user."""
@@ -313,31 +342,13 @@ class User:
             {"$set": {"used_quota": used_quota}}
         )
 
-    def update_used_quota(self, root_upload_path):
-        """Update used quota of the user."""
-        project = self.get_project()
-        path = safe_join(root_upload_path, secure_filename(project))
-        size = get_dir_size(path)
-        self.set_used_quota(size)
-
-    def get_project(self):
-        """Get user project."""
-        # Raise exception if user does not exist
-        if not self.exists():
+    def get_projects(self):
+        """Get user projects."""
+        result = self.users.find_one({"_id": self.username})
+        if not result:
             raise UserNotFoundError("User '%s' not found" % self.username)
 
-        return self.users.find_one({"_id": self.username})["project"]
-
-    def set_project(self, project):
-        """Set user project."""
-        # Raise exception if user does not exist
-        if not self.exists():
-            raise UserNotFoundError("User '%s' not found" % self.username)
-
-        self.users.update_one(
-            {"_id": self.username},
-            {"$set": {"project": project}}
-        )
+        return result["projects"]
 
     def exists(self):
         """Check if the user is found in the db."""
@@ -479,13 +490,13 @@ class Tasks:
         self.tasks = client.upload.tasks
         self.task_messages = client.upload.task_messages
 
-    def create(self, project):
+    def create(self, project_id):
         """Create one task document.
 
-        :param str project: project name
+        :param str project_id: project name
         :returns: str: task id as string
         """
-        return self.tasks.insert_one({"project": project,
+        return self.tasks.insert_one({"project": project_id,
                                       "timestamp": time.time(),
                                       "status": 'pending'}).inserted_id
 
@@ -514,17 +525,19 @@ class Tasks:
         self.task_messages.delete_many({"task_id": {"$in": obj_ids}})
         return self.tasks.delete_many({"_id": {"$in": obj_ids}}).deleted_count
 
-    def find(self, project, status):
+    def find(self, project_id, status):
         """Return number of tasks for user having certain status for
         project.
 
-        :param str project: project name
+        :param str project_id: project name
         :param str status: status of task
         :param bool include_message: whether to include task messages
                                      in the results
         :returns: Found tasks
         """
-        tasks = list(self.tasks.find({"project": project, "status": status}))
+        tasks = list(self.tasks.find({
+            "project": project_id, "status": status
+        }))
 
         return tasks
 
@@ -633,10 +646,10 @@ class Uploads:
         """Initialize Tasks instance."""
         self.uploads = client.upload.uploads
 
-    def create(self, user, file_path, resource):
+    def create(self, project_id, file_path, resource):
         """Create one upload document.
 
-        :param User user: User initiating the upload
+        :param str project_id: Project identifier
         :param str file_path: Path to the final location of the file
         :param resource: tus resource corresponding to the upload
         :returns: ID of the created upload instance
@@ -646,7 +659,7 @@ class Uploads:
             # unique identifier
             "_id": resource.identifier,
             "file_path": file_path,
-            "username": user.username,
+            "project": project_id,
             "size": resource.upload_length
         }).inserted_id
 
@@ -664,16 +677,16 @@ class Uploads:
             {"_id": identifier}
         ).deleted_count
 
-    def get_user_allocated_quota(self, user):
+    def get_project_allocated_quota(self, project_id):
         """Get the amount of bytes currently allocated for an user's tus
         uploads.
 
         This can be checked to prevent the user from initiating too many
         uploads that would exhaust the user's quota.
 
-        :param user: User initiating the upload
+        :param project_id: Project identifier
         """
-        uploads = self.uploads.find({"username": user.username})
+        uploads = self.uploads.find({"project": project_id})
 
         return sum(upload["size"] for upload in uploads)
 
@@ -689,7 +702,7 @@ class Tokens:
 
     def create(
             self, name, username, projects, expiration_date=None,
-            admin=False, all_projects=False, session=False):
+            admin=False, session=False):
         """Create one token
 
         :param str name: User-provided name for the token
@@ -705,8 +718,6 @@ class Tokens:
                              Session tokens are automatically cleaned up
                              periodically without user interaction.
         """
-        from upload_rest_api.jobs.utils import get_redis_connection
-
         # Token contains 256 bits of randomness per Python doc recommendation
         token = f"fddps-{secrets.token_urlsafe(32)}"
 
@@ -870,3 +881,93 @@ class Tokens:
                 "expiration_date": {"$lte": now, "$ne": None}
             }
         ).deleted_count
+
+
+class Projects:
+    """Class for managing projects"""
+    def __init__(self, client):
+        """Initialize Projects instance."""
+        self.projects = client.upload.get_collection(
+            "projects",
+            CodecOptions(tz_aware=True, tzinfo=datetime.timezone.utc)
+        )
+
+    def create(self, identifier, quota=5 * 1024**3):
+        """Create one project
+
+        :param str identifier: Project identifier.
+                               Also used as the displayed name.
+        :param int quota: Total quota for the project
+
+        :returns: Project entry as a dict
+        """
+        result = {
+            "_id": identifier,
+            "used_quota": 0,
+            "quota": int(quota)
+        }
+
+        try:
+            self.projects.insert_one(result)
+            self.get_project_directory(identifier).mkdir(exist_ok=True)
+        except DuplicateKeyError:
+            raise ProjectExistsError(f"Project '{identifier}' already exists")
+
+        return result
+
+    def set_quota(self, identifier, quota):
+        """Change the quota for a project
+
+        :param str name: Project name
+        :param int quota: New quota for the project
+        """
+        result = self.projects.update_one(
+            {"_id": identifier},
+            {"$set": {"quota": int(quota)}}
+        )
+
+        if result.matched_count == 0:
+            raise ProjectNotFoundError(f"Project '{identifier}' not found")
+
+    def set_used_quota(self, identifier, used_quota):
+        """Set the used quota of the project."""
+        result = self.projects.update_one(
+            {"_id": identifier},
+            {"$set": {"used_quota": used_quota}}
+        )
+
+        if result.matched_count == 0:
+            raise ProjectNotFoundError(f"Project '{identifier}' not found")
+
+    def update_used_quota(self, identifier, root_upload_path):
+        """Update used quota of the project."""
+        path = safe_join(root_upload_path, secure_filename(identifier))
+        size = get_dir_size(path)
+        self.set_used_quota(identifier, size)
+
+    def delete(self, identifier):
+        """Delete single project
+
+        :param str name: Project name
+        :returns: Whether the project was found and deleted
+        """
+        return self.projects.delete_one({"_id": identifier}).deleted_count
+
+    def get(self, identifier):
+        """Return project document based on the identifier.
+
+        :param str task_id: task identifier string
+        :returns: task document
+        """
+        return self.projects.find_one({"_id": identifier})
+
+    @classmethod
+    def get_project_directory(cls, project_id):
+        """
+        Get the file system path to the project
+        """
+        conf = upload_rest_api.config.CONFIG
+        return pathlib.Path(
+            conf["UPLOAD_PATH"],
+            secure_filename(project_id)
+        )

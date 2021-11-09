@@ -146,7 +146,7 @@ class MetaxClient(object):
         """
         return self.client.get_files_dict(project)
 
-    def post_metadata(self, fpaths, root_upload_path, username, storage_id):
+    def post_metadata(self, fpaths, root_upload_path, project, storage_id):
         """Generate file metadata and POST it to Metax in 5k chunks.
 
         :param fpaths: List of files for which to generate the metadata
@@ -173,7 +173,6 @@ class MetaxClient(object):
                   ]
         """
         database = db.Database()
-        project = database.user(username).get_project()
         checksums = database.checksums.get_checksums()
         metadata = []
         responses = []
@@ -193,7 +192,7 @@ class MetaxClient(object):
                 # Add created identifiers to Mongo
                 if "success" in response and response["success"]:
                     database.store_identifiers(
-                        response["success"], root_upload_path, username
+                        response["success"], root_upload_path, project
                     )
 
                 metadata = []
@@ -205,7 +204,7 @@ class MetaxClient(object):
             # Add created identifiers to Mongo
             if "success" in response and response["success"]:
                 database.store_identifiers(
-                    response["success"], root_upload_path, username
+                    response["success"], root_upload_path, project
                 )
 
         # Merge all responses into one response

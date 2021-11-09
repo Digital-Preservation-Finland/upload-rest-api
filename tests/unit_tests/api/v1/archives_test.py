@@ -50,7 +50,7 @@ def test_upload_archive(
     upload_path = pathlib.Path(app.config.get("UPLOAD_PATH"))
     checksums = test_mongo.upload.checksums
 
-    url = "/v1/archives"
+    url = "/v1/archives/test_project"
     response = _upload_file(test_client, url, test_auth, archive)
     assert response.status_code == 202
     assert response.json['file_path'] == '/'
@@ -108,7 +108,7 @@ def test_upload_archive_to_dirpath(
     """
     test_client = app.test_client()
 
-    url = "/v1/archives?dir={}".format(dirpath)
+    url = "/v1/archives/test_project?dir={}".format(dirpath)
     response \
         = _upload_file(test_client, url, test_auth, 'tests/data/test.tar.gz')
     assert response.status_code == 202
@@ -128,8 +128,8 @@ def test_upload_archive_to_dirpath(
 @pytest.mark.parametrize(
     ["archive", "url"],
     [
-        ("tests/data/test.tar.gz", "/v1/archives?dir=dataset"),
-        ("tests/data/file1.tar", "/v1/archives?dir=dataset")
+        ("tests/data/test.tar.gz", "/v1/archives/test_project?dir=dataset"),
+        ("tests/data/file1.tar", "/v1/archives/test_project?dir=dataset")
     ]
 )
 def test_upload_archive_overwrite_directory(
@@ -160,7 +160,7 @@ def test_upload_archive_overwrite_directory(
 @pytest.mark.parametrize(
     ["archive", "url"],
     [
-        ("tests/data/test.tar.gz", "/v1/archives")
+        ("tests/data/test.tar.gz", "/v1/archives/test_project")
     ]
 )
 def test_upload_archive_overwrite_file(
@@ -237,7 +237,7 @@ def test_archive_integrity_validation(app, test_auth, checksum,
     test_client = app.test_client()
     with open('tests/data/test.tar.gz', "rb") as test_file:
         response = test_client.post(
-            '/v1/archives',
+            '/v1/archives/test_project',
             query_string={'dir': 'test_directory', 'md5': checksum},
             input_stream=test_file,
             headers=test_auth
@@ -261,9 +261,9 @@ def test_archive_integrity_validation(app, test_auth, checksum,
     [
         (
             "tests/data/dir1_file1.tar",
-            "/v1/archives",
+            "/v1/archives/test_project",
             "tests/data/dir1_file2.tar",
-            "/v1/archives"
+            "/v1/archives/test_project"
         ),
         # TODO: For some reason this test case fails. See issue
         # TPASPKT-722
@@ -317,7 +317,7 @@ def test_upload_invalid_dir(dirpath, app, test_auth):
     test_client = app.test_client()
     response = _upload_file(
         test_client,
-        "/v1/archives?dir=%s" % dirpath,
+        "/v1/archives/test_project?dir=%s" % dirpath,
         test_auth,
         "tests/data/test.zip"
     )
@@ -337,11 +337,11 @@ def test_upload_archive_concurrent(
     checksums = test_mongo.upload.checksums
 
     response_1 = _upload_file(
-        test_client, "/v1/archives", test_auth,
+        test_client, "/v1/archives/test_project", test_auth,
         "tests/data/test.zip"
     )
     response_2 = _upload_file(
-        test_client, "/v1/archives", test_auth,
+        test_client, "/v1/archives/test_project", test_auth,
         "tests/data/test2.zip"
     )
     # poll with response's polling_url
@@ -407,7 +407,7 @@ def test_upload_invalid_archive(
     checksums = test_mongo.upload.checksums
 
     response = _upload_file(
-        test_client, "/v1/archives", test_auth, archive
+        test_client, "/v1/archives/test_project", test_auth, archive
     )
     if _request_accepted(response):
         response = background_job_runner(
@@ -439,7 +439,8 @@ def test_upload_file_as_archive(app, test_auth, background_job_runner):
     test_client = app.test_client()
 
     response = _upload_file(
-        test_client, "/v1/archives", test_auth, "tests/data/test.txt"
+        test_client, "/v1/archives/test_project", test_auth,
+        "tests/data/test.txt"
     )
     if _request_accepted(response):
         response = background_job_runner(
@@ -455,7 +456,7 @@ def test_upload_large_archive(app, test_auth):
     app.config["MAX_CONTENT_LENGTH"] = 1
 
     response = _upload_file(app.test_client(),
-                            '/v1/archives',
+                            '/v1/archives/test_project',
                             test_auth,
                             'tests/data/test.tar.gz')
 
@@ -465,7 +466,7 @@ def test_upload_large_archive(app, test_auth):
 
 def test_upload_unsupported_content(app, test_auth):
     """Test uploading unsupported content type."""
-    response = app.test_client().post('/v1/archives',
+    response = app.test_client().post('/v1/archives/test_project',
                                       headers=test_auth,
                                       content_length='1',
                                       content_type='foo')
@@ -476,7 +477,7 @@ def test_upload_unsupported_content(app, test_auth):
 
 def test_upload_unknown_content_length(app, test_auth):
     """Test uploading archive without Content-Length header."""
-    response = app.test_client().post('/v1/archives',
+    response = app.test_client().post('/v1/archives/test_project',
                                       headers=test_auth,
                                       content_length=None,
                                       content_type="application/octet-stream")
@@ -490,7 +491,8 @@ def test_upload_blank_tar(app, test_auth, background_job_runner):
     test_client = app.test_client()
 
     response = _upload_file(
-        test_client, "/v1/archives", test_auth, "tests/data/blank_tar.tar"
+        test_client, "/v1/archives/test_project",
+        test_auth, "tests/data/blank_tar.tar"
     )
     if _request_accepted(response):
         response = background_job_runner(
