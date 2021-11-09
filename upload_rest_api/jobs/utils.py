@@ -1,7 +1,6 @@
 """Background task utility functions."""
 from functools import wraps
 
-from redis import Redis
 from rq import Queue
 
 import upload_rest_api.database as db
@@ -67,19 +66,6 @@ def api_background_job(func):
     return wrapper
 
 
-def get_redis_connection():
-    """Get Redis connection used for the job queue."""
-    password = CONFIG.get("REDIS_PASSWORD", None)
-    redis = Redis(
-        host=CONFIG["REDIS_HOST"],
-        port=CONFIG["REDIS_PORT"],
-        db=CONFIG["REDIS_DB"],
-        password=password if password else None
-    )
-
-    return redis
-
-
 def get_job_queue(queue_name):
     """Get a RQ queue instance for the given queue.
 
@@ -88,7 +74,7 @@ def get_job_queue(queue_name):
     if queue_name not in JOB_QUEUE_NAMES:
         raise ValueError("Queue {} does not exist".format(queue_name))
 
-    redis = get_redis_connection()
+    redis = db.get_redis_connection()
 
     return BackgroundJobQueue(queue_name, connection=redis)
 

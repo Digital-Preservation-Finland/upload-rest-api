@@ -20,9 +20,12 @@ from bson.codec_options import CodecOptions
 from bson.objectid import ObjectId
 from flask import safe_join
 from pymongo.errors import DuplicateKeyError
+from redis import Redis
 from rq.exceptions import NoSuchJobError
 from rq.job import Job
 from werkzeug.utils import secure_filename
+
+from upload_rest_api.config import CONFIG
 
 # Password vars
 PASSWD_LEN = 20
@@ -551,8 +554,6 @@ class Tasks:
         entry was not executed. One case where this can happen is if the
         worker is killed by the out-of-memory killer.
         """
-        from upload_rest_api.jobs.utils import get_redis_connection
-
         task_id = str(task["_id"])
 
         try:
@@ -766,8 +767,6 @@ class Tokens:
 
         :param dict data: Dictionary to cache, as returned by pymongo
         """
-        from upload_rest_api.jobs.utils import get_redis_connection
-
         redis = get_redis_connection()
 
         redis_data = data.copy()
@@ -793,8 +792,6 @@ class Tokens:
             This does not validate the token. Use `get_and_validate` instead
             if that is required.
         """
-        from upload_rest_api.jobs.utils import get_redis_connection
-
         token_hash = hashlib.sha256(token.encode("utf-8")).hexdigest()
 
         redis = get_redis_connection()
@@ -848,8 +845,6 @@ class Tokens:
 
         :returns: Number of deleted documents, either 1 or 0
         """
-        from upload_rest_api.jobs.utils import get_redis_connection
-
         redis = get_redis_connection()
 
         # We need to know the token hash in order to delete it from Redis as
@@ -978,3 +973,16 @@ class Projects:
             conf["UPLOAD_PATH"],
             secure_filename(project_id)
         )
+
+
+def get_redis_connection():
+    """Get Redis connection used for the job queue."""
+    password = CONFIG.get("REDIS_PASSWORD", None)
+    redis = Redis(
+        host=CONFIG["REDIS_HOST"],
+        port=CONFIG["REDIS_PORT"],
+        db=CONFIG["REDIS_DB"],
+        password=password if password else None
+    )
+
+    return redis
