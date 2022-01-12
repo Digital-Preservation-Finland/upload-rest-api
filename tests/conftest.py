@@ -5,14 +5,14 @@ import sys
 from base64 import b64encode
 from runpy import run_path
 
-import pytest
-import upload_rest_api.app as app_module
-import upload_rest_api.database as db
-from rq import SimpleWorker
-from upload_rest_api.jobs.utils import get_job_queue
-
 import fakeredis
 from mongobox import MongoBox
+import pytest
+from rq import SimpleWorker
+
+import upload_rest_api.app as app_module
+import upload_rest_api.database as db
+from upload_rest_api.jobs.utils import get_job_queue
 
 # Prefer modules from source directory rather than from site-python
 sys.path.insert(
@@ -21,9 +21,7 @@ sys.path.insert(
 
 
 def pytest_addoption(parser):
-    """
-    Add custom flag for printing all queries done during the test
-    """
+    """Add custom flag for printing all queries done during the test."""
     parser.addoption("--log-queries", action="store_true",
                      help=("Print a list of MongoDB queries performed during "
                            "the test."))

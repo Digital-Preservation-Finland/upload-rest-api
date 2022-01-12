@@ -216,8 +216,7 @@ def test_post_metadata(app, test_auth, requests_mock, background_job_runner):
     }
 
 
-def test_post_metadata_missing_path(
-        app, test_auth, requests_mock, test_client):
+def test_post_metadata_missing_path(test_auth, test_client):
     """
     Test posting file metadata to Metax when the local file does not exist
     """

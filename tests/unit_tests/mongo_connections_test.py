@@ -103,7 +103,8 @@ def test_post_metadata(app, test_auth, requests_mock):
         "pymongo.MongoClient",
         return_value=pymongo.MongoClient()
     ) as connect:
-        response = client.post("/v1/metadata/test_project/test/", headers=test_auth)
+        response = client.post("/v1/metadata/test_project/test/",
+                               headers=test_auth)
         assert response.status_code == 404
         assert connect.call_count > 0
         assert connect.call_count < 10
