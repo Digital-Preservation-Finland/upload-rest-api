@@ -113,7 +113,7 @@ def test_user_quota(app, database, test_auth):
 def test_used_quota(app, database, test_auth, requests_mock):
     """Test that used quota is calculated correctly."""
     # Mock Metax
-    requests_mock.get("https://metax.fd-test.csc.fi/rest/v2/files?limit=10000&"
+    requests_mock.get("https://metax.localdomain/rest/v2/files?limit=10000&"
                       "project_identifier=test_project",
                       json={'next': None, 'results': []})
 
@@ -289,14 +289,14 @@ def test_delete_file(app, test_auth, requests_mock, test_mongo):
         ]
     }
     # Mock Metax
-    requests_mock.get("https://metax.fd-test.csc.fi/rest/v2/files?limit=10000&"
+    requests_mock.get("https://metax.localdomain/rest/v2/files?limit=10000&"
                       "project_identifier=test_project",
                       json=response)
 
-    requests_mock.post("https://metax.fd-test.csc.fi/rest/v2/files/datasets",
+    requests_mock.post("https://metax.localdomain/rest/v2/files/datasets",
                        json={})
 
-    requests_mock.delete("https://metax.fd-test.csc.fi/rest/v2/files/foo",
+    requests_mock.delete("https://metax.localdomain/rest/v2/files/foo",
                          json='/test.txt')
 
     test_client = app.test_client()
@@ -377,7 +377,7 @@ def test_get_files(app, test_auth, path, expected_data, requests_mock):
     :param data: expected response data
     """
     requests_mock.get(
-        'https://metax.fd-test.csc.fi/rest/v2/directories/files',
+        'https://metax.localdomain/rest/v2/directories/files',
         json={'identifier': 'foo', 'directories': []}
     )
 
@@ -424,8 +424,7 @@ def test_get_directory_without_identifier(app, test_auth, requests_mock):
 
     # Metax responds with 404, which means that test directory metadata
     # does not (yet) exist in Metax.
-    requests_mock.get('https://metax.fd-test.csc.fi/rest/v2/directories/'
-                      'files',
+    requests_mock.get('https://metax.localdomain/rest/v2/directories/files',
                       status_code=404)
 
     test_client = app.test_client()
@@ -464,14 +463,14 @@ def test_delete_directory(
         target_files += [pathlib.Path(root) / file_ for file_ in files]
 
     # Mock Metax
-    requests_mock.get("https://metax.fd-test.csc.fi/rest/v2/files?limit=10000&"
+    requests_mock.get("https://metax.localdomain/rest/v2/files?limit=10000&"
                       "project_identifier=test_project",
                       json={'results': [], 'next': None})
 
-    requests_mock.post("https://metax.fd-test.csc.fi/rest/v2/files/datasets",
+    requests_mock.post("https://metax.localdomain/rest/v2/files/datasets",
                        json={})
 
-    requests_mock.delete("https://metax.fd-test.csc.fi/rest/v2/files",
+    requests_mock.delete("https://metax.localdomain/rest/v2/files",
                          json=target_files)
 
     # Delete a directory
@@ -503,13 +502,8 @@ def test_delete_directory(
     assert project_directory.exists()
 
 
-def test_delete_empty_project(app, test_auth, requests_mock):
+def test_delete_empty_project(app, test_auth):
     """Test DELETE for project that does not have any files."""
-    # Mock Metax
-    requests_mock.get("https://metax.fd-test.csc.fi/rest/v2/files?limit=10000&"
-                      "project_identifier=test_project",
-                      json={"next": None, "results": []})
-
     test_client = app.test_client()
 
     # Try to delete project

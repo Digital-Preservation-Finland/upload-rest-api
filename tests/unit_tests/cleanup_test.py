@@ -108,12 +108,8 @@ def test_all_files_expired(test_mongo, mock_config):
     assert not any(project_path.iterdir())
 
 
-def test_expired_tasks(test_mongo, requests_mock, mock_config):
+def test_expired_tasks(test_mongo, mock_config):
     """Test that only expired tasks are removed."""
-    # Mock Metax HTTP responses
-    requests_mock.get('https://metax.fd-test.csc.fi/rest/v2/files',
-                      json={'next': None, 'results': []})
-
     mock_config["CLEANUP_TIMELIM"] = 1
 
     # Add tasks to mongo
@@ -155,7 +151,7 @@ def test_clean_project(mock_config, requests_mock):
     project_path = pathlib.Path(mock_config['UPLOAD_PATH']) / project
 
     # Mock metax
-    requests_mock.get('https://metax.fd-test.csc.fi/rest/v2/files',
+    requests_mock.get('https://metax.localdomain/rest/v2/files',
                       json={'next': None, 'results': []})
 
     # Create a old test file in project directory

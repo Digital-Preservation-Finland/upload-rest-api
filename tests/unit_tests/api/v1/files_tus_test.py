@@ -124,7 +124,7 @@ def test_upload_create_metadata(
 
     # Mock Metax response
     requests_mock.post(
-        "https://metax.fd-test.csc.fi/rest/v2/files/",
+        "https://metax.localdomain/rest/v2/files/",
         json={"success": [], "failed": ["fail1", "fail2"]}
     )
 

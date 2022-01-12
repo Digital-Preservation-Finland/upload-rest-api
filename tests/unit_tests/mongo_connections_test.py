@@ -67,15 +67,9 @@ def test_delete_files(app, test_auth, requests_mock, background_job_runner):
             } for i in range(1000)
         ]
     }
-    requests_mock.get("https://metax.fd-test.csc.fi/rest/v2/files?limit=10000&"
+    requests_mock.get("https://metax.localdomain/rest/v2/files?limit=10000&"
                       "project_identifier=test_project",
                       json=response)
-
-    requests_mock.post("https://metax.fd-test.csc.fi/rest/v2/files/datasets",
-                       json={})
-
-    requests_mock.delete("https://metax.fd-test.csc.fi/rest/v2/files",
-                         json=['test/%i.txt' % i for i in range(1000)])
 
     with mock.patch(
         "pymongo.MongoClient",
@@ -90,14 +84,10 @@ def test_delete_files(app, test_auth, requests_mock, background_job_runner):
         assert connect.call_count < 10
 
 
-def test_post_metadata(app, test_auth, requests_mock):
+def test_post_metadata(app, test_auth):
     """Test posting file metadata to Metax."""
     client = app.test_client()
     _upload_archive(client, test_auth)
-
-    # Mock Metax HTTP response
-    requests_mock.post("https://metax.fd-test.csc.fi/rest/v2/files/",
-                       json={"foo": "bar"})
 
     with mock.patch(
         "pymongo.MongoClient",
@@ -130,22 +120,19 @@ def test_delete_metadata(app, test_auth, requests_mock, background_job_runner):
             } for i in range(1000)
         ]
     }
-    requests_mock.get("https://metax.fd-test.csc.fi/rest/v2/files?limit=10000&"
+    requests_mock.get("https://metax.localdomain/rest/v2/files?limit=10000&"
                       "project_identifier=test_project",
                       json=response)
 
-    requests_mock.post("https://metax.fd-test.csc.fi/rest/v2/files/datasets",
+    requests_mock.post("https://metax.localdomain/rest/v2/files/datasets",
                        json=['dataset_identifier'])
 
-    requests_mock.get("https://metax.fd-test.csc.fi/rest/v2/datasets/"
+    requests_mock.get("https://metax.localdomain/rest/v2/datasets/"
                       "dataset_identifier",
                       json={"preservation_state": 75})
 
-    requests_mock.delete("https://metax.fd-test.csc.fi/rest/v2/files",
+    requests_mock.delete("https://metax.localdomain/rest/v2/files",
                          json={"deleted_files_count": 1000})
-
-    requests_mock.delete("https://metax.fd-test.csc.fi/rest/v2/files/foo",
-                         json={})
 
     with mock.patch(
         "pymongo.MongoClient",
