@@ -87,6 +87,65 @@ def test_upload(test_client, test_auth, test_mongo):
     assert resp.json == {"code": 409, "error": "File already exists"}
 
 
+@pytest.mark.usefixtures("project")
+def test_upload_deep_directory(test_client, test_auth, test_mongo, upload_tmpdir):
+    """
+    Test uploading a small file within a directory hierarchy, and ensure
+    the directories are created as well
+    """
+    data = b"XyzzyXyzzy"
+
+    upload_metadata = {
+        "project_id": "test_project",
+        "filename": "test.txt",
+        "file_path": "foo/bar/test.txt",
+    }
+
+    resp = test_client.post(
+        "/v1/files_tus",
+        headers={
+            **{
+                "Tus-Resumable": "1.0.0",
+                "Upload-Length": "10",
+                "Upload-Metadata": encode_tus_meta(upload_metadata)
+            },
+            **test_auth
+        }
+    )
+
+    assert resp.status_code == 201  # CREATED
+    location = resp.location
+
+    resp = test_client.patch(
+        location,
+        content_type="application/offset+octet-stream",
+        headers={
+            **{
+                "Content-Type": "application/offset+octet-stream",
+                "Tus-Resumable": "1.0.0",
+                "Upload-Offset": "0"
+            },
+            **test_auth
+        },
+        input_stream=BytesIO(data)
+    )
+
+    assert resp.status_code == 204  # NO CONTENT
+
+    # Uploaded file was added to database
+    checksums = list(test_mongo.upload.checksums.find())
+    assert len(checksums) == 1
+    assert checksums[0]["_id"].endswith("test.txt")
+    assert checksums[0]["checksum"] == "a5d1741953bf0c12b7a097f58944e474"
+
+    # Intermediary directories created, and file is inside it
+    content = (
+        upload_tmpdir / "projects" / "test_project"
+        / "foo" / "bar" / "test.txt"
+    ).read_text(encoding="utf-8")
+    assert content == "XyzzyXyzzy"
+
+
 def test_upload_exceed_quota(test_client, test_auth, database):
     """
     Upload one file and try uploading a second file which would exceed the

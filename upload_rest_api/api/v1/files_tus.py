@@ -115,6 +115,9 @@ def _upload_completed(workspace, resource):
             content_type="application/octet-stream"
         )
 
+        # Ensure the parent directories exist
+        file_path.parent.mkdir(parents=True, exist_ok=True)
+
         # Upload passed validation, move it to the actual file storage
         resource.upload_file_path.rename(file_path)
     finally:
