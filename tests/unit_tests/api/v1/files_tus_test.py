@@ -7,28 +7,21 @@ import pytest
 from flask_tus_io.resource import encode_tus_meta
 
 
-@pytest.mark.usefixtures("project")
-def test_upload(test_client, test_auth, test_mongo):
+def _do_tus_upload(test_client, upload_metadata, data, auth):
     """
-    Test uploading a small file
+    Perform a tus upload
     """
-    data = b"XyzzyXyzzy"
-
-    upload_metadata = {
-        "project_id": "test_project",
-        "filename": "test.txt",
-        "file_path": "test.txt",
-    }
+    upload_length = len(data)
 
     resp = test_client.post(
         "/v1/files_tus",
         headers={
             **{
                 "Tus-Resumable": "1.0.0",
-                "Upload-Length": "10",
+                "Upload-Length": str(upload_length),
                 "Upload-Metadata": encode_tus_meta(upload_metadata)
             },
-            **test_auth
+            **auth
         }
     )
 
@@ -39,7 +32,7 @@ def test_upload(test_client, test_auth, test_mongo):
         location,
         headers={
             **{"Tus-Resumable": "1.0.0"},
-            **test_auth
+            **auth
         }
     )
 
@@ -52,12 +45,32 @@ def test_upload(test_client, test_auth, test_mongo):
                 "Tus-Resumable": "1.0.0",
                 "Upload-Offset": "0"
             },
-            **test_auth
+            **auth
         },
         input_stream=BytesIO(data)
     )
 
     assert resp.status_code == 204  # NO CONTENT
+
+
+@pytest.mark.usefixtures("project")
+def test_upload(test_client, test_auth, test_mongo):
+    """
+    Test uploading a small file
+    """
+    data = b"XyzzyXyzzy"
+    upload_metadata = {
+        "project_id": "test_project",
+        "filename": "test.txt",
+        "file_path": "test.txt",
+    }
+
+    _do_tus_upload(
+        test_client=test_client,
+        upload_metadata=upload_metadata,
+        auth=test_auth,
+        data=data
+    )
 
     # Uploaded file was added to database
     checksums = list(test_mongo.upload.checksums.find())
@@ -88,6 +101,48 @@ def test_upload(test_client, test_auth, test_mongo):
 
 
 @pytest.mark.usefixtures("project")
+def test_upload_create_metadata(
+        test_client, test_auth, test_mongo, requests_mock,
+        background_job_runner):
+    """
+    Test uploading a small file and create Metax metadata for it
+    """
+    data = b"XyzzyXyzzy"
+    upload_metadata = {
+        "project_id": "test_project",
+        "filename": "test.txt",
+        "file_path": "test.txt",
+        "create_metadata": "true"
+    }
+
+    _do_tus_upload(
+        test_client=test_client,
+        upload_metadata=upload_metadata,
+        auth=test_auth,
+        data=data
+    )
+
+    # Mock Metax response
+    requests_mock.post(
+        "https://metax.fd-test.csc.fi/rest/v2/files/",
+        json={"success": [], "failed": ["fail1", "fail2"]}
+    )
+
+    tasks = list(test_mongo.upload.tasks.find())
+    assert len(tasks) == 1
+
+    task_id = str(tasks[0]["_id"])
+
+    response = background_job_runner(test_client, "metadata", task_id=task_id)
+
+    assert response.status_code == 200
+    assert response.json == {
+        "message": "Metadata created: /test.txt",
+        "status": "done"
+    }
+
+
+@pytest.mark.usefixtures("project")
 def test_upload_deep_directory(test_client, test_auth, test_mongo, upload_tmpdir):
     """
     Test uploading a small file within a directory hierarchy, and ensure
@@ -101,36 +156,12 @@ def test_upload_deep_directory(test_client, test_auth, test_mongo, upload_tmpdir
         "file_path": "foo/bar/test.txt",
     }
 
-    resp = test_client.post(
-        "/v1/files_tus",
-        headers={
-            **{
-                "Tus-Resumable": "1.0.0",
-                "Upload-Length": "10",
-                "Upload-Metadata": encode_tus_meta(upload_metadata)
-            },
-            **test_auth
-        }
+    _do_tus_upload(
+        test_client=test_client,
+        upload_metadata=upload_metadata,
+        auth=test_auth,
+        data=data
     )
-
-    assert resp.status_code == 201  # CREATED
-    location = resp.location
-
-    resp = test_client.patch(
-        location,
-        content_type="application/offset+octet-stream",
-        headers={
-            **{
-                "Content-Type": "application/offset+octet-stream",
-                "Tus-Resumable": "1.0.0",
-                "Upload-Offset": "0"
-            },
-            **test_auth
-        },
-        input_stream=BytesIO(data)
-    )
-
-    assert resp.status_code == 204  # NO CONTENT
 
     # Uploaded file was added to database
     checksums = list(test_mongo.upload.checksums.find())
@@ -158,44 +189,14 @@ def test_upload_exceed_quota(test_client, test_auth, database):
         "filename": "test.txt",
         "file_path": "test.txt",
     }
-
     data = b"XyzzyXyzzy"
 
-    resp = test_client.post(
-        "/v1/files_tus",
-        headers={
-            **{
-                "Tus-Resumable": "1.0.0",
-                "Upload-Length": "10",
-                "Upload-Metadata": encode_tus_meta(upload_metadata)
-            },
-            **test_auth
-        }
+    _do_tus_upload(
+        test_client=test_client,
+        upload_metadata=upload_metadata,
+        auth=test_auth,
+        data=data
     )
-    location = resp.location
-
-    resp = test_client.head(
-        location,
-        headers={
-            **{"Tus-Resumable": "1.0.0"},
-            **test_auth
-        }
-    )
-    resp = test_client.patch(
-        location,
-        content_type="application/offset+octet-stream",
-        headers={
-            **{
-                "Content-Type": "application/offset+octet-stream",
-                "Tus-Resumable": "1.0.0",
-                "Upload-Offset": "0"
-            },
-            **test_auth
-        },
-        input_stream=BytesIO(data)
-    )
-
-    assert resp.status_code == 204
 
     # 10 bytes of quota used, the next upload shoud fail
     resp = test_client.post(
@@ -236,8 +237,8 @@ def test_upload_parallel_upload_exceed_quota(test_client, test_auth, database):
                     "Upload-Length": "2000",
                     "Upload-Metadata": encode_tus_meta({
                         "project_id": "test_project",
-                        "filename": "test{}.txt".format(i),
-                        "file_path": "test{}.txt".format(i)
+                        "filename": f"test{i}.txt",
+                        "file_path": f"test{i}.txt",
                     })
                 },
                 **test_auth

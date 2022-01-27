@@ -155,24 +155,33 @@ def background_job_runner(test_auth):
     """Convenience fixture to complete background jobs based on the task
     API response received by the client.
     """
-    def wrapper(test_client, queue_name, response, expect_success=True):
+    def wrapper(
+            test_client, queue_name, response=None, task_id=None,
+            expect_success=True):
         """Find the RQ job corresponding to the background task and
-        finish it.
+        finish it. Either 'response' or 'task_id' needs to be provided to
+        run the job.
 
         :param test_client: Flask test client
         :param str queue_name: Queue name containing the job
         :param response: Response returned to the client that contains
-                         a polling URL
+                         a polling URL and the task ID
+        :param entry: Task ID
         :param bool expect_success: Whether to test for task success.
                                     Default is True.
 
         :returns: Return the task status HTTP response after the job
                   has been finished
         """
-        # Get the task ID from the polling URL from the response
-        # provided to the client
-        polling_url = response.json["polling_url"]
-        task_id = polling_url.split("/")[-1]
+        # Get the task ID from the polling URL from the response or database
+        # entry provided to the client
+        assert response or task_id
+
+        if response:
+            polling_url = response.json["polling_url"]
+            task_id = polling_url.split("/")[-1]
+
+        polling_url = f"/v1/tasks/{task_id}"
 
         # Ensure the task can be found in the correct queue and complete
         # it

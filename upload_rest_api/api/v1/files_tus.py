@@ -2,11 +2,12 @@
 Event handler for the /files_tus/v1 endpoint.
 """
 import flask_tus_io
-from flask import Blueprint, abort, safe_join
+from flask import Blueprint, abort, safe_join, current_app
 from upload_rest_api import database, upload
 from upload_rest_api.authentication import current_user
 from upload_rest_api.database import Database, Projects
 from upload_rest_api.upload import save_file_into_db
+from upload_rest_api.jobs.utils import enqueue_background_job, METADATA_QUEUE
 
 FILES_TUS_API_V1 = Blueprint(
     "files_tus_v1", __name__, url_prefix="/v1/files_tus"
@@ -102,6 +103,8 @@ def _upload_completed(workspace, resource):
 
     project_id = resource.upload_metadata["project_id"]
     fpath = resource.upload_metadata["file_path"]
+    create_metadata = \
+        resource.upload_metadata.get("create_metadata", "") == "true"
 
     upload_path = safe_join("", fpath)
     project_dir = Projects.get_project_directory(project_id)
@@ -132,6 +135,20 @@ def _upload_completed(workspace, resource):
         database=db,
         project_id=project_id
     )
+
+    if create_metadata:
+        # If enabled, enqueue background job to create Metax metadata
+        storage_id = current_app.config.get("STORAGE_ID")
+        enqueue_background_job(
+            task_func="upload_rest_api.jobs.metadata.post_metadata",
+            queue_name=METADATA_QUEUE,
+            project_id=project_id,
+            job_kwargs={
+                "path": fpath,
+                "project_id": project_id,
+                "storage_id": storage_id
+            }
+        )
 
 
 def tus_event_handler(event_type, workspace, resource):
