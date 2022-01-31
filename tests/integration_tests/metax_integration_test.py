@@ -61,9 +61,10 @@ def clean_metax():
 
 
 @pytest.fixture(scope="function", autouse=True)
-def integration_mock_setup(app, mock_config):
-    """Ensure the real Metax password is used for integration tests."""
-    app.config["METAX_PASSWORD"] = PASSWORD
+def integration_mock_setup(mock_config):
+    """Configure client to use real Metax test instance."""
+    mock_config["METAX_URL"] = URL
+    mock_config["METAX_USER"] = USER
     mock_config["METAX_PASSWORD"] = PASSWORD
 
 
