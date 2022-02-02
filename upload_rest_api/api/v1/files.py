@@ -4,17 +4,17 @@ Functionality for uploading, querying and deleting files from the
 server.
 """
 import os
+import secrets
 
-from flask import (Blueprint, current_app, jsonify, request, safe_join,
-                   url_for, abort)
 import metax_access
-
 import upload_rest_api.database as db
 import upload_rest_api.gen_metadata as md
 import upload_rest_api.upload as up
 import upload_rest_api.utils as utils
-from upload_rest_api.authentication import current_user
+from flask import (Blueprint, abort, current_app, jsonify, request, safe_join,
+                   url_for)
 from upload_rest_api.api.v1.tasks import TASK_STATUS_API_V1
+from upload_rest_api.authentication import current_user
 from upload_rest_api.jobs.utils import FILES_QUEUE, enqueue_background_job
 
 FILES_API_V1 = Blueprint("files_v1", __name__, url_prefix="/v1/files")
@@ -174,6 +174,41 @@ def delete_path(project_id, fpath):
         abort(404, "No files found")
 
     elif os.path.isdir(upload_path):
+        is_project_dir = upload_path.samefile(project_dir)
+
+        # Create a random ID for the directory that will contain the files
+        # and directories to delete. This is used to prevent potential race
+        # conditions where the user creates and deletes a directory/file while
+        # the previous directory/file is still being deleted.
+        # TODO: This pattern could be implemented in a more generic manner and
+        # for other purposes besides deletion. In short:
+        #
+        # 1. Create temporary directory with unique ID with the same structure
+        #    as the actual project directory§
+        # 2. Perform required operations (deletion, extraction) in the
+        #    temporary directory
+        # 3. Move the complete directory to the actual project directory
+        #    atomically
+        # 4. Delete the temporary directory
+        trash_id = secrets.token_hex(8)
+
+        trash_root = database.projects.get_trash_directory(
+            project_id=project_id,
+            trash_id=trash_id
+        )
+        trash_path = utils.get_trash_path(
+            project_id=project_id,
+            trash_id=trash_id,
+            file_path=fpath
+        )
+        trash_path.parent.mkdir(exist_ok=True, parents=True)
+        upload_path.rename(trash_path)
+
+        if is_project_dir:
+            # If we're deleting the entire project directory, create an empty
+            # directory before proceeding with deletion
+            project_dir.mkdir(exist_ok=True)
+
         # Remove all file metadata of files under fpath from Metax
         task_id = enqueue_background_job(
             task_func="upload_rest_api.jobs.files.delete_files",
@@ -181,14 +216,16 @@ def delete_path(project_id, fpath):
             project_id=project_id,
             job_kwargs={
                 "fpath": upload_path,
-                "project_id": project_id
+                "trash_path": trash_path,
+                "trash_root": trash_root,
+                "project_id": project_id,
             }
         )
 
         polling_url = utils.get_polling_url(TASK_STATUS_API_V1.name, task_id)
         response = jsonify({
             "file_path": utils.get_return_path(project_id, upload_path),
-            "message": "Deleting files and metadata",
+            "message": "Deleting metadata",
             "polling_url": polling_url,
             "status": "pending"
         })

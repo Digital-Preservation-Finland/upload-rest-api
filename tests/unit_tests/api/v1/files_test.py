@@ -441,11 +441,21 @@ def test_get_directory_without_identifier(app, test_auth, requests_mock):
                              'identifier': None}
 
 
-@pytest.mark.parametrize('target', ['/test', '/', ''])
+@pytest.mark.parametrize(
+    'target,files_to_delete',
+    [
+        ('/test', ['/test/test.txt']),
+        ('/', ['/test.txt', '/test/test.txt']),
+        ('', ['/test.txt', '/test/test.txt'])
+    ]
+)
 def test_delete_directory(
-    app, test_auth, requests_mock, test_mongo, background_job_runner, target
+    app, test_auth, requests_mock, test_mongo, background_job_runner,
+    upload_tmpdir, target, files_to_delete
 ):
     """Test deleting a directory."""
+    trash_dir = upload_tmpdir / "trash"
+
     # Create test data
     test_client = app.test_client()
 
@@ -481,11 +491,27 @@ def test_delete_directory(
     response = test_client.delete(
         f"/v1/files/test_project{target}", headers=test_auth
     )
+
+    # The directory to delete has been moved to a temporary location to
+    # perform the actual file and metadata deletion.
+    assert not (project_directory / 'test').exists()
+
+    trash_files = list(trash_dir.glob("*/test_project/**/*.txt"))
+    assert len(trash_files) == len(files_to_delete)
+    for file_path in files_to_delete:
+        assert any(
+            True for path in trash_files if str(path).endswith(file_path)
+        )
+
     if _request_accepted(response):
         response = background_job_runner(test_client, "files", response)
     assert response.status_code == 200
     assert response.json["message"] \
         == f'Deleted files and metadata: /{target.strip("/")}'
+
+    # The temporary directory has been deleted
+    assert trash_dir.exists()
+    assert len(list(trash_dir.iterdir())) == 0
 
     # The files in target directory should be deleted. Other files
     # should still exist.

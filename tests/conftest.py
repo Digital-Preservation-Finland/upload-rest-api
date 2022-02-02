@@ -3,15 +3,15 @@ import os
 import pprint
 import sys
 from base64 import b64encode
+from pathlib import Path
 from runpy import run_path
 
 import fakeredis
-from mongobox import MongoBox
 import pytest
-from rq import SimpleWorker
-
 import upload_rest_api.app as app_module
 import upload_rest_api.database as db
+from mongobox import MongoBox
+from rq import SimpleWorker
 from upload_rest_api.jobs.utils import get_job_queue
 
 # Prefer modules from source directory rather than from site-python
@@ -31,7 +31,7 @@ def pytest_addoption(parser):
 def upload_tmpdir(tmpdir):
     """Temporary directory for uploads."""
     tmpdir.mkdir("upload")
-    yield tmpdir.join("upload")
+    yield Path(tmpdir.join("upload"))
 
 
 @pytest.yield_fixture(scope="function", autouse=True)
@@ -40,13 +40,15 @@ def mock_config(monkeypatch, upload_tmpdir):
     `upload_rest_api.config` that is accessible whether Flask is active
     or not.
     """
-    projects_path = upload_tmpdir.join("projects")
-    temp_upload_path = upload_tmpdir.join("tmp")
-    temp_tus_path = upload_tmpdir.join("tus")
+    projects_path = upload_tmpdir / "projects"
+    temp_upload_path = upload_tmpdir / "tmp"
+    temp_tus_path = upload_tmpdir / "tus"
+    trash_path = upload_tmpdir / "trash"
 
     projects_path.mkdir()
     temp_upload_path.mkdir()
     temp_tus_path.mkdir()
+    trash_path.mkdir()
 
     mock_config_ = run_path("include/etc/upload_rest_api.conf")
 
@@ -62,6 +64,7 @@ def mock_config(monkeypatch, upload_tmpdir):
 
     monkeypatch.setitem(CONFIG, "UPLOAD_PATH", str(projects_path))
     monkeypatch.setitem(CONFIG, "UPLOAD_TMP_PATH", str(temp_upload_path))
+    monkeypatch.setitem(CONFIG, "UPLOAD_TRASH_PATH", str(trash_path))
 
     monkeypatch.setitem(CONFIG, "TUS_API_SPOOL_PATH", str(temp_tus_path))
 

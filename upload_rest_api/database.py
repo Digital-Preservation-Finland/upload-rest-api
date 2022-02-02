@@ -396,17 +396,6 @@ class Checksums:
 
         return deleted_count
 
-    def delete_dir(self, dirpath):
-        """Delete all file checksums found under dirpath."""
-        filepaths = []
-        for _dir, _, files in os.walk(dirpath):
-            for _file in files:
-                fpath = os.path.join(_dir, _file)
-                fpath = os.path.abspath(fpath)
-                filepaths.append(fpath)
-
-        return self.delete(filepaths)
-
     def get_checksum(self, filepath):
         """Get checksum of a single file."""
         checksum = self.checksums.find_one({"_id": filepath})
@@ -975,6 +964,19 @@ class Projects:
         return pathlib.Path(
             conf["UPLOAD_PATH"],
             secure_filename(project_id)
+        )
+
+    @classmethod
+    def get_trash_directory(cls, project_id, trash_id):
+        """
+        Get the file system path to a temporary trash directory
+        used for deletion
+        """
+        conf = upload_rest_api.config.CONFIG
+        return (
+            pathlib.Path(conf["UPLOAD_TRASH_PATH"])
+            / secure_filename(trash_id)
+            / secure_filename(project_id)
         )
 
 

@@ -13,16 +13,37 @@ except ImportError:  # Python 2
 
 
 def get_upload_path(project_id, file_path):
-    """Get upload path for file.
+    """Get upload path for file/directory.
 
     :param project_id: project identifier
     :param file_path: file path relative to project directory of user
-    :returns: full path of file
+    :returns: full path of file/directory
     """
     dirname, basename = os.path.split(file_path)
     secure_fname = secure_filename(basename)
     joined_path = safe_join(
         Projects.get_project_directory(project_id), dirname
+    )
+
+    return pathlib.Path(joined_path).resolve() / secure_fname
+
+
+def get_trash_path(project_id, file_path, trash_id):
+    """Get trash path for file/directory.
+
+    This is the temporary path where the directory will be moved atomically
+    in order to perform the actual deletion.
+
+    :param project_id: project identifier
+    :param file_path: file path relative to project directory of user
+    :returns: full path of file/directory
+    """
+    dirname, basename = os.path.split(file_path)
+    secure_fname = secure_filename(basename)
+    joined_path = safe_join(
+        Projects.get_trash_directory(
+            project_id=project_id, trash_id=trash_id
+        ), dirname
     )
 
     return pathlib.Path(joined_path).resolve() / secure_fname
