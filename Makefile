@@ -24,7 +24,7 @@ test-with-db-logging:
 		--junitprefix=upload_rest_api --junitxml=junit.xml
 
 coverage:
-	${PYTHON} -m pytest tests --cov=upload_rest_api --cov-report=html
+	${PYTHON} -m pytest tests/unit_tests --cov=upload_rest_api --cov-report=html
 	coverage report -m
 	coverage html
 	coverage xml
