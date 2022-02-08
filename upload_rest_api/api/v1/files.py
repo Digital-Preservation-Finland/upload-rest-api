@@ -5,6 +5,7 @@ server.
 """
 import os
 import secrets
+import shutil
 
 import metax_access
 import upload_rest_api.database as db
@@ -209,8 +210,14 @@ def delete_path(project_id, fpath):
         lock_manager.acquire(project_id, upload_path)
 
         try:
-            trash_path.parent.mkdir(exist_ok=True, parents=True)
-            upload_path.rename(trash_path)
+            try:
+                trash_path.parent.mkdir(exist_ok=True, parents=True)
+                upload_path.rename(trash_path)
+            except FileNotFoundError:
+                # The directory to remove does not exist anymore;
+                # other request managed to start deletion first.
+                shutil.rmtree(trash_path.parent)
+                abort(404, "No files found")
 
             if is_project_dir:
                 # If we're deleting the entire project directory, create an
