@@ -13,6 +13,7 @@ import upload_rest_api.database as db
 from mongobox import MongoBox
 from rq import SimpleWorker
 from upload_rest_api.jobs.utils import get_job_queue
+from upload_rest_api.lock import ProjectLockManager
 
 # Prefer modules from source directory rather than from site-python
 sys.path.insert(
@@ -65,6 +66,11 @@ def mock_config(monkeypatch, upload_tmpdir):
     monkeypatch.setitem(CONFIG, "UPLOAD_PATH", str(projects_path))
     monkeypatch.setitem(CONFIG, "UPLOAD_TMP_PATH", str(temp_upload_path))
     monkeypatch.setitem(CONFIG, "UPLOAD_TRASH_PATH", str(trash_path))
+
+    # Use lower lock TTL and timeout to prevent tests from hanging for a long
+    # time in case of a bug
+    monkeypatch.setitem(CONFIG, "UPLOAD_LOCK_TTL", 30)
+    monkeypatch.setitem(CONFIG, "UPLOAD_LOCK_TIMEOUT", 1)
 
     monkeypatch.setitem(CONFIG, "TUS_API_SPOOL_PATH", str(temp_tus_path))
 
@@ -143,8 +149,20 @@ def mock_redis(monkeypatch):
         "upload_rest_api.database.get_redis_connection",
         lambda: conn
     )
+    monkeypatch.setattr(
+        "upload_rest_api.lock.get_redis_connection",
+        lambda: conn
+    )
 
     yield conn
+
+    # Ensure no dangling locks remain at the end of the test run.
+    # Tests that leave dangling locks (eg. background jobs that are
+    # deliberately left unfinished) should make them explicit by
+    # removing the locks manually.
+    for key in conn.keys("upload-rest-api:locks:*"):
+        assert conn.hlen(key) == 0, \
+            f"Locks were not released: {conn.hkeys(key)}"
 
     # fakeredis versions prior to v1.0 are not isolated and use a
     # singleton, making a manual flush necessary
@@ -316,6 +334,16 @@ def tasks_col(test_mongo):
     tasks_col.task_messages = test_mongo.upload.task_messages
 
     return tasks_col
+
+
+@pytest.fixture(scope="function")
+# pylint: disable=unused-argument
+# usefixtures not supported in fixture functions
+def lock_manager(mock_config):
+    """
+    Return a project lock manager
+    """
+    return ProjectLockManager()
 
 
 @pytest.fixture(scope="function")

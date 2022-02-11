@@ -1,13 +1,13 @@
 """Files API background jobs."""
-import shutil
 import os
+import shutil
 
 import upload_rest_api.database as db
 import upload_rest_api.gen_metadata as md
 import upload_rest_api.utils as utils
 from upload_rest_api.config import CONFIG
-
 from upload_rest_api.jobs.utils import api_background_job
+from upload_rest_api.lock import ProjectLockManager
 
 
 def _get_files_to_delete(trash_path, trash_root, project_dir):
@@ -76,5 +76,10 @@ def delete_files(fpath, trash_path, trash_root, project_id, task_id):
 
     # Update used_quota
     database.projects.update_used_quota(project_id, root_upload_path)
+
+    # Release the lock we've held from the time this background job was
+    # enqueued
+    lock_manager = ProjectLockManager()
+    lock_manager.release(project_id, fpath)
 
     return f"Deleted files and metadata: {ret_path}"

@@ -84,10 +84,11 @@ def test_delete_files(app, test_auth, requests_mock, background_job_runner):
         assert connect.call_count < 10
 
 
-def test_post_metadata(app, test_auth):
+def test_post_metadata(app, test_auth, mock_redis, background_job_runner):
     """Test posting file metadata to Metax."""
     client = app.test_client()
-    _upload_archive(client, test_auth)
+    response = _upload_archive(client, test_auth)
+    background_job_runner(client, "upload", response)
 
     with mock.patch(
         "pymongo.MongoClient",
@@ -95,9 +96,12 @@ def test_post_metadata(app, test_auth):
     ) as connect:
         response = client.post("/v1/metadata/test_project/test/",
                                headers=test_auth)
-        assert response.status_code == 404
+        assert response.status_code == 202
         assert connect.call_count > 0
         assert connect.call_count < 10
+
+    # Remove the locks
+    mock_redis.flushall()
 
 
 def test_delete_metadata(app, test_auth, requests_mock, background_job_runner):

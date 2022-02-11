@@ -29,6 +29,15 @@ def http_error_404(error):
     return make_response(404, message)
 
 
+def http_error_locked(error):
+    """Create HTTP 409 Conflict error indicating the resource is locked."""
+    current_app.logger.error(error, exc_info=True)
+
+    message = "The file/directory is currently locked by another task"
+
+    return make_response(409, message)
+
+
 def http_error_500(error):
     """Create HTTP 500 Internal Server Error response."""
     current_app.logger.error(error, exc_info=True)

@@ -1,13 +1,13 @@
 """Metadata API background jobs."""
 import os.path
 
-from metax_access import ResourceAlreadyExistsError
-
 import upload_rest_api.database as db
 import upload_rest_api.gen_metadata as md
 import upload_rest_api.utils as utils
+from metax_access import ResourceAlreadyExistsError
 from upload_rest_api.config import CONFIG
-from upload_rest_api.jobs.utils import api_background_job, ClientError
+from upload_rest_api.jobs.utils import ClientError, api_background_job
+from upload_rest_api.lock import ProjectLockManager
 
 
 @api_background_job
@@ -34,31 +34,35 @@ def post_metadata(path, project_id, storage_id, task_id):
         task_id, f"Creating metadata: {return_path}"
     )
 
-    if os.path.isdir(fpath):
-        # POST metadata of all files under dir fpath
-        fpaths = []
-        for dirpath, _, files in os.walk(fpath):
-            for fname in files:
-                fpaths.append(os.path.join(dirpath, fname))
-
-    elif os.path.isfile(fpath):
-        fpaths = [fpath]
-
-    else:
-        raise ClientError("File not found")
-
     try:
-        metax_client.post_metadata(fpaths, root_upload_path, project_id,
-                                   storage_id)
-    except ResourceAlreadyExistsError as error:
+        if os.path.isdir(fpath):
+            # POST metadata of all files under dir fpath
+            fpaths = []
+            for dirpath, _, files in os.walk(fpath):
+                for fname in files:
+                    fpaths.append(os.path.join(dirpath, fname))
+
+        elif os.path.isfile(fpath):
+            fpaths = [fpath]
+
+        else:
+            raise ClientError("File not found")
+
         try:
-            failed_files = [file_['object']['file_path']
-                            for file_ in error.response.json()['failed']]
-        except KeyError:
-            # Most likely only one file was posted so Metax response
-            # format is different
-            failed_files = [return_path]
-        raise ClientError(error.message, files=failed_files)
+            metax_client.post_metadata(fpaths, root_upload_path, project_id,
+                                       storage_id)
+        except ResourceAlreadyExistsError as error:
+            try:
+                failed_files = [file_['object']['file_path']
+                                for file_ in error.response.json()['failed']]
+            except KeyError:
+                # Most likely only one file was posted so Metax response
+                # format is different
+                failed_files = [return_path]
+            raise ClientError(error.message, files=failed_files)
+    finally:
+        lock_manager = ProjectLockManager()
+        lock_manager.release(project_id, fpath)
 
     return f"Metadata created: {return_path}"
 
@@ -85,18 +89,24 @@ def delete_metadata(fpath, project_id, task_id):
         task_id, "Deleting metadata: %s" % ret_path
     )
 
-    if os.path.isfile(fpath):
-        # Remove metadata from Metax
-        delete_func = metax_client.delete_file_metadata
-    elif os.path.isdir(fpath):
-        # Remove all file metadata of files under dir fpath from Metax
-        delete_func = metax_client.delete_all_metadata
-    else:
-        raise ClientError("File not found")
-
     try:
-        response = delete_func(project_id, fpath, root_upload_path, force=True)
-    except md.MetaxClientError as error:
-        raise ClientError(str(error)) from error
+        if os.path.isfile(fpath):
+            # Remove metadata from Metax
+            delete_func = metax_client.delete_file_metadata
+        elif os.path.isdir(fpath):
+            # Remove all file metadata of files under dir fpath from Metax
+            delete_func = metax_client.delete_all_metadata
+        else:
+            raise ClientError("File not found")
+
+        try:
+            response = delete_func(
+                project_id, fpath, root_upload_path, force=True
+            )
+        except md.MetaxClientError as error:
+            raise ClientError(str(error)) from error
+    finally:
+        lock_manager = ProjectLockManager()
+        lock_manager.release(project_id, fpath)
 
     return "{} files deleted".format(response['deleted_files_count'])

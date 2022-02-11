@@ -11,6 +11,7 @@ from upload_rest_api import gen_metadata, utils
 from upload_rest_api.api.v1.tasks import TASK_STATUS_API_V1
 from upload_rest_api.database import Database, Projects
 from upload_rest_api.jobs.utils import UPLOAD_QUEUE, enqueue_background_job
+from upload_rest_api.lock import ProjectLockManager
 
 SUPPORTED_TYPES = ("application/octet-stream",)
 
@@ -74,20 +75,23 @@ def save_file(database, project_id, stream, checksum, upload_path):
     :param upload_path: Upload path, relative to project directory
     :returns: MD5 checksum for file (generated from file)
     """
+    lock_manager = ProjectLockManager()
     file_path = Projects.get_project_directory(project_id) / upload_path
 
-    # Write the file if it does not exist already
-    file_path.parent.mkdir(parents=True, exist_ok=True)
-    if not file_path.exists():
-        _save_stream(file_path, stream, checksum)
-    else:
-        raise werkzeug.exceptions.Conflict("File already exists")
+    with lock_manager.lock(project_id, file_path):
+        # Write the file if it does not exist already
+        file_path.parent.mkdir(parents=True, exist_ok=True)
+        if not file_path.exists():
+            _save_stream(file_path, stream, checksum)
+        else:
+            raise werkzeug.exceptions.Conflict("File already exists")
 
-    md5 = save_file_into_db(
-        file_path=file_path,
-        database=database,
-        project_id=project_id
-    )
+        md5 = save_file_into_db(
+            file_path=file_path,
+            database=database,
+            project_id=project_id
+        )
+
     return md5
 
 
@@ -132,46 +136,55 @@ def save_archive(database, project_id, stream, checksum, upload_path):
     project_dir = Projects.get_project_directory(project_id)
     dir_path = project_dir / upload_path
 
-    if dir_path.is_dir() and not dir_path.samefile(project_dir):
-        raise werkzeug.exceptions.Conflict(
-            f"Directory '{upload_path}' already exists"
-        )
+    lock_manager = ProjectLockManager()
+    lock_manager.acquire(project_id, dir_path)
+    try:
+        if dir_path.is_dir() and not dir_path.samefile(project_dir):
+            raise werkzeug.exceptions.Conflict(
+                f"Directory '{upload_path}' already exists"
+            )
 
-    # Save stream to temporary file
-    tmp_path = pathlib.Path(current_app.config.get("UPLOAD_TMP_PATH"))
-    fpath = tmp_path / str(uuid.uuid4())
-    fpath.parent.mkdir(exist_ok=True)
-    _save_stream(fpath, stream, checksum)
+        # Save stream to temporary file
+        tmp_path = pathlib.Path(current_app.config.get("UPLOAD_TMP_PATH"))
+        fpath = tmp_path / str(uuid.uuid4())
+        fpath.parent.mkdir(exist_ok=True)
+        _save_stream(fpath, stream, checksum)
 
-    # If zip or tar file was uploaded, extract all files
-    if zipfile.is_zipfile(fpath) or tarfile.is_tarfile(fpath):
-        # Check the uncompressed size
-        quota, used_quota, extracted_size = _check_extraction_size(
-            project_id=project_id, archive_path=fpath, database=database
-        )
+        # If zip or tar file was uploaded, extract all files
+        if zipfile.is_zipfile(fpath) or tarfile.is_tarfile(fpath):
+            # Check the uncompressed size
+            quota, used_quota, extracted_size = _check_extraction_size(
+                project_id=project_id, archive_path=fpath, database=database
+            )
 
-        if quota - used_quota - extracted_size < 0:
-            # Remove the archive and raise an exception
+            if quota - used_quota - extracted_size < 0:
+                # Remove the archive and raise an exception
+                os.remove(fpath)
+                raise werkzeug.exceptions.RequestEntityTooLarge(
+                    "Quota exceeded"
+                )
+
+            database.projects.set_used_quota(
+                project_id, used_quota + extracted_size
+            )
+            task_id = enqueue_background_job(
+                task_func="upload_rest_api.jobs.upload.extract_task",
+                queue_name=UPLOAD_QUEUE,
+                project_id=project_id,
+                job_kwargs={
+                    "project_id": project_id,
+                    "fpath": fpath,
+                    "dir_path": dir_path
+                }
+            )
+        else:
             os.remove(fpath)
-            raise werkzeug.exceptions.RequestEntityTooLarge("Quota exceeded")
-
-        database.projects.set_used_quota(
-            project_id, used_quota + extracted_size
-        )
-        task_id = enqueue_background_job(
-            task_func="upload_rest_api.jobs.upload.extract_task",
-            queue_name=UPLOAD_QUEUE,
-            project_id=project_id,
-            job_kwargs={
-                "fpath": fpath,
-                "dir_path": dir_path
-            }
-        )
-    else:
-        os.remove(fpath)
-        raise werkzeug.exceptions.BadRequest(
-            "Uploaded file is not a supported archive"
-        )
+            raise werkzeug.exceptions.BadRequest(
+                "Uploaded file is not a supported archive"
+            )
+    except Exception:
+        lock_manager.release(project_id, dir_path)
+        raise
 
     return utils.get_polling_url(TASK_STATUS_API_V1.name, task_id)
 

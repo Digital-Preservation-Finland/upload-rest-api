@@ -6,7 +6,7 @@ import upload_rest_api.database as database
 import upload_rest_api.jobs as jobs
 
 
-def test_reverse_proxy_polling_url(app, test_auth):
+def test_reverse_proxy_polling_url(app, mock_redis, test_auth):
     """Mock the web application running behind a reverse proxy and ensure that
     the reverse proxy's URL is detected by the web application.
     """
@@ -24,6 +24,9 @@ def test_reverse_proxy_polling_url(app, test_auth):
     assert response.json["polling_url"].startswith(
         "http://reverse_proxy/v1/tasks/"
     )
+
+    # Remove lock for dangling background job
+    mock_redis.flushall()
 
 
 @jobs.api_background_job

@@ -11,6 +11,7 @@ pytest-cov==2.5.1
 mock
 requests-mock
 fakeredis
+lupa
 
 # Install requirements
 

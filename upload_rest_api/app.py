@@ -7,12 +7,14 @@ from upload_rest_api.api.v1 import files_tus
 from upload_rest_api.api.v1.archives import ARCHIVES_API_V1
 from upload_rest_api.api.v1.errorhandlers import (http_error_404,
                                                   http_error_500,
-                                                  http_error_generic)
+                                                  http_error_generic,
+                                                  http_error_locked)
 from upload_rest_api.api.v1.files import FILES_API_V1
 from upload_rest_api.api.v1.metadata import METADATA_API_V1
 from upload_rest_api.api.v1.tasks import TASK_STATUS_API_V1
 from upload_rest_api.api.v1.tokens import TOKEN_API_V1
 from upload_rest_api.api.v1.users import USERS_API_V1
+from upload_rest_api.lock import LockAlreadyTaken
 
 try:
     # Newer Werkzeug
@@ -72,6 +74,7 @@ def create_app():
         app.register_error_handler(status_code, http_error_generic)
     app.register_error_handler(404, http_error_404)
     app.register_error_handler(500, http_error_500)
+    app.register_error_handler(LockAlreadyTaken, http_error_locked)
 
     return app
 

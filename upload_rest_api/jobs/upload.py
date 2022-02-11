@@ -9,6 +9,7 @@ from archive_helpers.extract import (ExtractError, MemberNameError,
                                      extract)
 from upload_rest_api import gen_metadata
 from upload_rest_api.jobs.utils import ClientError, api_background_job
+from upload_rest_api.lock import ProjectLockManager
 
 
 def _process_extracted_files(fpath):
@@ -60,10 +61,11 @@ def _get_archive_checksums(archive, extract_path):
 
 
 @api_background_job
-def extract_task(fpath, dir_path, task_id):
+def extract_task(project_id, fpath, dir_path, task_id):
     """Calculate the checksum of the archive and extracts the files into
     ``dir_path`` directory.
 
+    :param str project_id: project ID
     :param str fpath: file path of the archive
     :param str dir_path: directory to where the archive will be
                          extracted
@@ -75,18 +77,24 @@ def extract_task(fpath, dir_path, task_id):
         task_id, "Extracting archive"
     )
     try:
-        extract(fpath, dir_path)
-    except (MemberNameError, MemberTypeError, MemberOverwriteError,
-            ExtractError) as error:
-        # Remove the archive and set task's state
+        try:
+            extract(fpath, dir_path)
+        except (MemberNameError, MemberTypeError, MemberOverwriteError,
+                ExtractError) as error:
+            # Remove the archive and set task's state
+            os.remove(fpath)
+            raise ClientError(str(error)) from error
+
+        # Add checksums of the extracted files to mongo
+        database.checksums.insert(_get_archive_checksums(fpath, dir_path))
+
+        # Remove archive and all created symlinks
         os.remove(fpath)
-        raise ClientError(str(error)) from error
-
-    # Add checksums of the extracted files to mongo
-    database.checksums.insert(_get_archive_checksums(fpath, dir_path))
-
-    # Remove archive and all created symlinks
-    os.remove(fpath)
-    _process_extracted_files(dir_path)
+        _process_extracted_files(dir_path)
+    finally:
+        # Release the lock we've held from the time this background job was
+        # enqueued
+        lock_manager = ProjectLockManager()
+        lock_manager.release(project_id, dir_path)
 
     return "Archive uploaded and extracted"

@@ -10,6 +10,7 @@ from upload_rest_api import database, upload
 from upload_rest_api.authentication import current_user
 from upload_rest_api.database import Database, Projects
 from upload_rest_api.jobs.utils import METADATA_QUEUE, enqueue_background_job
+from upload_rest_api.lock import lock_manager
 from upload_rest_api.upload import save_file_into_db
 
 FILES_TUS_API_V1 = Blueprint(
@@ -113,47 +114,56 @@ def _upload_completed(workspace, resource):
     project_dir = Projects.get_project_directory(project_id)
     file_path = project_dir / upload_path
 
+    lock_manager.acquire(project_id, file_path)
+
     try:
-        # Validate the user's quota and content type again
-        upload.validate_upload(
-            project_id=project_id,
-            content_length=resource.upload_length,
-            content_type="application/octet-stream"
+        try:
+            # Validate the user's quota and content type again
+            upload.validate_upload(
+                project_id=project_id,
+                content_length=resource.upload_length,
+                content_type="application/octet-stream"
+            )
+
+            # Ensure the parent directories exist
+            file_path.parent.mkdir(parents=True, exist_ok=True)
+
+            # Upload passed validation, move it to the actual file storage
+            resource.upload_file_path.rename(file_path)
+            # g+w required for siptools-research
+            os.chmod(file_path, 0o664)
+        finally:
+            # Delete the tus-specific workspace regardless of the outcome.
+            workspace.remove()
+            uploads.delete_one(resource.identifier)
+
+        # Use `save_file_into_db` to handle the rest using the same code path
+        # as `/v1/files` API
+        save_file_into_db(
+            file_path=file_path,
+            database=db,
+            project_id=project_id
         )
 
-        # Ensure the parent directories exist
-        file_path.parent.mkdir(parents=True, exist_ok=True)
-
-        # Upload passed validation, move it to the actual file storage
-        resource.upload_file_path.rename(file_path)
-        # g+w required for siptools-research
-        os.chmod(file_path, 0o664)
-    finally:
-        # Delete the tus-specific workspace regardless of the outcome.
-        workspace.remove()
-        uploads.delete_one(resource.identifier)
-
-    # Use `save_file_into_db` to handle the rest using the same code path
-    # as `/v1/files` API
-    save_file_into_db(
-        file_path=file_path,
-        database=db,
-        project_id=project_id
-    )
-
-    if create_metadata:
-        # If enabled, enqueue background job to create Metax metadata
-        storage_id = current_app.config.get("STORAGE_ID")
-        enqueue_background_job(
-            task_func="upload_rest_api.jobs.metadata.post_metadata",
-            queue_name=METADATA_QUEUE,
-            project_id=project_id,
-            job_kwargs={
-                "path": fpath,
-                "project_id": project_id,
-                "storage_id": storage_id
-            }
-        )
+        if create_metadata:
+            # If enabled, enqueue background job to create Metax metadata
+            storage_id = current_app.config.get("STORAGE_ID")
+            enqueue_background_job(
+                task_func="upload_rest_api.jobs.metadata.post_metadata",
+                queue_name=METADATA_QUEUE,
+                project_id=project_id,
+                job_kwargs={
+                    "path": fpath,
+                    "project_id": project_id,
+                    "storage_id": storage_id
+                }
+            )
+        else:
+            # Don't hold the lock since we're not generating metadata
+            lock_manager.release(project_id, file_path)
+    except Exception:
+        lock_manager.release(project_id, file_path)
+        raise
 
 
 def tus_event_handler(event_type, workspace, resource):

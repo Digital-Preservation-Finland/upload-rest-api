@@ -981,7 +981,7 @@ class Projects:
 
 
 def get_redis_connection():
-    """Get Redis connection used for the job queue."""
+    """Get Redis connection."""
     password = CONFIG.get("REDIS_PASSWORD", None)
     redis = Redis(
         host=CONFIG["REDIS_HOST"],

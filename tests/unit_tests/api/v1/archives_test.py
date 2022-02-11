@@ -220,9 +220,9 @@ def test_upload_archive_overwrite_file(
         )
     ]
 )
-def test_archive_integrity_validation(app, test_auth, checksum,
-                                      expected_status_code,
-                                      expected_response):
+def test_archive_integrity_validation(
+        app, test_auth, mock_redis, checksum, expected_status_code,
+        expected_response):
     """Test integrity validation of uploaded archive.
 
     Upload archive with checksum provided in HTTP request header.
@@ -254,6 +254,10 @@ def test_archive_integrity_validation(app, test_auth, checksum,
                      'test_project',
                      'test_directory')
     )
+
+    # Remove the dangling lock for the background job
+    if response.status_code == 202:
+        mock_redis.flushall()
 
 
 @pytest.mark.parametrize(
@@ -325,7 +329,7 @@ def test_upload_invalid_dir(dirpath, app, test_auth):
     assert response.json['error'] == "Page not found"
 
 
-def test_upload_archive_concurrent(
+def test_upload_archive_multiple_archives(
         app, test_auth, test_mongo, background_job_runner
 ):
     """Test that uploaded archive is extracted.
@@ -340,10 +344,6 @@ def test_upload_archive_concurrent(
         test_client, "/v1/archives/test_project", test_auth,
         "tests/data/test.zip"
     )
-    response_2 = _upload_file(
-        test_client, "/v1/archives/test_project", test_auth,
-        "tests/data/test2.zip"
-    )
     # poll with response's polling_url
     if _request_accepted(response_1):
         polling_url = response_1.json["polling_url"]
@@ -356,6 +356,10 @@ def test_upload_archive_concurrent(
         assert response_1.status_code == 404
         assert response_1.json["status"] == "Not found"
 
+    response_2 = _upload_file(
+        test_client, "/v1/archives/test_project", test_auth,
+        "tests/data/test2.zip"
+    )
     # poll with response's polling_url
     if _request_accepted(response_2):
         polling_url = response_2.json["polling_url"]

@@ -6,6 +6,7 @@ from upload_rest_api import utils
 from upload_rest_api.api.v1.tasks import TASK_STATUS_API_V1
 from upload_rest_api.authentication import current_user
 from upload_rest_api.jobs.utils import METADATA_QUEUE, enqueue_background_job
+from upload_rest_api.lock import lock_manager
 
 METADATA_API_V1 = Blueprint("metadata_v1", __name__, url_prefix="/v1/metadata")
 
@@ -26,20 +27,28 @@ def post_metadata(project_id, fpath):
 
     file_path = utils.get_upload_path(project_id, fpath)
 
-    if not os.path.exists(file_path):
-        abort(404, "File not found")
+    lock_manager.acquire(project_id, file_path)
 
-    storage_id = current_app.config.get("STORAGE_ID")
-    task_id = enqueue_background_job(
-        task_func="upload_rest_api.jobs.metadata.post_metadata",
-        queue_name=METADATA_QUEUE,
-        project_id=project_id,
-        job_kwargs={
-            "path": fpath,
-            "project_id": project_id,
-            "storage_id": storage_id
-        }
-    )
+    try:
+        if not os.path.exists(file_path):
+            abort(404, "File not found")
+
+        storage_id = current_app.config.get("STORAGE_ID")
+        task_id = enqueue_background_job(
+            task_func="upload_rest_api.jobs.metadata.post_metadata",
+            queue_name=METADATA_QUEUE,
+            project_id=project_id,
+            job_kwargs={
+                "path": fpath,
+                "project_id": project_id,
+                "storage_id": storage_id
+            }
+        )
+    except Exception:
+        # Ensure we don't hold the lock if we are unable to enqueue
+        # the background job
+        lock_manager.release(project_id, file_path)
+        raise
 
     polling_url = utils.get_polling_url(TASK_STATUS_API_V1.name, task_id)
     ret_path = utils.get_return_path(project_id, file_path)
@@ -74,15 +83,20 @@ def delete_metadata(project_id, fpath):
 
     file_path = utils.get_upload_path(project_id, fpath)
 
-    task_id = enqueue_background_job(
-        task_func="upload_rest_api.jobs.metadata.delete_metadata",
-        queue_name=METADATA_QUEUE,
-        project_id=project_id,
-        job_kwargs={
-            "fpath": fpath,
-            "project_id": project_id
-        }
-    )
+    lock_manager.acquire(project_id, file_path)
+    try:
+        task_id = enqueue_background_job(
+            task_func="upload_rest_api.jobs.metadata.delete_metadata",
+            queue_name=METADATA_QUEUE,
+            project_id=project_id,
+            job_kwargs={
+                "fpath": fpath,
+                "project_id": project_id
+            }
+        )
+    except Exception:
+        lock_manager.release(project_id, file_path)
+        raise
 
     polling_url = utils.get_polling_url(TASK_STATUS_API_V1.name, task_id)
     ret_path = utils.get_return_path(project_id, file_path)

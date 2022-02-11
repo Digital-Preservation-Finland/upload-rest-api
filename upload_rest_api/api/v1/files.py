@@ -16,6 +16,7 @@ from flask import (Blueprint, abort, current_app, jsonify, request, safe_join,
 from upload_rest_api.api.v1.tasks import TASK_STATUS_API_V1
 from upload_rest_api.authentication import current_user
 from upload_rest_api.jobs.utils import FILES_QUEUE, enqueue_background_job
+from upload_rest_api.lock import lock_manager
 
 FILES_API_V1 = Blueprint("files_v1", __name__, url_prefix="/v1/files")
 
@@ -43,7 +44,7 @@ def upload_file(project_id, fpath):
         abort(403, "No permission to access this project")
 
     database = db.Database()
-    upload_path = safe_join("", fpath)
+    rel_upload_path = safe_join("", fpath)
 
     up.validate_upload(
         project_id, request.content_length, request.content_type
@@ -53,11 +54,11 @@ def upload_file(project_id, fpath):
                        project_id,
                        request.stream,
                        request.args.get('md5', None),
-                       upload_path)
+                       rel_upload_path)
 
     return jsonify(
         {
-            'file_path': f"/{upload_path}",
+            'file_path': f"/{rel_upload_path}",
             'md5': md5,
             'status': 'created'
         }
@@ -155,17 +156,18 @@ def delete_path(project_id, fpath):
     project_dir = database.projects.get_project_directory(project_id)
 
     if os.path.isfile(upload_path):
-        # Remove metadata from Metax
-        try:
-            response = md.MetaxClient().delete_file_metadata(
-                project_id, upload_path, root_upload_path
-            )
-        except md.MetaxClientError as exception:
-            response = str(exception)
+        with lock_manager.lock(project_id, upload_path):
+            # Remove metadata from Metax
+            try:
+                response = md.MetaxClient().delete_file_metadata(
+                    project_id, upload_path, root_upload_path
+                )
+            except md.MetaxClientError as exception:
+                response = str(exception)
 
-        # Remove checksum from mongo
-        database.checksums.delete_one(os.path.abspath(upload_path))
-        os.remove(upload_path)
+            # Remove checksum from mongo
+            database.checksums.delete_one(os.path.abspath(upload_path))
+            os.remove(upload_path)
 
     elif upload_path.exists() \
             and upload_path.samefile(project_dir) \
@@ -201,26 +203,36 @@ def delete_path(project_id, fpath):
             trash_id=trash_id,
             file_path=fpath
         )
-        trash_path.parent.mkdir(exist_ok=True, parents=True)
-        upload_path.rename(trash_path)
+        # Acquire a lock *and* keep it alive even after this HTTP request.
+        # It will be released by the 'delete_files' background job once it
+        # finishes.
+        lock_manager.acquire(project_id, upload_path)
 
-        if is_project_dir:
-            # If we're deleting the entire project directory, create an empty
-            # directory before proceeding with deletion
-            project_dir.mkdir(exist_ok=True)
+        try:
+            trash_path.parent.mkdir(exist_ok=True, parents=True)
+            upload_path.rename(trash_path)
 
-        # Remove all file metadata of files under fpath from Metax
-        task_id = enqueue_background_job(
-            task_func="upload_rest_api.jobs.files.delete_files",
-            queue_name=FILES_QUEUE,
-            project_id=project_id,
-            job_kwargs={
-                "fpath": upload_path,
-                "trash_path": trash_path,
-                "trash_root": trash_root,
-                "project_id": project_id,
-            }
-        )
+            if is_project_dir:
+                # If we're deleting the entire project directory, create an
+                # empty directory before proceeding with deletion
+                project_dir.mkdir(exist_ok=True)
+
+            # Remove all file metadata of files under fpath from Metax
+            task_id = enqueue_background_job(
+                task_func="upload_rest_api.jobs.files.delete_files",
+                queue_name=FILES_QUEUE,
+                project_id=project_id,
+                job_kwargs={
+                    "fpath": upload_path,
+                    "trash_path": trash_path,
+                    "trash_root": trash_root,
+                    "project_id": project_id,
+                }
+            )
+        except Exception:
+            # If we couldn't enqueue background job, release the lock
+            lock_manager.release(project_id, upload_path)
+            raise
 
         polling_url = utils.get_polling_url(TASK_STATUS_API_V1.name, task_id)
         response = jsonify({
