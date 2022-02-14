@@ -1,5 +1,6 @@
 """REST api for uploading files into passipservice."""
 import logging
+import sys
 
 import upload_rest_api.authentication as auth
 from flask import Flask
@@ -42,6 +43,15 @@ def create_app():
 
     :returns: Instance of flask.Flask()
     """
+    if sys.getfilesystemencoding() != "utf-8":
+        # If detected filesystem encoding is incorrect, halt immediately.
+        # Wrong file system encoding will cause file names on disk to be
+        # handled incorrectly.
+        raise EnvironmentError(
+            f"Expected file system encoding to be 'utf-8', "
+            f"found {sys.getfilesystemencoding()} instead."
+        )
+
     app = Flask(__name__)
 
     try:
