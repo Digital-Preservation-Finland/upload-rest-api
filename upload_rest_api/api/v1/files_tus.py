@@ -1,13 +1,16 @@
 """
 Event handler for the /files_tus/v1 endpoint.
 """
+import os
+
 import flask_tus_io
-from flask import Blueprint, abort, safe_join, current_app
+from flask import Blueprint, abort, current_app, safe_join
+
 from upload_rest_api import database, upload
 from upload_rest_api.authentication import current_user
 from upload_rest_api.database import Database, Projects
+from upload_rest_api.jobs.utils import METADATA_QUEUE, enqueue_background_job
 from upload_rest_api.upload import save_file_into_db
-from upload_rest_api.jobs.utils import enqueue_background_job, METADATA_QUEUE
 
 FILES_TUS_API_V1 = Blueprint(
     "files_tus_v1", __name__, url_prefix="/v1/files_tus"
@@ -123,6 +126,8 @@ def _upload_completed(workspace, resource):
 
         # Upload passed validation, move it to the actual file storage
         resource.upload_file_path.rename(file_path)
+        # g+w required for siptools-research
+        os.chmod(file_path, 0o664)
     finally:
         # Delete the tus-specific workspace regardless of the outcome.
         workspace.remove()

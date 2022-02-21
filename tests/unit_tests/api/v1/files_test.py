@@ -59,6 +59,10 @@ def test_upload(app, test_auth, test_mongo):
     assert fpath.read_bytes() \
         == pathlib.Path("tests/data/test.txt").read_bytes()
 
+    # Check that the file has 664 permissions. The group write permission
+    # is required, otherwise siptools-research will crash later.
+    assert oct(fpath.stat().st_mode)[5:8] == "664"
+
     # Check that the uploaded files checksum was added to mongo
     checksum = checksums.find_one({"_id": str(fpath)})["checksum"]
     assert checksum == "150b62e4e7d58c70503bd5fc8a26463c"

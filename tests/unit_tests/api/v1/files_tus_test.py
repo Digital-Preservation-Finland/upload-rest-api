@@ -1,9 +1,9 @@
 """Tests for `upload_rest_api.api.v1.files_tus` module."""
 
+import pathlib
 from io import BytesIO
 
 import pytest
-
 from flask_tus_io.resource import encode_tus_meta
 
 
@@ -54,10 +54,12 @@ def _do_tus_upload(test_client, upload_metadata, data, auth):
 
 
 @pytest.mark.usefixtures("project")
-def test_upload(test_client, test_auth, test_mongo):
+def test_upload(test_client, app, test_auth, test_mongo):
     """
     Test uploading a small file
     """
+    upload_path = app.config.get("UPLOAD_PATH")
+
     data = b"XyzzyXyzzy"
     upload_metadata = {
         "project_id": "test_project",
@@ -77,6 +79,14 @@ def test_upload(test_client, test_auth, test_mongo):
     assert len(checksums) == 1
     assert checksums[0]["_id"].endswith("test.txt")
     assert checksums[0]["checksum"] == "a5d1741953bf0c12b7a097f58944e474"
+
+    fpath = pathlib.Path(upload_path) / "test_project/test.txt"
+
+    assert fpath.read_bytes() == b"XyzzyXyzzy"
+
+    # Check that the file has 664 permissions. The group write permission
+    # is required, otherwise siptools-research will crash later.
+    assert oct(fpath.stat().st_mode)[5:8] == "664"
 
     used_quota = test_mongo.upload.projects.find_one(
         {"_id": "test_project"}
