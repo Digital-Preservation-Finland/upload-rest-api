@@ -15,8 +15,8 @@ def parse_user_path(root, *paths):
     it to a full path and return the fully resolved path.
 
     :param root: Root path
-    :param path: User-provided relative path. This has to be relative to
-                 `root` after it has been resolved.
+    :param paths: User-provided relative path component(s).
+                  This has to be relative to `root` after it has been resolved.
     :raises ValueError: If user-provided path is not relative to `root`
     :returns: Fully resolved path
     """

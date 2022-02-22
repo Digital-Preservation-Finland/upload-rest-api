@@ -54,7 +54,10 @@ def _do_tus_upload(test_client, upload_metadata, data, auth):
 
 
 @pytest.mark.usefixtures("project")
-def test_upload(test_client, app, test_auth, test_mongo):
+@pytest.mark.parametrize(
+    "name", ("test.txt", "tämäontesti.txt", "tämä on testi.txt")
+)
+def test_upload(app, test_client, test_auth, test_mongo, name):
     """
     Test uploading a small file
     """
@@ -63,8 +66,8 @@ def test_upload(test_client, app, test_auth, test_mongo):
     data = b"XyzzyXyzzy"
     upload_metadata = {
         "project_id": "test_project",
-        "filename": "test.txt",
-        "file_path": "test.txt",
+        "filename": name,
+        "file_path": name,
     }
 
     _do_tus_upload(
@@ -77,10 +80,10 @@ def test_upload(test_client, app, test_auth, test_mongo):
     # Uploaded file was added to database
     checksums = list(test_mongo.upload.checksums.find())
     assert len(checksums) == 1
-    assert checksums[0]["_id"].endswith("test.txt")
+    assert checksums[0]["_id"].endswith(name)
     assert checksums[0]["checksum"] == "a5d1741953bf0c12b7a097f58944e474"
 
-    fpath = pathlib.Path(upload_path) / "test_project/test.txt"
+    fpath = pathlib.Path(upload_path) / "test_project" / name
 
     assert fpath.read_bytes() == b"XyzzyXyzzy"
 
@@ -153,7 +156,11 @@ def test_upload_create_metadata(
 
 
 @pytest.mark.usefixtures("project")
-def test_upload_deep_directory(test_client, test_auth, test_mongo, upload_tmpdir):
+@pytest.mark.parametrize(
+    "name", ("test.txt", "tämäontesti.txt", "tämä on testi.txt")
+)
+def test_upload_deep_directory(
+        test_client, test_auth, test_mongo, upload_tmpdir, name):
     """
     Test uploading a small file within a directory hierarchy, and ensure
     the directories are created as well
@@ -162,8 +169,8 @@ def test_upload_deep_directory(test_client, test_auth, test_mongo, upload_tmpdir
 
     upload_metadata = {
         "project_id": "test_project",
-        "filename": "test.txt",
-        "file_path": "foo/bar/test.txt",
+        "filename": name,
+        "file_path": f"foo/bar/{name}",
     }
 
     _do_tus_upload(
@@ -176,13 +183,13 @@ def test_upload_deep_directory(test_client, test_auth, test_mongo, upload_tmpdir
     # Uploaded file was added to database
     checksums = list(test_mongo.upload.checksums.find())
     assert len(checksums) == 1
-    assert checksums[0]["_id"].endswith("test.txt")
+    assert checksums[0]["_id"].endswith(name)
     assert checksums[0]["checksum"] == "a5d1741953bf0c12b7a097f58944e474"
 
     # Intermediary directories created, and file is inside it
     content = (
         upload_tmpdir / "projects" / "test_project"
-        / "foo" / "bar" / "test.txt"
+        / "foo" / "bar" / name
     ).read_text(encoding="utf-8")
     assert content == "XyzzyXyzzy"
 

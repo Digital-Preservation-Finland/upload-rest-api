@@ -8,8 +8,7 @@ import secrets
 import shutil
 
 import metax_access
-from flask import (Blueprint, abort, current_app, jsonify, request, safe_join,
-                   url_for)
+from flask import Blueprint, abort, current_app, jsonify, request, url_for
 
 import upload_rest_api.database as db
 import upload_rest_api.gen_metadata as md

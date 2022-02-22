@@ -39,22 +39,30 @@ def test_incorrect_authentication(app, wrong_auth):
     assert response.status_code == 401
 
 
-def test_upload(app, test_auth, test_mongo):
+@pytest.mark.parametrize(
+    "name",
+    [
+        "test.txt",
+        "tämäontesti.txt",
+        "tämä on testi.txt"
+    ]
+)
+def test_upload(app, test_auth, test_mongo, name):
     """Test uploading a plain text file."""
     test_client = app.test_client()
     upload_path = app.config.get("UPLOAD_PROJECTS_PATH")
     checksums = test_mongo.upload.checksums
 
     response = _upload_file(
-        test_client, "/v1/files/test_project/test.txt",
+        test_client, f"/v1/files/test_project/{name}",
         test_auth, "tests/data/test.txt"
     )
     assert response.status_code == 200
     assert response.json['md5'] == '150b62e4e7d58c70503bd5fc8a26463c'
     assert response.json['status'] == 'created'
-    assert response.json['file_path'] == '/test.txt'
+    assert response.json['file_path'] == f'/{name}'
 
-    fpath = pathlib.Path(upload_path, "test_project/test.txt")
+    fpath = pathlib.Path(upload_path, "test_project", name)
     assert fpath.is_file()
     assert fpath.read_bytes() \
         == pathlib.Path("tests/data/test.txt").read_bytes()
@@ -69,7 +77,7 @@ def test_upload(app, test_auth, test_mongo):
 
     # Test that trying to upload the file again returns 409 Conflict
     response = _upload_file(
-        test_client, "/v1/files/test_project/test.txt",
+        test_client, f"/v1/files/test_project/{name}",
         test_auth, "tests/data/test.txt"
     )
     assert response.status_code == 409
@@ -277,7 +285,10 @@ def test_get_file(app, test_auth, test2_auth, test3_auth, test_mongo):
     assert response.json['error'] == 'No permission to access this project'
 
 
-def test_delete_file(app, test_auth, requests_mock, test_mongo):
+@pytest.mark.parametrize(
+    "name", ("test.txt", "tämäontesti.txt", "tämä on testi.txt")
+)
+def test_delete_file(app, test_auth, requests_mock, test_mongo, name):
     """Test DELETE for single file."""
     response = {
         "next": None,
@@ -285,7 +296,7 @@ def test_delete_file(app, test_auth, requests_mock, test_mongo):
             {
                 "id": "foo",
                 "identifier": "foo",
-                "file_path": "/test.txt",
+                "file_path": f"/{name}",
                 "file_storage": {
                     "identifier": "urn:nbn:fi:att:file-storage-pas"
                 }
@@ -305,14 +316,14 @@ def test_delete_file(app, test_auth, requests_mock, test_mongo):
 
     test_client = app.test_client()
     upload_path = app.config.get("UPLOAD_PROJECTS_PATH")
-    fpath = os.path.join(upload_path, "test_project/test.txt")
+    fpath = os.path.join(upload_path, "test_project", name)
 
     shutil.copy("tests/data/test.txt", fpath)
     test_mongo.upload.checksums.insert_one({"_id": fpath, "checksum": "foo"})
 
     # DELETE file that exists
     response = test_client.delete(
-        "/v1/files/test_project/test.txt",
+        f"/v1/files/test_project/{name}",
         headers=test_auth
     )
 
@@ -323,7 +334,7 @@ def test_delete_file(app, test_auth, requests_mock, test_mongo):
 
     # DELETE file that does not exist
     response = test_client.delete(
-        "/v1/files/test_project/test.txt",
+        f"/v1/files/test_project/{name}",
         headers=test_auth
     )
     assert response.status_code == 404

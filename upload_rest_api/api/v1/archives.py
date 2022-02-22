@@ -4,7 +4,7 @@ Functionality for uploading and extracting an archive.
 """
 from archive_helpers.extract import (MemberNameError, MemberOverwriteError,
                                      MemberTypeError)
-from flask import Blueprint, abort, jsonify, request, safe_join
+from flask import Blueprint, abort, jsonify, request
 
 import upload_rest_api.database as db
 import upload_rest_api.upload as up
