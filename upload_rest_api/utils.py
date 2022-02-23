@@ -30,6 +30,29 @@ def parse_user_path(root, *paths):
     return full_path
 
 
+def parse_relative_user_path(path):
+    """
+    Parse a relative path returned by the user and return it in a sanitized
+    form.
+
+    :param path: Relative path returned by user
+    :raises ValueError: If user-provided path attempts to escape root
+
+    :returns: Safe relative path
+    """
+    # Will raise ValueError on attempted path escape
+    path = parse_user_path(
+        "/root_directory", path
+    ).relative_to("/root_directory")
+    path = str(path)
+
+    # Ensure the path is returned without '.'
+    if path == ".":
+        path = ""
+
+    return path
+
+
 def get_upload_path(project_id, file_path):
     """Get upload path for file/directory.
 

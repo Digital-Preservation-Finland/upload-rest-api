@@ -8,12 +8,13 @@ import secrets
 import shutil
 
 import metax_access
+from flask import (Blueprint, abort, current_app, jsonify, request, safe_join,
+                   url_for)
+
 import upload_rest_api.database as db
 import upload_rest_api.gen_metadata as md
 import upload_rest_api.upload as up
-import upload_rest_api.utils as utils
-from flask import (Blueprint, abort, current_app, jsonify, request, safe_join,
-                   url_for)
+from upload_rest_api import utils
 from upload_rest_api.api.v1.tasks import TASK_STATUS_API_V1
 from upload_rest_api.authentication import current_user
 from upload_rest_api.jobs.utils import FILES_QUEUE, enqueue_background_job
@@ -45,7 +46,10 @@ def upload_file(project_id, fpath):
         abort(403, "No permission to access this project")
 
     database = db.Database()
-    rel_upload_path = safe_join("", fpath)
+    try:
+        rel_upload_path = utils.parse_relative_user_path(fpath)
+    except ValueError:
+        abort(404)
 
     up.validate_upload(
         project_id, request.content_length, request.content_type

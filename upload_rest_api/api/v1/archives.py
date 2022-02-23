@@ -2,11 +2,13 @@
 
 Functionality for uploading and extracting an archive.
 """
-import upload_rest_api.database as db
-import upload_rest_api.upload as up
 from archive_helpers.extract import (MemberNameError, MemberOverwriteError,
                                      MemberTypeError)
 from flask import Blueprint, abort, jsonify, request, safe_join
+
+import upload_rest_api.database as db
+import upload_rest_api.upload as up
+from upload_rest_api.utils import parse_relative_user_path
 
 ARCHIVES_API_V1 = Blueprint("archives_v1", __name__, url_prefix="/v1/archives")
 
@@ -24,9 +26,12 @@ def upload_archive(project_id):
         project_id, request.content_length, request.content_type
     )
 
-    rel_upload_path = safe_join(
-        "", request.args.get('dir', default='').lstrip('/')
-    )
+    try:
+        rel_upload_path = parse_relative_user_path(
+            request.args.get('dir', default='').lstrip('/')
+        )
+    except ValueError:
+        abort(404)
 
     try:
         polling_url = up.save_archive(

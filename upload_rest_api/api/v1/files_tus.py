@@ -4,7 +4,7 @@ Event handler for the /files_tus/v1 endpoint.
 import os
 
 import flask_tus_io
-from flask import Blueprint, abort, current_app, safe_join
+from flask import Blueprint, abort, current_app
 
 from upload_rest_api import database, upload
 from upload_rest_api.authentication import current_user
@@ -12,6 +12,7 @@ from upload_rest_api.database import Database, Projects
 from upload_rest_api.jobs.utils import METADATA_QUEUE, enqueue_background_job
 from upload_rest_api.lock import lock_manager
 from upload_rest_api.upload import save_file_into_db
+from upload_rest_api.utils import parse_relative_user_path
 
 FILES_TUS_API_V1 = Blueprint(
     "files_tus_v1", __name__, url_prefix="/v1/files_tus"
@@ -46,7 +47,11 @@ def _upload_started(workspace, resource):
         if not current_user.is_allowed_to_access_project(project_id):
             abort(403)
 
-        upload_path = safe_join("", fpath)
+        try:
+            upload_path = parse_relative_user_path(fpath)
+        except ValueError:
+            abort(404)
+
         project_dir = Projects.get_project_directory(project_id)
         file_path = project_dir / upload_path
 
@@ -110,7 +115,11 @@ def _upload_completed(workspace, resource):
     create_metadata = \
         resource.upload_metadata.get("create_metadata", "") == "true"
 
-    upload_path = safe_join("", fpath)
+    try:
+        upload_path = parse_relative_user_path(fpath)
+    except ValueError:
+        abort(404)
+
     project_dir = Projects.get_project_directory(project_id)
     file_path = project_dir / upload_path
 
