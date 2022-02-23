@@ -42,7 +42,7 @@ def test_incorrect_authentication(app, wrong_auth):
 def test_upload(app, test_auth, test_mongo):
     """Test uploading a plain text file."""
     test_client = app.test_client()
-    upload_path = app.config.get("UPLOAD_PATH")
+    upload_path = app.config.get("UPLOAD_PROJECTS_PATH")
     checksums = test_mongo.upload.checksums
 
     response = _upload_file(
@@ -80,7 +80,7 @@ def test_upload_max_size(app, test_auth):
     # Set max upload size to 1 byte
     app.config["MAX_CONTENT_LENGTH"] = 1
     test_client = app.test_client()
-    upload_path = app.config.get("UPLOAD_PATH")
+    upload_path = app.config.get("UPLOAD_PROJECTS_PATH")
 
     response = _upload_file(
         test_client, "/v1/files/test_project/test.txt",
@@ -97,7 +97,7 @@ def test_upload_max_size(app, test_auth):
 def test_user_quota(app, database, test_auth):
     """Test uploading files larger than allowed by user quota."""
     test_client = app.test_client()
-    upload_path = app.config.get("UPLOAD_PATH")
+    upload_path = app.config.get("UPLOAD_PROJECTS_PATH")
 
     database.projects.set_quota("test_project", 200)
     database.projects.set_used_quota("test_project", 0)
@@ -244,7 +244,7 @@ def test_file_integrity_validation(app, test_auth, checksum,
 def test_get_file(app, test_auth, test2_auth, test3_auth, test_mongo):
     """Test GET for single file."""
     test_client = app.test_client()
-    upload_path = app.config.get("UPLOAD_PATH")
+    upload_path = app.config.get("UPLOAD_PROJECTS_PATH")
 
     fpath = os.path.join(upload_path, "test_project/test.txt")
     shutil.copy("tests/data/test.txt", fpath)
@@ -304,7 +304,7 @@ def test_delete_file(app, test_auth, requests_mock, test_mongo):
                          json='/test.txt')
 
     test_client = app.test_client()
-    upload_path = app.config.get("UPLOAD_PATH")
+    upload_path = app.config.get("UPLOAD_PROJECTS_PATH")
     fpath = os.path.join(upload_path, "test_project/test.txt")
 
     shutil.copy("tests/data/test.txt", fpath)
@@ -386,7 +386,7 @@ def test_get_files(app, test_auth, path, expected_data, requests_mock):
     )
 
     # Create sample directory structure
-    upload_path = app.config.get("UPLOAD_PATH")
+    upload_path = app.config.get("UPLOAD_PROJECTS_PATH")
     os.makedirs(os.path.join(upload_path, "test_project/dir1"))
     os.makedirs(os.path.join(upload_path, "test_project/dir2/subdir1"))
     shutil.copy(
@@ -423,7 +423,7 @@ def test_get_directory_without_identifier(app, test_auth, requests_mock):
     :param test_auth: authentication headers
     """
     # Create test directory
-    upload_path = app.config.get("UPLOAD_PATH")
+    upload_path = app.config.get("UPLOAD_PROJECTS_PATH")
     os.makedirs(os.path.join(upload_path, "test_project/test_directory"))
 
     # Metax responds with 404, which means that test directory metadata
@@ -471,7 +471,7 @@ def test_delete_directory(
 
     # Find the target files
     project_directory \
-        = pathlib.Path(app.config.get("UPLOAD_PATH")) / 'test_project'
+        = pathlib.Path(app.config.get("UPLOAD_PROJECTS_PATH")) / 'test_project'
     target_files = list()
     for root, _, files in os.walk(project_directory / target.strip('/')):
         target_files += [pathlib.Path(root) / file_ for file_ in files]

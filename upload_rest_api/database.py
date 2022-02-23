@@ -962,7 +962,7 @@ class Projects:
         """
         conf = upload_rest_api.config.CONFIG
         return pathlib.Path(
-            conf["UPLOAD_PATH"],
+            conf["UPLOAD_PROJECTS_PATH"],
             secure_filename(project_id)
         )
 

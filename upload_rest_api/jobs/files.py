@@ -47,7 +47,7 @@ def delete_files(fpath, trash_path, trash_root, project_id, task_id):
     :param str project: project identifier
     :param str task_id: mongo dentifier of the task
     """
-    root_upload_path = CONFIG["UPLOAD_PATH"]
+    root_upload_path = CONFIG["UPLOAD_PROJECTS_PATH"]
 
     # Remove metadata from Metax
     metax_client = md.MetaxClient()

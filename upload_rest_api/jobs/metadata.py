@@ -22,7 +22,7 @@ def post_metadata(path, project_id, storage_id, task_id):
     :param str storage_id: pas storage identifier in Metax
     :param str task_id: mongo dentifier of the task
     """
-    root_upload_path = CONFIG["UPLOAD_PATH"]
+    root_upload_path = CONFIG["UPLOAD_PROJECTS_PATH"]
 
     metax_client = md.MetaxClient()
     database = db.Database()
@@ -78,7 +78,7 @@ def delete_metadata(fpath, project_id, task_id):
     :param str project_id: project identifier
     :param str task_id: mongo dentifier of the task
     """
-    root_upload_path = CONFIG["UPLOAD_PATH"]
+    root_upload_path = CONFIG["UPLOAD_PROJECTS_PATH"]
 
     metax_client = md.MetaxClient()
     database = db.Database()

@@ -58,7 +58,7 @@ def test_upload(test_client, app, test_auth, test_mongo):
     """
     Test uploading a small file
     """
-    upload_path = app.config.get("UPLOAD_PATH")
+    upload_path = app.config.get("UPLOAD_PROJECTS_PATH")
 
     data = b"XyzzyXyzzy"
     upload_metadata = {

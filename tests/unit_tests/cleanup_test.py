@@ -14,7 +14,7 @@ def test_no_expired_files(mock_config):
     mock_config["CLEANUP_TIMELIM"] = 10
 
     # Make test directory with test.txt file
-    dirpath = os.path.join(mock_config["UPLOAD_PATH"], "test")
+    dirpath = os.path.join(mock_config["UPLOAD_PROJECTS_PATH"], "test")
     fpath = os.path.join(dirpath, "test.txt")
     os.makedirs(dirpath)
     shutil.copy("tests/data/test.txt", fpath)
@@ -41,7 +41,7 @@ def test_expired_files(test_mongo, mock_config):
     removed.
     """
     mock_config["CLEANUP_TIMELIM"] = 10
-    upload_path = mock_config["UPLOAD_PATH"]
+    upload_path = mock_config["UPLOAD_PROJECTS_PATH"]
 
     # Make test directories with test.txt files
     fpath = os.path.join(upload_path, "test/test.txt")
@@ -83,7 +83,7 @@ def test_all_files_expired(test_mongo, mock_config):
     expired.
     """
     mock_config["CLEANUP_TIMELIM"] = 10
-    upload_path = pathlib.Path(mock_config["UPLOAD_PATH"])
+    upload_path = pathlib.Path(mock_config["UPLOAD_PROJECTS_PATH"])
     project_path = upload_path / "test_project"
     project_path.mkdir()
 
@@ -148,7 +148,7 @@ def test_expired_tasks(test_mongo, mock_config):
 def test_clean_project(mock_config, requests_mock):
     """Test cleaning project."""
     project = 'foo'
-    project_path = pathlib.Path(mock_config['UPLOAD_PATH']) / project
+    project_path = pathlib.Path(mock_config['UPLOAD_PROJECTS_PATH']) / project
 
     # Mock metax
     requests_mock.get('https://metax.localdomain/rest/v2/files',

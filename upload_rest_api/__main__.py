@@ -302,7 +302,7 @@ def _generate_metadata(args):
 
     conf = upload_rest_api.config.CONFIG
     project = args.project
-    project_path = os.path.join(conf["UPLOAD_PATH"], project)
+    project_path = os.path.join(conf["UPLOAD_PROJECTS_PATH"], project)
     metax_client = md.MetaxClient(conf["METAX_URL"],
                                   conf["METAX_USER"],
                                   conf["METAX_PASSWORD"],
@@ -315,7 +315,7 @@ def _generate_metadata(args):
 
     # POST metadata to Metax
     response = metax_client.post_metadata(
-        fpaths, conf["UPLOAD_PATH"], project, md.PAS_FILE_STORAGE_ID
+        fpaths, conf["UPLOAD_PROJECTS_PATH"], project, md.PAS_FILE_STORAGE_ID
     )
 
     print(f"Success: {len(response['success'])}")

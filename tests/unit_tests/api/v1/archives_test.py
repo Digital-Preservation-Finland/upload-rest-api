@@ -47,7 +47,7 @@ def test_upload_archive(
     :param background_job_runner: RQ job mocker
     """
     test_client = app.test_client()
-    upload_path = pathlib.Path(app.config.get("UPLOAD_PATH"))
+    upload_path = pathlib.Path(app.config.get("UPLOAD_PROJECTS_PATH"))
     checksums = test_mongo.upload.checksums
 
     url = "/v1/archives/test_project"
@@ -118,7 +118,7 @@ def test_upload_archive_to_dirpath(
     response = background_job_runner(test_client, "upload", response)
 
     # test.txt is correctly extracted
-    text_file = (pathlib.Path(app.config.get("UPLOAD_PATH"))
+    text_file = (pathlib.Path(app.config.get("UPLOAD_PROJECTS_PATH"))
                  / 'test_project' / dirpath.lstrip('/')
                  / "test" / "test.txt")
     assert text_file.is_file()
@@ -250,7 +250,7 @@ def test_archive_integrity_validation(
 
     # Target directory should not have created yet
     assert not os.path.exists(
-        os.path.join(app.config.get('UPLOAD_PATH'),
+        os.path.join(app.config.get('UPLOAD_PROJECTS_PATH'),
                      'test_project',
                      'test_directory')
     )
@@ -337,7 +337,7 @@ def test_upload_archive_multiple_archives(
     No files should be extracted outside the project directory.
     """
     test_client = app.test_client()
-    upload_path = pathlib.Path(app.config.get("UPLOAD_PATH"))
+    upload_path = pathlib.Path(app.config.get("UPLOAD_PROJECTS_PATH"))
     checksums = test_mongo.upload.checksums
 
     response_1 = _upload_file(
@@ -407,7 +407,7 @@ def test_upload_invalid_archive(
     and doesn't create any files.
     """
     test_client = app.test_client()
-    upload_path = pathlib.Path(app.config.get("UPLOAD_PATH"))
+    upload_path = pathlib.Path(app.config.get("UPLOAD_PROJECTS_PATH"))
     checksums = test_mongo.upload.checksums
 
     response = _upload_file(

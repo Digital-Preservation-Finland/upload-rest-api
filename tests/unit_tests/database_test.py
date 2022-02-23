@@ -44,7 +44,7 @@ def test_create_user(user, database, mock_config):
     assert project_dict["quota"] == 5 * 1024**3
     assert project_dict["used_quota"] == 0
 
-    assert (pathlib.Path(mock_config["UPLOAD_PATH"]) / "test_project").is_dir()
+    assert (pathlib.Path(mock_config["UPLOAD_PROJECTS_PATH"]) / "test_project").is_dir()
 
 
 def test_create_two_users(user):

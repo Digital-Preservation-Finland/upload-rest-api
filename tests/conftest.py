@@ -63,7 +63,8 @@ def mock_config(monkeypatch, upload_tmpdir):
 
         monkeypatch.setitem(CONFIG, key, value)
 
-    monkeypatch.setitem(CONFIG, "UPLOAD_PATH", str(projects_path))
+    monkeypatch.setitem(CONFIG, "UPLOAD_BASE_PATH", str(upload_tmpdir))
+    monkeypatch.setitem(CONFIG, "UPLOAD_PROJECTS_PATH", str(projects_path))
     monkeypatch.setitem(CONFIG, "UPLOAD_TMP_PATH", str(temp_upload_path))
     monkeypatch.setitem(CONFIG, "UPLOAD_TRASH_PATH", str(trash_path))
 
@@ -270,7 +271,7 @@ def app(test_mongo, mock_config, database, monkeypatch):
     monkeypatch.setattr("pymongo.MongoClient", lambda *args: test_mongo)
 
     flask_app.config["TESTING"] = True
-    flask_app.config["UPLOAD_PATH"] = mock_config["UPLOAD_PATH"]
+    flask_app.config["UPLOAD_PROJECTS_PATH"] = mock_config["UPLOAD_PROJECTS_PATH"]
     flask_app.config["UPLOAD_TMP_PATH"] = mock_config["UPLOAD_TMP_PATH"]
     flask_app.config["TUS_API_SPOOL_PATH"] = mock_config["TUS_API_SPOOL_PATH"]
 

@@ -58,7 +58,7 @@ def _clean_old_tasks(time_lim):
 def _get_projects():
     """Return a list of all projects with files uploaded."""
     conf = upload_rest_api.config.CONFIG
-    upload_path = conf["UPLOAD_PATH"]
+    upload_path = conf["UPLOAD_PROJECTS_PATH"]
     dirs = []
 
     for _dir in os.listdir(upload_path):
@@ -104,7 +104,7 @@ def clean_project(project_id, fpath, metax=True):
     """
     conf = upload_rest_api.config.CONFIG
     time_lim = conf["CLEANUP_TIMELIM"]
-    upload_path = conf["UPLOAD_PATH"]
+    upload_path = conf["UPLOAD_PROJECTS_PATH"]
 
     current_time = time.time()
     metax_client = None
@@ -152,7 +152,7 @@ def clean_disk(metax=True):
     :returns: Count of deleted files
     """
     conf = upload_rest_api.config.CONFIG
-    upload_path = conf["UPLOAD_PATH"]
+    upload_path = conf["UPLOAD_PROJECTS_PATH"]
     deleted_count = 0
 
     projects = os.listdir(upload_path)

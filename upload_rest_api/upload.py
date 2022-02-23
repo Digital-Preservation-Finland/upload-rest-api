@@ -113,7 +113,7 @@ def save_file_into_db(file_path, database, project_id):
 
     # Update quota
     database.projects.update_used_quota(
-        project_id, current_app.config.get("UPLOAD_PATH")
+        project_id, current_app.config.get("UPLOAD_PROJECTS_PATH")
     )
 
     return md5
@@ -214,7 +214,7 @@ def validate_upload(project_id, content_length, content_type):
     # first, since multiple users might be using the same project
     database = Database()
     database.projects.update_used_quota(
-        project_id, current_app.config.get("UPLOAD_PATH")
+        project_id, current_app.config.get("UPLOAD_PROJECTS_PATH")
     )
     project = database.projects.get(project_id)
     remaining_quota = project["quota"] - project["used_quota"]

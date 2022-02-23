@@ -37,7 +37,7 @@ def _get_dir_tree(project_id, fpath):
 
 @FILES_API_V1.route("/<string:project_id>/<path:fpath>", methods=["POST"])
 def upload_file(project_id, fpath):
-    """Save the uploaded file at <UPLOAD_PATH>/project/fpath.
+    """Save the uploaded file at <UPLOAD_PROJECTS_PATH>/project/fpath.
 
     :returns: HTTP Response
     """
@@ -151,7 +151,7 @@ def delete_path(project_id, fpath):
     if not current_user.is_allowed_to_access_project(project_id):
         abort(403, "No permission to access this project")
 
-    root_upload_path = current_app.config.get("UPLOAD_PATH")
+    root_upload_path = current_app.config.get("UPLOAD_PROJECTS_PATH")
     database = db.Database()
     upload_path = utils.get_upload_path(project_id, fpath)
     project_dir = database.projects.get_project_directory(project_id)

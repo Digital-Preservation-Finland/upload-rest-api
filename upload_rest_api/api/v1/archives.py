@@ -15,7 +15,7 @@ ARCHIVES_API_V1 = Blueprint("archives_v1", __name__, url_prefix="/v1/archives")
     "/<string:project_id>", methods=["POST"], strict_slashes=False
 )
 def upload_archive(project_id):
-    """Upload and extract the archive at <UPLOAD_PATH>/project.
+    """Upload and extract the archive at <UPLOAD_PROJECTS_PATH>/project.
 
     :returns: HTTP Response
     """

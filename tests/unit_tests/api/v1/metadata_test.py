@@ -65,7 +65,7 @@ def test_delete_metadata(
                          json={})
 
     test_client = app.test_client()
-    upload_path = app.config.get("UPLOAD_PATH")
+    upload_path = app.config.get("UPLOAD_PROJECTS_PATH")
     test_path_1 = os.path.join(upload_path, "test_project/test.txt")
     test_path_2 = os.path.join(upload_path, "test_project/test/test.txt")
 
@@ -147,7 +147,7 @@ def test_delete_metadata_dataset_accepted(
                          json={})
 
     test_client = app.test_client()
-    upload_path = app.config.get("UPLOAD_PATH")
+    upload_path = app.config.get("UPLOAD_PROJECTS_PATH")
     test_path_1 = os.path.join(upload_path, "test_project/test.txt")
     test_path_2 = os.path.join(upload_path, "test_project/test/test.txt")
 

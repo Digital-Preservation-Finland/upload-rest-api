@@ -80,7 +80,7 @@ class ProjectLockManager:
         self.redis = get_redis_connection()
         self.lua_acquire = self.redis.register_script(LOCK_ACQUIRE_LUA)
 
-        self.upload_path = CONFIG["UPLOAD_PATH"]
+        self.upload_path = CONFIG["UPLOAD_PROJECTS_PATH"]
         self.default_lock_ttl = CONFIG.get(
             "UPLOAD_LOCK_TTL", DEFAULT_LOCK_TTL
         )
