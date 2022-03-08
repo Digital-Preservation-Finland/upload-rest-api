@@ -24,8 +24,9 @@ test-with-db-logging:
 		--junitprefix=upload_rest_api --junitxml=junit.xml
 
 coverage:
-	${PYTHON} -m pytest tests/unit_tests --cov=upload_rest_api --cov-report=html
-	coverage report -m
+	${PYTHON} -m pytest tests/unit_tests -svvv \
+		--cov=upload_rest_api --cov-fail-under=80 \
+		--cov-report=term-missing
 	coverage html
 	coverage xml
 
