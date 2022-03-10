@@ -1,15 +1,33 @@
 """upload-rest-api utility functions."""
-import os
-import pathlib
+from pathlib import Path
 
-from flask import request, safe_join, url_for
-from upload_rest_api.database import Projects
-from werkzeug.utils import secure_filename
+from flask import request, url_for
 
 try:
     from urllib.parse import urlparse, urlunparse
 except ImportError:  # Python 2
     from urlparse import urlparse, urlunparse
+
+
+def parse_user_path(root, *paths):
+    """
+    Check that the user-provided `path` is relative to `root` after resolving
+    it to a full path and return the fully resolved path.
+
+    :param root: Root path
+    :param path: User-provided relative path. This has to be relative to
+                 `root` after it has been resolved.
+    :raises ValueError: If user-provided path is not relative to `root`
+    :returns: Fully resolved path
+    """
+    # TODO: Replace with Path.is_relative_to in Python 3.9+
+    root = Path(root).resolve()
+    full_path = root.joinpath(*paths).resolve()
+
+    # This will raise ValueError on paths that are not relative
+    full_path.relative_to(root)
+
+    return full_path
 
 
 def get_upload_path(project_id, file_path):
@@ -19,13 +37,20 @@ def get_upload_path(project_id, file_path):
     :param file_path: file path relative to project directory of user
     :returns: full path of file/directory
     """
-    dirname, basename = os.path.split(file_path)
-    secure_fname = secure_filename(basename)
-    joined_path = safe_join(
-        Projects.get_project_directory(project_id), dirname
-    )
+    # Prevent circular import
+    from upload_rest_api.database import Projects
 
-    return pathlib.Path(joined_path).resolve() / secure_fname
+    if file_path == "*":
+        # '*' is shorthand for the base directory.
+        # This is used to maintain compatibility with Werkzeug's
+        # 'secure_filename' function that would sanitize it into an empty
+        # string.
+        file_path = ""
+
+    project_dir = Projects.get_project_directory(project_id)
+    upload_path = (project_dir / file_path).resolve()
+
+    return parse_user_path(project_dir, upload_path)
 
 
 def get_trash_path(project_id, file_path, trash_id):
@@ -38,15 +63,14 @@ def get_trash_path(project_id, file_path, trash_id):
     :param file_path: file path relative to project directory of user
     :returns: full path of file/directory
     """
-    dirname, basename = os.path.split(file_path)
-    secure_fname = secure_filename(basename)
-    joined_path = safe_join(
+    from upload_rest_api.database import Projects
+
+    return parse_user_path(
         Projects.get_trash_directory(
             project_id=project_id, trash_id=trash_id
-        ), dirname
+        ),
+        file_path
     )
-
-    return pathlib.Path(joined_path).resolve() / secure_fname
 
 
 def get_return_path(project_id, fpath):
@@ -59,11 +83,21 @@ def get_return_path(project_id, fpath):
     :param fpath: full path
     :returns: string presentation of relative path
     """
-    path = pathlib.Path(fpath).relative_to(
+    # Prevent circular import
+    from upload_rest_api.database import Projects
+
+    if fpath == "*":
+        # '*' is shorthand for the base directory.
+        # This is used to maintain compatibility with Werkzeug's
+        # 'secure_filename' function that would sanitize it into an empty
+        # string
+        fpath = ""
+
+    path = Path(fpath).relative_to(
         Projects.get_project_directory(project_id)
     )
 
-    path_string = f"/{path}" if path != pathlib.Path('.') else '/'
+    path_string = f"/{path}" if path != Path('.') else '/'
 
     return path_string
 

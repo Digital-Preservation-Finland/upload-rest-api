@@ -14,17 +14,17 @@ from string import ascii_letters, digits
 import dateutil
 import dateutil.parser
 import pymongo
-import upload_rest_api.config
 from bson.binary import Binary
 from bson.codec_options import CodecOptions
 from bson.objectid import ObjectId
-from flask import safe_join
 from pymongo.errors import DuplicateKeyError
 from redis import Redis
 from rq.exceptions import NoSuchJobError
 from rq.job import Job
+
+import upload_rest_api.config
 from upload_rest_api.config import CONFIG
-from werkzeug.utils import secure_filename
+from upload_rest_api.utils import parse_user_path
 
 # Password vars
 PASSWD_LEN = 20
@@ -928,7 +928,7 @@ class Projects:
 
     def update_used_quota(self, identifier, root_upload_path):
         """Update used quota of the project."""
-        path = safe_join(root_upload_path, secure_filename(identifier))
+        path = parse_user_path(root_upload_path, identifier)
         size = get_dir_size(path)
         self.set_used_quota(identifier, size)
 
@@ -961,10 +961,7 @@ class Projects:
         Get the file system path to the project
         """
         conf = upload_rest_api.config.CONFIG
-        return pathlib.Path(
-            conf["UPLOAD_PROJECTS_PATH"],
-            secure_filename(project_id)
-        )
+        return parse_user_path(conf["UPLOAD_PROJECTS_PATH"], project_id)
 
     @classmethod
     def get_trash_directory(cls, project_id, trash_id):
@@ -973,10 +970,8 @@ class Projects:
         used for deletion
         """
         conf = upload_rest_api.config.CONFIG
-        return (
-            pathlib.Path(conf["UPLOAD_TRASH_PATH"])
-            / secure_filename(trash_id)
-            / secure_filename(project_id)
+        return parse_user_path(
+            pathlib.Path(conf["UPLOAD_TRASH_PATH"]), trash_id, project_id
         )
 
 
