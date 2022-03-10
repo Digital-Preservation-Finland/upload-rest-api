@@ -1,10 +1,10 @@
 """Metadata API background jobs."""
 import os.path
 
+from metax_access import ResourceAlreadyExistsError
+
 import upload_rest_api.database as db
 import upload_rest_api.gen_metadata as md
-import upload_rest_api.utils as utils
-from metax_access import ResourceAlreadyExistsError
 from upload_rest_api.config import CONFIG
 from upload_rest_api.jobs.utils import ClientError, api_background_job
 from upload_rest_api.lock import ProjectLockManager
@@ -27,8 +27,8 @@ def post_metadata(path, project_id, storage_id, task_id):
     metax_client = md.MetaxClient()
     database = db.Database()
 
-    fpath = utils.get_upload_path(project_id, path)
-    return_path = utils.get_return_path(project_id, fpath)
+    fpath = db.Projects.get_upload_path(project_id, path)
+    return_path = db.Projects.get_return_path(project_id, fpath)
 
     database.tasks.update_message(
         task_id, f"Creating metadata: {return_path}"
@@ -83,8 +83,8 @@ def delete_metadata(fpath, project_id, task_id):
     metax_client = md.MetaxClient()
     database = db.Database()
 
-    fpath = utils.get_upload_path(project_id, fpath)
-    ret_path = utils.get_return_path(project_id, fpath)
+    fpath = db.Projects.get_upload_path(project_id, fpath)
+    ret_path = db.Projects.get_return_path(project_id, fpath)
     database.tasks.update_message(
         task_id, "Deleting metadata: %s" % ret_path
     )

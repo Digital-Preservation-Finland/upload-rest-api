@@ -26,7 +26,7 @@ def _get_dir_tree(project_id, fpath):
     """Return with dir tree from fpath as a dict."""
     file_dict = {}
     for dirpath, _, files in os.walk(fpath):
-        path = utils.get_return_path(project_id, dirpath)
+        path = db.Projects.get_return_path(project_id, dirpath)
         file_dict[path] = files
 
     if "." in file_dict:
@@ -86,8 +86,8 @@ def get_path(project_id, fpath):
 
     database = db.Database()
 
-    upload_path = utils.get_upload_path(project_id, fpath)
-    return_path = utils.get_return_path(project_id, upload_path)
+    upload_path = db.Projects.get_upload_path(project_id, fpath)
+    return_path = db.Projects.get_return_path(project_id, upload_path)
 
     if request.args.get("all", None) == "true" and fpath.strip("/") == "":
         # Retrieve entire directory listing if 'all' URL parameter is set
@@ -156,7 +156,7 @@ def delete_path(project_id, fpath):
 
     root_upload_path = current_app.config.get("UPLOAD_PROJECTS_PATH")
     database = db.Database()
-    upload_path = utils.get_upload_path(project_id, fpath)
+    upload_path = db.Projects.get_upload_path(project_id, fpath)
     project_dir = database.projects.get_project_directory(project_id)
 
     if os.path.isfile(upload_path):
@@ -198,11 +198,11 @@ def delete_path(project_id, fpath):
         # 4. Delete the temporary directory
         trash_id = secrets.token_hex(8)
 
-        trash_root = database.projects.get_trash_directory(
+        trash_root = database.projects.get_trash_root(
             project_id=project_id,
             trash_id=trash_id
         )
-        trash_path = utils.get_trash_path(
+        trash_path = database.projects.get_trash_path(
             project_id=project_id,
             trash_id=trash_id,
             file_path=fpath
@@ -246,7 +246,7 @@ def delete_path(project_id, fpath):
 
         polling_url = utils.get_polling_url(TASK_STATUS_API_V1.name, task_id)
         response = jsonify({
-            "file_path": utils.get_return_path(project_id, upload_path),
+            "file_path": db.Projects.get_return_path(project_id, upload_path),
             "message": "Deleting metadata",
             "polling_url": polling_url,
             "status": "pending"
@@ -263,7 +263,7 @@ def delete_path(project_id, fpath):
     database.projects.update_used_quota(project_id, root_upload_path)
 
     response = jsonify({
-        "file_path": utils.get_return_path(project_id, upload_path),
+        "file_path": db.Projects.get_return_path(project_id, upload_path),
         "message": "deleted",
         "metax": response
     })

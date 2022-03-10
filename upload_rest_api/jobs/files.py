@@ -4,7 +4,6 @@ import shutil
 
 import upload_rest_api.database as db
 import upload_rest_api.gen_metadata as md
-import upload_rest_api.utils as utils
 from upload_rest_api.config import CONFIG
 from upload_rest_api.jobs.utils import api_background_job
 from upload_rest_api.lock import ProjectLockManager
@@ -53,7 +52,7 @@ def delete_files(fpath, trash_path, trash_root, project_id, task_id):
     metax_client = md.MetaxClient()
     database = db.Database()
     project_dir = database.projects.get_project_directory(project_id)
-    ret_path = utils.get_return_path(project_id, fpath)
+    ret_path = db.Projects.get_return_path(project_id, fpath)
     database.tasks.update_message(
         task_id,
         "Deleting files and metadata: %s" % ret_path

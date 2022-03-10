@@ -4,11 +4,11 @@ import datetime
 import hashlib
 import json
 import os
-import pathlib
 import random
 import secrets
 import time
 import uuid
+from pathlib import Path
 from string import ascii_letters, digits
 
 import dateutil
@@ -964,15 +964,72 @@ class Projects:
         return parse_user_path(conf["UPLOAD_PROJECTS_PATH"], project_id)
 
     @classmethod
-    def get_trash_directory(cls, project_id, trash_id):
+    def get_trash_root(cls, project_id, trash_id):
         """
-        Get the file system path to a temporary trash directory
-        used for deletion
+        Get the file system path to a project specific temporary trash
+        directory used for deletion.
         """
         conf = upload_rest_api.config.CONFIG
         return parse_user_path(
-            pathlib.Path(conf["UPLOAD_TRASH_PATH"]), trash_id, project_id
+            Path(conf["UPLOAD_TRASH_PATH"]), trash_id, project_id
         )
+
+    @classmethod
+    def get_trash_path(cls, project_id, trash_id, file_path):
+        """
+        Get the file system path to a temporary trash directory
+        for a project file/directory used for deletion.
+        """
+        return parse_user_path(
+            cls.get_trash_root(project_id=project_id, trash_id=trash_id),
+            file_path
+        )
+
+    @classmethod
+    def get_upload_path(cls, project_id, file_path):
+        """Get upload path for file.
+
+        :param project_id: project identifier
+        :param file_path: file path relative to project directory of user
+        :returns: full path of file
+        """
+        if file_path == "*":
+            # '*' is shorthand for the base directory.
+            # This is used to maintain compatibility with Werkzeug's
+            # 'secure_filename' function that would sanitize it into an empty
+            # string.
+            file_path = ""
+
+        project_dir = cls.get_project_directory(project_id)
+        upload_path = (project_dir / file_path).resolve()
+
+        return parse_user_path(project_dir, upload_path)
+
+    @classmethod
+    def get_return_path(cls, project_id, fpath):
+        """Get path relative to project directory.
+
+        Splice project path from fpath and return the path shown to the user
+        and POSTed to Metax.
+
+        :param project_id: project identifier
+        :param fpath: full path
+        :returns: string presentation of relative path
+        """
+        if fpath == "*":
+            # '*' is shorthand for the base directory.
+            # This is used to maintain compatibility with Werkzeug's
+            # 'secure_filename' function that would sanitize it into an empty
+            # string
+            fpath = ""
+
+        path = Path(fpath).relative_to(
+            cls.get_project_directory(project_id)
+        )
+
+        path_string = f"/{path}" if path != Path('.') else '/'
+
+        return path_string
 
 
 def get_redis_connection():

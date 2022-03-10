@@ -2,9 +2,11 @@
 import os.path
 
 from flask import Blueprint, abort, current_app, jsonify, url_for
+
 from upload_rest_api import utils
 from upload_rest_api.api.v1.tasks import TASK_STATUS_API_V1
 from upload_rest_api.authentication import current_user
+from upload_rest_api.database import Projects
 from upload_rest_api.jobs.utils import METADATA_QUEUE, enqueue_background_job
 from upload_rest_api.lock import lock_manager
 
@@ -25,7 +27,7 @@ def post_metadata(project_id, fpath):
     if not current_user.is_allowed_to_access_project(project_id):
         abort(403)
 
-    file_path = utils.get_upload_path(project_id, fpath)
+    file_path = Projects.get_upload_path(project_id, fpath)
 
     lock_manager.acquire(project_id, file_path)
 
@@ -51,7 +53,7 @@ def post_metadata(project_id, fpath):
         raise
 
     polling_url = utils.get_polling_url(TASK_STATUS_API_V1.name, task_id)
-    ret_path = utils.get_return_path(project_id, file_path)
+    ret_path = Projects.get_return_path(project_id, file_path)
     response = jsonify({
         "file_path": ret_path,
         "message": "Creating metadata",
@@ -81,7 +83,7 @@ def delete_metadata(project_id, fpath):
     if not current_user.is_allowed_to_access_project(project_id):
         abort(403)
 
-    file_path = utils.get_upload_path(project_id, fpath)
+    file_path = Projects.get_upload_path(project_id, fpath)
 
     lock_manager.acquire(project_id, file_path)
     try:
@@ -99,7 +101,7 @@ def delete_metadata(project_id, fpath):
         raise
 
     polling_url = utils.get_polling_url(TASK_STATUS_API_V1.name, task_id)
-    ret_path = utils.get_return_path(project_id, file_path)
+    ret_path = Projects.get_return_path(project_id, file_path)
     response = jsonify({
         "file_path": ret_path,
         "message": "Deleting metadata",
