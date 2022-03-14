@@ -45,7 +45,11 @@ def _upload_started(workspace, resource):
 
         upload_length = resource.upload_length
         project_id = resource.upload_metadata["project_id"]
-        fpath = resource.upload_metadata["file_path"]
+        fpath = resource.upload_metadata["upload_path"]
+        upload_type = resource.upload_metadata["type"]
+
+        if upload_type not in ("file", "archive"):
+            abort(400, f"Unknown upload type '{upload_type}'")
 
         if not current_user.is_allowed_to_access_project(project_id):
             abort(403)
@@ -80,23 +84,29 @@ def _upload_started(workspace, resource):
             content_type="application/octet-stream"
         )
 
-        # check if the file exists: either an upload has been initiated with
+        # check if the file/dirctory exists:
+        # either an upload has been initiated with
         # the same path, or a file already exists at the final location
-        file_exists = (
+        upload_exists = (
             file_path.exists()
-            or db.uploads.uploads.find_one({"file_path": str(file_path)})
+            or db.uploads.uploads.find_one({"upload_path": str(file_path)})
         )
 
-        if file_exists:
+        if upload_exists:
+            if upload_type == "file":
+                error = "File already exists"
+            elif upload_type == "archive":
+                error = "Target directory already exists"
+
             abort(
                 409,  # 409 CONFLICT
-                "File already exists"
+                error
             )
 
         # Quota is sufficient, create a new Upload entry
         uploads.create(
             project_id=project_id,
-            file_path=str(file_path),
+            upload_path=str(file_path),
             resource=resource
         )
     except Exception:
@@ -114,7 +124,7 @@ def _save_file(workspace, resource):
     uploads = db.uploads
 
     project_id = resource.upload_metadata["project_id"]
-    fpath = resource.upload_metadata["file_path"]
+    fpath = resource.upload_metadata["upload_path"]
     create_metadata = \
         resource.upload_metadata.get("create_metadata", "") == "true"
 
@@ -186,16 +196,15 @@ def _extract_archive(workspace, resource):
     uploads = db.uploads
 
     project_id = resource.upload_metadata["project_id"]
-    fpath = resource.upload_metadata["file_path"]
-    extract_dir_name = resource.upload_metadata["extract_dir_name"]
+    fpath = resource.upload_metadata["upload_path"]
     create_metadata = \
         resource.upload_metadata.get("create_metadata", "") == "true"
 
-    # 'fpath' contains the archive file name as the last path component.
+    # 'fpath' contains the destination directory as the last path component.
     # We will replace it with the actual directory that will contain the
     # extracted files.
     project_dir = Projects.get_project_directory(project_id)
-    rel_upload_path = safe_join("", os.path.split(fpath)[0], extract_dir_name)
+    rel_upload_path = safe_join("", fpath)
     upload_path = project_dir / rel_upload_path
 
     lock_manager.acquire(project_id, upload_path)

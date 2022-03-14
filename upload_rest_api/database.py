@@ -637,11 +637,12 @@ class Uploads:
         """Initialize Tasks instance."""
         self.uploads = client.upload.uploads
 
-    def create(self, project_id, file_path, resource):
+    def create(self, project_id, upload_path, resource):
         """Create one upload document.
 
         :param str project_id: Project identifier
-        :param str file_path: Path to the final location of the file
+        :param str upload_path: Path to the final location of the file or
+                                extraction destination
         :param resource: tus resource corresponding to the upload
         :returns: ID of the created upload instance
         """
@@ -649,7 +650,7 @@ class Uploads:
             # Resource ID contains an UUID, making it safe to use as an
             # unique identifier
             "_id": resource.identifier,
-            "file_path": file_path,
+            "upload_path": upload_path,
             "project": project_id,
             "size": resource.upload_length
         }).inserted_id

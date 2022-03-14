@@ -68,7 +68,7 @@ def test_upload_file(test_client, app, test_auth, test_mongo, name):
         "type": "file",
         "project_id": "test_project",
         "filename": name,
-        "file_path": name,
+        "upload_path": name,
     }
 
     _do_tus_upload(
@@ -126,7 +126,7 @@ def test_upload_file_create_metadata(
         "type": "file",
         "project_id": "test_project",
         "filename": "test.txt",
-        "file_path": "test.txt",
+        "upload_path": "test.txt",
         "create_metadata": "true"
     }
 
@@ -173,7 +173,7 @@ def test_upload_file_deep_directory(
         "type": "file",
         "project_id": "test_project",
         "filename": name,
-        "file_path": f"foo/bar/{name}",
+        "upload_path": f"foo/bar/{name}",
     }
 
     _do_tus_upload(
@@ -208,7 +208,7 @@ def test_upload_file_exceed_quota(test_client, test_auth, database):
         "type": "file",
         "project_id": "test_project",
         "filename": "test.txt",
-        "file_path": "test.txt",
+        "upload_path": "test.txt",
     }
     data = b"XyzzyXyzzy"
 
@@ -230,7 +230,7 @@ def test_upload_file_exceed_quota(test_client, test_auth, database):
                     "type": "file",
                     "project_id": "test_project",
                     "filename": "test2.txt",
-                    "file_path": "test2.txt"
+                    "upload_path": "test2.txt"
                 })
             },
             **test_auth
@@ -262,7 +262,7 @@ def test_upload_file_parallel_upload_exceed_quota(
                         "type": "file",
                         "project_id": "test_project",
                         "filename": f"test{i}.txt",
-                        "file_path": f"test{i}.txt",
+                        "upload_path": f"test{i}.txt",
                     })
                 },
                 **test_auth
@@ -282,7 +282,7 @@ def test_upload_file_parallel_upload_exceed_quota(
                     "type": "file",
                     "project_id": "test_project",
                     "filename": "test2.txt",
-                    "file_path": "test2.txt"
+                    "upload_path": "test2.txt"
                 })
             },
             **test_auth
@@ -302,7 +302,7 @@ def test_upload_file_conflict(test_client, test_auth):
         "type": "file",
         "project_id": "test_project",
         "filename": "test.txt",
-        "file_path": "test.txt"
+        "upload_path": "test.txt"
     }
 
     resp = test_client.post(
@@ -345,8 +345,7 @@ def test_upload_archive(
         "type": "archive",
         "project_id": "test_project",
         "filename": "test.zip",
-        "file_path": "test.zip",
-        "extract_dir_name": "extract_dir"
+        "upload_path": "extract_dir",
     }
 
     test_data = pathlib.Path("tests/data/test.zip").read_bytes()
@@ -386,8 +385,7 @@ def test_upload_archive_create_metadata(
         "type": "archive",
         "project_id": "test_project",
         "filename": "test.zip",
-        "file_path": "test.zip",
-        "extract_dir_name": "extract_dir",
+        "upload_path": "extract_dir",
         "create_metadata": "true"
     }
 
