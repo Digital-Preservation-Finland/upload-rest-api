@@ -2,16 +2,19 @@
 Event handler for the /files_tus/v1 endpoint.
 """
 import os
+import uuid
+from pathlib import Path
 
 import flask_tus_io
-from flask import Blueprint, abort, current_app
+import werkzeug
+from flask import Blueprint, abort, current_app, safe_join
 
 from upload_rest_api import database, upload
 from upload_rest_api.authentication import current_user
 from upload_rest_api.database import Database, Projects
 from upload_rest_api.jobs.utils import METADATA_QUEUE, enqueue_background_job
 from upload_rest_api.lock import lock_manager
-from upload_rest_api.upload import save_file_into_db
+from upload_rest_api.upload import extract_archive, save_file_into_db
 from upload_rest_api.utils import parse_relative_user_path
 
 FILES_TUS_API_V1 = Blueprint(
@@ -103,9 +106,9 @@ def _upload_started(workspace, resource):
         raise
 
 
-def _upload_completed(workspace, resource):
+def _save_file(workspace, resource):
     """
-    Callback function called when an upload is finished
+    Save file to the project directory
     """
     db = database.Database()
     uploads = db.uploads
@@ -173,6 +176,77 @@ def _upload_completed(workspace, resource):
     except Exception:
         lock_manager.release(project_id, file_path)
         raise
+
+
+def _extract_archive(workspace, resource):
+    """
+    Start the extraction job for an uploaded archive
+    """
+    db = database.Database()
+    uploads = db.uploads
+
+    project_id = resource.upload_metadata["project_id"]
+    fpath = resource.upload_metadata["file_path"]
+    extract_dir_name = resource.upload_metadata["extract_dir_name"]
+
+    # 'fpath' contains the archive file name as the last path component.
+    # We will replace it with the actual directory that will contain the
+    # extracted files.
+    project_dir = Projects.get_project_directory(project_id)
+    rel_path = safe_join("", os.path.split(fpath)[0], extract_dir_name)
+    upload_path = project_dir / rel_path
+
+    lock_manager.acquire(project_id, upload_path)
+
+    try:
+        try:
+            # Validate the user's quota and content type again
+            upload.validate_upload(
+                project_id=project_id,
+                content_length=resource.upload_length,
+                content_type="application/octet-stream"
+            )
+
+            if upload_path.is_dir() and not upload_path.samefile(project_dir):
+                raise werkzeug.exceptions.Conflict(
+                    f"Directory '{rel_path}' already exists"
+                )
+
+            # Move the archive to a temporary path to begin the extraction
+            tmp_path = Path(current_app.config.get("UPLOAD_TMP_PATH"))
+            fpath = tmp_path / str(uuid.uuid4())
+            fpath.parent.mkdir(exist_ok=True)
+            resource.upload_file_path.rename(fpath)
+        finally:
+            # Delete the tus-specific workspace regardless of the outcome.
+            workspace.remove()
+            uploads.delete_one(resource.identifier)
+
+        extract_archive(
+            database=db,
+            project_id=project_id,
+            fpath=fpath,
+            upload_path=upload_path
+        )
+    except Exception:
+        lock_manager.release(project_id, upload_path)
+        raise
+
+
+def _upload_completed(workspace, resource):
+    """
+    Callback function called when an upload is finished
+    """
+    upload_type = resource.upload_metadata["type"]
+
+    if upload_type == "file":
+        _save_file(workspace, resource)
+    elif upload_type == "archive":
+        _extract_archive(workspace, resource)
+    else:
+        raise werkzeug.exceptions.BadRequest(
+            f"Unknown upload type '{upload_type}'"
+        )
 
 
 def tus_event_handler(event_type, workspace, resource):

@@ -57,7 +57,7 @@ def _do_tus_upload(test_client, upload_metadata, data, auth):
 @pytest.mark.parametrize(
     "name", ("test.txt", "tämäontesti.txt", "tämä on testi.txt")
 )
-def test_upload(app, test_client, test_auth, test_mongo, name):
+def test_upload_file(test_client, app, test_auth, test_mongo, name):
     """
     Test uploading a small file
     """
@@ -65,6 +65,7 @@ def test_upload(app, test_client, test_auth, test_mongo, name):
 
     data = b"XyzzyXyzzy"
     upload_metadata = {
+        "type": "file",
         "project_id": "test_project",
         "filename": name,
         "file_path": name,
@@ -114,7 +115,7 @@ def test_upload(app, test_client, test_auth, test_mongo, name):
 
 
 @pytest.mark.usefixtures("project")
-def test_upload_create_metadata(
+def test_upload_file_create_metadata(
         test_client, test_auth, test_mongo, requests_mock,
         background_job_runner):
     """
@@ -122,6 +123,7 @@ def test_upload_create_metadata(
     """
     data = b"XyzzyXyzzy"
     upload_metadata = {
+        "type": "file",
         "project_id": "test_project",
         "filename": "test.txt",
         "file_path": "test.txt",
@@ -159,7 +161,7 @@ def test_upload_create_metadata(
 @pytest.mark.parametrize(
     "name", ("test.txt", "tämäontesti.txt", "tämä on testi.txt")
 )
-def test_upload_deep_directory(
+def test_upload_file_deep_directory(
         test_client, test_auth, test_mongo, upload_tmpdir, name):
     """
     Test uploading a small file within a directory hierarchy, and ensure
@@ -168,6 +170,7 @@ def test_upload_deep_directory(
     data = b"XyzzyXyzzy"
 
     upload_metadata = {
+        "type": "file",
         "project_id": "test_project",
         "filename": name,
         "file_path": f"foo/bar/{name}",
@@ -194,7 +197,7 @@ def test_upload_deep_directory(
     assert content == "XyzzyXyzzy"
 
 
-def test_upload_exceed_quota(test_client, test_auth, database):
+def test_upload_file_exceed_quota(test_client, test_auth, database):
     """
     Upload one file and try uploading a second file which would exceed the
     quota
@@ -202,6 +205,7 @@ def test_upload_exceed_quota(test_client, test_auth, database):
     database.projects.set_quota("test_project", 15)
 
     upload_metadata = {
+        "type": "file",
         "project_id": "test_project",
         "filename": "test.txt",
         "file_path": "test.txt",
@@ -223,6 +227,7 @@ def test_upload_exceed_quota(test_client, test_auth, database):
                 "Tus-Resumable": "1.0.0",
                 "Upload-Length": "10",
                 "Upload-Metadata": encode_tus_meta({
+                    "type": "file",
                     "project_id": "test_project",
                     "filename": "test2.txt",
                     "file_path": "test2.txt"
@@ -236,7 +241,8 @@ def test_upload_exceed_quota(test_client, test_auth, database):
     assert resp.json["error"] == "Remaining user quota too low"
 
 
-def test_upload_parallel_upload_exceed_quota(test_client, test_auth, database):
+def test_upload_file_parallel_upload_exceed_quota(
+        test_client, test_auth, database):
     """
     Start enough parallel uploads to exceed the user quota
     """
@@ -253,6 +259,7 @@ def test_upload_parallel_upload_exceed_quota(test_client, test_auth, database):
                     "Tus-Resumable": "1.0.0",
                     "Upload-Length": "2000",
                     "Upload-Metadata": encode_tus_meta({
+                        "type": "file",
                         "project_id": "test_project",
                         "filename": f"test{i}.txt",
                         "file_path": f"test{i}.txt",
@@ -272,6 +279,7 @@ def test_upload_parallel_upload_exceed_quota(test_client, test_auth, database):
                 "Tus-Resumable": "1.0.0",
                 "Upload-Length": "97",
                 "Upload-Metadata": encode_tus_meta({
+                    "type": "file",
                     "project_id": "test_project",
                     "filename": "test2.txt",
                     "file_path": "test2.txt"
@@ -286,11 +294,12 @@ def test_upload_parallel_upload_exceed_quota(test_client, test_auth, database):
 
 
 @pytest.mark.usefixtures("database")
-def test_upload_conflict(test_client, test_auth):
+def test_upload_file_conflict(test_client, test_auth):
     """
     Try initiating two uploads with the same file path
     """
     upload_metadata = {
+        "type": "file",
         "project_id": "test_project",
         "filename": "test.txt",
         "file_path": "test.txt"
@@ -323,3 +332,43 @@ def test_upload_conflict(test_client, test_auth):
     )
     assert resp.status_code == 409
     assert resp.json["error"] == "File already exists"
+
+
+@pytest.mark.usefixtures("database")
+def test_upload_archive(
+        test_client, test_auth, test_mongo, upload_tmpdir,
+        background_job_runner):
+    """
+    Test uploading an archive and ensure it is extracted successfully
+    """
+    upload_metadata = {
+        "type": "archive",
+        "project_id": "test_project",
+        "filename": "test.zip",
+        "file_path": "test.zip",
+        "extract_dir_name": "extract_dir"
+    }
+
+    test_data = pathlib.Path("tests/data/test.zip").read_bytes()
+
+    _do_tus_upload(
+        test_client=test_client,
+        upload_metadata=upload_metadata,
+        auth=test_auth,
+        data=test_data
+    )
+
+    tasks = list(test_mongo.upload.tasks.find())
+    assert len(tasks) == 1
+
+    task_id = str(tasks[0]["_id"])
+
+    response = background_job_runner(test_client, "upload", task_id=task_id)
+    data = response.json
+
+    assert data["message"] == "Archive uploaded and extracted"
+
+    assert (
+        upload_tmpdir / "projects" / "test_project" / "extract_dir"
+        / "test" / "test.txt"
+    ).read_text(encoding="utf-8").startswith("test file for REST file upload")

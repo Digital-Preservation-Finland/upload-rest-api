@@ -150,41 +150,65 @@ def save_archive(database, project_id, stream, checksum, upload_path):
         fpath.parent.mkdir(exist_ok=True)
         _save_stream(fpath, stream, checksum)
 
-        # If zip or tar file was uploaded, extract all files
-        if zipfile.is_zipfile(fpath) or tarfile.is_tarfile(fpath):
-            # Check the uncompressed size
-            quota, used_quota, extracted_size = _check_extraction_size(
-                project_id=project_id, archive_path=fpath, database=database
-            )
-
-            if quota - used_quota - extracted_size < 0:
-                # Remove the archive and raise an exception
-                os.remove(fpath)
-                raise werkzeug.exceptions.RequestEntityTooLarge(
-                    "Quota exceeded"
-                )
-
-            database.projects.set_used_quota(
-                project_id, used_quota + extracted_size
-            )
-            task_id = enqueue_background_job(
-                task_func="upload_rest_api.jobs.upload.extract_task",
-                queue_name=UPLOAD_QUEUE,
-                project_id=project_id,
-                job_kwargs={
-                    "project_id": project_id,
-                    "fpath": fpath,
-                    "dir_path": dir_path
-                }
-            )
-        else:
-            os.remove(fpath)
-            raise werkzeug.exceptions.BadRequest(
-                "Uploaded file is not a supported archive"
-            )
+        return extract_archive(
+            database=database,
+            project_id=project_id,
+            fpath=fpath,
+            upload_path=dir_path
+        )
     except Exception:
         lock_manager.release(project_id, dir_path)
         raise
+
+
+def extract_archive(database, project_id, fpath, upload_path):
+    """Enqueue extraction job for an existing archive file on disk.
+
+    Archive file is extracted and it is ensured that no symlinks
+    are created. The original archive will be deleted upon completion.
+
+    :param database: Database instance
+    :param project_id: Project identifier
+    :param fpath: archive file path
+    :param upload_path: upload directory where archive contents will be
+                        extracted, relative to project directory
+    :returns: Url of archive extraction task
+    """
+    project_dir = Projects.get_project_directory(project_id)
+    dir_path = project_dir / upload_path
+
+    # If zip or tar file was uploaded, extract all files
+    if zipfile.is_zipfile(fpath) or tarfile.is_tarfile(fpath):
+        # Check the uncompressed size
+        quota, used_quota, extracted_size = _check_extraction_size(
+            project_id=project_id, archive_path=fpath, database=database
+        )
+
+        if quota - used_quota - extracted_size < 0:
+            # Remove the archive and raise an exception
+            os.remove(fpath)
+            raise werkzeug.exceptions.RequestEntityTooLarge(
+                "Quota exceeded"
+            )
+
+        database.projects.set_used_quota(
+            project_id, used_quota + extracted_size
+        )
+        task_id = enqueue_background_job(
+            task_func="upload_rest_api.jobs.upload.extract_task",
+            queue_name=UPLOAD_QUEUE,
+            project_id=project_id,
+            job_kwargs={
+                "project_id": project_id,
+                "fpath": fpath,
+                "dir_path": dir_path
+            }
+        )
+    else:
+        os.remove(fpath)
+        raise werkzeug.exceptions.BadRequest(
+            "Uploaded file is not a supported archive"
+        )
 
     return utils.get_polling_url(TASK_STATUS_API_V1.name, task_id)
 

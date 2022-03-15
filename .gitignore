@@ -2,6 +2,8 @@
 venv*/
 test/
 rpmbuild/
+build/
+INSTALLED_FILES
 *.pyc
 __pycache__
 *.swp
