@@ -188,13 +188,15 @@ def _extract_archive(workspace, resource):
     project_id = resource.upload_metadata["project_id"]
     fpath = resource.upload_metadata["file_path"]
     extract_dir_name = resource.upload_metadata["extract_dir_name"]
+    create_metadata = \
+        resource.upload_metadata.get("create_metadata", "") == "true"
 
     # 'fpath' contains the archive file name as the last path component.
     # We will replace it with the actual directory that will contain the
     # extracted files.
     project_dir = Projects.get_project_directory(project_id)
-    rel_path = safe_join("", os.path.split(fpath)[0], extract_dir_name)
-    upload_path = project_dir / rel_path
+    rel_upload_path = safe_join("", os.path.split(fpath)[0], extract_dir_name)
+    upload_path = project_dir / rel_upload_path
 
     lock_manager.acquire(project_id, upload_path)
 
@@ -209,7 +211,7 @@ def _extract_archive(workspace, resource):
 
             if upload_path.is_dir() and not upload_path.samefile(project_dir):
                 raise werkzeug.exceptions.Conflict(
-                    f"Directory '{rel_path}' already exists"
+                    f"Directory '{rel_upload_path}' already exists"
                 )
 
             # Move the archive to a temporary path to begin the extraction
@@ -226,7 +228,8 @@ def _extract_archive(workspace, resource):
             database=db,
             project_id=project_id,
             fpath=fpath,
-            upload_path=upload_path
+            upload_path=rel_upload_path,
+            create_metadata=create_metadata
         )
     except Exception:
         lock_manager.release(project_id, upload_path)

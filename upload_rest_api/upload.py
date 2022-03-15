@@ -154,14 +154,15 @@ def save_archive(database, project_id, stream, checksum, upload_path):
             database=database,
             project_id=project_id,
             fpath=fpath,
-            upload_path=dir_path
+            upload_path=upload_path
         )
     except Exception:
         lock_manager.release(project_id, dir_path)
         raise
 
 
-def extract_archive(database, project_id, fpath, upload_path):
+def extract_archive(
+        database, project_id, fpath, upload_path, create_metadata=False):
     """Enqueue extraction job for an existing archive file on disk.
 
     Archive file is extracted and it is ensured that no symlinks
@@ -172,11 +173,11 @@ def extract_archive(database, project_id, fpath, upload_path):
     :param fpath: archive file path
     :param upload_path: upload directory where archive contents will be
                         extracted, relative to project directory
+    :param bool create_metadata: Launch Metax metadata generation background
+                                 job after extraction is complete.
+                                 Default is False.
     :returns: Url of archive extraction task
     """
-    project_dir = Projects.get_project_directory(project_id)
-    dir_path = project_dir / upload_path
-
     # If zip or tar file was uploaded, extract all files
     if zipfile.is_zipfile(fpath) or tarfile.is_tarfile(fpath):
         # Check the uncompressed size
@@ -201,7 +202,8 @@ def extract_archive(database, project_id, fpath, upload_path):
             job_kwargs={
                 "project_id": project_id,
                 "fpath": fpath,
-                "dir_path": dir_path
+                "dir_path": upload_path,
+                "create_metadata": create_metadata
             }
         )
     else:

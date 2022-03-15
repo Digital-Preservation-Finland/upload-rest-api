@@ -372,3 +372,60 @@ def test_upload_archive(
         upload_tmpdir / "projects" / "test_project" / "extract_dir"
         / "test" / "test.txt"
     ).read_text(encoding="utf-8").startswith("test file for REST file upload")
+
+
+@pytest.mark.usefixtures("database")
+def test_upload_archive_create_metadata(
+        test_client, test_auth, test_mongo, upload_tmpdir,
+        background_job_runner, requests_mock):
+    """
+    Test uploading an archive and automatically creating its metadata
+    after extraction
+    """
+    upload_metadata = {
+        "type": "archive",
+        "project_id": "test_project",
+        "filename": "test.zip",
+        "file_path": "test.zip",
+        "extract_dir_name": "extract_dir",
+        "create_metadata": "true"
+    }
+
+    test_data = pathlib.Path("tests/data/test.zip").read_bytes()
+
+    _do_tus_upload(
+        test_client=test_client,
+        upload_metadata=upload_metadata,
+        auth=test_auth,
+        data=test_data
+    )
+
+    tasks = list(test_mongo.upload.tasks.find())
+    assert len(tasks) == 1
+
+    task_id = str(tasks[0]["_id"])
+
+    response = background_job_runner(test_client, "upload", task_id=task_id)
+    data = response.json
+
+    assert data["message"] == "Archive uploaded and extracted"
+
+    # Mock Metax response
+    requests_mock.post(
+        "https://metax.localdomain/rest/v2/files/",
+        json={"success": [], "failed": []}
+    )
+
+    # The upload task should have left a metadata generation task
+    tasks = list(test_mongo.upload.tasks.find())
+    assert len(tasks) == 1
+
+    task_id = str(tasks[0]["_id"])
+
+    response = background_job_runner(test_client, "metadata", task_id=task_id)
+
+    assert response.status_code == 200
+    assert response.json == {
+        "message": "Metadata created: /extract_dir",
+        "status": "done"
+    }

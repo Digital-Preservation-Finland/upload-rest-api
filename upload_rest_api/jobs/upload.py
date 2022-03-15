@@ -3,12 +3,17 @@ import os.path
 import tarfile
 import zipfile
 
-import upload_rest_api.database as db
 from archive_helpers.extract import (ExtractError, MemberNameError,
                                      MemberOverwriteError, MemberTypeError,
                                      extract)
+from flask import safe_join
+
+import upload_rest_api.database as db
 from upload_rest_api import gen_metadata
-from upload_rest_api.jobs.utils import ClientError, api_background_job
+from upload_rest_api.config import CONFIG
+from upload_rest_api.jobs.utils import (METADATA_QUEUE, ClientError,
+                                        api_background_job,
+                                        enqueue_background_job)
 from upload_rest_api.lock import ProjectLockManager
 
 
@@ -61,24 +66,30 @@ def _get_archive_checksums(archive, extract_path):
 
 
 @api_background_job
-def extract_task(project_id, fpath, dir_path, task_id):
+def extract_task(project_id, fpath, dir_path, create_metadata, task_id):
     """Calculate the checksum of the archive and extracts the files into
     ``dir_path`` directory.
 
-    :param str project_id: project ID
+    :param str project_id: project ID of the extraction task
     :param str fpath: file path of the archive
     :param str dir_path: directory to where the archive will be
-                         extracted
+                         extracted, relative to project directory
+    :param bool create_metadata: create Metax metadata after extraction
     :param str task_id: mongo dentifier of the task
     """
     database = db.Database()
+
+    project_dir = db.Projects.get_project_directory(project_id)
+    abs_dir_path = project_dir / safe_join("", dir_path)
+
+    lock_manager = ProjectLockManager()
 
     database.tasks.update_message(
         task_id, "Extracting archive"
     )
     try:
         try:
-            extract(fpath, dir_path)
+            extract(fpath, abs_dir_path)
         except (MemberNameError, MemberTypeError, MemberOverwriteError,
                 ExtractError) as error:
             # Remove the archive and set task's state
@@ -86,15 +97,34 @@ def extract_task(project_id, fpath, dir_path, task_id):
             raise ClientError(str(error)) from error
 
         # Add checksums of the extracted files to mongo
-        database.checksums.insert(_get_archive_checksums(fpath, dir_path))
+        database.checksums.insert(_get_archive_checksums(fpath, abs_dir_path))
 
         # Remove archive and all created symlinks
         os.remove(fpath)
-        _process_extracted_files(dir_path)
-    finally:
-        # Release the lock we've held from the time this background job was
-        # enqueued
-        lock_manager = ProjectLockManager()
-        lock_manager.release(project_id, dir_path)
+        _process_extracted_files(abs_dir_path)
+    except Exception:
+        lock_manager.release(project_id, abs_dir_path)
+        raise
+
+    if create_metadata:
+        # Start metadata generation if enabled for this job
+        storage_id = CONFIG.get("STORAGE_ID")
+        try:
+            task_id = enqueue_background_job(
+                task_func="upload_rest_api.jobs.metadata.post_metadata",
+                queue_name=METADATA_QUEUE,
+                project_id=project_id,
+                job_kwargs={
+                    "path": dir_path,
+                    "project_id": project_id,
+                    "storage_id": storage_id
+                }
+            )
+        except Exception:
+            lock_manager.release(project_id, abs_dir_path)
+            raise
+    else:
+        # We're not doing metadata generation, so release the lock already
+        lock_manager.release(project_id, abs_dir_path)
 
     return "Archive uploaded and extracted"
