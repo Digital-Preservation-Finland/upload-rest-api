@@ -1,29 +1,32 @@
 """Tests for ``upload_rest_api.__main__`` module."""
 import datetime
 import json
-import pathlib
-import sys
 
 import mock
 import pytest
+from click.testing import CliRunner
+
 import upload_rest_api.__main__
 import upload_rest_api.database as db
 
 
-@pytest.mark.usefixtures('testmongo')
-@pytest.fixture('function')
-def command_runner(capsys, monkeypatch):
+@pytest.fixture(scope="function")
+def command_runner():
+    """Run the CLI entrypoint using the provided arguments and return the
+    result.
     """
-    Fixture to run an `upload-rest-api` command with given parameters and
-    return an (out, err) tuple.
 
-    :returns: (out, err) tuple
-    """
-    def wrapper(args):
-        with mock.patch.object(sys, "argv", ["upload-rest-api"] + args):
-            upload_rest_api.__main__.main()
+    def wrapper(args, **kwargs):
+        """Run the CLI entrypoint using provided arguments and return
+        the result.
+        """
+        runner = CliRunner()
 
-        return capsys.readouterr()
+        result = runner.invoke(
+            upload_rest_api.__main__.cli, args, catch_exceptions=False,
+            **kwargs
+        )
+        return result
 
     return wrapper
 
@@ -68,8 +71,8 @@ def test_cleanup_tokens(database, command_runner):
         )
 
     # Only the last token exists
-    out, _ = command_runner(["cleanup-tokens"])
-    assert out == "Cleaned 2 expired token(s)\n"
+    result = command_runner(["cleanup-tokens"])
+    assert result.output == "Cleaned 2 expired token(s)\n"
 
     assert database.tokens.tokens.count() == 1
     token = next(database.tokens.tokens.find())
@@ -83,8 +86,8 @@ def test_get_users(command_runner):
     database.user("test1").create(projects=["test_project"])
     database.user("test2").create(projects=["test_project"])
 
-    out, _ = command_runner(["get", "--users"])
-    assert out == "test1\ntest2\n"
+    result = command_runner(["get", "--users"])
+    assert result.output == "test1\ntest2\n"
 
 
 @pytest.mark.usefixtures('test_mongo')
@@ -94,9 +97,9 @@ def test_get_projects(command_runner, database):
     database.projects.create("test_project_q")
     database.projects.create("test_project_r")
 
-    out, _ = command_runner(["get", "--projects"])
+    result = command_runner(["get", "--projects"])
 
-    assert "test_project_o\ntest_project_q\ntest_project_r" in out
+    assert "test_project_o\ntest_project_q\ntest_project_r" in result.output
 
 
 @pytest.mark.usefixtures('test_mongo')
@@ -105,9 +108,9 @@ def test_get_project(command_runner, database):
     database.projects.create("test_project_a", quota=1248)
 
     # Existing project
-    out, _ = command_runner(["get", "--project", "test_project_a"])
+    result = command_runner(["get", "--project", "test_project_a"])
 
-    data = json.loads(out)
+    data = json.loads(result.output)
     assert data == {
         "_id": "test_project_a",
         "used_quota": 0,
@@ -115,9 +118,9 @@ def test_get_project(command_runner, database):
     }
 
     # Project not found
-    out, _ = command_runner(["get", "--project", "test_project_b"])
+    result = command_runner(["get", "--project", "test_project_b"])
 
-    assert "Project not found" in out
+    assert "Project not found" in result.output
 
 
 def test_create_user(test_mongo, mock_config, command_runner):
@@ -282,11 +285,11 @@ def test_migrate_database_projects(database, command_runner):
         }
     ])
 
-    out, _ = command_runner(["migrate-database-projects"])
-    assert "2 user(s) to migrate" in out
-    assert "Migrated user 'test_user_a'" not in out
-    assert "Migrated user 'test_user_b'" in out
-    assert "Migrated user 'test_user_c'" in out
+    result = command_runner(["migrate-database-projects"])
+    assert "2 user(s) to migrate" in result.output
+    assert "Migrated user 'test_user_a'" not in result.output
+    assert "Migrated user 'test_user_b'" in result.output
+    assert "Migrated user 'test_user_c'" in result.output
 
     users = []
     projects = []
@@ -343,5 +346,5 @@ def test_migrate_database_projects(database, command_runner):
     ]
 
     # Running the migration again does nothing
-    out, _ = command_runner(["migrate-database-projects"])
-    assert "0 user(s) to migrate" in out
+    result = command_runner(["migrate-database-projects"])
+    assert "0 user(s) to migrate" in result.output

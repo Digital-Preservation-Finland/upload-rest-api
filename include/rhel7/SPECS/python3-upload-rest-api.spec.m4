@@ -31,6 +31,7 @@ Requires:       python3-rq
 Requires:       python3-metax-access
 Requires:       python3-archive-helpers
 Requires:       python3-flask-tus-io
+Requires:       python36-click
 BuildRequires:  python3-setuptools
 BuildRequires:  python36-pytest
 BuildRequires:  python3-mongobox

@@ -27,6 +27,7 @@ redis
 #    redis.exceptions.ResponseError: unknown command 'CLIENT'
 rq<1.9.0
 python-dateutil
+click
 
 git+https://gitlab.ci.csc.fi/dpres/metax-access.git@develop#egg=metax_access
 git+https://gitlab.ci.csc.fi/dpres/archive-helpers.git@develop#egg=archive_helpers

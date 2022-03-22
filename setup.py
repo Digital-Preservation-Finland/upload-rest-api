@@ -18,6 +18,7 @@ def main():
             "redis",
             "rq",
             "python-dateutil",
+            "click",
             "metax_access@git+https://gitlab.ci.csc.fi/dpres/"
             "metax-access.git@develop",
             "archive_helpers@git+https://gitlab.ci.csc.fi/dpres/"
@@ -27,7 +28,7 @@ def main():
         ],
         entry_points={
             "console_scripts": [
-                "upload-rest-api = upload_rest_api.__main__:main",
+                "upload-rest-api = upload_rest_api.__main__:cli",
             ]
         }
     )
