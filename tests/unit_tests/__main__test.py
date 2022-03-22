@@ -160,6 +160,35 @@ def test_delete_user_fail(command_runner):
 
 
 @pytest.mark.usefixtures('test_mongo')
+def test_modify_user(command_runner):
+    """Test generating a new password for a user."""
+    old_password = db.Database().user("test").create()
+
+    user = db.Database().user("test").get()
+    old_salt = user["salt"]
+    old_digest = user["digest"]
+
+    response = command_runner(["modify-user", "test", "--password"])
+
+    # Assert that password has actually changed
+    user = db.Database().user("test").get()
+    assert user["salt"] != old_salt
+    assert user["digest"] != old_digest
+
+    # Assert that output contains new password
+    data = json.loads(response.output)
+    assert data["password"]
+    assert data["password"] != old_password
+
+
+@pytest.mark.usefixtures('test_mongo')
+def test_modify_user_fail(command_runner):
+    """Test modifying a user that does not exist."""
+    with pytest.raises(db.UserNotFoundError):
+        command_runner(["modify-user", "test"])
+
+
+@pytest.mark.usefixtures('test_mongo')
 def test_grant_user_projects(database, command_runner):
     """Test granting the user access to projects."""
     user = db.Database().user("test")

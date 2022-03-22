@@ -223,7 +223,7 @@ def modify_user(username, password):
     user = user.get()
     response = {
         "_id": user["_id"],
-        "project": user["project"]
+        "projects": user["projects"]
     }
     if password:
         response["password"] = passwd
