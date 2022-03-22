@@ -17,27 +17,42 @@ def cli():
     pass
 
 
-@cli.command("cleanup-tokens")
-def cleanup_tokens():
+@cli.command()
+@click.option(
+    "--tokens", is_flag=True,
+    help="Clean expired session tokens from the database.")
+@click.option(
+    "--files", is_flag=True, help="Clean files from the disk.")
+@click.option(
+    "--mongo", is_flag=True,
+    help="Clean Mongo from file identifiers that are not found in Metax.")
+def cleanup(tokens, files, mongo):
+    """Clean up database and disk."""
+    if tokens:
+        _cleanup_tokens()
+    if files:
+        _cleanup_files()
+    if mongo:
+        _cleanup_mongo()
+
+
+def _cleanup_tokens():
     """Clean expired session tokens from the database."""
     database = db.Database()
-
     deleted_count = database.tokens.clean_session_tokens()
     click.echo(f"Cleaned {deleted_count} expired token(s)")
 
 
-@cli.command("cleanup-files")
-def cleanup_files():
+def _cleanup_files():
     """Clean files from the disk."""
     deleted_count = clean_disk()
     click.echo(f"Cleaned {deleted_count} files")
 
 
-@cli.command("cleanup-mongo")
-def cleanup_mongo():
+def _cleanup_mongo():
     """Clean identifiers from mongo."""
     deleted_count = clean_mongo()
-    click.echo(f"Cleaned {deleted_count} identifiers")
+    click.echo(f"Cleaned {deleted_count} identifiers from Mongo")
 
 
 def _get_users(user, users):

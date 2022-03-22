@@ -33,14 +33,14 @@ def command_runner():
 
 @mock.patch('upload_rest_api.__main__.clean_mongo')
 @mock.patch('upload_rest_api.__main__.clean_disk')
-@pytest.mark.parametrize("command", ("files", "mongo"))
-def test_cleanup(mock_clean_disk, mock_clean_mongo, command, command_runner):
+@pytest.mark.parametrize("flag", ("--files", "--mongo"))
+def test_cleanup(mock_clean_disk, mock_clean_mongo, flag, command_runner):
     """Test that correct function is called from main function when
-    cleanup-files or cleanup-mongo command is used.
+    cleanup command is used.
     """
-    command_runner([f"cleanup-{command}"])
+    command_runner(["cleanup", flag])
 
-    if command == "files":
+    if flag == "--files":
         mock_clean_disk.assert_called()
         mock_clean_mongo.assert_not_called()
     else:
@@ -71,7 +71,7 @@ def test_cleanup_tokens(database, command_runner):
         )
 
     # Only the last token exists
-    result = command_runner(["cleanup-tokens"])
+    result = command_runner(["cleanup", "--tokens"])
     assert result.output == "Cleaned 2 expired token(s)\n"
 
     assert database.tokens.tokens.count() == 1
