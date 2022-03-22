@@ -279,6 +279,30 @@ def test_delete_project(database, command_runner):
 
 
 @pytest.mark.usefixtures("test_mongo")
+def test_modify_project(command_runner):
+    """Test setting new quota for a project"""
+    db.Database().projects.create("test_project", quota=2048)
+
+    result = command_runner(["modify-project", "test_project", "--quota", "1"])
+
+    # Assert that quota has actually changed
+    project = db.Database().projects.get("test_project")
+    assert project["quota"] == 1
+
+    # Assert that output tells the new quota
+    data = json.loads(result.output)
+    assert data["quota"] == 1
+
+
+@pytest.mark.usefixtures("test_mongo")
+def test_modify_project_fail(command_runner):
+    """Test modifying a project that does not exist"""
+    result = command_runner(["modify-project", "test_project"])
+
+    assert result.output == "Project 'test_project' does not exist.\n"
+
+
+@pytest.mark.usefixtures("test_mongo")
 def test_migrate_database_projects(database, command_runner):
     """Test migrating users and projects to be separate database entities"""
     database.client.upload.projects.insert([
