@@ -91,6 +91,14 @@ def test_list_users(command_runner):
 
 
 @pytest.mark.usefixtures('test_mongo')
+def test_list_users_when_no_users(command_runner, database):
+    """Test `list --userss` command when there are no users."""
+    result = command_runner(["list", "--users"])
+
+    assert result.output == "No users found\n"
+
+
+@pytest.mark.usefixtures('test_mongo')
 def test_list_projects(command_runner, database):
     """Test `list --projects` command."""
     database.projects.create("test_project_o")
@@ -100,6 +108,14 @@ def test_list_projects(command_runner, database):
     result = command_runner(["list", "--projects"])
 
     assert "test_project_o\ntest_project_q\ntest_project_r" in result.output
+
+
+@pytest.mark.usefixtures('test_mongo')
+def test_list_projects_when_no_projects(command_runner, database):
+    """Test `list --projects` command when there are no projects."""
+    result = command_runner(["list", "--projects"])
+
+    assert result.output == "No projects found\n"
 
 
 @pytest.mark.usefixtures('test_mongo')
@@ -120,7 +136,7 @@ def test_list_project(command_runner, database):
     # Project not found
     result = command_runner(["list", "--project", "test_project_b"])
 
-    assert "Project not found" in result.output
+    assert "Project 'test_project_b' not found" in result.output
 
 
 def test_create_user(test_mongo, mock_config, command_runner):
@@ -197,7 +213,7 @@ def test_grant_user_projects(database, command_runner):
     database.projects.create("test_project_2", 2000)
     database.projects.create("test_project_3", 2000)
 
-    command_runner([
+    result = command_runner([
         "users", "project-rights", "--grant", "test", "test_project_2",
         "test_project_3"
     ])
@@ -205,6 +221,10 @@ def test_grant_user_projects(database, command_runner):
     assert user.get_projects() == [
         "test_project", "test_project_2", "test_project_3"
     ]
+    assert result.output == (
+        "Granted user 'test' access to project(s): "
+        "test_project_2, test_project_3\n"
+    )
 
 
 @pytest.mark.usefixtures('test_mongo')
@@ -237,15 +257,18 @@ def test_grant_user_projects_nonexistent_user(
 
 @pytest.mark.usefixtures('test_mongo')
 def test_revoke_user_projects(database, command_runner):
-    """Test granting the user access to projects."""
+    """Test revoking the user access to projects."""
     user = db.Database().user("test")
     user.create(projects=["test_project"])
 
-    command_runner([
+    result = command_runner([
         "users", "project-rights", "--revoke", "test", "test_project"
     ])
 
     assert user.get_projects() == []
+    assert result.output == (
+        "Revoked user 'test' access to project(s): test_project\n"
+    )
 
 
 def test_user_project_rights_with_invalid_flags(command_runner):

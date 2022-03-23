@@ -46,28 +46,31 @@ def _cleanup_tokens():
 def _cleanup_files():
     """Clean files from the disk."""
     deleted_count = clean_disk()
-    click.echo(f"Cleaned {deleted_count} files")
+    click.echo(f"Cleaned {deleted_count} file(s)")
 
 
 def _cleanup_mongo():
     """Clean Mongo from file identifiers that are not found in Metax."""
     deleted_count = clean_mongo()
-    click.echo(f"Cleaned {deleted_count} identifiers from Mongo")
+    click.echo(f"Cleaned {deleted_count} identifier(s) from Mongo")
 
 
-def _list_users(user, users):
+def _list_users(username, users):
     """List users from Mongo."""
     database = db.Database()
 
     if users:
         users = database.get_all_users()
-        for user in users:
-            click.echo(user)
-    elif user:
+        if users:
+            for user in users:
+                click.echo(user)
+        else:
+            click.echo("No users found")
+    elif username:
         try:
-            user = database.user(user).get()
+            user = database.user(username).get()
         except db.UserNotFoundError:
-            click.echo("User not found")
+            click.echo(f"User '{username}' not found")
             return
 
         response = {
@@ -77,35 +80,42 @@ def _list_users(user, users):
         click.echo(json.dumps(response, indent=4))
 
 
-def _list_projects(project, projects):
+def _list_projects(project_name, projects):
     """List projects from Mongo."""
     database = db.Database()
 
     if projects:
         projects = database.projects.get_all_projects()
-        for project in projects:
-            click.echo(project["_id"])
-    elif project:
-        project = database.projects.get(project)
+        if projects:
+            for project in projects:
+                click.echo(project["_id"])
+        else:
+            click.echo("No projects found")
+    elif project_name:
+        project = database.projects.get(project_name)
         if project:
             click.echo(json.dumps(project, indent=4))
         else:
-            click.echo("Project not found")
+            click.echo(f"Project '{project_name}' not found")
 
 
-def _list_checksums(checksum, checksums):
+def _list_checksums(checksum_query, checksums):
     """List checksums from Mongo."""
     database = db.Database()
 
     if checksums:
         checksums = database.checksums.get_checksums()
-        click.echo(json.dumps(checksums, indent=4))
-    elif checksum:
-        checksum = database.checksums.get_checksum(checksum)
+        if checksums:
+            click.echo(json.dumps(checksums, indent=4))
+        else:
+            click.echo("No checksums found")
+
+    elif checksum_query:
+        checksum = database.checksums.get_checksum(checksum_query)
         if checksum:
             click.echo(checksum)
         else:
-            click.echo("Checksum not found")
+            click.echo(f"Checksum '{checksum_query}' not found")
 
 
 def _list_identifiers(identifier, identifiers):
@@ -114,14 +124,17 @@ def _list_identifiers(identifier, identifiers):
 
     if identifiers:
         identifiers = database.files.get_all_ids()
-        for identifier in identifiers:
-            click.echo(identifier)
+        if identifiers:
+            for identifier in identifiers:
+                click.echo(identifier)
+        else:
+            click.echo("No identifiers found")
     elif identifier:
         path = database.files.get_path(identifier)
         if path:
             click.echo(path)
         else:
-            click.echo("Identifier not found")
+            click.echo(f"Identifier '{identifier}' not found")
 
 
 @cli.command("list")
@@ -179,6 +192,10 @@ def _grant_user_projects(username, projects):
     user = db.Database().user(username)
     for project in projects:
         user.grant_project(project)
+    click.echo(
+        (f"Granted user '{username}' access to project(s): "
+         f"{', '.join(projects)}")
+    )
 
 
 def _revoke_user_projects(username, projects):
@@ -186,6 +203,10 @@ def _revoke_user_projects(username, projects):
     user = db.Database().user(username)
     for project in projects:
         user.revoke_project(project)
+    click.echo(
+        (f"Revoked user '{username}' access to project(s): "
+         f"{', '.join(projects)}")
+    )
 
 
 @users.command("delete")
@@ -193,7 +214,7 @@ def _revoke_user_projects(username, projects):
 def delete_user(username):
     """Delete an existing user with spesified USERNAME."""
     db.Database().user(username).delete()
-    click.echo("Deleted")
+    click.echo(f"Deleted user '{username}'")
 
 
 @users.command("modify")
@@ -257,7 +278,7 @@ def modify_project(project, quota):
 def delete_project(project):
     """Delete PROJECT."""
     db.Database().projects.delete(project)
-    click.echo("Project was deleted")
+    click.echo(f"Project '{project}' was deleted")
 
 
 @projects.command("generate-metadata")
@@ -305,6 +326,7 @@ def generate_metadata(project, output):
                 _file_md["object"]["checksum"]["value"],
                 _file_md["object"]["file_path"]
             ))
+    click.echo(f"Created identifiers written to {output}")
 
 
 # TODO: Remove this CLI command once all environments have been migrated
