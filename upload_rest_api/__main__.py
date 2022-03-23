@@ -13,7 +13,7 @@ from upload_rest_api.cleanup import clean_disk, clean_mongo
 
 @click.group()
 def cli():
-    """upload_rest_api CLI"""
+    """Upload REST API command line tool."""
     pass
 
 
@@ -50,13 +50,13 @@ def _cleanup_files():
 
 
 def _cleanup_mongo():
-    """Clean identifiers from mongo."""
+    """Clean Mongo from file identifiers that are not found in Metax."""
     deleted_count = clean_mongo()
     click.echo(f"Cleaned {deleted_count} identifiers from Mongo")
 
 
 def _get_users(user, users):
-    """Get users from mongo."""
+    """Get users from Mongo."""
     database = db.Database()
 
     if users:
@@ -78,7 +78,7 @@ def _get_users(user, users):
 
 
 def _get_projects(project, projects):
-    """Get projects from mongo."""
+    """Get projects from Mongo."""
     database = db.Database()
 
     if projects:
@@ -94,7 +94,7 @@ def _get_projects(project, projects):
 
 
 def _get_checksums(checksum, checksums):
-    """Get checksums from mongo."""
+    """Get checksums from Mongo."""
     database = db.Database()
 
     if checksums:
@@ -109,7 +109,7 @@ def _get_checksums(checksum, checksums):
 
 
 def _get_identifiers(identifier, identifiers):
-    """Get identifiers from mongo."""
+    """Get identifiers from Mongo."""
     database = db.Database()
 
     if identifiers:
@@ -125,17 +125,17 @@ def _get_identifiers(identifier, identifiers):
 
 
 @cli.command()
-@click.option("--user", help="Get one user")
-@click.option("--users", is_flag=True, help="Get all users")
-@click.option("--project", help="Get one project")
-@click.option("--projects", is_flag=True, help="Get all projects")
-@click.option("--identifier", help="Get path based on Metax identifier")
-@click.option("--identifiers", is_flag=True, help="Get all Metax identifiers")
-@click.option("--checksum", help="Get one checksum")
-@click.option("--checksums", is_flag=True, help="Get all checksums")
+@click.option("--user", help="Get one user.")
+@click.option("--users", is_flag=True, help="Get all users.")
+@click.option("--project", help="Get one project.")
+@click.option("--projects", is_flag=True, help="Get all projects.")
+@click.option("--identifier", help="Get path based on Metax identifier.")
+@click.option("--identifiers", is_flag=True, help="Get all Metax identifiers.")
+@click.option("--checksum", help="Get one checksum.")
+@click.option("--checksums", is_flag=True, help="Get all checksums.")
 def get(user, users, project, projects, identifier, identifiers, checksum,
         checksums):
-    """Get mongo documents."""
+    """Get Mongo documents."""
     _get_users(user, users)
     _get_projects(project, projects)
     _get_checksums(checksum, checksums)
@@ -174,14 +174,14 @@ def user_project_rights(username, projects, grant, revoke):
 
 
 def _grant_user_projects(username, projects):
-    """Grant user access to projects"""
+    """Grant user access to projects."""
     user = db.Database().user(username)
     for project in projects:
         user.grant_project(project)
 
 
 def _revoke_user_projects(username, projects):
-    """Revoke user rights to access projects"""
+    """Revoke user rights to access projects."""
     user = db.Database().user(username)
     for project in projects:
         user.revoke_project(project)
@@ -223,7 +223,8 @@ def projects():
 
 @projects.command("create")
 @click.argument("project")
-@click.option("--quota", required=True, type=int, help="Set project quota.")
+@click.option(
+    "--quota", required=True, type=int, help="Set project quota in bytes.")
 def create_project(project, quota):
     """Create a new PROJECT."""
     project = db.Database().projects.create(
@@ -234,7 +235,7 @@ def create_project(project, quota):
 
 @projects.command("modify")
 @click.argument("project")
-@click.option("--quota", type=int, help="Set project quota.")
+@click.option("--quota", type=int, help="Set project quota in bytes.")
 def modify_project(project, quota):
     """Modify an existing PROJECT."""
     database = db.Database()
