@@ -142,53 +142,6 @@ def get(user, users, project, projects, identifier, identifiers, checksum,
     _get_identifiers(identifier, identifiers)
 
 
-@cli.command("generate-metadata")
-@click.argument("project")
-@click.option(
-    "-o", "--output",
-    type=click.Path(
-        dir_okay=False, writable=True, allow_dash=True),
-    default="identifiers.txt",
-    show_default=True,
-    help="Output filepath."
-)
-def generate_metadata(project, output):
-    """Generate metadata for the specified PROJECT."""
-    if os.path.exists(output):
-        raise ValueError("Output file exists")
-
-    conf = upload_rest_api.config.CONFIG
-    project_path = os.path.join(conf["UPLOAD_PROJECTS_PATH"], project)
-    metax_client = md.MetaxClient(conf["METAX_URL"],
-                                  conf["METAX_USER"],
-                                  conf["METAX_PASSWORD"],
-                                  conf["METAX_SSL_VERIFICATION"])
-
-    fpaths = []
-    for dirpath, _, files in os.walk(project_path):
-        for fname in files:
-            fpaths.append(os.path.join(dirpath, fname))
-
-    # POST metadata to Metax
-    response = metax_client.post_metadata(
-        fpaths, conf["UPLOAD_PROJECTS_PATH"], project, md.PAS_FILE_STORAGE_ID
-    )
-
-    click.echo(f"Success: {len(response['success'])}")
-    click.echo(f"Failed: {len(response['failed'])}")
-
-    # Write created identifiers to output file
-    with click.open_file(output, "wt", encoding="utf-8") as f_out:
-        for _file_md in response["success"]:
-            # pylint: disable=consider-using-f-string
-            f_out.write("{}\t{}\t{}\t{}\n".format(
-                _file_md["object"]["parent_directory"]["identifier"],
-                _file_md["object"]["identifier"],
-                _file_md["object"]["checksum"]["value"],
-                _file_md["object"]["file_path"]
-            ))
-
-
 @cli.group()
 def users():
     """Manage users and user rights."""
@@ -262,7 +215,13 @@ def modify_user(username, password):
     click.echo(json.dumps(response, indent=4))
 
 
-@cli.command("create-project")
+@cli.group()
+def projects():
+    """Manage projects."""
+    pass
+
+
+@projects.command("create")
 @click.argument("project")
 @click.option("--quota", required=True, type=int, help="Set project quota.")
 def create_project(project, quota):
@@ -273,7 +232,7 @@ def create_project(project, quota):
     click.echo(json.dumps(project, indent=4))
 
 
-@cli.command("modify-project")
+@projects.command("modify")
 @click.argument("project")
 @click.option("--quota", type=int, help="Set project quota.")
 def modify_project(project, quota):
@@ -291,12 +250,59 @@ def modify_project(project, quota):
     click.echo(json.dumps(project, indent=4))
 
 
-@cli.command("delete-project")
+@projects.command("delete")
 @click.argument("project")
 def delete_project(project):
     """Delete PROJECT."""
     db.Database().projects.delete(project)
     click.echo("Project was deleted")
+
+
+@projects.command("generate-metadata")
+@click.argument("project")
+@click.option(
+    "-o", "--output",
+    type=click.Path(
+        dir_okay=False, writable=True, allow_dash=True),
+    default="identifiers.txt",
+    show_default=True,
+    help="Output filepath."
+)
+def generate_metadata(project, output):
+    """Generate metadata for the specified PROJECT."""
+    if os.path.exists(output):
+        raise ValueError("Output file exists")
+
+    conf = upload_rest_api.config.CONFIG
+    project_path = os.path.join(conf["UPLOAD_PROJECTS_PATH"], project)
+    metax_client = md.MetaxClient(conf["METAX_URL"],
+                                  conf["METAX_USER"],
+                                  conf["METAX_PASSWORD"],
+                                  conf["METAX_SSL_VERIFICATION"])
+
+    fpaths = []
+    for dirpath, _, files in os.walk(project_path):
+        for fname in files:
+            fpaths.append(os.path.join(dirpath, fname))
+
+    # POST metadata to Metax
+    response = metax_client.post_metadata(
+        fpaths, conf["UPLOAD_PROJECTS_PATH"], project, md.PAS_FILE_STORAGE_ID
+    )
+
+    click.echo(f"Success: {len(response['success'])}")
+    click.echo(f"Failed: {len(response['failed'])}")
+
+    # Write created identifiers to output file
+    with click.open_file(output, "wt", encoding="utf-8") as f_out:
+        for _file_md in response["success"]:
+            # pylint: disable=consider-using-f-string
+            f_out.write("{}\t{}\t{}\t{}\n".format(
+                _file_md["object"]["parent_directory"]["identifier"],
+                _file_md["object"]["identifier"],
+                _file_md["object"]["checksum"]["value"],
+                _file_md["object"]["file_path"]
+            ))
 
 
 # TODO: Remove this CLI command once all environments have been migrated

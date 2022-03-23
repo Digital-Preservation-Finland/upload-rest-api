@@ -268,7 +268,7 @@ def test_user_project_rights_with_invalid_flags(command_runner):
 @pytest.mark.usefixtures("test_mongo")
 def test_create_project(database, command_runner):
     """Test creating a new project."""
-    command_runner(["create-project", "test_project", "--quota", "2468"])
+    command_runner(["projects", "create", "test_project", "--quota", "2468"])
 
     project = database.projects.get("test_project")
     assert project["quota"] == 2468
@@ -282,7 +282,7 @@ def test_create_project_already_exists(database, command_runner):
 
     with pytest.raises(db.ProjectExistsError) as exc:
         command_runner([
-            "create-project", "test_project", "--quota", "2048"
+            "projects", "create", "test_project", "--quota", "2048"
         ])
 
     assert str(exc.value) == "Project 'test_project' already exists"
@@ -293,7 +293,7 @@ def test_delete_project(database, command_runner):
     """Test deleting a project"""
     database.projects.create("test_project", quota=2048)
 
-    command_runner(["delete-project", "test_project"])
+    command_runner(["projects", "delete", "test_project"])
 
     assert not database.projects.get("test_project")
 
@@ -303,7 +303,9 @@ def test_modify_project(command_runner):
     """Test setting new quota for a project"""
     db.Database().projects.create("test_project", quota=2048)
 
-    result = command_runner(["modify-project", "test_project", "--quota", "1"])
+    result = command_runner([
+        "projects", "modify", "test_project", "--quota", "1"
+    ])
 
     # Assert that quota has actually changed
     project = db.Database().projects.get("test_project")
@@ -317,7 +319,7 @@ def test_modify_project(command_runner):
 @pytest.mark.usefixtures("test_mongo")
 def test_modify_project_fail(command_runner):
     """Test modifying a project that does not exist"""
-    result = command_runner(["modify-project", "test_project"])
+    result = command_runner(["projects", "modify", "test_project"])
 
     assert result.output == "Project 'test_project' does not exist.\n"
 
