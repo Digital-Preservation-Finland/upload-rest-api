@@ -80,35 +80,35 @@ def test_cleanup_tokens(database, command_runner):
 
 
 @pytest.mark.usefixtures('test_mongo')
-def test_get_users(command_runner):
-    """Test `get --users` command."""
+def test_list_users(command_runner):
+    """Test `list --users` command."""
     database = db.Database()
     database.user("test1").create(projects=["test_project"])
     database.user("test2").create(projects=["test_project"])
 
-    result = command_runner(["get", "--users"])
+    result = command_runner(["list", "--users"])
     assert result.output == "test1\ntest2\n"
 
 
 @pytest.mark.usefixtures('test_mongo')
-def test_get_projects(command_runner, database):
-    """Test `get --projects` command."""
+def test_list_projects(command_runner, database):
+    """Test `list --projects` command."""
     database.projects.create("test_project_o")
     database.projects.create("test_project_q")
     database.projects.create("test_project_r")
 
-    result = command_runner(["get", "--projects"])
+    result = command_runner(["list", "--projects"])
 
     assert "test_project_o\ntest_project_q\ntest_project_r" in result.output
 
 
 @pytest.mark.usefixtures('test_mongo')
-def test_get_project(command_runner, database):
-    """Test `get --project <id>` command."""
+def test_list_project(command_runner, database):
+    """Test `list --project <id>` command."""
     database.projects.create("test_project_a", quota=1248)
 
     # Existing project
-    result = command_runner(["get", "--project", "test_project_a"])
+    result = command_runner(["list", "--project", "test_project_a"])
 
     data = json.loads(result.output)
     assert data == {
@@ -118,7 +118,7 @@ def test_get_project(command_runner, database):
     }
 
     # Project not found
-    result = command_runner(["get", "--project", "test_project_b"])
+    result = command_runner(["list", "--project", "test_project_b"])
 
     assert "Project not found" in result.output
 

@@ -55,8 +55,8 @@ def _cleanup_mongo():
     click.echo(f"Cleaned {deleted_count} identifiers from Mongo")
 
 
-def _get_users(user, users):
-    """Get users from Mongo."""
+def _list_users(user, users):
+    """List users from Mongo."""
     database = db.Database()
 
     if users:
@@ -77,8 +77,8 @@ def _get_users(user, users):
         click.echo(json.dumps(response, indent=4))
 
 
-def _get_projects(project, projects):
-    """Get projects from Mongo."""
+def _list_projects(project, projects):
+    """List projects from Mongo."""
     database = db.Database()
 
     if projects:
@@ -93,8 +93,8 @@ def _get_projects(project, projects):
             click.echo("Project not found")
 
 
-def _get_checksums(checksum, checksums):
-    """Get checksums from Mongo."""
+def _list_checksums(checksum, checksums):
+    """List checksums from Mongo."""
     database = db.Database()
 
     if checksums:
@@ -108,8 +108,8 @@ def _get_checksums(checksum, checksums):
             click.echo("Checksum not found")
 
 
-def _get_identifiers(identifier, identifiers):
-    """Get identifiers from Mongo."""
+def _list_identifiers(identifier, identifiers):
+    """List identifiers from Mongo."""
     database = db.Database()
 
     if identifiers:
@@ -124,22 +124,23 @@ def _get_identifiers(identifier, identifiers):
             click.echo("Identifier not found")
 
 
-@cli.command()
-@click.option("--user", help="Get one user.")
-@click.option("--users", is_flag=True, help="Get all users.")
-@click.option("--project", help="Get one project.")
-@click.option("--projects", is_flag=True, help="Get all projects.")
-@click.option("--identifier", help="Get path based on Metax identifier.")
-@click.option("--identifiers", is_flag=True, help="Get all Metax identifiers.")
-@click.option("--checksum", help="Get one checksum.")
-@click.option("--checksums", is_flag=True, help="Get all checksums.")
-def get(user, users, project, projects, identifier, identifiers, checksum,
-        checksums):
-    """Get Mongo documents."""
-    _get_users(user, users)
-    _get_projects(project, projects)
-    _get_checksums(checksum, checksums)
-    _get_identifiers(identifier, identifiers)
+@cli.command("list")
+@click.option("--user", help="List one user.")
+@click.option("--users", is_flag=True, help="List all users.")
+@click.option("--project", help="List one project.")
+@click.option("--projects", is_flag=True, help="List all projects.")
+@click.option("--identifier", help="List path based on Metax identifier.")
+@click.option("--identifiers", is_flag=True,
+              help="List all Metax identifiers.")
+@click.option("--checksum", help="List one checksum.")
+@click.option("--checksums", is_flag=True, help="List all checksums.")
+def list_resources(user, users, project, projects, identifier, identifiers,
+                   checksum, checksums):
+    """List resources."""
+    _list_users(user, users)
+    _list_projects(project, projects)
+    _list_checksums(checksum, checksums)
+    _list_identifiers(identifier, identifiers)
 
 
 @cli.group()
