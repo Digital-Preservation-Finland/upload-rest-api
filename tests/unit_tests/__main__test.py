@@ -129,7 +129,7 @@ def test_create_user(test_mongo, mock_config, command_runner):
     User should be added to database and project directory should be
     created.
     """
-    command_runner(["create-user", "test_user"])
+    command_runner(["users", "create", "test_user"])
 
     assert test_mongo.upload.users.count({"_id": "test_user"}) == 1
 
@@ -141,13 +141,13 @@ def test_create_existing_user(command_runner):
     """
     db.Database().user("test").create(projects=["test_project"])
     with pytest.raises(db.UserExistsError):
-        command_runner(["create-user", "test"])
+        command_runner(["users", "create", "test"])
 
 
 def test_delete_user(test_mongo, command_runner):
     """Test deletion of an existing user."""
     db.Database().user("test").create(projects=["test_project"])
-    command_runner(["delete-user", "test"])
+    command_runner(["users", "delete", "test"])
 
     assert test_mongo.upload.users.count({"_id": "test"}) == 0
 
@@ -156,7 +156,7 @@ def test_delete_user(test_mongo, command_runner):
 def test_delete_user_fail(command_runner):
     """Test deletion of an user that does not exist."""
     with pytest.raises(db.UserNotFoundError):
-        command_runner(["delete-user", "test"])
+        command_runner(["users", "delete", "test"])
 
 
 @pytest.mark.usefixtures('test_mongo')
@@ -168,7 +168,7 @@ def test_modify_user(command_runner):
     old_salt = user["salt"]
     old_digest = user["digest"]
 
-    response = command_runner(["modify-user", "test", "--password"])
+    response = command_runner(["users", "modify", "test", "--password"])
 
     # Assert that password has actually changed
     user = db.Database().user("test").get()
@@ -185,7 +185,7 @@ def test_modify_user(command_runner):
 def test_modify_user_fail(command_runner):
     """Test modifying a user that does not exist."""
     with pytest.raises(db.UserNotFoundError):
-        command_runner(["modify-user", "test"])
+        command_runner(["users", "modify", "test"])
 
 
 @pytest.mark.usefixtures('test_mongo')
@@ -198,7 +198,8 @@ def test_grant_user_projects(database, command_runner):
     database.projects.create("test_project_3", 2000)
 
     command_runner([
-        'grant-user-projects', "test", "test_project_2", "test_project_3"
+        "users", "project-rights", "--grant", "test", "test_project_2",
+        "test_project_3"
     ])
 
     assert user.get_projects() == [
@@ -214,7 +215,7 @@ def test_grant_user_projects_nonexistent_project(database, command_runner):
 
     with pytest.raises(db.ProjectNotFoundError) as exc:
         command_runner([
-            'grant-user-projects', "test", "test_project_2"
+            "users", "project-rights", "--grant", "test", "test_project_2"
         ])
 
     assert str(exc.value) == "Project 'test_project_2' not found"
@@ -228,7 +229,7 @@ def test_grant_user_projects_nonexistent_user(
 
     with pytest.raises(db.UserNotFoundError) as exc:
         command_runner([
-            "grant-user-projects", "fake_user", "test_project"
+            "users", "project-rights", "--grant", "fake_user", "test_project"
         ])
 
     assert str(exc.value) == "User 'fake_user' not found"
@@ -240,9 +241,28 @@ def test_revoke_user_projects(database, command_runner):
     user = db.Database().user("test")
     user.create(projects=["test_project"])
 
-    command_runner(["revoke-user-projects", "test", "test_project"])
+    command_runner([
+        "users", "project-rights", "--revoke", "test", "test_project"
+    ])
 
     assert user.get_projects() == []
+
+
+def test_user_project_rights_with_invalid_flags(command_runner):
+    """Test giving user access to projects with confusing commands."""
+    # Both grant and revoke access to projects
+    result = command_runner([
+        "users", "project-rights", "--grant", "--revoke", "user", "project"
+    ])
+    assert result.exit_code != 0
+    assert "Set one and only one of --grant or --revoke." in result.output
+
+    # Don't grant or revoke access to projects
+    result = command_runner([
+        "users", "project-rights", "user", "project"
+    ])
+    assert result.exit_code != 0
+    assert "Set one and only one of --grant or --revoke." in result.output
 
 
 @pytest.mark.usefixtures("test_mongo")

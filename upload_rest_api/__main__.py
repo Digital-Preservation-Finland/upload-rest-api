@@ -189,36 +189,52 @@ def generate_metadata(project, output):
             ))
 
 
-@cli.command("create-user")
+@cli.group()
+def users():
+    """Manage users and user rights."""
+    pass
+
+
+@users.command("create")
 @click.argument("username")
 def create_user(username):
-    """Create a new user with USERNAME."""
+    """Create a new user with spesified USERNAME."""
     user = db.Database().user(username)
     passwd = user.create()
     click.echo(f"{username}:{passwd}")
 
 
-@cli.command("grant-user-projects")
+@users.command("project-rights")
 @click.argument("username")
 @click.argument("projects", nargs=-1)
-def grant_user_projects(username, projects):
-    """Grant USERNAME access to PROJECTS"""
+@click.option("--grant", is_flag=True, help="Grant access to PROJECTS.")
+@click.option("--revoke", is_flag=True, help="Revoke access to PROJECTS.")
+def user_project_rights(username, projects, grant, revoke):
+    """Manage USERNAME's access to PROJECTS."""
+    if (grant and revoke) or (not grant and not revoke):
+        raise click.UsageError("Set one and only one of --grant or --revoke.")
+
+    if grant:
+        _grant_user_projects(username, projects)
+    elif revoke:
+        _revoke_user_projects(username, projects)
+
+
+def _grant_user_projects(username, projects):
+    """Grant user access to projects"""
     user = db.Database().user(username)
     for project in projects:
         user.grant_project(project)
 
 
-@cli.command("revoke-user-projects")
-@click.argument("username")
-@click.argument("projects", nargs=-1)
-def revoke_user_projects(username, projects):
-    """Revoke USERNAME access to PROJECTS"""
+def _revoke_user_projects(username, projects):
+    """Revoke user rights to access projects"""
     user = db.Database().user(username)
     for project in projects:
         user.revoke_project(project)
 
 
-@cli.command("delete-user")
+@users.command("delete")
 @click.argument("username")
 def delete_user(username):
     """Delete an existing user with spesified USERNAME."""
@@ -226,11 +242,11 @@ def delete_user(username):
     click.echo("Deleted")
 
 
-@cli.command("modify-user")
+@users.command("modify")
 @click.argument("username")
 @click.option("--password", is_flag=True, help="Generate new password.")
 def modify_user(username, password):
-    """Modify an existing user USERNAME."""
+    """Modify an existing user with spesified USERNAME."""
     user = db.Database().user(username)
     if password:
         passwd = user.change_password()
