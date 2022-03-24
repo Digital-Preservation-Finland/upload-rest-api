@@ -10,6 +10,15 @@ import upload_rest_api.gen_metadata as md
 from upload_rest_api.cleanup import clean_disk, clean_mongo
 
 
+def _echo_dict(dictionary):
+    """Echo a dictionary to stdout.
+
+    :param dictionary: dictionary to echo.
+    :returns: None
+    """
+    click.echo(json.dumps(dictionary, indent=4))
+
+
 @click.group()
 def cli():
     """Upload REST API command line tool."""
@@ -76,7 +85,7 @@ def _list_users(username, users):
             "_id": user["_id"],
             "projects": user["projects"]
         }
-        click.echo(json.dumps(response, indent=4))
+        _echo_dict(response)
 
 
 def _list_projects(project_name, projects):
@@ -93,7 +102,7 @@ def _list_projects(project_name, projects):
     elif project_name:
         project = database.projects.get(project_name)
         if project:
-            click.echo(json.dumps(project, indent=4))
+            _echo_dict(project)
         else:
             click.echo(f"Project '{project_name}' not found")
 
@@ -105,7 +114,7 @@ def _list_checksums(checksum_query, checksums):
     if checksums:
         checksums = database.checksums.get_checksums()
         if checksums:
-            click.echo(json.dumps(checksums, indent=4))
+            _echo_dict(checksums)
         else:
             click.echo("No checksums found")
 
@@ -233,7 +242,7 @@ def modify_user(username, password):
     if password:
         response["password"] = passwd
 
-    click.echo(json.dumps(response, indent=4))
+    _echo_dict(response)
 
 
 @cli.group()
@@ -251,7 +260,7 @@ def create_project(project, quota):
     project = db.Database().projects.create(
         identifier=project, quota=quota
     )
-    click.echo(json.dumps(project, indent=4))
+    _echo_dict(project)
 
 
 @projects.command("modify")
@@ -270,7 +279,7 @@ def modify_project(project, quota):
         database.projects.set_quota(project, quota)
 
     project = database.projects.get(project)
-    click.echo(json.dumps(project, indent=4))
+    _echo_dict(project)
 
 
 @projects.command("delete")
