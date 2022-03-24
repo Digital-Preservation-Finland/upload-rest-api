@@ -214,7 +214,7 @@ def test_grant_user_projects(database, command_runner):
     database.projects.create("test_project_3", 2000)
 
     result = command_runner([
-        "users", "project-rights", "--grant", "test", "test_project_2",
+        "users", "project-rights", "grant", "test", "test_project_2",
         "test_project_3"
     ])
 
@@ -235,7 +235,7 @@ def test_grant_user_projects_nonexistent_project(database, command_runner):
 
     with pytest.raises(db.ProjectNotFoundError) as exc:
         command_runner([
-            "users", "project-rights", "--grant", "test", "test_project_2"
+            "users", "project-rights", "grant", "test", "test_project_2"
         ])
 
     assert str(exc.value) == "Project 'test_project_2' not found"
@@ -249,7 +249,7 @@ def test_grant_user_projects_nonexistent_user(
 
     with pytest.raises(db.UserNotFoundError) as exc:
         command_runner([
-            "users", "project-rights", "--grant", "fake_user", "test_project"
+            "users", "project-rights", "grant", "fake_user", "test_project"
         ])
 
     assert str(exc.value) == "User 'fake_user' not found"
@@ -262,30 +262,13 @@ def test_revoke_user_projects(database, command_runner):
     user.create(projects=["test_project"])
 
     result = command_runner([
-        "users", "project-rights", "--revoke", "test", "test_project"
+        "users", "project-rights", "revoke", "test", "test_project"
     ])
 
     assert user.get_projects() == []
     assert result.output == (
         "Revoked user 'test' access to project(s): test_project\n"
     )
-
-
-def test_user_project_rights_with_invalid_flags(command_runner):
-    """Test giving user access to projects with confusing commands."""
-    # Both grant and revoke access to projects
-    result = command_runner([
-        "users", "project-rights", "--grant", "--revoke", "user", "project"
-    ])
-    assert result.exit_code != 0
-    assert "Set one and only one of --grant or --revoke." in result.output
-
-    # Don't grant or revoke access to projects
-    result = command_runner([
-        "users", "project-rights", "user", "project"
-    ])
-    assert result.exit_code != 0
-    assert "Set one and only one of --grant or --revoke." in result.output
 
 
 @pytest.mark.parametrize("quota", [0, 2468])

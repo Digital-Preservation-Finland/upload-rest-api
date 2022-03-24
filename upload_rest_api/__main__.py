@@ -166,7 +166,7 @@ def list_resources(user, users, project, projects, identifier, identifiers,
 
 @cli.group()
 def users():
-    """Manage users and user rights."""
+    """Manage users and user project rights."""
     pass
 
 
@@ -179,24 +179,16 @@ def create_user(username):
     click.echo(f"{username}:{passwd}")
 
 
-@users.command("project-rights")
+@users.group("project-rights")
+def project_rights():
+    """Manage user access to projects."""
+
+
+@project_rights.command("grant")
 @click.argument("username")
 @click.argument("projects", nargs=-1)
-@click.option("--grant", is_flag=True, help="Grant access to PROJECTS.")
-@click.option("--revoke", is_flag=True, help="Revoke access to PROJECTS.")
-def user_project_rights(username, projects, grant, revoke):
-    """Manage USERNAME's access to PROJECTS."""
-    if (grant and revoke) or (not grant and not revoke):
-        raise click.UsageError("Set one and only one of --grant or --revoke.")
-
-    if grant:
-        _grant_user_projects(username, projects)
-    elif revoke:
-        _revoke_user_projects(username, projects)
-
-
-def _grant_user_projects(username, projects):
-    """Grant user access to projects."""
+def grant_user_projects(username, projects):
+    """Grant USERNAME access to PROJECTS."""
     user = db.Database().user(username)
     for project in projects:
         user.grant_project(project)
@@ -206,8 +198,11 @@ def _grant_user_projects(username, projects):
     )
 
 
-def _revoke_user_projects(username, projects):
-    """Revoke user rights to access projects."""
+@project_rights.command("revoke")
+@click.argument("username")
+@click.argument("projects", nargs=-1)
+def revoke_user_projects(username, projects):
+    """Revoke USERNAME access to PROJECTS."""
     user = db.Database().user(username)
     for project in projects:
         user.revoke_project(project)
