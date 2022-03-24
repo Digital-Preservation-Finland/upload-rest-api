@@ -244,8 +244,8 @@ def projects():
 
 @projects.command("create")
 @click.argument("project")
-@click.option(
-    "--quota", required=True, type=int, help="Set project quota in bytes.")
+@click.option("--quota", required=True, type=click.IntRange(min=0),
+              help="Set project quota in bytes.")
 def create_project(project, quota):
     """Create a new PROJECT."""
     project = db.Database().projects.create(
@@ -256,7 +256,8 @@ def create_project(project, quota):
 
 @projects.command("modify")
 @click.argument("project")
-@click.option("--quota", type=int, help="Set project quota in bytes.")
+@click.option("--quota", type=click.IntRange(min=0),
+              help="Set project quota in bytes.")
 def modify_project(project, quota):
     """Modify an existing PROJECT."""
     database = db.Database()
@@ -265,7 +266,7 @@ def modify_project(project, quota):
         click.echo(f"Project '{project}' does not exist.")
         return
 
-    if quota:
+    if quota is not None:
         database.projects.set_quota(project, quota)
 
     project = database.projects.get(project)

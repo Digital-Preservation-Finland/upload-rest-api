@@ -288,14 +288,27 @@ def test_user_project_rights_with_invalid_flags(command_runner):
     assert "Set one and only one of --grant or --revoke." in result.output
 
 
+@pytest.mark.parametrize("quota", [0, 2468])
 @pytest.mark.usefixtures("test_mongo")
-def test_create_project(database, command_runner):
+def test_create_project(database, command_runner, quota):
     """Test creating a new project."""
-    command_runner(["projects", "create", "test_project", "--quota", "2468"])
+    command_runner(["projects", "create", "test_project", "--quota", quota])
 
     project = database.projects.get("test_project")
-    assert project["quota"] == 2468
+    assert project["quota"] == quota
     assert project["used_quota"] == 0
+
+
+def test_create_project_with_negative_quota(command_runner):
+    """Test that creating a new project with negative quota results in
+    error.
+    """
+    result = command_runner([
+        "projects", "create", "test_project", "--quota", "-1"
+    ])
+
+    assert result.exit_code != 0
+    assert "Invalid value for '--quota'" in result.output
 
 
 @pytest.mark.usefixtures("test_mongo")
@@ -321,22 +334,33 @@ def test_delete_project(database, command_runner):
     assert not database.projects.get("test_project")
 
 
+@pytest.mark.parametrize("quota", [0, 1])
 @pytest.mark.usefixtures("test_mongo")
-def test_modify_project(command_runner):
+def test_modify_project(command_runner, quota):
     """Test setting new quota for a project"""
     db.Database().projects.create("test_project", quota=2048)
 
     result = command_runner([
-        "projects", "modify", "test_project", "--quota", "1"
+        "projects", "modify", "test_project", "--quota", quota
     ])
 
     # Assert that quota has actually changed
     project = db.Database().projects.get("test_project")
-    assert project["quota"] == 1
+    assert project["quota"] == quota
 
     # Assert that output tells the new quota
     data = json.loads(result.output)
-    assert data["quota"] == 1
+    assert data["quota"] == quota
+
+
+def test_modify_project_with_negative_quota(command_runner):
+    """Test that modifying a project with negative quota results in error."""
+    result = command_runner([
+        "projects", "modify", "test_project", "--quota", "-1"
+    ])
+
+    assert result.exit_code != 0
+    assert "Invalid value for '--quota'" in result.output
 
 
 @pytest.mark.usefixtures("test_mongo")
