@@ -7,7 +7,6 @@ import click
 import upload_rest_api.config
 import upload_rest_api.database as db
 import upload_rest_api.gen_metadata as md
-from pymongo.errors import DuplicateKeyError
 from upload_rest_api.cleanup import clean_disk, clean_mongo
 
 
@@ -327,48 +326,6 @@ def generate_metadata(project, output):
                 _file_md["object"]["file_path"]
             ))
     click.echo(f"Created identifiers written to {output}")
-
-
-# TODO: Remove this CLI command once all environments have been migrated
-@cli.command("migrate-database-projects")
-def migrate_database_projects():
-    """Perform database migration to separate users and projects."""
-    database = db.Database()
-
-    users_to_migrate = list(
-        database.client.upload.users.find(
-            {"quota": {"$exists": True}}
-        )
-    )
-
-    click.echo(f"{len(users_to_migrate)} user(s) to migrate")
-
-    for user in users_to_migrate:
-        click.echo(f"Migrating user '{user['_id']}'")
-
-        project = {
-            "_id": user["project"],
-            "quota": user["quota"],
-            "used_quota": user["used_quota"]
-        }
-        # Create project first
-        try:
-            database.client.upload.projects.insert_one(project)
-        except DuplicateKeyError:
-            # Project already exists
-            click.echo(
-                f"Project {user['project']} already exists! Skipping it...")
-
-        # Update user
-        database.client.upload.users.update(
-            {"_id": user["_id"]},
-            {
-                "$unset": {"quota": 1, "used_quota": 1, "project": 1},
-                "$set": {"projects": [user["project"]]}
-            }
-        )
-
-        click.echo(f"Migrated user '{user['_id']}'")
 
 
 if __name__ == '__main__':
