@@ -248,3 +248,23 @@ def test_checksums_delete_chunks(checksums_col):
         "/path/20099": "foobar"
     }
 
+
+def test_get_all_files_with_checksums(database):
+    """Test getting all files with corresponding checksums."""
+    files = [
+        {"_id": "pid:urn:1", "file_path": "path_1"},
+        {"_id": "pid:urn:2", "file_path": "path_2"}
+    ]
+    checksums = [
+        {"_id": "path_1", "checksum": "checksum_1"},
+        {"_id": "path_2", "checksum": "checksum_2"}
+    ]
+    database.files.insert(files)
+    database.checksums.insert(checksums)
+
+    files_with_checksums = database.files.get_all_files_with_checksums()
+    correct_result = [
+        {"_id": "pid:urn:1", "checksum": "checksum_1", "file_path": "path_1"},
+        {"_id": "pid:urn:2", "checksum": "checksum_2", "file_path": "path_2"},
+    ]
+    assert files_with_checksums == correct_result

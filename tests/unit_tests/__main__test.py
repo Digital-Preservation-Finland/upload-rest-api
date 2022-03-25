@@ -81,50 +81,72 @@ def test_cleanup_tokens(database, command_runner):
 
 @pytest.mark.usefixtures('test_mongo')
 def test_list_users(command_runner):
-    """Test `list --users` command."""
+    """Test listing all users."""
     database = db.Database()
     database.user("test1").create(projects=["test_project"])
     database.user("test2").create(projects=["test_project"])
 
-    result = command_runner(["list", "--users"])
+    result = command_runner(["users", "list"])
     assert result.output == "test1\ntest2\n"
 
 
 @pytest.mark.usefixtures('test_mongo')
 def test_list_users_when_no_users(command_runner, database):
-    """Test `list --userss` command when there are no users."""
-    result = command_runner(["list", "--users"])
+    """Test listing all users when there are no users."""
+    result = command_runner(["users", "list"])
 
     assert result.output == "No users found\n"
 
 
+def test_get_user(command_runner):
+    """Test displaying information of one user."""
+    database = db.Database()
+    database.user("test1").create(projects=["test_project"])
+
+    result = command_runner(["users", "get", "test1"])
+    result_data = json.loads(result.output)
+    correct_result = {
+        "_id": "test1",
+        "projects": [
+            "test_project"
+        ]
+    }
+    assert result_data == correct_result
+
+
+def test_get_nonexistent_user(command_runner):
+    """Test displaying information of a user that does not exist."""
+    result = command_runner(["users", "get", "nonexistent_user"])
+    assert result.output == "User 'nonexistent_user' not found\n"
+
+
 @pytest.mark.usefixtures('test_mongo')
 def test_list_projects(command_runner, database):
-    """Test `list --projects` command."""
+    """Test listing all projects."""
     database.projects.create("test_project_o")
     database.projects.create("test_project_q")
     database.projects.create("test_project_r")
 
-    result = command_runner(["list", "--projects"])
+    result = command_runner(["projects", "list"])
 
     assert "test_project_o\ntest_project_q\ntest_project_r" in result.output
 
 
 @pytest.mark.usefixtures('test_mongo')
 def test_list_projects_when_no_projects(command_runner, database):
-    """Test `list --projects` command when there are no projects."""
-    result = command_runner(["list", "--projects"])
+    """Test listing all projects when there are no projects."""
+    result = command_runner(["projects", "list"])
 
     assert result.output == "No projects found\n"
 
 
 @pytest.mark.usefixtures('test_mongo')
-def test_list_project(command_runner, database):
-    """Test `list --project <id>` command."""
+def test_get_project(command_runner, database):
+    """Test getting information of one project."""
     database.projects.create("test_project_a", quota=1248)
 
     # Existing project
-    result = command_runner(["list", "--project", "test_project_a"])
+    result = command_runner(["projects", "get", "test_project_a"])
 
     data = json.loads(result.output)
     assert data == {
@@ -134,7 +156,7 @@ def test_list_project(command_runner, database):
     }
 
     # Project not found
-    result = command_runner(["list", "--project", "test_project_b"])
+    result = command_runner(["projects", "get", "test_project_b"])
 
     assert "Project 'test_project_b' not found" in result.output
 
@@ -352,3 +374,118 @@ def test_modify_project_fail(command_runner):
     result = command_runner(["projects", "modify", "test_project"])
 
     assert result.output == "Project 'test_project' does not exist.\n"
+
+
+def test_get_file_by_path(command_runner, database):
+    """Test displaying information of file specified by path."""
+    database.files.insert_one({"_id": "pid:urn:1", "file_path": "path_1"})
+    database.checksums.insert_one("path_1", "checksum_1")
+
+    result = command_runner(["files", "get", "path", "path_1"])
+    result_data = json.loads(result.output)
+    correct_result = {
+        "_id": "pid:urn:1",
+        "checksum": "checksum_1",
+        "file_path": "path_1"
+    }
+    assert result_data == correct_result
+
+
+def test_get_file_by_identifier(command_runner, database):
+    """Test displaying information of file specified by identifier."""
+    database.files.insert_one({"_id": "pid:urn:1", "file_path": "path_1"})
+    database.checksums.insert_one("path_1", "checksum_1")
+
+    result = command_runner(["files", "get", "identifier", "pid:urn:1"])
+    result_data = json.loads(result.output)
+    correct_result = {
+        "_id": "pid:urn:1",
+        "checksum": "checksum_1",
+        "file_path": "path_1"
+    }
+    assert result_data == correct_result
+
+
+def test_list_files(database, command_runner):
+    """Test listing all files."""
+    files = [
+        {"_id": "pid:urn:1", "file_path": "path_1"},
+        {"_id": "pid:urn:2", "file_path": "path_2"}
+    ]
+    checksums = [
+        {"_id": "path_1", "checksum": "checksum_1"},
+        {"_id": "path_2", "checksum": "checksum_2"}
+    ]
+    database.files.insert(files)
+    database.checksums.insert(checksums)
+
+    result = command_runner(["files", "list"])
+    correct_result = [
+        {"_id": "pid:urn:1", "checksum": "checksum_1", "file_path": "path_1"},
+        {"_id": "pid:urn:2", "checksum": "checksum_2", "file_path": "path_2"},
+    ]
+    result_data = json.loads(result.output)
+    assert result_data == correct_result
+
+
+def test_list_file_identifiers(database, command_runner):
+    """Test listing all file identifiers."""
+    files = [
+        {"_id": "pid:urn:1", "file_path": "path_1"},
+        {"_id": "pid:urn:2", "file_path": "path_2"}
+    ]
+    database.files.insert(files)
+
+    result = command_runner(["files", "list", "--identifiers-only"])
+    assert result.output == "pid:urn:1\npid:urn:2\n"
+
+
+def test_list_checksums(database, command_runner):
+    """Test listing all file checksums."""
+    checksums = [
+        {"_id": "path_1", "checksum": "checksum_1"},
+        {"_id": "path_2", "checksum": "checksum_2"}
+    ]
+    database.checksums.insert(checksums)
+
+    result = command_runner(["files", "list", "--checksums-only"])
+    correct_result = {
+        "path_1": "checksum_1",
+        "path_2": "checksum_2"
+    }
+    result_data = json.loads(result.output)
+    assert result_data == correct_result
+
+
+def test_get_nonexistent_file_by_path(command_runner):
+    """Test displaying information of file specified by path that cannot be
+    found in the database.
+    """
+    result = command_runner(["files", "get", "path", "nonexistent"])
+    assert result.output == "File not found in path 'nonexistent'\n"
+
+
+def test_get_nonexistent_file_by_identifier(command_runner):
+    """Test displaying information of file specified by identifier that cannot
+    be found in the database.
+    """
+    result = command_runner(["files", "get", "identifier", "pid:urn:1"])
+    assert result.output == "File 'pid:urn:1' not found\n"
+
+
+def test_list_files_when_no_files(command_runner):
+    """Test listing all files when there are no files."""
+    result = command_runner(["files", "list"])
+    assert result.output == "No files found\n"
+
+
+def test_list_file_identifiers_when_no_identifiers(command_runner):
+    """Test listing all file identifiers when there are no identifers."""
+    result = command_runner(["files", "list", "--identifiers-only"])
+    assert result.output == "No identifiers found\n"
+
+
+def test_list_checksums_when_no_checksums(command_runner):
+    """Test listing all file checksums when there are no checksums."""
+    result = command_runner(["files", "list", "--checksums-only"])
+    assert result.output == "No checksums found\n"

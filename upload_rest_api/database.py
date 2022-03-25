@@ -474,6 +474,37 @@ class Files:
         documents = self.files.find()
         return [document["_id"] for document in documents]
 
+    def get_all_files_with_checksums(self):
+        """Return a list of all files with corresponding checksums."""
+        pipeline = [
+            # Join checksum from checksums collection as array called
+            # fromItems
+            {
+                "$lookup": {
+                    "from": "checksums",
+                    "localField": "file_path",
+                    "foreignField": "_id",
+                    "as": "fromItems"
+                }
+            },
+            # Merge fromItems array to top level with other file information
+            {
+                "$replaceRoot": {
+                    "newRoot": {
+                        "$mergeObjects": [
+                            {"$arrayElemAt": ["$fromItems", 0]}, "$$ROOT"
+                        ]
+                    }
+                }
+            },
+            # Remove fromItems array
+            {
+                "$project": {"fromItems": 0}
+            }
+        ]
+        documents = self.files.aggregate(pipeline)
+        return list(documents)
+
 
 class Tasks:
     """Class for managing tasks in the database."""

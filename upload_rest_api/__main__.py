@@ -63,107 +63,6 @@ def _cleanup_mongo():
     click.echo(f"Cleaned {deleted_count} identifier(s) from Mongo")
 
 
-def _list_users(username, users):
-    """List users from Mongo."""
-    database = db.Database()
-
-    if users:
-        users = database.get_all_users()
-        if users:
-            for user in users:
-                click.echo(user)
-        else:
-            click.echo("No users found")
-    elif username:
-        try:
-            user = database.user(username).get()
-        except db.UserNotFoundError:
-            click.echo(f"User '{username}' not found")
-            return
-
-        response = {
-            "_id": user["_id"],
-            "projects": user["projects"]
-        }
-        _echo_dict(response)
-
-
-def _list_projects(project_name, projects):
-    """List projects from Mongo."""
-    database = db.Database()
-
-    if projects:
-        projects = database.projects.get_all_projects()
-        if projects:
-            for project in projects:
-                click.echo(project["_id"])
-        else:
-            click.echo("No projects found")
-    elif project_name:
-        project = database.projects.get(project_name)
-        if project:
-            _echo_dict(project)
-        else:
-            click.echo(f"Project '{project_name}' not found")
-
-
-def _list_checksums(checksum_query, checksums):
-    """List checksums from Mongo."""
-    database = db.Database()
-
-    if checksums:
-        checksums = database.checksums.get_checksums()
-        if checksums:
-            _echo_dict(checksums)
-        else:
-            click.echo("No checksums found")
-
-    elif checksum_query:
-        checksum = database.checksums.get_checksum(checksum_query)
-        if checksum:
-            click.echo(checksum)
-        else:
-            click.echo(f"Checksum '{checksum_query}' not found")
-
-
-def _list_identifiers(identifier, identifiers):
-    """List identifiers from Mongo."""
-    database = db.Database()
-
-    if identifiers:
-        identifiers = database.files.get_all_ids()
-        if identifiers:
-            for identifier in identifiers:
-                click.echo(identifier)
-        else:
-            click.echo("No identifiers found")
-    elif identifier:
-        path = database.files.get_path(identifier)
-        if path:
-            click.echo(path)
-        else:
-            click.echo(f"Identifier '{identifier}' not found")
-
-
-@cli.command("list")
-@click.option("--user", help="List one user.")
-@click.option("--users", is_flag=True, help="List all users.")
-@click.option("--project", help="List one project.")
-@click.option("--projects", is_flag=True, help="List all projects.")
-@click.option("--identifier", help="List path based on Metax identifier.")
-@click.option("--identifiers", is_flag=True,
-              help="List all Metax identifiers.")
-@click.option("--checksum", help="List one checksum.")
-@click.option("--checksums", is_flag=True, help="List all checksums.")
-def list_resources(user, users, project, projects, identifier, identifiers,
-                   checksum, checksums):
-    """List resources."""
-    _list_users(user, users)
-    _list_projects(project, projects)
-    _list_checksums(checksum, checksums)
-    _list_identifiers(identifier, identifiers)
-
-
 @cli.group()
 def users():
     """Manage users and user project rights."""
@@ -238,6 +137,37 @@ def modify_user(username, password):
         response["password"] = passwd
 
     _echo_dict(response)
+
+
+@users.command("get")
+@click.argument("username")
+def get_user(username):
+    """Show information of USERNAME"""
+    database = db.Database()
+
+    try:
+        user = database.user(username).get()
+    except db.UserNotFoundError:
+        click.echo(f"User '{username}' not found")
+        return
+
+    response = {
+        "_id": user["_id"],
+        "projects": user["projects"]
+    }
+    _echo_dict(response)
+
+
+@users.command("list")
+def list_users():
+    """List all users."""
+    database = db.Database()
+    users = database.get_all_users()
+    if users:
+        for user in users:
+            click.echo(user)
+    else:
+        click.echo("No users found")
 
 
 @cli.group()
@@ -331,6 +261,133 @@ def generate_metadata(project, output):
                 _file_md["object"]["file_path"]
             ))
     click.echo(f"Created identifiers written to {output}")
+
+
+@projects.command("list")
+def list_projects():
+    """List all projects."""
+    database = db.Database()
+
+    projects = database.projects.get_all_projects()
+    if projects:
+        for project in projects:
+            click.echo(project["_id"])
+    else:
+        click.echo("No projects found")
+
+
+@projects.command("get")
+@click.argument("project")
+def get_project(project):
+    """Show information of PROJECT."""
+    database = db.Database()
+
+    project_entry = database.projects.get(project)
+    if project_entry:
+        _echo_dict(project_entry)
+    else:
+        click.echo(f"Project '{project}' not found")
+
+
+@cli.group("files")
+def files():
+    """Manage files."""
+    pass
+
+
+@files.group("get")
+def files_get():
+    """Show information of a file."""
+    pass
+
+
+def _create_file_response(identifier, checksum, file_path):
+    """Create a dict holding the given file information.
+
+    :param identifier: File identifier
+    :param checksum: File checksum
+    :param path: File path:
+    :returns: Dict holding the given information
+    """
+    return {
+        "_id": identifier,
+        "checksum": checksum,
+        "file_path": file_path
+    }
+
+
+@files_get.command("path")
+@click.argument("path")
+def get_file_by_path(path):
+    """Show information of file in PATH."""
+    database = db.Database()
+
+    checksum = database.checksums.get_checksum(path)
+    identifier = database.files.get_identifier(path)
+    if checksum and identifier:
+        response = _create_file_response(identifier, checksum, path)
+        _echo_dict(response)
+    else:
+        click.echo(f"File not found in path '{path}'")
+
+
+@files_get.command("identifier")
+@click.argument("identifier")
+def get_file_by_identifier(identifier):
+    """Show information of file spesified by IDENTIFIER."""
+    database = db.Database()
+    path = database.files.get_path(identifier)
+    checksum = database.checksums.get_checksum(path)
+    if path and checksum:
+        response = _create_file_response(identifier, checksum, path)
+        _echo_dict(response)
+    else:
+        click.echo(f"File '{identifier}' not found")
+
+
+@files.command("list")
+@click.option("--identifiers-only", is_flag=True)
+@click.option("--checksums-only", is_flag=True)
+def list_files(identifiers_only, checksums_only):
+    """List all files."""
+    if identifiers_only:
+        _list_file_identifiers()
+        return
+
+    if checksums_only:
+        _list_checksums()
+        return
+
+    database = db.Database()
+
+    files = database.files.get_all_files_with_checksums()
+    if not files:
+        click.echo("No files found")
+    else:
+        _echo_dict(files)
+
+
+def _list_file_identifiers():
+    """List all file identifiers."""
+    database = db.Database()
+
+    identifiers = database.files.get_all_ids()
+    if identifiers:
+        for identifier in identifiers:
+            click.echo(identifier)
+    else:
+        click.echo("No identifiers found")
+
+
+def _list_checksums():
+    """List all checksums of files."""
+    database = db.Database()
+
+    checksums = database.checksums.get_checksums()
+    if checksums:
+        _echo_dict(checksums)
+    else:
+        click.echo("No checksums found")
 
 
 if __name__ == '__main__':
