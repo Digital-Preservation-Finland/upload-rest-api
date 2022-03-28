@@ -315,7 +315,11 @@ def test_create_project_with_negative_quota(command_runner):
     ])
 
     assert result.exit_code != 0
-    assert "Invalid value for '--quota'" in result.output
+    # Newer versions of click use single quotes, while older versions use
+    # double quotes around '--quota', causing problems in the pipeline.
+    # As a workaround check output in pieces
+    assert "Invalid value for" in result.output
+    assert "--quota" in result.output
 
 
 @pytest.mark.usefixtures("test_mongo")
@@ -367,7 +371,11 @@ def test_modify_project_with_negative_quota(command_runner):
     ])
 
     assert result.exit_code != 0
-    assert "Invalid value for '--quota'" in result.output
+    # Newer versions of click use single quotes, while older versions use
+    # double quotes around '--quota', causing problems in the pipeline.
+    # As a workaround check output in pieces
+    assert "Invalid value for" in result.output
+    assert "--quota" in result.output
 
 
 @pytest.mark.usefixtures("test_mongo")
