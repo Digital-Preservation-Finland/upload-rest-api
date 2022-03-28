@@ -25,39 +25,29 @@ def cli():
     pass
 
 
-@cli.command()
-@click.option(
-    "--tokens", is_flag=True,
-    help="Clean expired session tokens from the database.")
-@click.option(
-    "--files", is_flag=True, help="Clean files from the disk.")
-@click.option(
-    "--mongo", is_flag=True,
-    help="Clean Mongo from file identifiers that are not found in Metax.")
-def cleanup(tokens, files, mongo):
+@cli.group()
+def cleanup():
     """Clean up database and disk."""
-    if tokens:
-        _cleanup_tokens()
-    if files:
-        _cleanup_files()
-    if mongo:
-        _cleanup_mongo()
+    pass
 
 
-def _cleanup_tokens():
+@cleanup.command("tokens")
+def cleanup_tokens():
     """Clean expired session tokens from the database."""
     database = db.Database()
     deleted_count = database.tokens.clean_session_tokens()
     click.echo(f"Cleaned {deleted_count} expired token(s)")
 
 
-def _cleanup_files():
+@cleanup.command("files")
+def cleanup_files():
     """Clean files from the disk."""
     deleted_count = clean_disk()
     click.echo(f"Cleaned {deleted_count} file(s)")
 
 
-def _cleanup_mongo():
+@cleanup.command("mongo")
+def cleanup_mongo():
     """Clean Mongo from file identifiers that are not found in Metax."""
     deleted_count = clean_mongo()
     click.echo(f"Cleaned {deleted_count} identifier(s) from Mongo")
