@@ -72,7 +72,7 @@ def users():
 @users.command("create")
 @click.argument("username")
 def create_user(username):
-    """Create a new user with spesified USERNAME."""
+    """Create a new user with specified USERNAME."""
     user = db.Database().user(username)
     passwd = user.create()
     click.echo(f"{username}:{passwd}")
@@ -114,7 +114,7 @@ def revoke_user_projects(username, projects):
 @users.command("delete")
 @click.argument("username")
 def delete_user(username):
-    """Delete an existing user with spesified USERNAME."""
+    """Delete an existing user with specified USERNAME."""
     db.Database().user(username).delete()
     click.echo(f"Deleted user '{username}'")
 
@@ -123,7 +123,7 @@ def delete_user(username):
 @click.argument("username")
 @click.option("--password", is_flag=True, help="Generate new password.")
 def modify_user(username, password):
-    """Modify an existing user with spesified USERNAME."""
+    """Modify an existing user with specified USERNAME."""
     user = db.Database().user(username)
     if password:
         passwd = user.change_password()
@@ -142,7 +142,7 @@ def modify_user(username, password):
 @users.command("get")
 @click.argument("username")
 def get_user(username):
-    """Show information of USERNAME"""
+    """Show information of USERNAME."""
     database = db.Database()
 
     try:
@@ -226,7 +226,7 @@ def delete_project(project):
     help="Output filepath."
 )
 def generate_metadata(project, output):
-    """Generate metadata for the specified PROJECT."""
+    """Generate metadata for PROJECT."""
     if os.path.exists(output):
         raise ValueError("Output file exists")
 
@@ -334,7 +334,7 @@ def get_file_by_path(path):
 @files_get.command("identifier")
 @click.argument("identifier")
 def get_file_by_identifier(identifier):
-    """Show information of file spesified by IDENTIFIER."""
+    """Show information of file specified by IDENTIFIER."""
     database = db.Database()
     path = database.files.get_path(identifier)
     checksum = database.checksums.get_checksum(path)
