@@ -206,7 +206,9 @@ def test_modify_user(command_runner):
     old_salt = user["salt"]
     old_digest = user["digest"]
 
-    response = command_runner(["users", "modify", "test", "--password"])
+    response = command_runner([
+        "users", "modify", "test", "--generate-password"
+    ])
 
     # Assert that password has actually changed
     user = db.Database().user("test").get()

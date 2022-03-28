@@ -121,11 +121,12 @@ def delete_user(username):
 
 @users.command("modify")
 @click.argument("username")
-@click.option("--password", is_flag=True, help="Generate new password.")
-def modify_user(username, password):
+@click.option("--generate-password", is_flag=True,
+              help="Generate new password.")
+def modify_user(username, generate_password):
     """Modify an existing user with specified USERNAME."""
     user = db.Database().user(username)
-    if password:
+    if generate_password:
         passwd = user.change_password()
 
     user = user.get()
@@ -133,7 +134,7 @@ def modify_user(username, password):
         "_id": user["_id"],
         "projects": user["projects"]
     }
-    if password:
+    if generate_password:
         response["password"] = passwd
 
     _echo_dict(response)
