@@ -28,9 +28,9 @@ Start rq workers that read jobs from queues: `files`, `metadata`, and `upload`::
 
 Create a user and project using CLI::
 
-    upload-rest-api create-user <user>
-    upload-rest-api create-project --quota <quota> <project>
-    upload-rest-api grant-user-projects <user> <project>
+    upload-rest-api users create <username>
+    upload-rest-api projects create --quota <quota> <project>
+    upload-rest-api users project-rights grant <user> <project>
 
 POST file::
 
