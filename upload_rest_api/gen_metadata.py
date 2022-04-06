@@ -286,6 +286,13 @@ class MetaxClient:
 
         If force parameter is True metadata is deleted if file belongs
         to a dataset not accepted to preservation.
+
+        :param str project: Project name
+        :param fpath: Absolute path to the directory to delete from Metax
+        :param root_upload_path: Absolute path to the directory containing
+                                 the project directory and the rest of `fpath`.
+        :param bool force: Force deletion of metadata if file belongs to
+                           dataset. Default is False.
         """
         self.dataset_cache.clear()
         files_dict = self.client.get_files_dict(project)

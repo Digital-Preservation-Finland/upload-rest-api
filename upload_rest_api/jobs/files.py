@@ -57,9 +57,13 @@ def delete_files(fpath, trash_path, trash_root, project_id, task_id):
         task_id,
         "Deleting files and metadata: %s" % ret_path
     )
-    metax_client.delete_all_metadata(project_id,
-                                     trash_path,
-                                     trash_root)
+    metax_client.delete_all_metadata(
+        project=project_id,
+        fpath=trash_path,
+        # Provide the root path *without* the project directory
+        # as the leading part
+        root_upload_path=trash_root.parent
+    )
 
     # Remove checksum from mongo
     files_to_delete = _get_files_to_delete(
