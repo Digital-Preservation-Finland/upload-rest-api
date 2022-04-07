@@ -48,9 +48,13 @@ def cleanup_files():
 
 @cleanup.command("mongo")
 def cleanup_mongo():
-    """Clean Mongo from file identifiers that are not found in Metax."""
+    """Clean Mongo from old tasks and file identifiers that are not found in
+    Metax.
+    """
     deleted_count = clean_mongo()
-    click.echo(f"Cleaned {deleted_count} identifier(s) from Mongo")
+    click.echo(
+        f"Cleaned old tasks and {deleted_count} identifier(s) from Mongo"
+    )
 
 
 @cli.group()
