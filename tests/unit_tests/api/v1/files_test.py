@@ -488,15 +488,31 @@ def test_delete_directory(
         target_files += [pathlib.Path(root) / file_ for file_ in files]
 
     # Mock Metax
-    requests_mock.get("https://metax.localdomain/rest/v2/files?limit=10000&"
-                      "project_identifier=test_project",
-                      json={'results': [], 'next': None})
+    requests_mock.get(
+        "https://metax.localdomain/rest/v2/files?limit=10000&"
+        "project_identifier=test_project",
+        json={
+            'results': [
+                {
+                    "id": f"id-{file_}",
+                    "identifier": f"identifier-{file_}",
+                    "file_path": file_,
+                    "file_storage": {
+                        "identifier": "urn:nbn:fi:att:file-storage-pas"
+                    }
+                }
+                for file_ in files_to_delete
+            ],
+            'next': None
+        }
+    )
 
+    # Files don't belong to any dataset
     requests_mock.post("https://metax.localdomain/rest/v2/files/datasets",
                        json={})
 
     requests_mock.delete("https://metax.localdomain/rest/v2/files",
-                         json=target_files)
+                         json=[str(file_) for file_ in target_files])
 
     # Delete a directory
     response = test_client.delete(
@@ -541,6 +557,18 @@ def test_delete_directory(
     # directory should still exist.
     assert not (project_directory / 'test').exists()
     assert project_directory.exists()
+
+    # Files should have been deleted from Metax
+    delete_request = next(
+        request for request in requests_mock.request_history
+        if request.method == "DELETE"
+        and request.url.endswith("/rest/v2/files")
+    )
+    deleted_identifiers = delete_request.json()
+
+    # All named files were deleted
+    for file_ in files_to_delete:
+        assert f"identifier-{file_}" in deleted_identifiers
 
 
 def test_delete_empty_project(app, test_auth):
