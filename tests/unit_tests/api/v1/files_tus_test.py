@@ -7,7 +7,10 @@ import pytest
 from flask_tus_io.resource import encode_tus_meta
 
 
-def _do_tus_upload(test_client, upload_metadata, data, auth):
+def _do_tus_upload(
+        test_client, upload_metadata, data, auth,
+        # 204 NO CONTENT by default
+        expected_status=204):
     """
     Perform a tus upload
     """
@@ -50,7 +53,9 @@ def _do_tus_upload(test_client, upload_metadata, data, auth):
         input_stream=BytesIO(data)
     )
 
-    assert resp.status_code == 204  # NO CONTENT
+    assert resp.status_code == expected_status
+
+    return resp
 
 
 @pytest.mark.usefixtures("project")
@@ -155,6 +160,108 @@ def test_upload_file_create_metadata(
         "message": "Metadata created: /test.txt",
         "status": "done"
     }
+
+
+@pytest.mark.usefixtures("project")
+def test_upload_file_checksum(test_client, test_auth):
+    """
+    Test uploading a file with a checksum and ensure it is checked
+    """
+    data = b"XyzzyXyzzy"
+
+    upload_metadata = {
+        "type": "file",
+        "project_id": "test_project",
+        "filename": "test.txt",
+        "upload_path": "test.txt",
+        "checksum": (
+            "sha256:f96ab43c95b09f803870f8cbf83e"
+            "b0f30e3a5a2e29741c3aedb2cf696a155bbc"
+        )
+    }
+
+    # First upload with correct checksum succeeds
+    _do_tus_upload(
+        test_client=test_client,
+        upload_metadata=upload_metadata,
+        auth=test_auth,
+        data=data
+    )
+
+    # Try again with incorrect checksum
+    upload_metadata["upload_path"] = "test2.txt"
+    upload_metadata["filename"] = "test2.txt"
+    upload_metadata["checksum"] = (
+        "sha256:f96ab43c95b09f803870f8cbf83eb0"
+        "f30e3a5a2e29741c3aedb2cf696a155bbd"
+    )
+
+    resp = _do_tus_upload(
+        test_client=test_client,
+        upload_metadata=upload_metadata,
+        auth=test_auth,
+        data=data,
+        expected_status=400
+    )
+
+    assert resp.json["error"] == "Upload checksum mismatch"
+
+
+@pytest.mark.usefixtures("project")
+def test_upload_file_checksum_incorrect_syntax(test_client, test_auth):
+    """
+    Test uploading a file with a checksum using incorrect syntax
+    """
+    data = b"XyzzyXyzzy"
+
+    upload_metadata = {
+        "type": "file",
+        "project_id": "test_project",
+        "filename": "test.txt",
+        "upload_path": "test.txt",
+        "checksum": "f96ab43c95b09f803870f8cbf83e"
+    }
+
+    resp = _do_tus_upload(
+        test_client=test_client,
+        upload_metadata=upload_metadata,
+        auth=test_auth,
+        data=data,
+        expected_status=400
+    )
+
+    assert resp.json["error"] \
+        == "Checksum does not follow '<alg>:<checksum>' syntax"
+
+
+@pytest.mark.usefixtures("project")
+def test_upload_file_checksum_unknown_algorithm(test_client, test_auth):
+    """
+    Test uploading a file with a checksum using an unknown algorithm, and
+    ensure it is rejected
+    """
+    data = b"XyzzyXyzzy"
+
+    upload_metadata = {
+        "type": "file",
+        "project_id": "test_project",
+        "filename": "test.txt",
+        "upload_path": "test.txt",
+        "checksum": (
+            "blake3:6a7145de535a6c211debe731e215a"
+            "4e422f220910bfada7cee2e6c0c3170a55a"
+        )
+    }
+
+    resp = _do_tus_upload(
+        test_client=test_client,
+        upload_metadata=upload_metadata,
+        auth=test_auth,
+        data=data,
+        expected_status=400
+    )
+
+    assert resp.json["error"] == "Unrecognized hash algorithm 'blake3'"
 
 
 @pytest.mark.usefixtures("project")

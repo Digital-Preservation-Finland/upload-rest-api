@@ -10,6 +10,7 @@ import werkzeug
 from flask import Blueprint, abort, current_app, safe_join
 
 from upload_rest_api import database, upload
+from upload_rest_api.gen_metadata import get_file_checksum
 from upload_rest_api.authentication import current_user
 from upload_rest_api.database import Database, Projects
 from upload_rest_api.jobs.utils import METADATA_QUEUE, enqueue_background_job
@@ -245,11 +246,56 @@ def _extract_archive(workspace, resource):
         raise
 
 
+def _check_upload_integrity(resource, workspace, checksum):
+    """
+    Verify the upload integrity by comparing the file to an user-submitted
+    checksum
+    """
+    # The 'checksum' tus field has the syntax '<algorithm>:<hex_checksum>'.
+    try:
+        try:
+            algorithm, expected_checksum = checksum.split(":")
+        except ValueError:
+            abort(400, "Checksum does not follow '<alg>:<checksum>' syntax")
+
+        try:
+            found_checksum = get_file_checksum(
+                algorithm, resource.upload_file_path
+            )
+        except ValueError:
+            abort(400, f"Unrecognized hash algorithm '{algorithm}'")
+
+        if expected_checksum.lower() != found_checksum.lower():
+            abort(400, "Upload checksum mismatch")
+    except Exception:
+        workspace.remove()
+        raise
+
+
 def _upload_completed(workspace, resource):
     """
     Callback function called when an upload is finished
     """
     upload_type = resource.upload_metadata["type"]
+
+    checksum = resource.upload_metadata.get("checksum", None)
+
+    if checksum:
+        # TODO: This will block this request for however long it takes
+        # to calculate the checksum, which can make the final request require
+        # a lot longer time to create. Without checksum the request can be
+        # finished in around a second.
+        #
+        # Ideally, the checksum is calculated incrementally over each
+        # individual chunk as they arrive, but that doesn't appear possible
+        # with Python's hashlib, which can't be pickled or have its state
+        # persisted in some other way.
+        #
+        # Or maybe launch a background task to handle the checksum and other
+        # tasks to save/extract the file? This complicates the web UI, however.
+        _check_upload_integrity(
+            resource=resource, workspace=workspace, checksum=checksum
+        )
 
     if upload_type == "file":
         _save_file(workspace, resource)
