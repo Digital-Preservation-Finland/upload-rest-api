@@ -474,6 +474,14 @@ class Files:
         documents = self.files.find()
         return [document["_id"] for document in documents]
 
+    def get_all_files(self):
+        """Return a list of all file paths with corresponding identifiers."""
+        return list(self.iter_all_files())
+
+    def iter_all_files(self):
+        """Return an iterator of all files and their identifiers."""
+        return self.files.find()
+
     def get_all_files_with_checksums(self):
         """Return a list of all files with corresponding checksums."""
         pipeline = [

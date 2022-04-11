@@ -164,7 +164,7 @@ def clean_disk(metax=True):
 
 
 def clean_mongo():
-    """Clean old tasks from mongo.
+    """Clean old tasks from Mongo.
 
     Clean file identifiers that do not exist in Metax any more from
     Mongo.
@@ -188,13 +188,25 @@ def clean_mongo():
                                ssl_verification).get_all_ids(projects)
 
     files = db.Database().files
-    mongo_ids = files.get_all_ids()
+    mongo_files = files.iter_all_files()
     id_list = []
+    current_time = time.time()
 
-    # Check for identifiers found in Mongo but not in Metax
-    for identifier in mongo_ids:
-        if identifier not in metax_ids:
-            id_list.append(identifier)
+    # Check for identifiers found in Mongo but not in Metax. If identifier is
+    # not found in Metax and the file has not been accessed for time limit set
+    # in configuration or the file cannot be found at all, add identifier to a
+    # list of identifiers that are to be deleted.
+    for file_ in mongo_files:
+        if file_["_id"] not in metax_ids:
+            is_expired = False
+            try:
+                is_expired = _is_expired(
+                    file_["file_path"], current_time, time_lim)
+            except FileNotFoundError:
+                is_expired = True
 
-    # Remove identifiers from mongo
+            if is_expired:
+                id_list.append(file_["_id"])
+
+    # Remove identifiers from Mongo
     return files.delete(id_list)

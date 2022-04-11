@@ -145,6 +145,49 @@ def test_expired_tasks(test_mongo, mock_config):
     assert tasks.count() == 0
 
 
+def test_expired_identifiers(test_mongo, mock_config, requests_mock):
+    """Test that expired identifiers and identifiers of nonexistent files are
+    removed.
+    """
+    mock_config["CLEANUP_TIMELIM"] = 10
+    upload_path = pathlib.Path(mock_config["UPLOAD_PROJECTS_PATH"])
+
+    # Make test directories with test.txt files
+    project_path = upload_path / "test_project"
+    fpath = project_path / "new_file.txt"
+    fpath_expired = project_path / "old_file.txt"
+    fpath_nonexistent = project_path / "nonexistent_file.txt"
+
+    project_path.mkdir()
+    fpath.write_text("I'm new")
+    fpath_expired.write_text("I'm old")
+
+    # Set access time and modification time of one file to be expired
+    os.utime(fpath_expired, (0, 0))
+
+    # Add files to Mongo
+    files = test_mongo.upload.files
+    files.insert_one({"_id": "id_1",
+                      "file_path": str(fpath)})
+    files.insert_one({"_id": "id_2",
+                      "file_path": str(fpath_expired)})
+    files.insert_one({"_id": "id_3",
+                      "file_path": str(fpath_nonexistent)})
+    assert files.count() == 3
+
+    # Mock Metax sending no identifiers
+    requests_mock.get('https://metax.localdomain/rest/v2/files',
+                      json={'next': None, 'results': []})
+
+    # Clean identifiers of files older than 10s and files that do not exist
+    clean.clean_mongo()
+
+    # Verify that one file is left in Mongo
+    files_left = list(files.find())
+    assert len(files_left) == 1
+    assert files_left[0] == {"_id": "id_1", "file_path": str(fpath)}
+
+
 def test_clean_project(mock_config, requests_mock):
     """Test cleaning project."""
     project = 'foo'

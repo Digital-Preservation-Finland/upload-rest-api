@@ -268,3 +268,14 @@ def test_get_all_files_with_checksums(database):
         {"_id": "pid:urn:2", "checksum": "checksum_2", "file_path": "path_2"},
     ]
     assert files_with_checksums == correct_result
+
+
+def test_get_all_files(database):
+    """Test getting all files."""
+    files = [
+        {"_id": "pid:urn:1", "file_path": "path_1"},
+        {"_id": "pid:urn:2", "file_path": "path_2"}
+    ]
+    database.files.insert(files)
+    received_files = database.files.get_all_files()
+    assert received_files == files
