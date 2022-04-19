@@ -96,7 +96,7 @@ def save_file(database, project_id, stream, checksum, upload_path):
     return md5
 
 
-def save_file_into_db(file_path, database, project_id):
+def save_file_into_db(file_path, database, project_id, md5=None):
     """
     Save the file metadata into the database. This assumes the file has been
     placed into its final location.
@@ -104,12 +104,16 @@ def save_file_into_db(file_path, database, project_id):
     :param str file_path: Path to the file
     :param database: upload_rest_api database instance
     :param project_id: Project identifier
+    :param str md5: Optional precomputed MD5 checksum. If not provided,
+                    the checksum will be calculated.
 
     :returns: MD5 checksum of the file
     :rtype: str
     """
+    if not md5:
+        md5 = get_file_checksum(algorithm="md5", path=file_path)
+
     # Add file checksum to mongo
-    md5 = get_file_checksum(algorithm="md5", path=file_path)
     database.checksums.insert_one(str(file_path.resolve()), md5)
 
     # Update quota

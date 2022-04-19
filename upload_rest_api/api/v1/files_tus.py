@@ -152,6 +152,14 @@ def _save_file(workspace, resource):
 
     try:
         try:
+            # Retrieve the MD5 checksum we already calculated incrementally
+            # to skip the expensive checksum calculation for the entire file
+            md5_checksum = calculate_incr_checksum(
+                algorithm="md5",
+                path=resource.upload_file_path,
+                finalize=True
+            )
+
             # Validate the user's quota and content type again
             upload.validate_upload(
                 project_id=project_id,
@@ -175,7 +183,8 @@ def _save_file(workspace, resource):
         save_file_into_db(
             file_path=file_path,
             database=db,
-            project_id=project_id
+            project_id=project_id,
+            md5=md5_checksum
         )
 
         if create_metadata:
@@ -272,13 +281,20 @@ def _get_checksum_tuple(checksum):
 
 def _chunk_upload_completed(workspace, resource):
     """
-    If the user is uploading a file with a checksum, process the received
-    chunk
+    Process the received chunk, calculating both the MD5 checksum and the
+    optional user-provided algorithm incrementally
     """
     try:
+        # Always calculate the MD5 checksum since that's what we'll
+        # save into our database
+        calculate_incr_checksum(
+            algorithm="md5",
+            path=resource.upload_file_path
+        )
+
         checksum = resource.metadata.get("checksum", None)
 
-        if not checksum:
+        if not checksum or checksum.lower() == "md5":
             return
 
         algorithm, _ = _get_checksum_tuple(checksum)
@@ -305,7 +321,9 @@ def _check_upload_integrity(resource, workspace, checksum):
         calculated_checksum = calculate_incr_checksum(
             algorithm=algorithm,
             path=resource.upload_file_path,
-            finalize=True
+            # Don't delete the progress if it's a MD5 checksum, as we'll
+            # later use it for the checksum in our database
+            finalize=bool(checksum != "md5")
         )
 
         if calculated_checksum != expected_checksum:

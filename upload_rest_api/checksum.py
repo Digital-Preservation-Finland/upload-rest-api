@@ -30,12 +30,12 @@ def calculate_incr_checksum(algorithm, path, finalize=False):
     :param str algorithm: Cryptographic hash algorithm used to calculate
                           the checksum
     :param path:          Path to the file
-    :param bool finalize: Finalize the checksum calculation and return
-                          the checksum. Default is False.
+    :param bool finalize: Finalize the checksum calculation and delete the
+                          checkpoint. Default is False.
 
     :raises ValueError: If algorithm is not recognized
 
-    :returns: Final checksum if `finalize` is True, None otherwise
+    :returns: Cryptographic hash of the file based on its current content
     """
     redis_key = f"upload-rest-api:checksum:{algorithm}:{str(path)}"
     redis = get_redis_connection()
@@ -80,13 +80,18 @@ def calculate_incr_checksum(algorithm, path, finalize=False):
     if finalize:
         # Delete the Redis checkpoint
         redis.delete(redis_key)
-        return hash_obj.hexdigest()
+    else:
+        checkpoint = {
+            "offset": offset,
+            "hash_obj": base64.b64encode(
+                pickle.dumps(hash_obj)
+            ).decode("utf-8")
+        }
+        redis.set(
+            redis_key, json.dumps(checkpoint), ex=CHECKSUM_CHECKPOINT_TTL
+        )
 
-    checkpoint = {
-        "offset": offset,
-        "hash_obj": base64.b64encode(pickle.dumps(hash_obj)).decode("utf-8")
-    }
-    redis.set(redis_key, json.dumps(checkpoint), ex=CHECKSUM_CHECKPOINT_TTL)
+    return hash_obj.hexdigest()
 
 
 def get_file_checksum(algorithm, path):
