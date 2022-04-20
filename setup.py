@@ -18,6 +18,7 @@ def main():
             "redis",
             "rq",
             "python-dateutil",
+            "rehash",
             "click",
             "metax_access@git+https://gitlab.ci.csc.fi/dpres/"
             "metax-access.git@develop",

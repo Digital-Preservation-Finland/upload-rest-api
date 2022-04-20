@@ -162,7 +162,7 @@ def test_upload_file_create_metadata(
     }
 
 
-@pytest.mark.usefixtures("project")
+@pytest.mark.usefixtures("project", "mock_redis")
 def test_upload_file_checksum(test_client, test_auth):
     """
     Test uploading a file with a checksum and ensure it is checked
@@ -207,7 +207,75 @@ def test_upload_file_checksum(test_client, test_auth):
     assert resp.json["error"] == "Upload checksum mismatch"
 
 
-@pytest.mark.usefixtures("project")
+@pytest.mark.usefixtures("project", "mock_redis")
+def test_upload_file_checksum_iterative(
+        app, test_client, test_auth, test_mongo):
+    """
+    Test uploading a file in multiple parts and ensure the checksum
+    is calculated correctly
+    """
+    upload_metadata = {
+        "type": "file",
+        "project_id": "test_project",
+        "filename": "test.txt",
+        "upload_path": "test.txt",
+        "checksum": (
+            "sha256:d134cfd960e025a14b65c8ab3ff61"
+            "2d40957c9af0025ded4810d8f2d312455a8"
+        )
+    }
+
+    resp = test_client.post(
+        "/v1/files_tus",
+        headers={
+            **{
+                "Tus-Resumable": "1.0.0",
+                "Upload-Length": "25",
+                "Upload-Metadata": encode_tus_meta(upload_metadata)
+            },
+            **test_auth
+        }
+    )
+
+    assert resp.status_code == 201  # CREATED
+    location = resp.location
+
+    resp = test_client.head(
+        location,
+        headers={
+            **{"Tus-Resumable": "1.0.0"},
+            **test_auth
+        }
+    )
+
+    # Upload 'XyzzyXyzzyXyzzyXyzzyXyzzy' in 5 chunks
+    for i in range(0, 5):
+        resp = test_client.patch(
+            location,
+            content_type="application/offset+octet-stream",
+            headers={
+                **{
+                    "Content-Type": "application/offset+octet-stream",
+                    "Tus-Resumable": "1.0.0",
+                    "Upload-Offset": str(i*5)
+                },
+                **test_auth
+            },
+            input_stream=BytesIO(b"Xyzzy")
+        )
+
+        assert resp.status_code == 204
+
+    upload_path = pathlib.Path(app.config.get("UPLOAD_PROJECTS_PATH"))
+    assert test_mongo.upload.checksums.find_one(
+        {
+            "_id": str(upload_path / "test_project" / "test.txt"),
+            "checksum": "71680afeb1ac710d2cc230b96c9cc894"
+        }
+    )
+
+
+@pytest.mark.usefixtures("project", "mock_redis")
 def test_upload_file_checksum_incorrect_syntax(test_client, test_auth):
     """
     Test uploading a file with a checksum using incorrect syntax
@@ -234,7 +302,7 @@ def test_upload_file_checksum_incorrect_syntax(test_client, test_auth):
         == "Checksum does not follow '<alg>:<checksum>' syntax"
 
 
-@pytest.mark.usefixtures("project")
+@pytest.mark.usefixtures("project", "mock_redis")
 def test_upload_file_checksum_unknown_algorithm(test_client, test_auth):
     """
     Test uploading a file with a checksum using an unknown algorithm, and

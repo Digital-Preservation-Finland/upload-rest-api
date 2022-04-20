@@ -10,8 +10,9 @@ import werkzeug
 from flask import Blueprint, abort, current_app, safe_join
 
 from upload_rest_api import database, upload
-from upload_rest_api.gen_metadata import get_file_checksum
 from upload_rest_api.authentication import current_user
+from upload_rest_api.checksum import (HASH_FUNCTION_ALIASES,
+                                      calculate_incr_checksum)
 from upload_rest_api.database import Database, Projects
 from upload_rest_api.jobs.utils import METADATA_QUEUE, enqueue_background_job
 from upload_rest_api.lock import lock_manager
@@ -34,6 +35,17 @@ def register_blueprint(app):
         event_handler=tus_event_handler
     )
     app.register_blueprint(FILES_TUS_API_V1)
+
+
+def _delete_workspace(workspace):
+    """
+    Delete workspace and remove the corresponding database entry
+    """
+    uploads = Database().uploads
+
+    resource = workspace.get_resource()
+    workspace.remove()
+    uploads.delete_one(resource.identifier)
 
 
 def _upload_started(workspace, resource):
@@ -113,7 +125,7 @@ def _upload_started(workspace, resource):
     except Exception:
         # Remove the workspace to prevent filling up disk space with bogus
         # requests
-        workspace.remove()
+        _delete_workspace(workspace)
         raise
 
 
@@ -122,7 +134,6 @@ def _save_file(workspace, resource):
     Save file to the project directory
     """
     db = database.Database()
-    uploads = db.uploads
 
     project_id = resource.upload_metadata["project_id"]
     fpath = resource.upload_metadata["upload_path"]
@@ -157,8 +168,7 @@ def _save_file(workspace, resource):
             os.chmod(file_path, 0o664)
         finally:
             # Delete the tus-specific workspace regardless of the outcome.
-            workspace.remove()
-            uploads.delete_one(resource.identifier)
+            _delete_workspace(workspace)
 
         # Use `save_file_into_db` to handle the rest using the same code path
         # as `/v1/files` API
@@ -194,7 +204,6 @@ def _extract_archive(workspace, resource):
     Start the extraction job for an uploaded archive
     """
     db = database.Database()
-    uploads = db.uploads
 
     project_id = resource.upload_metadata["project_id"]
     fpath = resource.upload_metadata["upload_path"]
@@ -231,8 +240,7 @@ def _extract_archive(workspace, resource):
             resource.upload_file_path.rename(fpath)
         finally:
             # Delete the tus-specific workspace regardless of the outcome.
-            workspace.remove()
-            uploads.delete_one(resource.identifier)
+            _delete_workspace(workspace)
 
         extract_archive(
             database=db,
@@ -246,29 +254,64 @@ def _extract_archive(workspace, resource):
         raise
 
 
-def _check_upload_integrity(resource, workspace, checksum):
+def _get_checksum_tuple(checksum):
     """
-    Verify the upload integrity by comparing the file to an user-submitted
-    checksum
+    Return a (algorithm, checksum) tuple from a "checksum" tus metadata value
     """
     # The 'checksum' tus field has the syntax '<algorithm>:<hex_checksum>'.
     try:
-        try:
-            algorithm, expected_checksum = checksum.split(":")
-        except ValueError:
-            abort(400, "Checksum does not follow '<alg>:<checksum>' syntax")
+        algorithm, expected_checksum = checksum.split(":")
+    except ValueError:
+        abort(400, "Checksum does not follow '<alg>:<checksum>' syntax")
 
-        try:
-            found_checksum = get_file_checksum(
-                algorithm, resource.upload_file_path
-            )
-        except ValueError:
-            abort(400, f"Unrecognized hash algorithm '{algorithm}'")
+    if algorithm.lower() not in HASH_FUNCTION_ALIASES:
+        abort(400, f"Unrecognized hash algorithm '{algorithm.lower()}'")
 
-        if expected_checksum.lower() != found_checksum.lower():
+    return algorithm, expected_checksum
+
+
+def _chunk_upload_completed(workspace, resource):
+    """
+    If the user is uploading a file with a checksum, process the received
+    chunk
+    """
+    try:
+        checksum = resource.metadata.get("checksum", None)
+
+        if not checksum:
+            return
+
+        algorithm, _ = _get_checksum_tuple(checksum)
+
+        # Calculate the checksum up to the current end; the function will
+        # save the current progress and resume where it left off later.
+        calculate_incr_checksum(
+            algorithm=algorithm,
+            path=resource.upload_file_path
+        )
+    except Exception:
+        _delete_workspace(workspace)
+        raise
+
+
+def _check_upload_integrity(resource, workspace, checksum):
+    """
+    Check the integrity of an upload by comparing the user provided checksum
+    against the calculated checksum
+    """
+    try:
+        algorithm, expected_checksum = _get_checksum_tuple(checksum)
+
+        calculated_checksum = calculate_incr_checksum(
+            algorithm=algorithm,
+            path=resource.upload_file_path,
+            finalize=True
+        )
+
+        if calculated_checksum != expected_checksum:
             abort(400, "Upload checksum mismatch")
     except Exception:
-        workspace.remove()
+        _delete_workspace(workspace)
         raise
 
 
@@ -281,18 +324,6 @@ def _upload_completed(workspace, resource):
     checksum = resource.upload_metadata.get("checksum", None)
 
     if checksum:
-        # TODO: This will block this request for however long it takes
-        # to calculate the checksum, which can make the final request require
-        # a lot longer time to create. Without checksum the request can be
-        # finished in around a second.
-        #
-        # Ideally, the checksum is calculated incrementally over each
-        # individual chunk as they arrive, but that doesn't appear possible
-        # with Python's hashlib, which can't be pickled or have its state
-        # persisted in some other way.
-        #
-        # Or maybe launch a background task to handle the checksum and other
-        # tasks to save/extract the file? This complicates the web UI, however.
         _check_upload_integrity(
             resource=resource, workspace=workspace, checksum=checksum
         )
@@ -319,6 +350,7 @@ def tus_event_handler(event_type, workspace, resource):
     callbacks = {
         "upload-started": _upload_started,
         "upload-completed": _upload_completed,
+        "chunk-upload-completed": _chunk_upload_completed,
     }
 
     if event_type in callbacks:
