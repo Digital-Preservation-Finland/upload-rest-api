@@ -1,5 +1,4 @@
 """Module for generating basic file metadata and posting it to Metax."""
-import hashlib
 import os
 import pathlib
 from datetime import datetime, timezone
@@ -13,50 +12,6 @@ import upload_rest_api.database as db
 from upload_rest_api.config import CONFIG
 
 PAS_FILE_STORAGE_ID = "urn:nbn:fi:att:file-storage-pas"
-
-
-HASH_FUNCTIONS = {
-    "md5": hashlib.md5,
-    "sha1": hashlib.sha1,
-    "sha2": hashlib.sha256,
-    "sha256": hashlib.sha256
-}
-
-
-def get_file_checksum(algorithm, path):
-    """
-    Calculate the file checksum using a given algorithm for a file.
-
-    :param str algorithm: Cryptographic hash algorithm to use to calculate
-                          the checksum
-    :param path: Path to the file
-
-    :raises ValueError: If algorithm is not recognized
-
-    :returns: Checksum as a hex string
-    """
-    try:
-        hash_obj = HASH_FUNCTIONS[algorithm.lower()]()
-    except KeyError as exc:
-        raise ValueError(
-            f"Hash function '{algorithm}' not recognized"
-        ) from exc
-
-    with open(path, "rb") as file_:
-        # Read the file in 1 MB chunks
-        for chunk in iter(lambda: file_.read(1024 * 1024), b""):
-            hash_obj.update(chunk)
-
-    return hash_obj.hexdigest()
-
-
-def md5_digest(fpath):
-    """Return md5 digest of file fpath.
-
-    :param fpath: path to file to be hashed
-    :returns: digest as a string
-    """
-    return get_file_checksum("md5", fpath)
 
 
 def _get_mimetype(fpath):

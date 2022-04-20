@@ -9,7 +9,7 @@ from archive_helpers.extract import (ExtractError, MemberNameError,
 from flask import safe_join
 
 import upload_rest_api.database as db
-from upload_rest_api import gen_metadata
+from upload_rest_api.checksum import get_file_checksum
 from upload_rest_api.config import CONFIG
 from upload_rest_api.jobs.utils import (METADATA_QUEUE, ClientError,
                                         api_background_job,
@@ -59,7 +59,7 @@ def _get_archive_checksums(archive, extract_path):
         if os.path.isfile(fpath):
             checksums.append({
                 "_id": fpath,
-                "checksum": gen_metadata.md5_digest(fpath)
+                "checksum": get_file_checksum("md5", fpath)
             })
 
     return checksums

@@ -7,8 +7,9 @@ import zipfile
 
 import werkzeug
 from flask import current_app
-from upload_rest_api import gen_metadata, utils
+from upload_rest_api import utils
 from upload_rest_api.api.v1.tasks import TASK_STATUS_API_V1
+from upload_rest_api.checksum import get_file_checksum
 from upload_rest_api.database import Database, Projects
 from upload_rest_api.jobs.utils import UPLOAD_QUEUE, enqueue_background_job
 from upload_rest_api.lock import ProjectLockManager
@@ -56,7 +57,7 @@ def _save_stream(fpath, stream, checksum, chunk_size=1024*1024):
             f_out.write(chunk)
 
     # Verify integrity of uploaded file if checksum was provided
-    if checksum and checksum != gen_metadata.md5_digest(fpath):
+    if checksum and checksum != get_file_checksum("md5", fpath):
         os.remove(fpath)
         raise werkzeug.exceptions.BadRequest(
             'Checksum of uploaded file does not match provided checksum.'
@@ -108,7 +109,7 @@ def save_file_into_db(file_path, database, project_id):
     :rtype: str
     """
     # Add file checksum to mongo
-    md5 = gen_metadata.md5_digest(file_path)
+    md5 = get_file_checksum(algorithm="md5", path=file_path)
     database.checksums.insert_one(str(file_path.resolve()), md5)
 
     # Update quota
