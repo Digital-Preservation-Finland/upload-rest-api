@@ -708,6 +708,14 @@ class Uploads:
             {"_id": identifier}
         ).deleted_count
 
+    def delete(self, ids):
+        """Delete multiple documents from the uploads collection.
+
+        :param ids: List of identifiers to be removed
+        :returns: Number of documents deleted
+        """
+        return self.uploads.delete_many({"_id": {"$in": ids}}).deleted_count
+
     def get_project_allocated_quota(self, project_id):
         """Get the amount of bytes currently allocated for an user's tus
         uploads.

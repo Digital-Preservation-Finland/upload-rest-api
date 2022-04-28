@@ -7,7 +7,7 @@ import click
 import upload_rest_api.config
 import upload_rest_api.database as db
 import upload_rest_api.gen_metadata as md
-from upload_rest_api.cleanup import clean_disk, clean_mongo
+from upload_rest_api.cleanup import clean_disk, clean_mongo, clean_tus_uploads
 
 
 def _echo_dict(dictionary):
@@ -55,6 +55,14 @@ def cleanup_mongo():
     click.echo(
         f"Cleaned old tasks and {deleted_count} identifier(s) from Mongo"
     )
+
+
+@cleanup.command("tus-uploads")
+def cleanup_tus_uploads():
+    """Clean old tus uploads without tus workspace directories.
+    """
+    deleted_count = clean_tus_uploads()
+    click.echo(f"Cleaned {deleted_count} aborted tus upload(s)")
 
 
 @cli.group()

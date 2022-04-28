@@ -210,3 +210,29 @@ def clean_mongo():
 
     # Remove identifiers from Mongo
     return files.delete(id_list)
+
+
+def clean_tus_uploads():
+    """Clean aborted tus uploads from the MongoDB database.
+
+    Aborted tus uploads are uploads that no longer have a corresponding
+    tus workspace on disk. This is because they have been cleaned after
+    remaining inactive for 4 hours. The corresponding upload entry on MongoDB
+    has to be deleted as well; otherwise the user will be unable to upload
+    a file into the same directory.
+    """
+    conf = upload_rest_api.config.CONFIG
+    tus_spool_dir = pathlib.Path(conf["TUS_API_SPOOL_PATH"])
+
+    database = db.Database()
+
+    resource_ids_on_disk = {path.name for path in tus_spool_dir.iterdir()}
+    resource_ids_on_mongo = {
+        str(entry["_id"]) for entry in database.uploads.uploads.find()
+    }
+
+    resource_ids_to_delete = list(resource_ids_on_mongo - resource_ids_on_disk)
+
+    deleted_count = database.uploads.delete(resource_ids_to_delete)
+
+    return deleted_count

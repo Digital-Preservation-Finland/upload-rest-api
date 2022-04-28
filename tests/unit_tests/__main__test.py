@@ -33,19 +33,34 @@ def command_runner():
 
 @mock.patch('upload_rest_api.__main__.clean_mongo')
 @mock.patch('upload_rest_api.__main__.clean_disk')
-@pytest.mark.parametrize("command", ("files", "mongo"))
-def test_cleanup(mock_clean_disk, mock_clean_mongo, command, command_runner):
+@mock.patch('upload_rest_api.__main__.clean_tus_uploads')
+@pytest.mark.parametrize("command", ("files", "mongo", "tus-uploads"))
+def test_cleanup(
+        mock_clean_tus_uploads, mock_clean_disk, mock_clean_mongo,
+        command, command_runner):
     """Test that correct function is called from main function when
     cleanup command is used.
     """
     command_runner(["cleanup", command])
 
+    func_to_call = None
+
     if command == "files":
-        mock_clean_disk.assert_called()
-        mock_clean_mongo.assert_not_called()
-    else:
-        mock_clean_disk.assert_not_called()
-        mock_clean_mongo.assert_called()
+        func_to_call = mock_clean_disk
+    elif command == "mongo":
+        func_to_call = mock_clean_mongo
+    elif command == "tus-uploads":
+        func_to_call = mock_clean_tus_uploads
+
+    all_cli_funcs = (
+        mock_clean_disk, mock_clean_mongo, mock_clean_tus_uploads
+    )
+
+    for cli_func in all_cli_funcs:
+        if cli_func == func_to_call:
+            cli_func.assert_called()
+        else:
+            cli_func.assert_not_called()
 
 
 def test_cleanup_tokens(database, command_runner):

@@ -4,6 +4,8 @@ import pathlib
 import shutil
 import time
 
+from flask_tus_io.resource import encode_tus_meta
+
 import upload_rest_api.cleanup as clean
 
 
@@ -207,3 +209,58 @@ def test_clean_project(mock_config, requests_mock):
     # Clean project and check that the old file has been removed
     clean.clean_project(project, project_path, metax=True)
     assert not testfile.is_file()
+
+
+def test_aborted_tus_uploads(app, test_mongo, test_client, test_auth):
+    """
+    Test that aborted tus uploads are cleaned correctly after their
+    tus workspace directory is cleaned up
+    """
+    for i in range(0, 5):
+        resp = test_client.post(
+            "/v1/files_tus",
+            headers={
+                **{
+                    "Tus-Resumable": "1.0.0",
+                    "Upload-Length": "42",
+                    "Upload-Metadata": encode_tus_meta({
+                        "type": "file",
+                        "project_id": "test_project",
+                        "filename": f"test_{i}.txt",
+                        "upload_path": f"test_{i}.txt"
+                    })
+                },
+                **test_auth
+            }
+        )
+
+        assert resp.status_code == 201
+
+    # Delete the tus workspaces for 'test_1.txt' and 'test_2.txt' to make them
+    # eligible for removal. In practice this is done by the
+    # 'tus-clean-workspaces' script periodically.
+    tus_spool_dir = pathlib.Path(app.config["TUS_API_SPOOL_PATH"])
+
+    for path in tus_spool_dir.iterdir():
+        name = path.name
+        if name.startswith("test_1.txt") or name.startswith("test_2.txt"):
+            shutil.rmtree(path)
+
+    # Run the cleanup. 'test_1.txt' and 'test_2.txt' will be cleaned.
+    deleted_count = clean.clean_tus_uploads()
+    assert deleted_count == 2
+    assert test_mongo.upload.uploads.count() == 3
+
+    paths = [
+        entry["upload_path"] for entry in test_mongo.upload.uploads.find()
+    ]
+
+    for name in ("test_0.txt", "test_3.txt", "test_4.txt"):
+        assert any(path for path in paths if path.endswith(name))
+
+    for name in ("test_1.txt", "test_2.txt"):
+        assert not any(path for path in paths if path.endswith(name))
+
+    # Nothing is cleaned on second run
+    deleted_count = clean.clean_tus_uploads()
+    assert deleted_count == 0
