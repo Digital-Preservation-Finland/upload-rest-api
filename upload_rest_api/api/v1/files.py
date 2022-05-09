@@ -169,8 +169,9 @@ def delete_path(project_id, fpath):
             except md.MetaxClientError as exception:
                 response = str(exception)
 
-            # Remove checksum from mongo
+            # Remove checksum and identifier from mongo
             database.checksums.delete_one(os.path.abspath(upload_path))
+            database.files.delete_paths([os.path.abspath(upload_path)])
             os.remove(upload_path)
 
     elif upload_path.exists() \

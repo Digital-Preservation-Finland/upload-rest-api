@@ -449,6 +449,17 @@ class Files:
         """
         return self.files.delete_many({"_id": {"$in": ids}}).deleted_count
 
+    def delete_paths(self, paths):
+        """Delete multiple documents, identified by file path, from the files
+        collection.
+
+        :param paths: List of paths to be removed
+        :returns: Number of documents deleted
+        """
+        return self.files.delete_many(
+            {"file_path": {"$in": paths}}
+        ).deleted_count
+
     def insert_one(self, document):
         """Insert one file document.
 

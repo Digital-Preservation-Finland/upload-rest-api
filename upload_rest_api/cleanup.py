@@ -135,8 +135,9 @@ def clean_project(project_id, fpath, metax=True):
     # Remove all empty dirs
     _clean_empty_dirs(fpath)
 
-    # Clean checksums of the deleted files from mongo
+    # Clean checksums and identifiers of the deleted files from mongo
     db.Database().checksums.delete(deleted_files)
+    db.Database().files.delete_paths(deleted_files)
 
     # Remove Metax entries of deleted files that are not part of any
     # datasets

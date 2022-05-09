@@ -53,11 +53,16 @@ def test_expired_files(test_mongo, mock_config):
     shutil.copy("tests/data/test.txt", fpath)
     shutil.copy("tests/data/test.txt", fpath_expired)
 
-    # Add checksums to mongo
+    # Add checksums and identifiers to mongo
     checksums = test_mongo.upload.checksums
     checksums.insert_many([
         {"_id": fpath, "checksum": "foo"},
         {"_id": fpath_expired, "checksum": "foo"}
+    ])
+    files = test_mongo.upload.files
+    files.insert_many([
+        {"_id": "urn:uuid:1", "file_path": fpath},
+        {"_id": "urn:uuid:2", "file_path": fpath_expired},
     ])
 
     current_time = time.time()
@@ -70,9 +75,11 @@ def test_expired_files(test_mongo, mock_config):
     # upload_path/test/test/test.txt and its directory should be removed
     assert not os.path.isdir(os.path.join(upload_path, "test/test/"))
 
-    # fpath_expired checksum should be removed
+    # fpath_expired checksum and identifier should be removed
     assert checksums.count({"_id": fpath_expired}) == 0
     assert checksums.count({"_id": fpath}) == 1
+    assert files.count({"file_path": fpath_expired}) == 0
+    assert files.count({"file_path": fpath}) == 1
 
     # upload_path/test/test.txt should not be removed
     assert os.path.isfile(fpath)
@@ -94,10 +101,14 @@ def test_all_files_expired(test_mongo, mock_config):
     old_file.write_text('foo')
     os.utime(old_file, (0, 0))
 
-    # Add checksums to mongo
+    # Add checksums and identifiers to mongo
     checksums = test_mongo.upload.checksums
     checksums.insert_many([
         {"_id": str(old_file), "checksum": "foo"},
+    ])
+    files = test_mongo.upload.files
+    files.insert_many([
+        {"_id": "urn:uuid:1", "file_path": str(old_file)}
     ])
 
     # Clean all files older than 10s
@@ -108,6 +119,10 @@ def test_all_files_expired(test_mongo, mock_config):
     assert not old_file.exists()
     assert project_path.exists()
     assert not any(project_path.iterdir())
+
+    # Checksums and identifiers should have been removed
+    assert checksums.count() == 0
+    assert files.count() == 0
 
 
 def test_expired_tasks(test_mongo, mock_config):
@@ -190,7 +205,7 @@ def test_expired_identifiers(test_mongo, mock_config, requests_mock):
     assert files_left[0] == {"_id": "id_1", "file_path": str(fpath)}
 
 
-def test_clean_project(mock_config, requests_mock):
+def test_clean_project(mock_config, requests_mock, test_mongo):
     """Test cleaning project."""
     project = 'foo'
     project_path = pathlib.Path(mock_config['UPLOAD_PROJECTS_PATH']) / project
@@ -206,9 +221,23 @@ def test_clean_project(mock_config, requests_mock):
     os.utime(testfile, (0, 0))
     assert testfile.is_file()
 
+    # Add checksums and identifiers to mongo
+    checksums = test_mongo.upload.checksums
+    checksums.insert_many([
+        {"_id": str(testfile), "checksum": "foo"},
+    ])
+    files = test_mongo.upload.files
+    files.insert_many([
+        {"_id": "urn:uuid:1", "file_path": str(testfile)}
+    ])
+
     # Clean project and check that the old file has been removed
     clean.clean_project(project, project_path, metax=True)
     assert not testfile.is_file()
+
+    # Check that checksums and identifiers have been removed
+    assert checksums.count() == 0
+    assert files.count() == 0
 
 
 def test_aborted_tus_uploads(app, test_mongo, test_client, test_auth):

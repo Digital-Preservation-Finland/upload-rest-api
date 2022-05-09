@@ -296,3 +296,16 @@ def test_get_all_files(database):
     database.files.insert(files)
     received_files = database.files.get_all_files()
     assert received_files == files
+
+
+def test_deleting_files_by_path(database):
+    """Test deleting files with given paths."""
+    files = [
+        {"_id": "pid:urn:1", "file_path": "path_1"},
+        {"_id": "pid:urn:2", "file_path": "path_2"},
+        {"_id": "pid:urn:3", "file_path": "path_3"}
+    ]
+    database.files.insert(files)
+    database.files.delete_paths(["path_1", "path_2", "path_does_not_exist"])
+    files = database.files.get_all_files()
+    assert files == [{"_id": "pid:urn:3", "file_path": "path_3"}]

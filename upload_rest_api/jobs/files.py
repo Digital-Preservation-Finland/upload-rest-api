@@ -11,7 +11,7 @@ from upload_rest_api.lock import ProjectLockManager
 
 def _get_files_to_delete(trash_path, trash_root, project_dir):
     """
-    Get files to delete from the checksums database.
+    Get files to delete from the checksums and files database collections.
 
     Each path is converted to the original absolute path in the format
     "/var/spool/upload/projects/<project_id>". This is necessary because
@@ -65,13 +65,14 @@ def delete_files(fpath, trash_path, trash_root, project_id, task_id):
         root_upload_path=trash_root.parent
     )
 
-    # Remove checksum from mongo
+    # Remove checksums and file identifiers from mongo
     files_to_delete = _get_files_to_delete(
         trash_path=trash_path,
         trash_root=trash_root,
         project_dir=project_dir
     )
     database.checksums.delete(files_to_delete)
+    database.files.delete_paths(files_to_delete)
 
     # Ensure the directory containing the "fake" project directory is
     # deleted as well.
