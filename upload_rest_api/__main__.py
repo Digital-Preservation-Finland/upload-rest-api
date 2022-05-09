@@ -59,8 +59,7 @@ def cleanup_mongo():
 
 @cleanup.command("tus-uploads")
 def cleanup_tus_uploads():
-    """Clean old tus uploads without tus workspace directories.
-    """
+    """Clean old tus uploads without tus workspace directories."""
     deleted_count = clean_tus_uploads()
     click.echo(f"Cleaned {deleted_count} aborted tus upload(s)")
 

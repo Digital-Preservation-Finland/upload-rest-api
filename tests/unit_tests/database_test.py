@@ -44,7 +44,8 @@ def test_create_user(user, database, mock_config):
     assert project_dict["quota"] == 5 * 1024**3
     assert project_dict["used_quota"] == 0
 
-    assert (pathlib.Path(mock_config["UPLOAD_PROJECTS_PATH"]) / "test_project").is_dir()
+    assert (pathlib.Path(mock_config["UPLOAD_PROJECTS_PATH"])
+            / "test_project").is_dir()
 
 
 def test_create_two_users(user):
@@ -82,10 +83,10 @@ def test_get_all_ids(files_col):
 
     for i in range(10):
         files_col.files.insert_one(
-            {"_id": "pid:urn:%s" % i, "file_path": "%s" % i}
+            {"_id": f"pid:urn:{i}", "file_path": str(i)}
         )
         assert files_col.get_all_ids() == [
-            "pid:urn:%s" % j for j in range(i+1)
+            f"pid:urn:{j}" for j in range(i+1)
         ]
 
 
@@ -111,7 +112,9 @@ def test_insert_and_delete_files(files_col):
 
 
 def test_store_identifiers(monkeypatch):
-    """Test that store_identifiers writes the POSTed identifiers and
+    """Test store_identifiers method.
+
+    Test that store_identifiers writes the POSTed identifiers and
     corresponding file_paths to Mongo.
     """
     monkeypatch.setattr(db, "_get_abs_path",
@@ -148,7 +151,9 @@ def test_quota(database):
 
 
 def test_get_random_string():
-    """Test that get_random_string() returns random strings
+    """Test get_random_string method.
+
+    Test that get_random_string() returns random strings
     of given lenght with only ascii letters and digits.
     """
     strings = set()
@@ -223,10 +228,10 @@ def test_task_not_found(tasks_col, method):
 
 
 def test_checksums_delete_chunks(checksums_col):
-    """
-    Test deleting a large amount of checksums. The deletion queries are
-    split into chunks internally to prevent exceeding MongoDB's query size
-    limit.
+    """Test deleting a large amount of checksums.
+
+    The deletion queries are split into chunks internally to prevent
+    exceeding MongoDB's query size limit.
     """
     # 20,100 checksums will be added
     for i in range(0, 201):

@@ -104,8 +104,9 @@ class TaskNotFoundError(Exception):
 
 
 class TokenInvalidError(Exception):
-    """
-    Token is invalid, either because it does not exist or because it expired.
+    """Exception for using invalid token.
+
+    Token is invalid because it does not exist or it expired.
     """
 
 
@@ -167,12 +168,12 @@ class Database:
 
     @property
     def uploads(self):
-        """Return uploads collection"""
+        """Return uploads collection."""
         return Uploads(self.client)
 
     @property
     def tokens(self):
-        """Return tokens collection"""
+        """Return tokens collection."""
         return Tokens(self.client)
 
 
@@ -254,11 +255,9 @@ class User:
         return passwd
 
     def grant_project(self, project):
-        """
-        Grant user access to the given project
-        """
-        db = Database()
-        if not db.projects.get(project):
+        """Grant user access to the given project."""
+        database = Database()
+        if not database.projects.get(project):
             raise ProjectNotFoundError(f"Project '{project}' not found")
 
         result = self.users.update_one(
@@ -270,9 +269,7 @@ class User:
             raise UserNotFoundError(f"User '{self.username}' not found")
 
     def revoke_project(self, project):
-        """
-        Revoke user access to the given project
-        """
+        """Revoke user access to the given project."""
         result = self.users.update_one(
             {"_id": self.username},
             {"$pull": {"projects": project}}
@@ -558,7 +555,9 @@ class Tasks:
         return self.tasks.delete_many({"_id": {"$in": obj_ids}}).deleted_count
 
     def find(self, project_id, status):
-        """Return number of tasks for user having certain status for
+        """Find tasks.
+
+        Return number of tasks for user having certain status for
         project.
 
         :param str project_id: project name
@@ -574,10 +573,10 @@ class Tasks:
         return tasks
 
     def _sync_task_status(self, task):
-        """Check if the corresponding MongoDB task is in the failed RQ
-        queue.
+        """Syncronize task status.
 
-        If it is, update the MongoDB task entry correspondingly.
+        Check if the corresponding MongoDB task is in the failed RQ
+        queue. If it is, update the MongoDB task entry correspondingly.
 
         This is used when the exception handler that updates the MongoDB
         entry was not executed. One case where this can happen is if the
@@ -671,7 +670,8 @@ class Tasks:
 
 
 class Uploads:
-    """Class for managing pending uploads in the database"""
+    """Class for managing pending uploads in the database."""
+
     def __init__(self, client):
         """Initialize Tasks instance."""
         self.uploads = client.upload.uploads
@@ -731,7 +731,8 @@ class Uploads:
 
 
 class Tokens:
-    """Class for managing user tokens"""
+    """Class for managing user tokens."""
+
     def __init__(self, client):
         """Initialize Tokens instance."""
         self.tokens = client.upload.get_collection(
@@ -742,7 +743,7 @@ class Tokens:
     def create(
             self, name, username, projects, expiration_date=None,
             admin=False, session=False):
-        """Create one token
+        """Create one token.
 
         :param str name: User-provided name for the token
         :param str username: Username the token is intended for
@@ -822,8 +823,7 @@ class Tokens:
         )
 
     def get_by_token(self, token):
-        """
-        Get the token from the database using the token itself
+        """Get the token from the database using the token itself.
 
         .. note::
 
@@ -856,8 +856,7 @@ class Tokens:
         return result
 
     def get_and_validate(self, token):
-        """
-        Get the token from the database and validate it
+        """Get the token from the database and validate it.
 
         :raises TokenInvalidError: Token is invalid
         """
@@ -878,8 +877,7 @@ class Tokens:
         return result
 
     def delete(self, identifier):
-        """
-        Delete the given token
+        """Delete the given token.
 
         :returns: Number of deleted documents, either 1 or 0
         """
@@ -895,17 +893,13 @@ class Tokens:
         return result
 
     def find(self, username):
-        """
-        Find all user-created tokens belonging to an user
-        """
+        """Find all user-created tokens belonging to an user."""
         return list(
             self.tokens.find({"username": username, "session": False})
         )
 
     def clean_session_tokens(self):
-        """
-        Remove expired session tokens
-        """
+        """Remove expired session tokens."""
         now = datetime.datetime.now(datetime.timezone.utc)
 
         return self.tokens.delete_many(
@@ -917,7 +911,8 @@ class Tokens:
 
 
 class Projects:
-    """Class for managing projects"""
+    """Class for managing projects."""
+
     def __init__(self, client):
         """Initialize Projects instance."""
         self.projects = client.upload.get_collection(
@@ -926,7 +921,7 @@ class Projects:
         )
 
     def create(self, identifier, quota=5 * 1024**3):
-        """Create one project
+        """Create one project.
 
         :param str identifier: Project identifier.
                                Also used as the displayed name.
@@ -951,7 +946,7 @@ class Projects:
         return result
 
     def set_quota(self, identifier, quota):
-        """Change the quota for a project
+        """Change the quota for a project.
 
         :param str name: Project name
         :param int quota: New quota for the project
@@ -981,7 +976,7 @@ class Projects:
         self.set_used_quota(identifier, size)
 
     def delete(self, identifier):
-        """Delete single project
+        """Delete single project.
 
         :param str name: Project name
         :returns: Whether the project was found and deleted
@@ -997,7 +992,7 @@ class Projects:
         return self.projects.find_one({"_id": identifier})
 
     def get_all_projects(self):
-        """Return all project documents
+        """Return all project documents.
 
         :returns: list of projects
         """
@@ -1005,9 +1000,7 @@ class Projects:
 
     @classmethod
     def get_project_directory(cls, project_id):
-        """
-        Get the file system path to the project
-        """
+        """Get the file system path to the project."""
         conf = upload_rest_api.config.CONFIG
         return parse_user_path(conf["UPLOAD_PROJECTS_PATH"], project_id)
 
