@@ -21,31 +21,43 @@ def test_dir_size():
     assert db.get_dir_size("tests/data/test") == 0
 
 
-def test_create_user(user, database, mock_config):
-    """Test creation of new user."""
-    database.projects.create("test_project")
+@pytest.mark.parametrize('projects', [None,
+                                      [],
+                                      ['test_project'],
+                                      ['project1', 'project2']])
+def test_create_user(database, projects):
+    """Test creation of new user.
 
-    users = user.users
-    user.username = "test"
-    user.create(projects=["test_project"])
-
-    user_dict = users.find_one({"_id": "test"})
-
-    assert user_dict is not None
+    :param database: Database instance
+    :param projects: List of user projects
+    """
+    user = database.user('test_user')
+    user.create(projects=projects)
     assert user.exists()
-    assert user_dict == user.get()
 
+    user_dict = user.get()
     assert len(user_dict["salt"]) == 20
     assert len(user_dict["digest"]) == 64
-    assert user_dict["projects"] == ["test_project"]
+
+    if projects:
+        assert user_dict["projects"] == projects
+    else:
+        assert user_dict["projects"] == []
+
+
+def test_create_project(database, mock_config):
+    """Test creating new project."""
+    database.projects.create("test_project")
 
     project_dict = database.projects.projects.find_one({"_id": "test_project"})
 
     assert project_dict["quota"] == 5 * 1024**3
     assert project_dict["used_quota"] == 0
 
-    assert (pathlib.Path(mock_config["UPLOAD_PROJECTS_PATH"])
-            / "test_project").is_dir()
+    # Project directory should be created
+    project_directory \
+        = pathlib.Path(mock_config["UPLOAD_PROJECTS_PATH"]) / "test_project"
+    assert project_directory.is_dir()
 
 
 def test_create_two_users(user):
