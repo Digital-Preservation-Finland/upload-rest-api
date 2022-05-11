@@ -402,5 +402,74 @@ def _list_checksums():
         click.echo("No checksums found")
 
 
+# TODO: This command can be removed once the database migration is finished.
+@cli.command("migrate-db")
+def migrate_db():
+    """Migrate database to merge files and checksums collections into one
+    collection.
+
+    Collects existing files and turns them into the following form:
+    {
+        "_id" : <file path>,
+        "identifier" : <metax identifier>,
+        "checksum" : <checksum>
+    }
+
+    Once new files documents are inserted into the database, the old file
+    documents and the checksums collection are removed. Also, index for the
+    identifier field in the new files collection is created to speed up
+    queries.
+    """
+    database = db.Database()
+
+    # Pipeline to aggregate all existing files into documents with the new
+    # form
+    pipeline = [
+        # Join files collection with checsum collection as an array called
+        # fromItems
+        {
+            "$lookup": {
+                "from": "files",
+                "localField": "_id",
+                "foreignField": "file_path",
+                "as": "fromItems"
+            }
+        },
+        # Create new document for each document in fromItems, even when the
+        # fromItems array is empty (creating a file document without file
+        # identifier in cases when file metadata has not been generated)
+        {
+            "$unwind": {
+                "path": "$fromItems",
+                "preserveNullAndEmptyArrays": True
+            }
+        },
+        # Include following fields in the new documents
+        {
+            "$project": {
+                "_id": "$_id",
+                "checksum": "$checksum",
+                "identifier": "$fromItems._id"
+            }
+        }
+    ]
+    documents = list(database.checksums.checksums.aggregate(pipeline))
+
+    # Insert new file documents with the checksum field
+    database.files.insert(documents)
+    # Remove old file documents (identified by not having the checksum field)
+    database.files.files.remove({"checksum": {"$exists": False}})
+    # Drop checksums collection
+    database.checksums.checksums.drop()
+
+    # Create index for identifier field (for documents where identifier exists)
+    # to speed up identifier queries
+    database.files.files.create_index(
+        "identifier",
+        unique=True,
+        partialFilterExpression={"identifier": {"$exists": True}}
+    )
+
+
 if __name__ == '__main__':
     cli()
