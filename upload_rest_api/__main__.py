@@ -1,6 +1,8 @@
 """Commandline interface for upload_rest_api package."""
+import getpass
 import json
 import os
+import pathlib
 
 import click
 
@@ -22,7 +24,15 @@ def _echo_dict(dictionary):
 @click.group()
 def cli():
     """Upload REST API command line tool."""
-    pass
+    base_path = pathlib.Path(
+        upload_rest_api.config.CONFIG['UPLOAD_BASE_PATH']
+    )
+    if getpass.getuser() != base_path.owner():
+        raise click.UsageError(
+            f'The owner of base directory ({base_path}) is '
+            f'{base_path.owner()}. Only the owner of base directory is '
+            'allowed to run this script.'
+        )
 
 
 @cli.group()
