@@ -352,17 +352,6 @@ def lock_manager(mock_config):
 
 
 @pytest.fixture(scope="function")
-def checksums_col(test_mongo):
-    """Initialize and return Checksums instance with db connection through
-    Mongobox.
-    """
-    checksums_col = db.Database().checksums
-    checksums_col.checksums = test_mongo.upload.checksums
-
-    return checksums_col
-
-
-@pytest.fixture(scope="function")
 def test_auth():
     """Return correct credentials header."""
     return {

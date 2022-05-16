@@ -71,8 +71,7 @@ def delete_files(fpath, trash_path, trash_root, project_id, task_id):
         trash_root=trash_root,
         project_dir=project_dir
     )
-    database.checksums.delete(files_to_delete)
-    database.files.delete_paths(files_to_delete)
+    database.files.delete(files_to_delete)
 
     # Ensure the directory containing the "fake" project directory is
     # deleted as well.

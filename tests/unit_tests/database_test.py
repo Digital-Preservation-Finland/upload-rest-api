@@ -95,7 +95,7 @@ def test_get_all_ids(files_col):
 
     for i in range(10):
         files_col.files.insert_one(
-            {"_id": f"pid:urn:{i}", "file_path": str(i)}
+            {"_id": str(i), "identifier": f"pid:urn:{i}", "checksum": str(i)}
         )
         assert files_col.get_all_ids() == [
             f"pid:urn:{j}" for j in range(i+1)
@@ -104,22 +104,21 @@ def test_get_all_ids(files_col):
 
 def test_insert_and_delete_files(files_col):
     """Test insertion and deletion of files documents."""
-    document = {"_id": "pid:urn:1", "file_path": "1"}
     many_documents = [
-        {"_id": "pid:urn:2", "file_path": "2"},
-        {"_id": "pid:urn:3", "file_path": "3"}
+        {"_id": "2", "identifier": "pid:urn:2", "checksum": "2"},
+        {"_id": "3", "identifier": "pid:urn:3", "checksum": "3"}
     ]
 
-    files_col.insert_one(document)
+    files_col.insert_one("1", "pid:urn:1", "1")
     assert len(files_col.get_all_ids()) == 1
 
     files_col.insert(many_documents)
     assert len(files_col.get_all_ids()) == 3
 
-    files_col.delete_one("pid:urn:1")
+    files_col.delete_one("1")
     assert len(files_col.get_all_ids()) == 2
 
-    files_col.delete(["pid:urn:2", "pid:urn:3"])
+    files_col.delete(["2", "3"])
     assert len(files_col.get_all_ids()) == 0
 
 
@@ -139,9 +138,21 @@ def test_store_identifiers(monkeypatch):
     ]
 
     database = db.Database()
+
+    # store_identifiers assumes that the identifers are updated on existing
+    # file documents. Insert files without identifiers (_id refers to file
+    # path) to Mongo
+    database.files.insert([
+        {"_id": "1", "checksum": "checksum_1"},
+        {"_id": "2", "checksum": "checksum_2"},
+        {"_id": "3", "checksum": "checksum_3"}
+    ])
     database.store_identifiers(metax_response, "/tmp", "project_path")
-    assert database.files.get_all_ids() \
-        == ["pid:urn:1", "pid:urn:2", "pid:urn:3"]
+    assert database.files.get_all_files() == [
+        {"_id": "1", "checksum": "checksum_1", "identifier": "pid:urn:1"},
+        {"_id": "2", "checksum": "checksum_2", "identifier": "pid:urn:2"},
+        {"_id": "3", "checksum": "checksum_3", "identifier": "pid:urn:3"}
+    ]
 
 
 def test_quota(database):
@@ -239,59 +250,39 @@ def test_task_not_found(tasks_col, method):
         getattr(tasks_col, method)(task_identifier, 'bar')
 
 
-def test_checksums_delete_chunks(checksums_col):
-    """Test deleting a large amount of checksums.
+def test_files_delete_chunks(files_col):
+    """Test deleting a large amount of files.
 
     The deletion queries are split into chunks internally to prevent
     exceeding MongoDB's query size limit.
     """
-    # 20,100 checksums will be added
+    # 20,100 files will be added
     for i in range(0, 201):
-        checksums_col.insert([
+        files_col.insert([
             {"_id": f"/path/{(i*100)+j}", "checksum": "foobar"}
             for j in range(0, 100)
         ])
 
-    assert checksums_col.checksums.count({}) == 20100
+    assert files_col.files.count({}) == 20100
 
-    # Delete all but the last 3 checksum entries using `delete`
+    # Delete all but the last 3 files entries using `delete`
     paths_to_delete = [f"/path/{i}" for i in range(0, 20097)]
-    assert checksums_col.delete(paths_to_delete) == 20097
+    assert files_col.delete(paths_to_delete) == 20097
 
-    # 3 checksums are left
-    assert checksums_col.get_checksums() == {
-        "/path/20097": "foobar",
-        "/path/20098": "foobar",
-        "/path/20099": "foobar"
-    }
-
-
-def test_get_all_files_with_checksums(database):
-    """Test getting all files with corresponding checksums."""
-    files = [
-        {"_id": "pid:urn:1", "file_path": "path_1"},
-        {"_id": "pid:urn:2", "file_path": "path_2"}
+    # 3 files are left
+    assert files_col.get_all_files() == [
+        {"_id": "/path/20097", "checksum": "foobar"},
+        {"_id": "/path/20098", "checksum": "foobar"},
+        {"_id": "/path/20099", "checksum": "foobar"}
     ]
-    checksums = [
-        {"_id": "path_1", "checksum": "checksum_1"},
-        {"_id": "path_2", "checksum": "checksum_2"}
-    ]
-    database.files.insert(files)
-    database.checksums.insert(checksums)
-
-    files_with_checksums = database.files.get_all_files_with_checksums()
-    correct_result = [
-        {"_id": "pid:urn:1", "checksum": "checksum_1", "file_path": "path_1"},
-        {"_id": "pid:urn:2", "checksum": "checksum_2", "file_path": "path_2"},
-    ]
-    assert files_with_checksums == correct_result
 
 
 def test_get_all_files(database):
     """Test getting all files."""
     files = [
-        {"_id": "pid:urn:1", "file_path": "path_1"},
-        {"_id": "pid:urn:2", "file_path": "path_2"}
+        {"_id": "1", "checksum": "checksum_1", "identifier": "pid:urn:1"},
+        {"_id": "2", "checksum": "checksum_2", "identifier": "pid:urn:2"},
+        {"_id": "3", "checksum": "checksum_3", "identifier": "pid:urn:3"}
     ]
     database.files.insert(files)
     received_files = database.files.get_all_files()
@@ -301,11 +292,13 @@ def test_get_all_files(database):
 def test_deleting_files_by_path(database):
     """Test deleting files with given paths."""
     files = [
-        {"_id": "pid:urn:1", "file_path": "path_1"},
-        {"_id": "pid:urn:2", "file_path": "path_2"},
-        {"_id": "pid:urn:3", "file_path": "path_3"}
+        {"_id": "path_1", "checksum": "checksum_1", "identifier": "pid:urn:1"},
+        {"_id": "path_2", "checksum": "checksum_2", "identifier": "pid:urn:2"},
+        {"_id": "path_3", "checksum": "checksum_3", "identifier": "pid:urn:3"}
     ]
     database.files.insert(files)
-    database.files.delete_paths(["path_1", "path_2", "path_does_not_exist"])
+    database.files.delete(["path_1", "path_2", "path_does_not_exist"])
     files = database.files.get_all_files()
-    assert files == [{"_id": "pid:urn:3", "file_path": "path_3"}]
+    assert files == [
+        {"_id": "path_3", "checksum": "checksum_3", "identifier": "pid:urn:3"}
+    ]

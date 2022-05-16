@@ -102,7 +102,7 @@ def get_path(project_id, fpath):
         response = {
             "file_path": return_path,
             "identifier": database.files.get_identifier(upload_path),
-            "md5": database.checksums.get_checksum(
+            "md5": database.files.get_checksum(
                 os.path.abspath(upload_path)
             ),
             "timestamp": md.iso8601_timestamp(upload_path)
@@ -170,8 +170,7 @@ def delete_path(project_id, fpath):
                 response = str(exception)
 
             # Remove checksum and identifier from mongo
-            database.checksums.delete_one(os.path.abspath(upload_path))
-            database.files.delete_paths([os.path.abspath(upload_path)])
+            database.files.delete_one(os.path.abspath(upload_path))
             os.remove(upload_path)
 
     elif upload_path.exists() \

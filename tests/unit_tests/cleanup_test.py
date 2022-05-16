@@ -53,16 +53,11 @@ def test_expired_files(test_mongo, mock_config):
     shutil.copy("tests/data/test.txt", fpath)
     shutil.copy("tests/data/test.txt", fpath_expired)
 
-    # Add checksums and identifiers to mongo
-    checksums = test_mongo.upload.checksums
-    checksums.insert_many([
-        {"_id": fpath, "checksum": "foo"},
-        {"_id": fpath_expired, "checksum": "foo"}
-    ])
+    # Add files to mongo
     files = test_mongo.upload.files
     files.insert_many([
-        {"_id": "urn:uuid:1", "file_path": fpath},
-        {"_id": "urn:uuid:2", "file_path": fpath_expired},
+        {"_id": fpath, "checksum": "foo", "identifier": "urn:uuid:1"},
+        {"_id": fpath_expired, "checksum": "foo", "identifier": "urn:uuid:2"}
     ])
 
     current_time = time.time()
@@ -75,11 +70,9 @@ def test_expired_files(test_mongo, mock_config):
     # upload_path/test/test/test.txt and its directory should be removed
     assert not os.path.isdir(os.path.join(upload_path, "test/test/"))
 
-    # fpath_expired checksum and identifier should be removed
-    assert checksums.count({"_id": fpath_expired}) == 0
-    assert checksums.count({"_id": fpath}) == 1
-    assert files.count({"file_path": fpath_expired}) == 0
-    assert files.count({"file_path": fpath}) == 1
+    # fpath_expired file should be removed
+    assert files.count({"_id": fpath_expired}) == 0
+    assert files.count({"_id": fpath}) == 1
 
     # upload_path/test/test.txt should not be removed
     assert os.path.isfile(fpath)
@@ -101,15 +94,11 @@ def test_all_files_expired(test_mongo, mock_config):
     old_file.write_text('foo')
     os.utime(old_file, (0, 0))
 
-    # Add checksums and identifiers to mongo
-    checksums = test_mongo.upload.checksums
-    checksums.insert_many([
-        {"_id": str(old_file), "checksum": "foo"},
-    ])
+    # Add files to mongo
     files = test_mongo.upload.files
-    files.insert_many([
-        {"_id": "urn:uuid:1", "file_path": str(old_file)}
-    ])
+    files.insert_one(
+        {"_id": str(old_file), "checksum": "foo", "identifier": "urn:uuid:1"}
+    )
 
     # Clean all files older than 10s
     clean.clean_disk(metax=False)
@@ -120,8 +109,7 @@ def test_all_files_expired(test_mongo, mock_config):
     assert project_path.exists()
     assert not any(project_path.iterdir())
 
-    # Checksums and identifiers should have been removed
-    assert checksums.count() == 0
+    # File should have been removed
     assert files.count() == 0
 
 
@@ -184,12 +172,12 @@ def test_expired_identifiers(test_mongo, mock_config, requests_mock):
 
     # Add files to Mongo
     files = test_mongo.upload.files
-    files.insert_one({"_id": "id_1",
-                      "file_path": str(fpath)})
-    files.insert_one({"_id": "id_2",
-                      "file_path": str(fpath_expired)})
-    files.insert_one({"_id": "id_3",
-                      "file_path": str(fpath_nonexistent)})
+    documents = [
+        {"_id": str(fpath), "identifier": "id_1", "checksum": "1"},
+        {"_id": str(fpath_expired), "identifier": "id_2", "checksum": "2"},
+        {"_id": str(fpath_nonexistent), "identifier": "id_3", "checksum": "3"}
+    ]
+    files.insert_many(documents)
     assert files.count() == 3
 
     # Mock Metax sending no identifiers
@@ -199,10 +187,11 @@ def test_expired_identifiers(test_mongo, mock_config, requests_mock):
     # Clean identifiers of files older than 10s and files that do not exist
     clean.clean_mongo()
 
-    # Verify that one file is left in Mongo
-    files_left = list(files.find())
-    assert len(files_left) == 1
-    assert files_left[0] == {"_id": "id_1", "file_path": str(fpath)}
+    # Verify that one file with identifier is left in Mongo
+    identifiers_left = list(files.find({"identifier": {"$exists": True}}))
+    assert len(identifiers_left) == 1
+    assert identifiers_left[0] \
+        == {"_id": str(fpath), "identifier": "id_1", "checksum": "1"}
 
 
 def test_clean_project(mock_config, requests_mock, test_mongo):
@@ -214,29 +203,24 @@ def test_clean_project(mock_config, requests_mock, test_mongo):
     requests_mock.get('https://metax.localdomain/rest/v2/files',
                       json={'next': None, 'results': []})
 
-    # Create a old test file in project directory
+    # Create an old test file in project directory
     project_path.mkdir()
     testfile = project_path / 'testfile1'
     testfile.write_text('foo')
     os.utime(testfile, (0, 0))
     assert testfile.is_file()
 
-    # Add checksums and identifiers to mongo
-    checksums = test_mongo.upload.checksums
-    checksums.insert_many([
-        {"_id": str(testfile), "checksum": "foo"},
-    ])
+    # Add files to mongo
     files = test_mongo.upload.files
-    files.insert_many([
-        {"_id": "urn:uuid:1", "file_path": str(testfile)}
-    ])
+    files.insert_one(
+        {"_id": str(testfile), "identifier": "urn:uuid:1", "checksum": "foo"}
+    )
 
     # Clean project and check that the old file has been removed
     clean.clean_project(project, project_path, metax=True)
     assert not testfile.is_file()
 
-    # Check that checksums and identifiers have been removed
-    assert checksums.count() == 0
+    # Check that file have been removed from mongo
     assert files.count() == 0
 
 

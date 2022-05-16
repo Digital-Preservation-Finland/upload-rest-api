@@ -97,7 +97,7 @@ def extract_task(project_id, fpath, dir_path, create_metadata, task_id):
             raise ClientError(str(error)) from error
 
         # Add checksums of the extracted files to mongo
-        database.checksums.insert(_get_archive_checksums(fpath, abs_dir_path))
+        database.files.insert(_get_archive_checksums(fpath, abs_dir_path))
 
         # Remove archive and all created symlinks
         os.remove(fpath)

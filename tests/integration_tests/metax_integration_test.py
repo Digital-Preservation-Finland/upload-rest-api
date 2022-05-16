@@ -387,15 +387,21 @@ def test_mongo_cleanup(
 
     files_col = db.Database().files
 
-    # ----- Inserting fake identifiers to Mongo and cleaning them
+    # ----- Inserting fake files to Mongo and cleaning them
     files_col.insert([
-        {"_id": "pid:urn:1", "file_path": "1"},
-        {"_id": "pid:urn:2", "file_path": "2"}
+        {"_id": "1", "identifier": "pid:urn:1", "checksum": "checksum_1"},
+        {"_id": "2", "identifier": "pid:urn:2", "checksum": "checksum_2"}
     ])
     assert len(files_col.get_all_ids()) == 2
 
     clean.clean_mongo()
+
+    # File documents should persist, but identifiers should be gone
+    assert len(files_col.get_all_files()) == 2
     assert not files_col.get_all_ids()
+
+    # Remove fake files before next test
+    files_col.delete(["1", "2"])
 
     # Upload integration.zip, which is extracted by the server
     poll_response = _upload_file(
@@ -414,10 +420,9 @@ def test_mongo_cleanup(
 
     # Check that generated identifiers were added to Mongo
     assert len(files_col.get_all_ids()) == 2
-
     # Check that generated file_paths resolve to actual files
-    for file_doc in files_col.files.find():
-        file_path = file_doc["file_path"]
+    for file_doc in files_col.get_all_files():
+        file_path = file_doc["_id"]
         assert os.path.isfile(file_path)
 
     # Try to clean file documents that still exist in Metax

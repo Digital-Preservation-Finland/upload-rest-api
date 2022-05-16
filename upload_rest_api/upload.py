@@ -114,7 +114,7 @@ def save_file_into_db(file_path, database, project_id, md5=None):
         md5 = get_file_checksum(algorithm="md5", path=file_path)
 
     # Add file checksum to mongo
-    database.checksums.insert_one(str(file_path.resolve()), md5)
+    database.files.insert_one(str(file_path.resolve()), md5)
 
     # Update quota
     database.projects.update_used_quota(

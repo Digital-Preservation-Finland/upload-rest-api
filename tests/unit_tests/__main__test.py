@@ -403,30 +403,28 @@ def test_modify_project_fail(command_runner):
 
 def test_get_file_by_path(command_runner, database):
     """Test displaying information of file specified by path."""
-    database.files.insert_one({"_id": "pid:urn:1", "file_path": "path_1"})
-    database.checksums.insert_one("path_1", "checksum_1")
+    database.files.insert_one("path_1", "checksum_1", "pid:urn:1")
 
     result = command_runner(["files", "get", "path", "path_1"])
     result_data = json.loads(result.output)
     correct_result = {
-        "_id": "pid:urn:1",
+        "_id": "path_1",
         "checksum": "checksum_1",
-        "file_path": "path_1"
+        "identifier": "pid:urn:1"
     }
     assert result_data == correct_result
 
 
 def test_get_file_by_identifier(command_runner, database):
     """Test displaying information of file specified by identifier."""
-    database.files.insert_one({"_id": "pid:urn:1", "file_path": "path_1"})
-    database.checksums.insert_one("path_1", "checksum_1")
+    database.files.insert_one("path_1", "checksum_1", "pid:urn:1")
 
     result = command_runner(["files", "get", "identifier", "pid:urn:1"])
     result_data = json.loads(result.output)
     correct_result = {
-        "_id": "pid:urn:1",
+        "_id": "path_1",
         "checksum": "checksum_1",
-        "file_path": "path_1"
+        "identifier": "pid:urn:1"
     }
     assert result_data == correct_result
 
@@ -434,52 +432,40 @@ def test_get_file_by_identifier(command_runner, database):
 def test_list_files(database, command_runner):
     """Test listing all files."""
     files = [
-        {"_id": "pid:urn:1", "file_path": "path_1"},
-        {"_id": "pid:urn:2", "file_path": "path_2"}
-    ]
-    checksums = [
-        {"_id": "path_1", "checksum": "checksum_1"},
-        {"_id": "path_2", "checksum": "checksum_2"}
+        {"_id": "path_1", "identifier": "pid:urn:1", "checksum": "checksum_1"},
+        {"_id": "path_2", "identifier": "pid:urn:2", "checksum": "checksum_2"}
     ]
     database.files.insert(files)
-    database.checksums.insert(checksums)
 
     result = command_runner(["files", "list"])
-    correct_result = [
-        {"_id": "pid:urn:1", "checksum": "checksum_1", "file_path": "path_1"},
-        {"_id": "pid:urn:2", "checksum": "checksum_2", "file_path": "path_2"},
-    ]
     result_data = json.loads(result.output)
-    assert result_data == correct_result
+    assert result_data == files
 
 
 def test_list_file_identifiers(database, command_runner):
     """Test listing all file identifiers."""
     files = [
-        {"_id": "pid:urn:1", "file_path": "path_1"},
-        {"_id": "pid:urn:2", "file_path": "path_2"}
+        {"_id": "path_1", "identifier": "pid:urn:1", "checksum": "checksum_1"},
+        {"_id": "path_2", "identifier": "pid:urn:2", "checksum": "checksum_2"}
     ]
     database.files.insert(files)
 
     result = command_runner(["files", "list", "--identifiers-only"])
-    assert result.output == "pid:urn:1\npid:urn:2\n"
+    result_data = json.loads(result.output)
+    assert result_data == ["pid:urn:1", "pid:urn:2"]
 
 
 def test_list_checksums(database, command_runner):
     """Test listing all file checksums."""
-    checksums = [
-        {"_id": "path_1", "checksum": "checksum_1"},
-        {"_id": "path_2", "checksum": "checksum_2"}
+    files = [
+        {"_id": "path_1", "identifier": "pid:urn:1", "checksum": "checksum_1"},
+        {"_id": "path_2", "identifier": "pid:urn:2", "checksum": "checksum_2"}
     ]
-    database.checksums.insert(checksums)
+    database.files.insert(files)
 
     result = command_runner(["files", "list", "--checksums-only"])
-    correct_result = {
-        "path_1": "checksum_1",
-        "path_2": "checksum_2"
-    }
     result_data = json.loads(result.output)
-    assert result_data == correct_result
+    assert result_data == ["checksum_1", "checksum_2"]
 
 
 def test_get_nonexistent_file_by_path(command_runner):

@@ -156,7 +156,7 @@ class MetaxClient:
                   ]
         """
         database = db.Database()
-        checksums = database.checksums.get_checksums()
+        checksums = database.files.get_path_checksum_dict()
         metadata = []
         responses = []
 

@@ -135,9 +135,8 @@ def clean_project(project_id, fpath, metax=True):
     # Remove all empty dirs
     _clean_empty_dirs(fpath)
 
-    # Clean checksums and identifiers of the deleted files from mongo
-    db.Database().checksums.delete(deleted_files)
-    db.Database().files.delete_paths(deleted_files)
+    # Clean deleted files from mongo
+    db.Database().files.delete(deleted_files)
 
     # Remove Metax entries of deleted files that are not part of any
     # datasets
@@ -198,19 +197,20 @@ def clean_mongo():
     # in configuration or the file cannot be found at all, add identifier to a
     # list of identifiers that are to be deleted.
     for file_ in mongo_files:
-        if file_["_id"] not in metax_ids:
+        if file_["identifier"] not in metax_ids:
             is_expired = False
             try:
+                # Assess if file is expired – "_id" refers to file path
                 is_expired = _is_expired(
-                    file_["file_path"], current_time, time_lim)
+                    file_["_id"], current_time, time_lim)
             except FileNotFoundError:
                 is_expired = True
 
             if is_expired:
-                id_list.append(file_["_id"])
+                id_list.append(file_["identifier"])
 
     # Remove identifiers from Mongo
-    return files.delete(id_list)
+    return files.delete_identifiers(id_list)
 
 
 def clean_tus_uploads():

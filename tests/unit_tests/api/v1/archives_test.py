@@ -38,7 +38,7 @@ def test_upload_archive(
     * API response contains correct message
     * Files are extracted to correct location
     * Archive file is removed after extraction
-    * Checksums of files in archive are added to database
+    * Files in archive are added to database
 
     :param archive: path to test archive
     :param app: Flask app
@@ -48,7 +48,7 @@ def test_upload_archive(
     """
     test_client = app.test_client()
     upload_path = pathlib.Path(app.config.get("UPLOAD_PROJECTS_PATH"))
-    checksums = test_mongo.upload.checksums
+    files = test_mongo.upload.files
 
     url = "/v1/archives/test_project"
     response = _upload_file(test_client, url, test_auth, archive)
@@ -81,9 +81,12 @@ def test_upload_archive(
     assert not tmp_files[0].is_file()
 
     # checksum is added to mongo
-    assert checksums.count({}) == 1
-    checksum = checksums.find_one({"_id": str(text_file)})["checksum"]
-    assert checksum == "150b62e4e7d58c70503bd5fc8a26463c"
+    assert files.count({}) == 1
+    document = files.find_one({"_id": str(text_file)})
+    assert document == {
+        "_id": str(text_file),
+        "checksum": "150b62e4e7d58c70503bd5fc8a26463c"
+    }
 
 
 @pytest.mark.parametrize(
@@ -338,7 +341,7 @@ def test_upload_archive_multiple_archives(
     """
     test_client = app.test_client()
     upload_path = pathlib.Path(app.config.get("UPLOAD_PROJECTS_PATH"))
-    checksums = test_mongo.upload.checksums
+    files = test_mongo.upload.files
 
     response_1 = _upload_file(
         test_client, "/v1/archives/test_project", test_auth,
@@ -389,12 +392,18 @@ def test_upload_archive_multiple_archives(
     assert not archive_file1.is_file()
     assert not archive_file2.is_file()
 
-    # checksum is added to mongo
-    assert checksums.count() == 2
-    checksum = checksums.find_one({"_id": str(test_text_file)})["checksum"]
-    assert checksum == "150b62e4e7d58c70503bd5fc8a26463c"
-    checksum = checksums.find_one({"_id": str(test_2_text_file)})["checksum"]
-    assert checksum == "150b62e4e7d58c70503bd5fc8a26463c"
+    # files are added to mongo
+    assert files.count() == 2
+    document = files.find_one({"_id": str(test_text_file)})
+    assert document == {
+        "_id": str(test_text_file),
+        "checksum": "150b62e4e7d58c70503bd5fc8a26463c"
+    }
+    document = files.find_one({"_id": str(test_2_text_file)})
+    assert document == {
+        "_id": str(test_2_text_file),
+        "checksum": "150b62e4e7d58c70503bd5fc8a26463c"
+    }
 
 
 @pytest.mark.parametrize("archive", [
@@ -408,7 +417,7 @@ def test_upload_invalid_archive(
     """
     test_client = app.test_client()
     upload_path = pathlib.Path(app.config.get("UPLOAD_PROJECTS_PATH"))
-    checksums = test_mongo.upload.checksums
+    files = test_mongo.upload.files
 
     response = _upload_file(
         test_client, "/v1/archives/test_project", test_auth, archive
@@ -432,8 +441,8 @@ def test_upload_invalid_archive(
     # archive file is removed
     assert not archive_file.is_file()
 
-    # no checksums are added to mongo
-    assert checksums.count({}) == 0
+    # no files are added to mongo
+    assert files.count({}) == 0
 
 
 def test_upload_file_as_archive(app, test_auth, background_job_runner):

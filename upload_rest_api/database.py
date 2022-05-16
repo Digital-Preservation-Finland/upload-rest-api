@@ -14,6 +14,7 @@ from string import ascii_letters, digits
 import dateutil
 import dateutil.parser
 import pymongo
+from pymongo.operations import UpdateOne
 from bson.binary import Binary
 from bson.codec_options import CodecOptions
 from bson.objectid import ObjectId
@@ -125,31 +126,32 @@ class Database:
         return sorted(users.find().distinct("_id"))
 
     def store_identifiers(self, file_md_list, root_upload_path, project_id):
-        """Store file identifiers and paths on disk to Mongo.
+        """Store file identifiers to Mongo.
+
+        This function assumes that the files already exist in Mongo, and the
+        identifiers are updated on existing file documents.
 
         :param file_md_list: List of created file metadata returned by
                              Metax
         :returns: None
         """
-        documents = []
-
+        # Create list of needed update operations
+        operations = []
         for file_md in file_md_list:
-            documents.append({
-                "_id": file_md["object"]["identifier"],
-                "file_path": _get_abs_path(file_md["object"]["file_path"],
-                                           root_upload_path, project_id)
-            })
+            file_path = _get_abs_path(file_md["object"]["file_path"],
+                                      root_upload_path, project_id)
+            identifier = file_md["object"]["identifier"]
+            operations.append(UpdateOne(
+                {"_id": file_path},
+                {"$set": {"identifier": identifier}}
+            ))
 
-        self.files.insert(documents)
+        # Update identifiers to file documents as a bulk
+        self.files.files.bulk_write(operations, ordered=False)
 
     def user(self, username):
         """Return user."""
         return User(self.client, username)
-
-    @property
-    def checksums(self):
-        """Return checksums collection."""
-        return Checksums(self.client)
 
     @property
     def files(self):
@@ -356,58 +358,6 @@ class User:
         return self.users.find_one({"_id": self.username}) is not None
 
 
-class Checksums:
-    """Class for managing checksums in the database."""
-
-    def __init__(self, client):
-        """Initialize Checksums instances."""
-        self.checksums = client.upload.checksums
-
-    def insert_one(self, filepath, checksum):
-        """Insert a single checksum doc."""
-        self.checksums.insert_one({"_id": filepath, "checksum": checksum})
-
-    def insert(self, checksums):
-        """Insert multiple checksum docs."""
-        self.checksums.insert_many(checksums)
-
-    def delete_one(self, filepath):
-        """Delete a single checksum doc."""
-        self.checksums.delete_one({"_id": filepath})
-
-    def delete(self, filepaths):
-        """Delete multiple checksum docs."""
-        # Split list of file path names to delete into chunks as a workaround
-        # to MongoDB's 16 MB query size limitation.
-        # 10,000 path names per chunk is enough provided path names are no
-        # longer than 1,600 characters.
-        file_path_chunks = [
-            filepaths[i:i+10000] for i in range(0, len(filepaths), 10000)
-        ]
-
-        deleted_count = 0
-        for chunk in file_path_chunks:
-            deleted_count += self.checksums.delete_many(
-                {"_id": {"$in": chunk}}
-            ).deleted_count
-
-        return deleted_count
-
-    def get_checksum(self, filepath):
-        """Get checksum of a single file."""
-        checksum = self.checksums.find_one({"_id": filepath})
-        if checksum is None:
-            return None
-
-        return checksum["checksum"]
-
-    def get_checksums(self):
-        """Get all checksums."""
-        return {
-            i["_id"]: i["checksum"] for i in self.checksums.find({})
-        }
-
-
 class Files:
     """Class for managing files in the database."""
 
@@ -415,111 +365,134 @@ class Files:
         """Initialize Files instances."""
         self.files = client.upload.files
 
+    def get(self, file_path):
+        """Get file document based on file path."""
+        return self.files.find_one({"_id": file_path})
+
+    def get_by_identifier(self, identifier):
+        """Get file document based on file identifier."""
+        return self.files.find_one({"identifier": identifier})
+
     def get_path(self, identifier):
-        """Get file_path based on _id identifier."""
-        _file = self.files.find_one({"_id": identifier})
-        if _file is None:
-            return None
-
-        return _file["file_path"]
-
-    def get_identifier(self, fpath):
-        """Get file_identifier based on file_path."""
-        _file = self.files.find_one({"file_path": str(fpath)})
-
+        """Get file path based on file identifier."""
+        _file = self.files.find_one({"identifier": identifier})
         if _file is None:
             return None
 
         return _file["_id"]
 
+    def get_identifier(self, fpath):
+        """Get identifier based on file_path."""
+        _file = self.files.find_one({"_id": str(fpath)})
+
+        if _file is None or "identifier" not in _file.keys():
+            return None
+
+        return _file["identifier"]
+
+    def get_checksum(self, filepath):
+        """Get checksum of a single file."""
+        _file = self.files.find_one({"_id": filepath})
+        if _file is None:
+            return None
+
+        return _file["checksum"]
+
     def insert(self, files):
         """Insert multiple files into the files collection.
 
-        :param files: List of dicts {"_id": identifier,
-                                     "file_path": file_path}
+        :param files: List of dicts {"_id": file path
+                                     "identifier": identifier,
+                                     "checksum": checksum}
         :returns: Number of documents inserted
         """
         return len(self.files.insert_many(files).inserted_ids)
 
-    def delete(self, ids):
-        """Delete multiple documents from the files collection.
+    def delete_identifiers(self, ids):
+        """Delete multiple identifiers from the files collection.
+
+        This function keeps the file documents, only deleting the identifier
+        field.
 
         :param ids: List of identifiers to be removed
         :returns: Number of documents deleted
         """
-        return self.files.delete_many({"_id": {"$in": ids}}).deleted_count
+        return self.files.update_many(
+            {"identifier": {"$in": ids}},
+            {"$unset": {"identifier": ""}}
+        ).modified_count
 
-    def delete_paths(self, paths):
+    def delete(self, paths):
         """Delete multiple documents, identified by file path, from the files
         collection.
 
         :param paths: List of paths to be removed
         :returns: Number of documents deleted
         """
-        return self.files.delete_many(
-            {"file_path": {"$in": paths}}
-        ).deleted_count
+        # Split list of file path names to delete into chunks as a workaround
+        # to MongoDB's 16 MB query size limitation.
+        # 10,000 path names per chunk is enough provided path names are no
+        # longer than 1,600 characters.
+        file_path_chunks = [
+            paths[i:i+10000] for i in range(0, len(paths), 10000)
+        ]
 
-    def insert_one(self, document):
+        deleted_count = 0
+        for chunk in file_path_chunks:
+            deleted_count += self.files.delete_many(
+                {"_id": {"$in": chunk}}
+            ).deleted_count
+
+        return deleted_count
+
+    def insert_one(self, file_path, checksum, identifier=None):
         """Insert one file document.
 
-        :param document: Dict {"_id": identifier,
-                               "file_path": file_path}
+        :param file_path: path to the file in upload-rest-api
+        :param checksum: file checksum
+        :param identifier: metax identifier of the file
+
         :returns: None
         """
+        document = {"_id": file_path, "checksum": checksum}
+        if identifier:
+            document["identifier"] = identifier
         self.files.insert_one(document)
 
-    def delete_one(self, identifier):
+    def delete_one(self, file_path):
         """Delete one file document.
 
-        :param identifier: _id of the document to be removed
+        :param file_path: file_path of the document to be removed
         :returns: Number of documents deleted
         """
-        return self.files.delete_one({"_id": identifier}).deleted_count
+        return self.files.delete_one({"_id": file_path}).deleted_count
 
     def get_all_ids(self):
         """Return a list of all identifiers stored."""
         documents = self.files.find()
-        return [document["_id"] for document in documents]
+        return [
+            document["identifier"] for document in documents
+            if "identifier" in document.keys()
+        ]
+
+    def get_all_checksums(self):
+        """Return a list of all checksums stored."""
+        documents = self.files.find()
+        return [document["checksum"] for document in documents]
 
     def get_all_files(self):
-        """Return a list of all file paths with corresponding identifiers."""
+        """Return a list of all file documents."""
         return list(self.iter_all_files())
 
     def iter_all_files(self):
-        """Return an iterator of all files and their identifiers."""
+        """Return an iterator of all file documents."""
         return self.files.find()
 
-    def get_all_files_with_checksums(self):
-        """Return a list of all files with corresponding checksums."""
-        pipeline = [
-            # Join checksum from checksums collection as array called
-            # fromItems
-            {
-                "$lookup": {
-                    "from": "checksums",
-                    "localField": "file_path",
-                    "foreignField": "_id",
-                    "as": "fromItems"
-                }
-            },
-            # Merge fromItems array to top level with other file information
-            {
-                "$replaceRoot": {
-                    "newRoot": {
-                        "$mergeObjects": [
-                            {"$arrayElemAt": ["$fromItems", 0]}, "$$ROOT"
-                        ]
-                    }
-                }
-            },
-            # Remove fromItems array
-            {
-                "$project": {"fromItems": 0}
-            }
-        ]
-        documents = self.files.aggregate(pipeline)
-        return list(documents)
+    def get_path_checksum_dict(self):
+        """Return a list of all stored files as a dict of filepath as key and
+        checksum as value."""
+        documents = self.files.find()
+        return {doc["_id"]: doc["checksum"] for doc in documents}
 
 
 class Tasks:

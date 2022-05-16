@@ -84,10 +84,10 @@ def test_upload_file(test_client, app, test_auth, test_mongo, name):
     )
 
     # Uploaded file was added to database
-    checksums = list(test_mongo.upload.checksums.find())
-    assert len(checksums) == 1
-    assert checksums[0]["_id"].endswith(name)
-    assert checksums[0]["checksum"] == "a5d1741953bf0c12b7a097f58944e474"
+    files = list(test_mongo.upload.files.find())
+    assert len(files) == 1
+    assert files[0]["_id"].endswith(name)
+    assert files[0]["checksum"] == "a5d1741953bf0c12b7a097f58944e474"
 
     fpath = pathlib.Path(upload_path) / "test_project" / name
 
@@ -267,7 +267,7 @@ def test_upload_file_checksum_iterative(
         assert resp.status_code == 204
 
     upload_path = pathlib.Path(app.config.get("UPLOAD_PROJECTS_PATH"))
-    assert test_mongo.upload.checksums.find_one(
+    assert test_mongo.upload.files.find_one(
         {
             "_id": str(upload_path / "test_project" / "test.txt"),
             "checksum": "71680afeb1ac710d2cc230b96c9cc894"
@@ -359,10 +359,10 @@ def test_upload_file_deep_directory(
     )
 
     # Uploaded file was added to database
-    checksums = list(test_mongo.upload.checksums.find())
-    assert len(checksums) == 1
-    assert checksums[0]["_id"].endswith(name)
-    assert checksums[0]["checksum"] == "a5d1741953bf0c12b7a097f58944e474"
+    files = list(test_mongo.upload.files.find())
+    assert len(files) == 1
+    assert files[0]["_id"].endswith(name)
+    assert files[0]["checksum"] == "a5d1741953bf0c12b7a097f58944e474"
 
     # Intermediary directories created, and file is inside it
     content = (

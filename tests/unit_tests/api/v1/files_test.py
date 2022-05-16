@@ -51,7 +51,7 @@ def test_upload(app, test_auth, test_mongo, name):
     """Test uploading a plain text file."""
     test_client = app.test_client()
     upload_path = app.config.get("UPLOAD_PROJECTS_PATH")
-    checksums = test_mongo.upload.checksums
+    files = test_mongo.upload.files
 
     response = _upload_file(
         test_client, f"/v1/files/test_project/{name}",
@@ -72,8 +72,11 @@ def test_upload(app, test_auth, test_mongo, name):
     assert oct(fpath.stat().st_mode)[5:8] == "664"
 
     # Check that the uploaded files checksum was added to mongo
-    checksum = checksums.find_one({"_id": str(fpath)})["checksum"]
-    assert checksum == "150b62e4e7d58c70503bd5fc8a26463c"
+    document = files.find_one({"_id": str(fpath)})
+    assert document == {
+        "_id": str(fpath),
+        "checksum": "150b62e4e7d58c70503bd5fc8a26463c"
+    }
 
     # Test that trying to upload the file again returns 409 Conflict
     response = _upload_file(
@@ -256,7 +259,7 @@ def test_get_file(app, test_auth, test2_auth, test3_auth, test_mongo):
 
     fpath = os.path.join(upload_path, "test_project/test.txt")
     shutil.copy("tests/data/test.txt", fpath)
-    test_mongo.upload.checksums.insert_one({
+    test_mongo.upload.files.insert_one({
         "_id": fpath, "checksum": "150b62e4e7d58c70503bd5fc8a26463c"
     })
 
@@ -319,7 +322,7 @@ def test_delete_file(app, test_auth, requests_mock, test_mongo, name):
     fpath = os.path.join(upload_path, "test_project", name)
 
     shutil.copy("tests/data/test.txt", fpath)
-    test_mongo.upload.checksums.insert_one({"_id": fpath, "checksum": "foo"})
+    test_mongo.upload.files.insert_one({"_id": fpath, "checksum": "foo"})
 
     # DELETE file that exists
     response = test_client.delete(
@@ -330,7 +333,7 @@ def test_delete_file(app, test_auth, requests_mock, test_mongo, name):
     assert response.status_code == 200
     assert response.json["metax"] == {'deleted_files_count': 1}
     assert not os.path.isfile(fpath)
-    assert test_mongo.upload.checksums.count({}) == 0
+    assert test_mongo.upload.files.count({}) == 0
 
     # DELETE file that does not exist
     response = test_client.delete(
@@ -551,7 +554,7 @@ def test_delete_directory(
             )
         else:
             assert file_.exists()
-            assert test_mongo.upload.checksums.find_one({"_id": str(file_)})
+            assert test_mongo.upload.files.find_one({"_id": str(file_)})
 
     # The target directory and subdirectories should be deleted. Project
     # directory should still exist.

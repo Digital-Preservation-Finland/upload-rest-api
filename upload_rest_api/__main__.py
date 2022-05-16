@@ -313,32 +313,15 @@ def files_get():
     pass
 
 
-def _create_file_response(identifier, checksum, file_path):
-    """Create a dict holding the given file information.
-
-    :param identifier: File identifier
-    :param checksum: File checksum
-    :param path: File path:
-    :returns: Dict holding the given information
-    """
-    return {
-        "_id": identifier,
-        "checksum": checksum,
-        "file_path": file_path
-    }
-
-
 @files_get.command("path")
 @click.argument("path")
 def get_file_by_path(path):
     """Show information of file in PATH."""
     database = db.Database()
+    _file = database.files.get(path)
 
-    checksum = database.checksums.get_checksum(path)
-    identifier = database.files.get_identifier(path)
-    if checksum and identifier:
-        response = _create_file_response(identifier, checksum, path)
-        _echo_dict(response)
+    if _file:
+        _echo_dict(_file)
     else:
         click.echo(f"File not found in path '{path}'")
 
@@ -348,11 +331,10 @@ def get_file_by_path(path):
 def get_file_by_identifier(identifier):
     """Show information of file specified by IDENTIFIER."""
     database = db.Database()
-    path = database.files.get_path(identifier)
-    checksum = database.checksums.get_checksum(path)
-    if path and checksum:
-        response = _create_file_response(identifier, checksum, path)
-        _echo_dict(response)
+    _file = database.files.get_by_identifier(identifier)
+
+    if _file:
+        _echo_dict(_file)
     else:
         click.echo(f"File '{identifier}' not found")
 
@@ -372,7 +354,7 @@ def list_files(identifiers_only, checksums_only):
 
     database = db.Database()
 
-    files = database.files.get_all_files_with_checksums()
+    files = database.files.get_all_files()
     if not files:
         click.echo("No files found")
     else:
@@ -385,8 +367,7 @@ def _list_file_identifiers():
 
     identifiers = database.files.get_all_ids()
     if identifiers:
-        for identifier in identifiers:
-            click.echo(identifier)
+        _echo_dict(identifiers)
     else:
         click.echo("No identifiers found")
 
@@ -395,7 +376,7 @@ def _list_checksums():
     """List all checksums of files."""
     database = db.Database()
 
-    checksums = database.checksums.get_checksums()
+    checksums = database.files.get_all_checksums()
     if checksums:
         _echo_dict(checksums)
     else:
@@ -453,14 +434,14 @@ def migrate_db():
             }
         }
     ]
-    documents = list(database.checksums.checksums.aggregate(pipeline))
+    documents = list(database.client.upload.checksums.aggregate(pipeline))
 
     # Insert new file documents with the checksum field
     database.files.insert(documents)
     # Remove old file documents (identified by not having the checksum field)
     database.files.files.remove({"checksum": {"$exists": False}})
     # Drop checksums collection
-    database.checksums.checksums.drop()
+    database.client.upload.checksums.drop()
 
     # Create index for identifier field (for documents where identifier exists)
     # to speed up identifier queries

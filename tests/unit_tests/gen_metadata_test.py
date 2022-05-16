@@ -34,7 +34,7 @@ def test_gen_metadata(monkeypatch):
     fpath = os.path.abspath("tests/data/test.txt")
 
     monkeypatch.setattr(
-        db.Checksums, "get_checksums",
+        db.Files, "get_path_checksum_dict",
         lambda self: {
             fpath: "150b62e4e7d58c70503bd5fc8a26463c"
         }
@@ -43,7 +43,7 @@ def test_gen_metadata(monkeypatch):
         "tests/data/test.txt",
         "tests", "data",
         "pid:uuid:storage_id",
-        db.Database().checksums.get_checksums()
+        db.Database().files.get_path_checksum_dict()
     )
 
     assert len(metadata["identifier"]) == 45
