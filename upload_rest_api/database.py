@@ -469,12 +469,15 @@ class Files:
 
     def get_all_ids(self):
         """Return a list of all stored identifiers."""
-        documents = self.files.find({"identifier": {"$exists": True}})
+        documents = self.files.find(
+            {"identifier": {"$exists": True}},
+            {"_id": False, "identifier": True}
+        )
         return [document["identifier"] for document in documents]
 
     def get_all_checksums(self):
         """Return a list of all checksums stored."""
-        documents = self.files.find()
+        documents = self.files.find({}, {"_id": False, "checksum": True})
         return [document["checksum"] for document in documents]
 
     def get_all_files(self):
