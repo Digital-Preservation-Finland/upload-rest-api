@@ -99,12 +99,11 @@ def get_path(project_id, fpath):
 
         response = jsonify(_get_dir_tree(project_id, fpath))
     elif os.path.isfile(upload_path):
+        file_doc = database.files.get(str(upload_path))
         response = {
             "file_path": return_path,
-            "identifier": database.files.get_identifier(upload_path),
-            "md5": database.files.get_checksum(
-                os.path.abspath(upload_path)
-            ),
+            "identifier": file_doc.get("identifier", None),
+            "md5": file_doc["checksum"],
             "timestamp": md.iso8601_timestamp(upload_path)
         }
 
