@@ -468,12 +468,9 @@ class Files:
         return self.files.delete_one({"_id": file_path}).deleted_count
 
     def get_all_ids(self):
-        """Return a list of all identifiers stored."""
-        documents = self.files.find()
-        return [
-            document["identifier"] for document in documents
-            if "identifier" in document.keys()
-        ]
+        """Return a list of all stored identifiers."""
+        documents = self.files.find({"identifier": {"$exists": True}})
+        return [document["identifier"] for document in documents]
 
     def get_all_checksums(self):
         """Return a list of all checksums stored."""

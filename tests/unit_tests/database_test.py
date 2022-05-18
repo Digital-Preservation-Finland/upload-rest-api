@@ -91,8 +91,15 @@ def test_delete_user(user):
 
 def test_get_all_ids(files_col):
     """Test get_all_ids returns a list of all _ids in the collection."""
+    # Add a file without identifier to ensure a file without id does not
+    # create bugs
+    files_col.files.insert_one(
+        {"_id": "/file/without/id", "checksum": "checksum"}
+    )
     assert files_col.get_all_ids() == []
 
+    # Insert files with identifiers and assert that get_all_ids() finds the
+    # correct identifiers
     for i in range(10):
         files_col.files.insert_one(
             {"_id": str(i), "identifier": f"pid:urn:{i}", "checksum": str(i)}
