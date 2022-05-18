@@ -309,3 +309,9 @@ def test_deleting_files_by_path(database):
     assert files == [
         {"_id": "path_3", "checksum": "checksum_3", "identifier": "pid:urn:3"}
     ]
+
+
+def test_get_file_path(database):
+    """Test getting path of a file."""
+    database.files.insert_one("/path", "checksum", "identifier")
+    assert database.files.get_path("identifier") == "/path"
