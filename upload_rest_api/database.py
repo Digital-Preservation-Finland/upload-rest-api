@@ -486,9 +486,8 @@ class Files:
         return self.files.find()
 
     def get_path_checksum_dict(self):
-        """Return a list of all stored files as a dict of filepath as key and
-        checksum as value."""
-        documents = self.files.find()
+        """Return files as a dict of filepath as key and checksum as value."""
+        documents = self.files.find({}, {"_id": True, "checksum": True})
         return {doc["_id"]: doc["checksum"] for doc in documents}
 
 

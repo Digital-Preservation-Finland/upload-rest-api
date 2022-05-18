@@ -315,3 +315,15 @@ def test_get_file_path(database):
     """Test getting path of a file."""
     database.files.insert_one("/path", "checksum", "identifier")
     assert database.files.get_path("identifier") == "/path"
+
+
+def test_get_path_checksum_dict(database):
+    """Test getting files as dict of file paths and checksums."""
+    files = [
+        {"_id": "path_1", "checksum": "checksum_1", "identifier": "pid:urn:1"},
+        {"_id": "path_2", "checksum": "checksum_2", "identifier": "pid:urn:2"}
+    ]
+    database.files.insert(files)
+
+    correct_result = {"path_1": "checksum_1", "path_2": "checksum_2"}
+    assert database.files.get_path_checksum_dict() == correct_result
