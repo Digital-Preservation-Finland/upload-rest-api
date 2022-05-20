@@ -2,7 +2,7 @@
 import datetime
 import json
 
-import mock
+from unittest import mock
 import pytest
 from click.testing import CliRunner
 

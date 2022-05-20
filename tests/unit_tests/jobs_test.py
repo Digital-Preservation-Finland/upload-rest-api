@@ -8,7 +8,7 @@ from upload_rest_api.jobs.utils import (api_background_job,
 @api_background_job
 def successful_task(task_id, value):
     """Fake background job executed by RQ."""
-    return "Task ID = {}, value = {}".format(task_id, value)
+    return f"Task ID = {task_id}, value = {value}"
 
 
 @api_background_job
@@ -49,7 +49,7 @@ def test_enqueue_background_job_successful(tasks_col, mock_redis):
 
     rq_job = upload_queue.fetch_job(job_id)
 
-    assert rq_job.result == "Task ID = {}, value = spam".format(job_id)
+    assert rq_job.result == f"Task ID = {job_id}, value = spam"
 
 
 @pytest.mark.usefixtures("app")

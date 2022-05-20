@@ -27,7 +27,7 @@ def test_auth_user_by_password(test_client, user, password, result):
     usersdoc.create('test_project', 'test_password')
 
     auth_hash = base64.urlsafe_b64encode(
-        f"{user}:{password}".encode("utf-8")
+        f"{user}:{password}".encode()
     ).decode("utf-8")
     auth_header = f"Basic {auth_hash}"
 

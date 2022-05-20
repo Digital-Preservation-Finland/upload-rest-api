@@ -73,7 +73,7 @@ def get_version():
 
         # PEP 386 compatibility
         if version_git:
-            version = "%s-%s" % (
+            version = "{}-{}".format(
                 '.post'.join(version_git.split('-')[:2]),
                 '-'.join(version_git.split('-')[2:])
             )

@@ -118,7 +118,7 @@ def test_gen_metadata_root(
             URL,
             USER,
             PASSWORD
-        ).get_file(file_identifier)['file_path'] == '/{}'.format(file_path)
+        ).get_file(file_identifier)['file_path'] == f'/{file_path}'
 
     # DELETE single file
     response = test_client.delete(
@@ -304,7 +304,7 @@ def test_delete_metadata(
     else:
         assert not files_dict
 
-    response = requests.delete("%s/rest/datasets/%s" % (URL, dataset_id),
+    response = requests.delete("{}/rest/datasets/{}".format(URL, dataset_id),
                                auth=(USER, PASSWORD),
                                verify=False)
     assert response.status_code == 204

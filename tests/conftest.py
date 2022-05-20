@@ -136,7 +136,7 @@ def db_logging_fx(patch_mongo, test_mongo, request):
                 pass
 
         print()
-        print("{} QUERIES were sent".format(len(queries)))
+        print(f"{len(queries)} QUERIES were sent")
         print()
         pprint.pprint(queries, indent=4)
 

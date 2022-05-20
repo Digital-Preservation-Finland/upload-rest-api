@@ -111,7 +111,7 @@ def test_upload_archive_to_dirpath(
     """
     test_client = app.test_client()
 
-    url = "/v1/archives/test_project?dir={}".format(dirpath)
+    url = f"/v1/archives/test_project?dir={dirpath}"
     response \
         = _upload_file(test_client, url, test_auth, 'tests/data/test.tar.gz')
     assert response.status_code == 202

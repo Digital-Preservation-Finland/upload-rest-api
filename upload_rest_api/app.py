@@ -47,7 +47,7 @@ def create_app():
         # If detected filesystem encoding is incorrect, halt immediately.
         # Wrong file system encoding will cause file names on disk to be
         # handled incorrectly.
-        raise EnvironmentError(
+        raise OSError(
             f"Expected file system encoding to be 'utf-8', "
             f"found {sys.getfilesystemencoding()} instead."
         )

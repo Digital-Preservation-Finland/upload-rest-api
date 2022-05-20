@@ -89,14 +89,14 @@ def test_query_task(app, mock_redis, test_auth, task_func, expected_response):
 
     # Task should be pending
     test_client = app.test_client()
-    response = test_client.get("/v1/tasks/{}".format(job), headers=test_auth)
+    response = test_client.get(f"/v1/tasks/{job}", headers=test_auth)
     assert response.json == {'message': 'processing', 'status': 'pending'}
 
     # Run job. Task should be finished (status: done) or failed (status:
     # error).
     SimpleWorker([jobs.get_job_queue("upload")],
                  connection=mock_redis).work(burst=True)
-    response = test_client.get("/v1/tasks/{}".format(job), headers=test_auth)
+    response = test_client.get(f"/v1/tasks/{job}", headers=test_auth)
     assert response.json == expected_response
 
 
