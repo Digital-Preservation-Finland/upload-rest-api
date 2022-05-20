@@ -104,7 +104,7 @@ def grant_user_projects(username, projects):
         user.grant_project(project)
     click.echo(
         f"Granted user '{username}' access to project(s): "
-         f"{', '.join(projects)}"
+        + ", ".join(projects)
     )
 
 
@@ -118,7 +118,7 @@ def revoke_user_projects(username, projects):
         user.revoke_project(project)
     click.echo(
         f"Revoked user '{username}' access to project(s): "
-         f"{', '.join(projects)}"
+        + ", ".join(projects)
     )
 
 

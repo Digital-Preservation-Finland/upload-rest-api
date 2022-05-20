@@ -275,7 +275,8 @@ def app(test_mongo, mock_config, database, monkeypatch):
     monkeypatch.setattr("pymongo.MongoClient", lambda *args: test_mongo)
 
     flask_app.config["TESTING"] = True
-    flask_app.config["UPLOAD_PROJECTS_PATH"] = mock_config["UPLOAD_PROJECTS_PATH"]
+    flask_app.config["UPLOAD_PROJECTS_PATH"] \
+        = mock_config["UPLOAD_PROJECTS_PATH"]
     flask_app.config["UPLOAD_TMP_PATH"] = mock_config["UPLOAD_TMP_PATH"]
     flask_app.config["TUS_API_SPOOL_PATH"] = mock_config["TUS_API_SPOOL_PATH"]
 
