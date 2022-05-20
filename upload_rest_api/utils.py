@@ -1,12 +1,8 @@
 """upload-rest-api utility functions."""
 from pathlib import Path
+from urllib.parse import urlparse, urlunparse
 
 from flask import request, url_for
-
-try:
-    from urllib.parse import urlparse, urlunparse
-except ImportError:  # Python 2
-    from urlparse import urlparse, urlunparse
 
 
 def parse_user_path(root, *paths):

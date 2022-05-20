@@ -1,8 +1,8 @@
 """Tests for ``upload_rest_api.__main__`` module."""
 import datetime
 import json
-
 from unittest import mock
+
 import pytest
 from click.testing import CliRunner
 

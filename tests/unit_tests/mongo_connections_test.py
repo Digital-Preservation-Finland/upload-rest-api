@@ -1,6 +1,6 @@
 """Tests for ``upload_rest_api.app`` module."""
-import pymongo
 from unittest import mock
+import pymongo
 
 
 def _upload_archive(client, auth):
