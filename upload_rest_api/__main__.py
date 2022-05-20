@@ -12,13 +12,13 @@ import upload_rest_api.gen_metadata as md
 from upload_rest_api.cleanup import clean_disk, clean_mongo, clean_tus_uploads
 
 
-def _echo_dict(dictionary):
-    """Echo a dictionary to stdout.
+def _echo_json(data):
+    """Echo json data to stdout.
 
-    :param dictionary: dictionary to echo.
+    :param data: json data to echo.
     :returns: None
     """
-    click.echo(json.dumps(dictionary, indent=4))
+    click.echo(json.dumps(data, indent=4))
 
 
 @click.group()
@@ -148,7 +148,7 @@ def modify_user(username, generate_password):
     if generate_password:
         response["password"] = passwd
 
-    _echo_dict(response)
+    _echo_json(response)
 
 
 @users.command("get")
@@ -167,7 +167,7 @@ def get_user(username):
         "_id": user["_id"],
         "projects": user["projects"]
     }
-    _echo_dict(response)
+    _echo_json(response)
 
 
 @users.command("list")
@@ -197,7 +197,7 @@ def create_project(project, quota):
     project = db.Database().projects.create(
         identifier=project, quota=quota
     )
-    _echo_dict(project)
+    _echo_json(project)
 
 
 @projects.command("modify")
@@ -216,7 +216,7 @@ def modify_project(project, quota):
         database.projects.set_quota(project, quota)
 
     project = database.projects.get(project)
-    _echo_dict(project)
+    _echo_json(project)
 
 
 @projects.command("delete")
@@ -296,7 +296,7 @@ def get_project(project):
 
     project_entry = database.projects.get(project)
     if project_entry:
-        _echo_dict(project_entry)
+        _echo_json(project_entry)
     else:
         click.echo(f"Project '{project}' not found")
 
@@ -321,7 +321,7 @@ def get_file_by_path(path):
     _file = database.files.get(path)
 
     if _file:
-        _echo_dict(_file)
+        _echo_json(_file)
     else:
         click.echo(f"File not found in path '{path}'")
 
@@ -334,7 +334,7 @@ def get_file_by_identifier(identifier):
     _file = database.files.get_by_identifier(identifier)
 
     if _file:
-        _echo_dict(_file)
+        _echo_json(_file)
     else:
         click.echo(f"File '{identifier}' not found")
 
@@ -358,7 +358,7 @@ def list_files(identifiers_only, checksums_only):
     if not files:
         click.echo("No files found")
     else:
-        _echo_dict(files)
+        _echo_json(files)
 
 
 def _list_file_identifiers():
@@ -367,7 +367,7 @@ def _list_file_identifiers():
 
     identifiers = database.files.get_all_ids()
     if identifiers:
-        _echo_dict(identifiers)
+        _echo_json(identifiers)
     else:
         click.echo("No identifiers found")
 
@@ -378,7 +378,7 @@ def _list_checksums():
 
     checksums = database.files.get_all_checksums()
     if checksums:
-        _echo_dict(checksums)
+        _echo_json(checksums)
     else:
         click.echo("No checksums found")
 
