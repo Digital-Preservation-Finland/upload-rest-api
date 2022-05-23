@@ -230,6 +230,9 @@ class MetaxClient:
         if not file_ids_to_delete:
             return {"deleted_files_count": 0}
 
+        # Delete identifiers from Mongo
+        db.Database().files.delete_identifiers(file_ids_to_delete)
+
         return self.client.delete_files(file_ids_to_delete)
 
     def delete_file_metadata(self, project, fpath, root_upload_path=None,
@@ -257,7 +260,11 @@ class MetaxClient:
                 "Metadata is part of an accepted dataset"
             )
 
-        file_id = str(file_metadata["id"])
+        file_id = str(file_metadata["identifier"])
+
+        # Delete identifier from Mongo
+        db.Database().files.delete_identifier(file_id)
+
         self.client.delete_file(file_id)
         return {'deleted_files_count': 1}
 
@@ -325,6 +332,9 @@ class MetaxClient:
 
         if not file_ids_to_delete:
             return {"deleted_files_count": 0}
+
+        # Delete identifiers from Mongo
+        db.Database().files.delete_identifiers(file_ids_to_delete)
 
         return self.client.delete_files(file_ids_to_delete)
 

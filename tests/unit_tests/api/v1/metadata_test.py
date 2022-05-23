@@ -34,7 +34,7 @@ def test_delete_metadata(
         "results": [
             {
                 "id": "foo",
-                "identifier": "foo",
+                "identifier": "urn:uuid:foo",
                 "file_path": "/test.txt",
                 "file_storage": {
                     "identifier": "urn:nbn:fi:att:file-storage-pas"
@@ -42,7 +42,7 @@ def test_delete_metadata(
             },
             {
                 "id": "bar",
-                "identifier": "bar",
+                "identifier": "urn:uuid:bar",
                 "file_path": "/test/test.txt",
                 "file_storage": {
                     "identifier": "urn:nbn:fi:att:file-storage-pas"
@@ -61,8 +61,10 @@ def test_delete_metadata(
                       json={"preservation_state": 75})
     adapter = requests_mock.delete("https://metax.localdomain/rest/v2/files",
                                    json={"deleted_files_count": 1})
-    requests_mock.delete("https://metax.localdomain/rest/v2/files/foo",
-                         json={})
+    requests_mock.delete(
+        "https://metax.localdomain/rest/v2/files/urn:uuid:foo",
+        json={}
+    )
 
     test_client = app.test_client()
     upload_path = app.config.get("UPLOAD_PROJECTS_PATH")
@@ -72,10 +74,10 @@ def test_delete_metadata(
     os.makedirs(os.path.join(upload_path, "test_project", "test/"))
     shutil.copy("tests/data/test.txt", test_path_1)
     shutil.copy("tests/data/test.txt", test_path_2)
-    checksums = test_mongo.upload.checksums
-    checksums.insert_many([
-        {"_id": test_path_1, "checksum": "foo"},
-        {"_id": test_path_2, "checksum": "foo"},
+    files = test_mongo.upload.files
+    files.insert_many([
+        {"_id": test_path_1, "checksum": "foo", "identifier": "urn:uuid:foo"},
+        {"_id": test_path_2, "checksum": "bar", "identifier": "urn:uuid:bar"}
     ])
 
     # DELETE metadata for single directory
@@ -86,9 +88,14 @@ def test_delete_metadata(
     if _request_accepted(response):
         response = background_job_runner(test_client, "metadata", response)
 
+    file_docs = list(files.find())
+    assert file_docs == [
+        {"_id": test_path_1, "checksum": "foo", "identifier": "urn:uuid:foo"},
+        {"_id": test_path_2, "checksum": "bar"}
+    ]
     assert response.status_code == 200
     assert response.json["message"] == "1 files deleted"
-    assert adapter.last_request.json() == ['bar']
+    assert adapter.last_request.json() == ['urn:uuid:bar']
 
     # DELETE metadata for single file
     response = test_client.delete(
@@ -98,6 +105,11 @@ def test_delete_metadata(
     if _request_accepted(response):
         response = background_job_runner(test_client, "metadata", response)
 
+    file_docs = list(files.find())
+    assert file_docs == [
+        {"_id": test_path_1, "checksum": "foo"},
+        {"_id": test_path_2, "checksum": "bar"}
+    ]
     assert response.status_code == 200
     assert response.json["message"] == "1 files deleted"
 
@@ -113,7 +125,7 @@ def test_delete_metadata_dataset_accepted(
         "results": [
             {
                 "id": "foo",
-                "identifier": "foo",
+                "identifier": "urn:uuid:foo",
                 "file_path": "/test.txt",
                 "file_storage": {
                     "identifier": "urn:nbn:fi:att:file-storage-pas"
@@ -121,7 +133,7 @@ def test_delete_metadata_dataset_accepted(
             },
             {
                 "id": "bar",
-                "identifier": "bar",
+                "identifier": "urn:uuid:bar",
                 "file_path": "/test/test.txt",
                 "file_storage": {
                     "identifier": "urn:nbn:fi:att:file-storage-pas"
@@ -143,8 +155,10 @@ def test_delete_metadata_dataset_accepted(
         "https://metax.localdomain/rest/v2/files",
         json={"deleted_files_count": 0}
     )
-    requests_mock.delete("https://metax.localdomain/rest/v2/files/foo",
-                         json={})
+    requests_mock.delete(
+        "https://metax.localdomain/rest/v2/files/urn:uuid:foo",
+        json={}
+    )
 
     test_client = app.test_client()
     upload_path = app.config.get("UPLOAD_PROJECTS_PATH")
@@ -154,10 +168,10 @@ def test_delete_metadata_dataset_accepted(
     os.makedirs(os.path.join(upload_path, "test_project", "test/"))
     shutil.copy("tests/data/test.txt", test_path_1)
     shutil.copy("tests/data/test.txt", test_path_2)
-    checksums = test_mongo.upload.checksums
-    checksums.insert_many([
-        {"_id": test_path_1, "checksum": "foo"},
-        {"_id": test_path_2, "checksum": "foo"},
+    files = test_mongo.upload.files
+    files.insert_many([
+        {"_id": test_path_1, "checksum": "foo", "identifier": "urn:uuid:foo"},
+        {"_id": test_path_2, "checksum": "bar", "identifier": "urn:uuid:bar"}
     ])
 
     # DELETE metadata for single directory
@@ -168,6 +182,11 @@ def test_delete_metadata_dataset_accepted(
     if _request_accepted(response):
         response = background_job_runner(test_client, "metadata", response)
 
+    file_docs = list(files.find())
+    assert file_docs == [
+        {"_id": test_path_1, "checksum": "foo", "identifier": "urn:uuid:foo"},
+        {"_id": test_path_2, "checksum": "bar", "identifier": "urn:uuid:bar"}
+    ]
     assert response.json["message"] == "0 files deleted"
     assert adapter.last_request is None
 
@@ -181,6 +200,11 @@ def test_delete_metadata_dataset_accepted(
             test_client, "metadata", response, expect_success=False
         )
 
+    file_docs = list(files.find())
+    assert file_docs == [
+        {"_id": test_path_1, "checksum": "foo", "identifier": "urn:uuid:foo"},
+        {"_id": test_path_2, "checksum": "bar", "identifier": "urn:uuid:bar"}
+    ]
     assert response.json["errors"][0]["message"] \
         == "Metadata is part of an accepted dataset"
 

@@ -327,3 +327,37 @@ def test_get_path_checksum_dict(database):
 
     correct_result = {"path_1": "checksum_1", "path_2": "checksum_2"}
     assert database.files.get_path_checksum_dict() == correct_result
+
+
+def test_delete_identifier(database):
+    """Test deleting the identifier of a file."""
+    files = [
+        {"_id": "path_1", "checksum": "checksum_1", "identifier": "pid:urn:1"},
+        {"_id": "path_2", "checksum": "checksum_2", "identifier": "pid:urn:2"}
+    ]
+    database.files.insert(files)
+
+    database.files.delete_identifier("pid:urn:1")
+    result = database.files.get_all_files()
+    assert result == [
+        {"_id": "path_1", "checksum": "checksum_1"},
+        {"_id": "path_2", "checksum": "checksum_2", "identifier": "pid:urn:2"}
+    ]
+
+
+def test_delete_identifiers(database):
+    """Test deleting identifiers of files."""
+    files = [
+        {"_id": "path_1", "checksum": "checksum_1", "identifier": "pid:urn:1"},
+        {"_id": "path_2", "checksum": "checksum_2", "identifier": "pid:urn:2"},
+        {"_id": "path_3", "checksum": "checksum_3", "identifier": "pid:urn:3"}
+    ]
+    database.files.insert(files)
+
+    database.files.delete_identifiers(["pid:urn:1", "pid:urn:2"])
+    result = database.files.get_all_files()
+    assert result == [
+        {"_id": "path_1", "checksum": "checksum_1"},
+        {"_id": "path_2", "checksum": "checksum_2"},
+        {"_id": "path_3", "checksum": "checksum_3", "identifier": "pid:urn:3"}
+    ]

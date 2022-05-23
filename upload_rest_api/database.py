@@ -422,6 +422,20 @@ class Files:
             {"$unset": {"identifier": ""}}
         ).modified_count
 
+    def delete_identifier(self, id):
+        """Delete identifier from the files collection.
+
+        This function keeps the file document, only deleting the identifier
+        field.
+
+        :param id: Identifier to be removed
+        :returns: Number of documents deleted
+        """
+        return self.files.update_one(
+            {"identifier": id},
+            {"$unset": {"identifier": ""}}
+        ).modified_count
+
     def delete(self, paths):
         """Delete multiple documents, identified by file path, from the files
         collection.
