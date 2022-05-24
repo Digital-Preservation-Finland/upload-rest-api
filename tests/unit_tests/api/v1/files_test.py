@@ -549,9 +549,7 @@ def test_delete_directory(
                   project_directory / 'test' / 'test.txt']:
         if file_ in target_files:
             assert not file_.exists()
-            assert not test_mongo.upload.checksums.find_one(
-                {"_id": str(file_)}
-            )
+            assert not test_mongo.upload.files.find_one({"_id": str(file_)})
         else:
             assert file_.exists()
             assert test_mongo.upload.files.find_one({"_id": str(file_)})
