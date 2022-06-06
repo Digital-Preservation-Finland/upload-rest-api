@@ -1,7 +1,7 @@
 """REST api for uploading files into passipservice."""
 import os.path
 
-from flask import Blueprint, abort, current_app, jsonify, url_for
+from flask import Blueprint, abort, jsonify, url_for
 
 from upload_rest_api import utils
 from upload_rest_api.api.v1.tasks import TASK_STATUS_API_V1
@@ -35,15 +35,13 @@ def post_metadata(project_id, fpath):
         if not os.path.exists(file_path):
             abort(404, "File not found")
 
-        storage_id = current_app.config.get("STORAGE_ID")
         task_id = enqueue_background_job(
             task_func="upload_rest_api.jobs.metadata.post_metadata",
             queue_name=METADATA_QUEUE,
             project_id=project_id,
             job_kwargs={
                 "path": fpath,
-                "project_id": project_id,
-                "storage_id": storage_id
+                "project_id": project_id
             }
         )
     except Exception:

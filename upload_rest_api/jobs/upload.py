@@ -10,7 +10,6 @@ from flask import safe_join
 
 import upload_rest_api.database as db
 from upload_rest_api.checksum import get_file_checksum
-from upload_rest_api.config import CONFIG
 from upload_rest_api.jobs.utils import (METADATA_QUEUE, ClientError,
                                         api_background_job,
                                         enqueue_background_job)
@@ -107,8 +106,6 @@ def extract_task(project_id, fpath, dir_path, create_metadata, task_id):
         raise
 
     if create_metadata:
-        # Start metadata generation if enabled for this job
-        storage_id = CONFIG.get("STORAGE_ID")
         try:
             task_id = enqueue_background_job(
                 task_func="upload_rest_api.jobs.metadata.post_metadata",
@@ -116,8 +113,7 @@ def extract_task(project_id, fpath, dir_path, create_metadata, task_id):
                 project_id=project_id,
                 job_kwargs={
                     "path": dir_path,
-                    "project_id": project_id,
-                    "storage_id": storage_id
+                    "project_id": project_id
                 }
             )
         except Exception:

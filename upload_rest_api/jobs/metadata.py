@@ -11,7 +11,7 @@ from upload_rest_api.lock import ProjectLockManager
 
 
 @api_background_job
-def post_metadata(path, project_id, storage_id, task_id):
+def post_metadata(path, project_id, task_id):
     """Create file metadata in Metax.
 
     This function creates the metadata in Metax for the file or
@@ -19,7 +19,6 @@ def post_metadata(path, project_id, storage_id, task_id):
 
     :param str path: relative path to file/directory
     :param str project_id: project identifier
-    :param str storage_id: pas storage identifier in Metax
     :param str task_id: mongo dentifier of the task
     """
     root_upload_path = CONFIG["UPLOAD_PROJECTS_PATH"]
@@ -49,8 +48,7 @@ def post_metadata(path, project_id, storage_id, task_id):
             raise ClientError("File not found")
 
         try:
-            metax_client.post_metadata(fpaths, root_upload_path, project_id,
-                                       storage_id)
+            metax_client.post_metadata(fpaths, root_upload_path, project_id)
         except ResourceAlreadyExistsError as error:
             try:
                 failed_files = [file_['object']['file_path']

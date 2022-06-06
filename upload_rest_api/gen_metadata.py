@@ -11,8 +11,6 @@ from metax_access import (DS_STATE_ACCEPTED_TO_DIGITAL_PRESERVATION,
 import upload_rest_api.database as db
 from upload_rest_api.config import CONFIG
 
-PAS_FILE_STORAGE_ID = "urn:nbn:fi:att:file-storage-pas"
-
 
 def _get_mimetype(fpath):
     """Return the MIME type of file fpath."""
@@ -47,8 +45,7 @@ def get_metax_path(fpath, root_upload_path):
     return file_path[len(project)+1:]
 
 
-def _generate_metadata(fpath, root_upload_path, project, storage_id,
-                       checksums):
+def _generate_metadata(fpath, root_upload_path, project, checksums):
     """Generate metadata in json format."""
     timestamp = iso8601_timestamp(fpath)
     file_path = get_metax_path(pathlib.Path(fpath), root_upload_path)
@@ -68,7 +65,7 @@ def _generate_metadata(fpath, root_upload_path, project, storage_id,
             "value": checksums[os.path.abspath(fpath)],
             "checked": _timestamp_now()
         },
-        "file_storage": storage_id
+        "file_storage": CONFIG["STORAGE_ID"]
     }
 
     return metadata
@@ -129,13 +126,12 @@ class MetaxClient:
         """
         return self.client.get_files_dict(project)
 
-    def post_metadata(self, fpaths, root_upload_path, project, storage_id):
+    def post_metadata(self, fpaths, root_upload_path, project):
         """Generate file metadata and POST it to Metax in 5k chunks.
 
         :param fpaths: List of files for which to generate the metadata
         :param root_upload_path: root upload directory
         :param username: current user
-        :param storage_id: pas storage identifier in Metax
         :returns: Stripped HTTP response returned by Metax.
                   Success list contains succesfully generated file
                   metadata in format:
@@ -163,8 +159,7 @@ class MetaxClient:
         i = 0
         for fpath in fpaths:
             metadata.append(_generate_metadata(
-                fpath, root_upload_path,
-                project, storage_id, checksums
+                fpath, root_upload_path, project, checksums
             ))
 
             # POST metadata to Metax every 5k steps
@@ -251,7 +246,7 @@ class MetaxClient:
             raise MetaxClientError("Metadata not found in Metax")
 
         file_metadata = files_dict[metax_path]
-        if file_metadata["storage_identifier"] != PAS_FILE_STORAGE_ID:
+        if file_metadata["storage_identifier"] != CONFIG["STORAGE_ID"]:
             raise MetaxClientError("Incorrect file storage")
         if not force and self.file_has_dataset(metax_path, files_dict):
             raise MetaxClientError("Metadata is part of a dataset")
@@ -297,7 +292,7 @@ class MetaxClient:
                 if metax_path not in files_dict:
                     continue
                 storage_id = files_dict[metax_path]["storage_identifier"]
-                if storage_id != PAS_FILE_STORAGE_ID:
+                if storage_id != CONFIG["STORAGE_ID"]:
                     continue
 
                 files_to_delete[metax_path] = files_dict[metax_path]

@@ -29,7 +29,7 @@ def test_mimetype():
     assert md._get_mimetype("tests/data/test.zip") == "application/zip"
 
 
-def test_gen_metadata(monkeypatch):
+def test_gen_metadata(monkeypatch, mock_config):
     """Test that _generate_metadata() produces the correct metadata."""
     fpath = os.path.abspath("tests/data/test.txt")
 
@@ -42,7 +42,6 @@ def test_gen_metadata(monkeypatch):
     metadata = md._generate_metadata(
         "tests/data/test.txt",
         "tests", "data",
-        "pid:uuid:storage_id",
         db.Database().files.get_path_checksum_dict()
     )
 
@@ -61,7 +60,7 @@ def test_gen_metadata(monkeypatch):
     assert checksum["value"] == "150b62e4e7d58c70503bd5fc8a26463c"
     assert "checked" in checksum
 
-    assert metadata["file_storage"] == "pid:uuid:storage_id"
+    assert metadata["file_storage"] == mock_config["STORAGE_ID"]
 
 
 @pytest.mark.parametrize('verify', [True, False])
