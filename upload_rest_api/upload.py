@@ -81,16 +81,17 @@ def save_file(database, project_id, stream, checksum, upload_path):
 
     with lock_manager.lock(project_id, file_path):
         # Write the file if it does not exist already
-        file_path.parent.mkdir(parents=True, exist_ok=True)
-        if not file_path.exists():
-            _save_stream(file_path, stream, checksum)
-        else:
+        if file_path.exists():
             raise werkzeug.exceptions.Conflict("File already exists")
+
+        file_path.parent.mkdir(parents=True, exist_ok=True)
+        _save_stream(file_path, stream, checksum)
 
         md5 = save_file_into_db(
             file_path=file_path,
             database=database,
-            project_id=project_id
+            project_id=project_id,
+            md5=checksum
         )
 
     return md5
