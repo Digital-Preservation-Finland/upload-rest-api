@@ -6,21 +6,6 @@ import pytest
 from upload_rest_api.lock import LockAlreadyTaken
 
 
-def _upload_file(client, url, auth, fpath):
-    """Send POST request to given URL with file fpath.
-
-    :returns: HTTP response
-    """
-    with open(fpath, "rb") as test_file:
-        response = client.post(
-            url,
-            input_stream=test_file,
-            headers=auth
-        )
-
-    return response
-
-
 def _test_lock(lock_manager, path):
     """Acquire a lock and release it immediately."""
     lock_manager.acquire("test_project", path, ttl=5, timeout=0.1)
@@ -73,22 +58,19 @@ def test_lock_response(test_auth, test_client, mock_redis):
     Test performing a HTTP request that acquires a lock while a lock
     is already acquired.
     """
-    _upload_file(
-        test_client, "/v1/files/test_project/foo", test_auth,
-        "tests/data/test.txt"
-    )
-
-    # Start a metadata generation background job; this will acquire a
-    # lock
+    # Upload a file. This will acquire a lock.
     response = test_client.post(
-        "/v1/metadata/test_project/foo", headers=test_auth
+        "/v1/files/test_project/foo",
+        data='foo',
+        headers=test_auth
     )
 
     assert response.status_code == 202
 
-    # Start another job. This will be blocked.
-    response = test_client.post(
-        "/v1/metadata/test_project/foo", headers=test_auth
+    # Try to delete the file before metadata generation has finished.
+    # This will be blocked.
+    response = test_client.delete(
+        "/v1/files/test_project/foo", headers=test_auth
     )
 
     assert response.status_code == 409  # Conflict

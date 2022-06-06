@@ -29,7 +29,7 @@ def _request_accepted(response):
     "archive", ["tests/data/test.zip", "tests/data/test.tar.gz"]
 )
 def test_upload_archive(
-        archive, app, test_auth, test_mongo, background_job_runner
+    archive, app, test_auth, test_mongo, background_job_runner, requests_mock
 ):
     """Test uploading archive.
 
@@ -45,7 +45,11 @@ def test_upload_archive(
     :param test_auth: authentication headers
     :param test_mongo: Mongoclient
     :param background_job_runner: RQ job mocker
+    :param request_mock: HTTP request mocker
     """
+    # Mock metax
+    requests_mock.post('/rest/v2/files/', json={})
+
     test_client = app.test_client()
     upload_path = pathlib.Path(app.config.get("UPLOAD_PROJECTS_PATH"))
     files = test_mongo.upload.files
@@ -100,7 +104,7 @@ def test_upload_archive(
     ]
 )
 def test_upload_archive_to_dirpath(
-        dirpath, app, test_auth, background_job_runner
+        dirpath, app, test_auth, background_job_runner, requests_mock
 ):
     """Test that archive is extracted to path given as parameter.
 
@@ -108,7 +112,11 @@ def test_upload_archive_to_dirpath(
     :param app: Flask app
     :param test_auth: authentication headers
     :param background_job_runner: RQ job mocker
+    :param requests_mock: HTTP request mocker
     """
+    # Mock metax
+    requests_mock.post('/rest/v2/files/', json={})
+
     test_client = app.test_client()
 
     url = f"/v1/archives/test_project?dir={dirpath}"
@@ -136,7 +144,7 @@ def test_upload_archive_to_dirpath(
     ]
 )
 def test_upload_archive_overwrite_directory(
-        archive, url, app, test_auth, background_job_runner
+        archive, url, app, test_auth, background_job_runner, requests_mock
 ):
     """Test uploading archive that would overwrite a directory.
 
@@ -145,7 +153,11 @@ def test_upload_archive_overwrite_directory(
     :param app: Flask app
     :param test_auth: authentication headers
     :param background_job_runner: RQ job mocker
+    :param requests_mock: HTTP request mocker
     """
+    # Mock metax
+    requests_mock.post('/rest/v2/files/', json={})
+
     test_client = app.test_client()
 
     # Upload first archive
@@ -167,7 +179,7 @@ def test_upload_archive_overwrite_directory(
     ]
 )
 def test_upload_archive_overwrite_file(
-        archive, url, app, test_auth, background_job_runner
+        archive, url, app, test_auth, background_job_runner, requests_mock
 ):
     """Test uploading archive that would overwrite a file.
 
@@ -176,7 +188,11 @@ def test_upload_archive_overwrite_file(
     :param app: Flask app
     :param test_auth: authentication headers
     :param background_job_runner: RQ job mocker
+    :param requests_mock: HTTP request mocker
     """
+    # Mock metax
+    requests_mock.post('/rest/v2/files/', json={})
+
     test_client = app.test_client()
 
     # Upload first archive
@@ -283,7 +299,8 @@ def test_archive_integrity_validation(
     ]
 )
 def test_upload_two_archives(
-        archive1, url1, archive2, url2, app, test_auth, background_job_runner
+    archive1, url1, archive2, url2, app, test_auth, background_job_runner,
+    requests_mock
 ):
     """Test uploading two archives to same directory.
 
@@ -294,7 +311,11 @@ def test_upload_two_archives(
     :param app: Flask app
     :param test_auth: authentication headers
     :param background_job_runner: RQ job mocker
+    :param requests_mock: HTTP request mocker
     """
+    # Mock metax
+    requests_mock.post('/rest/v2/files/', json={})
+
     test_client = app.test_client()
 
     # Upload first archive
@@ -333,12 +354,21 @@ def test_upload_invalid_dir(dirpath, app, test_auth):
 
 
 def test_upload_archive_multiple_archives(
-        app, test_auth, test_mongo, background_job_runner
+        app, test_auth, test_mongo, background_job_runner, requests_mock
 ):
     """Test that uploaded archive is extracted.
 
     No files should be extracted outside the project directory.
+
+    :param app: Flask app
+    :param test_auth: authentication headers
+    :param test_mongo: mongo client
+    :param background_job_runner: RQ job mocker
+    :param requests_mock: HTTP request mocker
     """
+    # Mock metax
+    requests_mock.post('/rest/v2/files/', json={})
+
     test_client = app.test_client()
     upload_path = pathlib.Path(app.config.get("UPLOAD_PROJECTS_PATH"))
     files = test_mongo.upload.files

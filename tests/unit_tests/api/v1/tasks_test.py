@@ -19,7 +19,8 @@ def test_reverse_proxy_polling_url(app, mock_redis, test_auth):
     # This is how Werkzeug (eg. all WSGI servers) read the HTTP headers
     # for an incoming request.
     response = test_client.post(
-        "/v1/metadata/test_project/*",
+        "/v1/files/test_project/foo",
+        data='bar',
         headers=test_auth,
         environ_base={"HTTP_X_FORWARDED_HOST": "reverse_proxy"}
     )

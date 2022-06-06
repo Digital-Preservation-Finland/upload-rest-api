@@ -130,8 +130,6 @@ def _save_file(workspace, resource):
 
     project_id = resource.upload_metadata["project_id"]
     fpath = resource.upload_metadata["upload_path"]
-    create_metadata = \
-        resource.upload_metadata.get("create_metadata", "") == "true"
 
     try:
         upload_path = parse_relative_user_path(fpath)
@@ -183,21 +181,16 @@ def _save_file(workspace, resource):
             md5=md5_checksum
         )
 
-        if create_metadata:
-            # If enabled, enqueue background job to create Metax
-            # metadata
-            enqueue_background_job(
-                task_func="upload_rest_api.jobs.metadata.post_metadata",
-                queue_name=METADATA_QUEUE,
-                project_id=project_id,
-                job_kwargs={
-                    "path": fpath,
-                    "project_id": project_id
-                }
-            )
-        else:
-            # Don't hold the lock since we're not generating metadata
-            lock_manager.release(project_id, file_path)
+        # Enqueue background job to create metadata
+        enqueue_background_job(
+            task_func="upload_rest_api.jobs.metadata.post_metadata",
+            queue_name=METADATA_QUEUE,
+            project_id=project_id,
+            job_kwargs={
+                "path": fpath,
+                "project_id": project_id,
+            }
+        )
     except Exception:
         lock_manager.release(project_id, file_path)
         raise
@@ -209,8 +202,6 @@ def _extract_archive(workspace, resource):
 
     project_id = resource.upload_metadata["project_id"]
     fpath = resource.upload_metadata["upload_path"]
-    create_metadata = \
-        resource.upload_metadata.get("create_metadata", "") == "true"
 
     # 'fpath' contains the destination directory as the last path
     # component. We will replace it with the actual directory that will
@@ -250,8 +241,7 @@ def _extract_archive(workspace, resource):
             database=db,
             project_id=project_id,
             fpath=fpath,
-            upload_path=rel_upload_path,
-            create_metadata=create_metadata
+            upload_path=rel_upload_path
         )
     except Exception:
         lock_manager.release(project_id, upload_path)

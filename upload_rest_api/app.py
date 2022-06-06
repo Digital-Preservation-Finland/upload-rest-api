@@ -11,7 +11,6 @@ from upload_rest_api.api.v1.errorhandlers import (http_error_404,
                                                   http_error_generic,
                                                   http_error_locked)
 from upload_rest_api.api.v1.files import FILES_API_V1
-from upload_rest_api.api.v1.metadata import METADATA_API_V1
 from upload_rest_api.api.v1.tasks import TASK_STATUS_API_V1
 from upload_rest_api.api.v1.tokens import TOKEN_API_V1
 from upload_rest_api.api.v1.users import USERS_API_V1
@@ -76,7 +75,6 @@ def create_app():
     # Register all blueprints
     app.register_blueprint(FILES_API_V1)
     app.register_blueprint(ARCHIVES_API_V1)
-    app.register_blueprint(METADATA_API_V1)
     app.register_blueprint(TASK_STATUS_API_V1)
     app.register_blueprint(TOKEN_API_V1)
     app.register_blueprint(USERS_API_V1)

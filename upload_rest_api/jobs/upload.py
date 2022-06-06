@@ -7,13 +7,14 @@ from archive_helpers.extract import (ExtractError, MemberNameError,
                                      MemberOverwriteError, MemberTypeError,
                                      extract)
 from flask import safe_join
+from metax_access import ResourceAlreadyExistsError
 
+from upload_rest_api.config import CONFIG
 import upload_rest_api.database as db
 from upload_rest_api.checksum import get_file_checksum
-from upload_rest_api.jobs.utils import (METADATA_QUEUE, ClientError,
-                                        api_background_job,
-                                        enqueue_background_job)
+from upload_rest_api.jobs.utils import (ClientError, api_background_job)
 from upload_rest_api.lock import ProjectLockManager
+from upload_rest_api import gen_metadata
 
 
 def _process_extracted_files(fpath):
@@ -65,7 +66,7 @@ def _get_archive_checksums(archive, extract_path):
 
 
 @api_background_job
-def extract_task(project_id, fpath, dir_path, create_metadata, task_id):
+def extract_task(project_id, fpath, dir_path, task_id):
     """Calculate the checksum of the archive and extracts the files into
     ``dir_path`` directory.
 
@@ -73,7 +74,6 @@ def extract_task(project_id, fpath, dir_path, create_metadata, task_id):
     :param str fpath: file path of the archive
     :param str dir_path: directory to where the archive will be
                          extracted, relative to project directory
-    :param bool create_metadata: create Metax metadata after extraction
     :param str task_id: mongo dentifier of the task
     """
     database = db.Database()
@@ -101,27 +101,47 @@ def extract_task(project_id, fpath, dir_path, create_metadata, task_id):
         # Remove archive and all created symlinks
         os.remove(fpath)
         _process_extracted_files(abs_dir_path)
+
+        # Create metadata
+        _post_metadata(dir_path, project_id)
     except Exception:
         lock_manager.release(project_id, abs_dir_path)
         raise
 
-    if create_metadata:
-        try:
-            task_id = enqueue_background_job(
-                task_func="upload_rest_api.jobs.metadata.post_metadata",
-                queue_name=METADATA_QUEUE,
-                project_id=project_id,
-                job_kwargs={
-                    "path": dir_path,
-                    "project_id": project_id
-                }
-            )
-        except Exception:
-            lock_manager.release(project_id, abs_dir_path)
-            raise
-    else:
-        # We're not doing metadata generation, so release the lock
-        # already
-        lock_manager.release(project_id, abs_dir_path)
-
+    lock_manager.release(project_id, abs_dir_path)
     return "Archive uploaded and extracted"
+
+
+def _post_metadata(path, project_id):
+    """Create file metadata in Metax.
+
+    This function creates the metadata in Metax for the file or
+    directory denoted by path argument.
+
+    :param str path: relative path to file/directory
+    :param str project_id: project identifier
+    """
+    root_upload_path = CONFIG["UPLOAD_PROJECTS_PATH"]
+
+    metax_client = gen_metadata.MetaxClient()
+
+    fpath = db.Projects.get_upload_path(project_id, path)
+    return_path = db.Projects.get_return_path(project_id, fpath)
+
+    # POST metadata of all files under dir fpath
+    fpaths = []
+    for dirpath, _, files in os.walk(fpath):
+        for fname in files:
+            fpaths.append(os.path.join(dirpath, fname))
+
+    try:
+        metax_client.post_metadata(fpaths, root_upload_path, project_id)
+    except ResourceAlreadyExistsError as error:
+        try:
+            failed_files = [file_['object']['file_path']
+                            for file_ in error.response.json()['failed']]
+        except KeyError:
+            # Most likely only one file was posted so Metax response
+            # format is different
+            failed_files = [return_path]
+        raise ClientError(error.message, files=failed_files) from error

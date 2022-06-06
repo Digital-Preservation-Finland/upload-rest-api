@@ -16,7 +16,8 @@ import upload_rest_api.upload as up
 from upload_rest_api import utils
 from upload_rest_api.api.v1.tasks import TASK_STATUS_API_V1
 from upload_rest_api.authentication import current_user
-from upload_rest_api.jobs.utils import FILES_QUEUE, enqueue_background_job
+from upload_rest_api.jobs.utils import (FILES_QUEUE, METADATA_QUEUE,
+                                        enqueue_background_job)
 from upload_rest_api.lock import lock_manager
 
 FILES_API_V1 = Blueprint("files_v1", __name__, url_prefix="/v1/files")
@@ -44,29 +45,52 @@ def upload_file(project_id, fpath):
     if not current_user.is_allowed_to_access_project(project_id):
         abort(403, "No permission to access this project")
 
-    database = db.Database()
     try:
         rel_upload_path = utils.parse_relative_user_path(fpath)
     except ValueError:
         abort(404)
 
-    up.validate_upload(
-        project_id, request.content_length, request.content_type
-    )
+    upload_path = db.Projects.get_upload_path(project_id, rel_upload_path)
 
-    md5 = up.save_file(database,
-                       project_id,
-                       request.stream,
-                       request.args.get('md5', None),
-                       rel_upload_path)
+    database = db.Database()
+    lock_manager.acquire(project_id, upload_path)
+    try:
+        up.validate_upload(
+            project_id, request.content_length, request.content_type
+        )
 
-    return jsonify(
-        {
-            'file_path': f"/{rel_upload_path}",
-            'md5': md5,
-            'status': 'created'
-        }
-    )
+        up.save_file(database,
+                     project_id,
+                     request.stream,
+                     request.args.get('md5', None),
+                     rel_upload_path)
+
+        task_id = enqueue_background_job(
+            task_func="upload_rest_api.jobs.metadata.post_metadata",
+            queue_name=METADATA_QUEUE,
+            project_id=project_id,
+            job_kwargs={
+                "path": fpath,
+                "project_id": project_id
+            }
+        )
+    except Exception:
+        lock_manager.release(project_id, upload_path)
+        raise
+
+    polling_url = utils.get_polling_url(TASK_STATUS_API_V1.name, task_id)
+    response = jsonify({
+        "file_path": f"/{rel_upload_path}",
+        "message": "Creating metadata",
+        "polling_url": polling_url,
+        "status": "pending"
+    })
+    location = url_for(TASK_STATUS_API_V1.name + ".task_status",
+                       task_id=task_id)
+    response.headers[b'Location'] = location
+    response.status_code = 202
+
+    return response
 
 
 @FILES_API_V1.route(

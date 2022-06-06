@@ -47,7 +47,7 @@ def test_incorrect_authentication(app, wrong_auth):
         "tämä on testi.txt"
     ]
 )
-def test_upload(app, test_auth, test_mongo, name):
+def test_upload(app, test_auth, test_mongo, name, mock_redis):
     """Test uploading a plain text file."""
     test_client = app.test_client()
     upload_path = app.config.get("UPLOAD_PROJECTS_PATH")
@@ -57,10 +57,10 @@ def test_upload(app, test_auth, test_mongo, name):
         test_client, f"/v1/files/test_project/{name}",
         test_auth, "tests/data/test.txt"
     )
-    assert response.status_code == 200
-    assert response.json['md5'] == '150b62e4e7d58c70503bd5fc8a26463c'
-    assert response.json['status'] == 'created'
+    assert response.status_code == 202
+    assert response.json['status'] == 'pending'
     assert response.json['file_path'] == f'/{name}'
+    assert response.json['message'] == 'Creating metadata'
 
     fpath = pathlib.Path(upload_path, "test_project", name)
     assert fpath.is_file()
@@ -85,6 +85,9 @@ def test_upload(app, test_auth, test_mongo, name):
         test_auth, "tests/data/test.txt"
     )
     assert response.status_code == 409
+
+    # Release lock of unfinished metadata generation job
+    mock_redis.flushall()
 
 
 def test_upload_max_size(app, test_auth):
@@ -126,24 +129,28 @@ def test_user_quota(app, database, test_auth):
                                           "test.zip"))
 
 
-def test_used_quota(app, database, test_auth, requests_mock):
+def test_used_quota(app, database, test_auth, requests_mock,
+                    background_job_runner):
     """Test that used quota is calculated correctly."""
     # Mock Metax
     requests_mock.get("https://metax.localdomain/rest/v2/files?limit=10000&"
                       "project_identifier=test_project",
                       json={'next': None, 'results': []})
+    requests_mock.post("/rest/v2/files/", json={})
 
     test_client = app.test_client()
 
     # Upload two 31B txt files
-    _upload_file(
+    response = _upload_file(
         test_client, "/v1/files/test_project/test1",
         test_auth, "tests/data/test.txt"
     )
-    _upload_file(
+    background_job_runner(test_client, 'metadata', response)
+    response = _upload_file(
         test_client, "/v1/files/test_project/test2",
         test_auth, "tests/data/test.txt"
     )
+    background_job_runner(test_client, 'metadata', response)
 
     used_quota = database.projects.get("test_project")["used_quota"]
     assert used_quota == 62
@@ -204,11 +211,11 @@ def test_unknown_content_length(app, test_auth):
         # The actual md5sum of tests/data/test.txt
         (
             '150b62e4e7d58c70503bd5fc8a26463c',
-            200,
+            202,
             {
                 'file_path': '/test_path',
-                'md5': '150b62e4e7d58c70503bd5fc8a26463c',
-                'status': 'created',
+                'status': 'pending',
+                'message': 'Creating metadata'
             }
 
         ),
@@ -224,7 +231,7 @@ def test_unknown_content_length(app, test_auth):
         )
     ]
 )
-def test_file_integrity_validation(app, test_auth, checksum,
+def test_file_integrity_validation(app, test_auth, checksum, mock_redis,
                                    expected_status_code,
                                    expected_response):
     """Test integrity validation of uploaded file.
@@ -237,7 +244,7 @@ def test_file_integrity_validation(app, test_auth, checksum,
     :param expected_status_code: expected status of response from API
     :param expected_response: expected JSON response from API
     """
-    # Post archive
+    # Post a file
     test_client = app.test_client()
     with open('tests/data/test.txt', "rb") as test_file:
         response = test_client.post(
@@ -251,6 +258,9 @@ def test_file_integrity_validation(app, test_auth, checksum,
     assert response.status_code == expected_status_code
     for key in expected_response:
         assert response.json[key] == expected_response[key]
+
+    # Release lock of unfinished metadata generation job
+    mock_redis.flushall()
 
 
 def test_get_file(app, test_auth, test2_auth, test3_auth, test_mongo):
@@ -469,29 +479,8 @@ def test_delete_directory(
     upload_tmpdir, target, files_to_delete
 ):
     """Test deleting a directory."""
-    trash_dir = upload_tmpdir / "trash"
-
-    # Create test data
-    test_client = app.test_client()
-
-    _upload_file(test_client,
-                 '/v1/files/test_project/test.txt',
-                 test_auth,
-                 'tests/data/test.txt')
-
-    _upload_file(test_client,
-                 '/v1/files/test_project/test/test.txt',
-                 test_auth,
-                 'tests/data/test.txt')
-
-    # Find the target files
-    project_directory \
-        = pathlib.Path(app.config.get("UPLOAD_PROJECTS_PATH")) / 'test_project'
-    target_files = []
-    for root, _, files in os.walk(project_directory / target.strip('/')):
-        target_files += [pathlib.Path(root) / file_ for file_ in files]
-
-    # Mock Metax
+    # Mock metax
+    requests_mock.post('/rest/v2/files/', json={})
     requests_mock.get(
         "https://metax.localdomain/rest/v2/files?limit=10000&"
         "project_identifier=test_project",
@@ -511,6 +500,28 @@ def test_delete_directory(
         }
     )
 
+    # Create test data
+    test_client = app.test_client()
+
+    response = _upload_file(test_client,
+                            '/v1/files/test_project/test.txt',
+                            test_auth,
+                            'tests/data/test.txt')
+    background_job_runner(test_client, 'metadata', response)
+
+    response = _upload_file(test_client,
+                            '/v1/files/test_project/test/test.txt',
+                            test_auth,
+                            'tests/data/test.txt')
+    background_job_runner(test_client, 'metadata', response)
+
+    # Find the target files
+    project_directory \
+        = pathlib.Path(app.config.get("UPLOAD_PROJECTS_PATH")) / 'test_project'
+    target_files = []
+    for root, _, files in os.walk(project_directory / target.strip('/')):
+        target_files += [pathlib.Path(root) / file_ for file_ in files]
+
     # Files don't belong to any dataset
     requests_mock.post("https://metax.localdomain/rest/v2/files/datasets",
                        json={})
@@ -527,6 +538,7 @@ def test_delete_directory(
     # perform the actual file and metadata deletion.
     assert not (project_directory / 'test').exists()
 
+    trash_dir = upload_tmpdir / "trash"
     trash_files = list(trash_dir.glob("*/test_project/**/*.txt"))
     assert len(trash_files) == len(files_to_delete)
     for file_path in files_to_delete:

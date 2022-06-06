@@ -72,23 +72,21 @@ def save_file(database, project_id, stream, checksum, upload_path):
     :param upload_path: Upload path, relative to project directory
     :returns: MD5 checksum for file (generated from file)
     """
-    lock_manager = ProjectLockManager()
     file_path = Projects.get_project_directory(project_id) / upload_path
 
-    with lock_manager.lock(project_id, file_path):
-        # Write the file if it does not exist already
-        if file_path.exists():
-            raise werkzeug.exceptions.Conflict("File already exists")
+    # Write the file if it does not exist already
+    if file_path.exists():
+        raise werkzeug.exceptions.Conflict("File already exists")
 
-        file_path.parent.mkdir(parents=True, exist_ok=True)
-        _save_stream(file_path, stream, checksum)
+    file_path.parent.mkdir(parents=True, exist_ok=True)
+    _save_stream(file_path, stream, checksum)
 
-        md5 = save_file_into_db(
-            file_path=file_path,
-            database=database,
-            project_id=project_id,
-            md5=checksum
-        )
+    md5 = save_file_into_db(
+        file_path=file_path,
+        database=database,
+        project_id=project_id,
+        md5=checksum
+    )
 
     return md5
 
@@ -163,8 +161,7 @@ def save_archive(database, project_id, stream, checksum, upload_path):
         raise
 
 
-def extract_archive(
-        database, project_id, fpath, upload_path, create_metadata=False):
+def extract_archive(database, project_id, fpath, upload_path):
     """Enqueue extraction job for an existing archive file on disk.
 
     Archive file is extracted and it is ensured that no symlinks
@@ -210,7 +207,6 @@ def extract_archive(
             "project_id": project_id,
             "fpath": fpath,
             "dir_path": upload_path,
-            "create_metadata": create_metadata
         }
     )
 

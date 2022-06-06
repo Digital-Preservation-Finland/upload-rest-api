@@ -60,24 +60,41 @@ def _do_tus_upload(
 @pytest.mark.parametrize(
     "name", ("test.txt", "tämäontesti.txt", "tämä on testi.txt")
 )
-def test_upload_file(test_client, app, test_auth, test_mongo, name):
-    """Test uploading a small file."""
-    upload_path = app.config.get("UPLOAD_PROJECTS_PATH")
+def test_upload_file(test_client, app, test_auth, test_mongo, name,
+                     background_job_runner, requests_mock):
+    """Test uploading a small file.
 
-    data = b"XyzzyXyzzy"
+    :param test_client: Flask client
+    :param app: Flask app
+    :param test_auth: Authentication headers
+    :param test_mongo: Mongo client
+    :param name: Name of uploaded file
+    :param background_job_runner: RQ job mocker
+    :param requests_mock: HTTP request mocker
+    """
+    # Mock metax
+    requests_mock.post('/rest/v2/files/', json={})
+
+    # Upload file
+    file_content = b"XyzzyXyzzy"
     upload_metadata = {
         "type": "file",
         "project_id": "test_project",
         "filename": name,
         "upload_path": name,
     }
-
     _do_tus_upload(
         test_client=test_client,
         upload_metadata=upload_metadata,
         auth=test_auth,
-        data=data
+        data=file_content
     )
+
+    # Run metadata generation task
+    tasks = list(test_mongo.upload.tasks.find())
+    assert len(tasks) == 1
+    task_id = str(tasks[0]["_id"])
+    background_job_runner(test_client, "metadata", task_id=task_id)
 
     # Uploaded file was added to database
     files = list(test_mongo.upload.files.find())
@@ -85,9 +102,10 @@ def test_upload_file(test_client, app, test_auth, test_mongo, name):
     assert files[0]["_id"].endswith(name)
     assert files[0]["checksum"] == "a5d1741953bf0c12b7a097f58944e474"
 
-    fpath = pathlib.Path(upload_path) / "test_project" / name
-
-    assert fpath.read_bytes() == b"XyzzyXyzzy"
+    # Uploaded file is written to expected path
+    fpath = pathlib.Path(app.config.get("UPLOAD_PROJECTS_PATH")) \
+        / "test_project" / name
+    assert fpath.read_bytes() == file_content
 
     # Check that the file has 664 permissions. The group write
     # permission is required, otherwise siptools-research will crash
@@ -116,55 +134,23 @@ def test_upload_file(test_client, app, test_auth, test_mongo, name):
     assert resp.json == {"code": 409, "error": "File already exists"}
 
 
-@pytest.mark.usefixtures("project")
-def test_upload_file_create_metadata(
-        test_client, test_auth, test_mongo, requests_mock,
-        background_job_runner):
-    """Test uploading a small file and create Metax metadata for it."""
-    data = b"XyzzyXyzzy"
-    upload_metadata = {
-        "type": "file",
-        "project_id": "test_project",
-        "filename": "test.txt",
-        "upload_path": "test.txt",
-        "create_metadata": "true"
-    }
-
-    _do_tus_upload(
-        test_client=test_client,
-        upload_metadata=upload_metadata,
-        auth=test_auth,
-        data=data
-    )
-
-    # Mock Metax response
-    requests_mock.post(
-        "https://metax.localdomain/rest/v2/files/",
-        json={"success": [], "failed": ["fail1", "fail2"]}
-    )
-
-    tasks = list(test_mongo.upload.tasks.find())
-    assert len(tasks) == 1
-
-    task_id = str(tasks[0]["_id"])
-
-    response = background_job_runner(test_client, "metadata", task_id=task_id)
-
-    assert response.status_code == 200
-    assert response.json == {
-        "message": "Metadata created: /test.txt",
-        "status": "done"
-    }
-
-
 @pytest.mark.usefixtures("project", "mock_redis")
-def test_upload_file_checksum(test_client, test_auth):
+def test_upload_file_checksum(test_client, test_auth, test_mongo,
+                              background_job_runner, requests_mock):
     """Test uploading a file with a checksum.
 
     Ensure that the checksum is checked.
-    """
-    data = b"XyzzyXyzzy"
 
+    :param test_client: Flask client
+    :param test_auth: Authentication headers
+    :param test_mongo: Mongo client
+    :param background_job_runner: RQ job mocker
+    :param requests_mock: HTTP request mocker
+    """
+    # Mock Metax
+    requests_mock.post('/rest/v2/files/', json={})
+
+    data = b"XyzzyXyzzy"
     upload_metadata = {
         "type": "file",
         "project_id": "test_project",
@@ -177,12 +163,19 @@ def test_upload_file_checksum(test_client, test_auth):
     }
 
     # First upload with correct checksum succeeds
-    _do_tus_upload(
+    response = _do_tus_upload(
         test_client=test_client,
         upload_metadata=upload_metadata,
         auth=test_auth,
-        data=data
+        data=data,
+        expected_status=204
     )
+
+    # Run metadata generation task
+    tasks = list(test_mongo.upload.tasks.find())
+    assert len(tasks) == 1
+    task_id = str(tasks[0]["_id"])
+    background_job_runner(test_client, "metadata", task_id=task_id)
 
     # Try again with incorrect checksum
     upload_metadata["upload_path"] = "test2.txt"
@@ -192,7 +185,7 @@ def test_upload_file_checksum(test_client, test_auth):
         "f30e3a5a2e29741c3aedb2cf696a155bbd"
     )
 
-    resp = _do_tus_upload(
+    response = _do_tus_upload(
         test_client=test_client,
         upload_metadata=upload_metadata,
         auth=test_auth,
@@ -200,12 +193,12 @@ def test_upload_file_checksum(test_client, test_auth):
         expected_status=400
     )
 
-    assert resp.json["error"] == "Upload checksum mismatch"
+    assert response.json["error"] == "Upload checksum mismatch"
 
 
-@pytest.mark.usefixtures("project", "mock_redis")
+@pytest.mark.usefixtures("project")
 def test_upload_file_checksum_iterative(
-        app, test_client, test_auth, test_mongo):
+        app, test_client, test_auth, test_mongo, mock_redis):
     """
     Test uploading a file in multiple parts and ensure the checksum
     is calculated correctly
@@ -270,6 +263,9 @@ def test_upload_file_checksum_iterative(
         }
     )
 
+    # Release locks of unfinished metadata generation jobs
+    mock_redis.flushall()
+
 
 @pytest.mark.usefixtures("project", "mock_redis")
 def test_upload_file_checksum_incorrect_syntax(test_client, test_auth):
@@ -331,7 +327,8 @@ def test_upload_file_checksum_unknown_algorithm(test_client, test_auth):
     "name", ("test.txt", "tämäontesti.txt", "tämä on testi.txt")
 )
 def test_upload_file_deep_directory(
-        test_client, test_auth, test_mongo, upload_tmpdir, name):
+        test_client, test_auth, test_mongo, name, mock_redis, mock_config
+):
     """Test uploading a small file within a directory hierarchy.
 
     Ensure that the directories are created as well.
@@ -359,14 +356,17 @@ def test_upload_file_deep_directory(
     assert files[0]["checksum"] == "a5d1741953bf0c12b7a097f58944e474"
 
     # Intermediary directories created, and file is inside it
-    content = (
-        upload_tmpdir / "projects" / "test_project"
-        / "foo" / "bar" / name
-    ).read_text(encoding="utf-8")
-    assert content == "XyzzyXyzzy"
+    base_path = pathlib.Path(mock_config["UPLOAD_BASE_PATH"])
+    assert (
+        base_path / "projects" / "test_project" / "foo" / "bar" / name
+    ).read_bytes() == data
+
+    # Release locks of unfinished metadata generation jobs
+    mock_redis.flushall()
 
 
-def test_upload_file_exceed_quota(test_client, test_auth, database):
+def test_upload_file_exceed_quota(test_client, test_auth, database,
+                                  mock_redis):
     """Test exceeding quota.
 
     Upload one file and try uploading a second file which would exceed
@@ -409,6 +409,9 @@ def test_upload_file_exceed_quota(test_client, test_auth, database):
 
     assert resp.status_code == 413
     assert resp.json["error"] == "Remaining user quota too low"
+
+    # Release locks of unfinished metadata generation jobs
+    mock_redis.flushall()
 
 
 def test_upload_file_parallel_upload_exceed_quota(
@@ -502,12 +505,22 @@ def test_upload_file_conflict(test_client, test_auth):
 
 @pytest.mark.usefixtures("database")
 def test_upload_archive(
-        test_client, test_auth, test_mongo, upload_tmpdir,
-        background_job_runner):
+        test_client, test_auth, test_mongo, mock_config,
+        background_job_runner, requests_mock):
     """Test uploading an archive.
 
     Ensure that the archive is extracted successfully.
+
+    :param test_client: Flask client
+    :param test_auth: Authorization headers
+    :param test_mongo: Mongo client
+    :param mock_config: Configuration
+    :param background_job_runner: RQ job mocker
+    :param requests_mock: HTTP request mocker
     """
+    # Mock Metax
+    requests_mock.post('/rest/v2/files/', json={})
+
     upload_metadata = {
         "type": "archive",
         "project_id": "test_project",
@@ -534,62 +547,8 @@ def test_upload_archive(
 
     assert data["message"] == "Archive uploaded and extracted"
 
+    base_path = pathlib.Path(mock_config["UPLOAD_BASE_PATH"])
     assert (
-        upload_tmpdir / "projects" / "test_project" / "extract_dir"
+        base_path / "projects" / "test_project" / "extract_dir"
         / "test" / "test.txt"
     ).read_text(encoding="utf-8").startswith("test file for REST file upload")
-
-
-@pytest.mark.usefixtures("database")
-def test_upload_archive_create_metadata(test_client, test_auth, test_mongo,
-                                        background_job_runner, requests_mock):
-    """
-    Test uploading an archive and automatically creating its metadata
-    after extraction.
-    """
-    upload_metadata = {
-        "type": "archive",
-        "project_id": "test_project",
-        "filename": "test.zip",
-        "upload_path": "extract_dir",
-        "create_metadata": "true"
-    }
-
-    test_data = pathlib.Path("tests/data/test.zip").read_bytes()
-
-    _do_tus_upload(
-        test_client=test_client,
-        upload_metadata=upload_metadata,
-        auth=test_auth,
-        data=test_data
-    )
-
-    tasks = list(test_mongo.upload.tasks.find())
-    assert len(tasks) == 1
-
-    task_id = str(tasks[0]["_id"])
-
-    response = background_job_runner(test_client, "upload", task_id=task_id)
-    data = response.json
-
-    assert data["message"] == "Archive uploaded and extracted"
-
-    # Mock Metax response
-    requests_mock.post(
-        "https://metax.localdomain/rest/v2/files/",
-        json={"success": [], "failed": []}
-    )
-
-    # The upload task should have left a metadata generation task
-    tasks = list(test_mongo.upload.tasks.find())
-    assert len(tasks) == 1
-
-    task_id = str(tasks[0]["_id"])
-
-    response = background_job_runner(test_client, "metadata", task_id=task_id)
-
-    assert response.status_code == 200
-    assert response.json == {
-        "message": "Metadata created: /extract_dir",
-        "status": "done"
-    }
