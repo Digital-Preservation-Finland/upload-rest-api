@@ -11,9 +11,7 @@ def _do_tus_upload(
         test_client, upload_metadata, data, auth,
         # 204 NO CONTENT by default
         expected_status=204):
-    """
-    Perform a tus upload
-    """
+    """Perform a tus upload."""
     upload_length = len(data)
 
     resp = test_client.post(
@@ -63,9 +61,7 @@ def _do_tus_upload(
     "name", ("test.txt", "tämäontesti.txt", "tämä on testi.txt")
 )
 def test_upload_file(test_client, app, test_auth, test_mongo, name):
-    """
-    Test uploading a small file
-    """
+    """Test uploading a small file."""
     upload_path = app.config.get("UPLOAD_PROJECTS_PATH")
 
     data = b"XyzzyXyzzy"
@@ -93,8 +89,9 @@ def test_upload_file(test_client, app, test_auth, test_mongo, name):
 
     assert fpath.read_bytes() == b"XyzzyXyzzy"
 
-    # Check that the file has 664 permissions. The group write permission
-    # is required, otherwise siptools-research will crash later.
+    # Check that the file has 664 permissions. The group write
+    # permission is required, otherwise siptools-research will crash
+    # later.
     assert oct(fpath.stat().st_mode)[5:8] == "664"
 
     used_quota = test_mongo.upload.projects.find_one(
@@ -123,9 +120,7 @@ def test_upload_file(test_client, app, test_auth, test_mongo, name):
 def test_upload_file_create_metadata(
         test_client, test_auth, test_mongo, requests_mock,
         background_job_runner):
-    """
-    Test uploading a small file and create Metax metadata for it
-    """
+    """Test uploading a small file and create Metax metadata for it."""
     data = b"XyzzyXyzzy"
     upload_metadata = {
         "type": "file",
@@ -164,8 +159,9 @@ def test_upload_file_create_metadata(
 
 @pytest.mark.usefixtures("project", "mock_redis")
 def test_upload_file_checksum(test_client, test_auth):
-    """
-    Test uploading a file with a checksum and ensure it is checked
+    """Test uploading a file with a checksum.
+
+    Ensure that the checksum is checked.
     """
     data = b"XyzzyXyzzy"
 
@@ -277,9 +273,7 @@ def test_upload_file_checksum_iterative(
 
 @pytest.mark.usefixtures("project", "mock_redis")
 def test_upload_file_checksum_incorrect_syntax(test_client, test_auth):
-    """
-    Test uploading a file with a checksum using incorrect syntax
-    """
+    """Test uploading a file with a checksum using incorrect syntax."""
     data = b"XyzzyXyzzy"
 
     upload_metadata = {
@@ -305,8 +299,8 @@ def test_upload_file_checksum_incorrect_syntax(test_client, test_auth):
 @pytest.mark.usefixtures("project", "mock_redis")
 def test_upload_file_checksum_unknown_algorithm(test_client, test_auth):
     """
-    Test uploading a file with a checksum using an unknown algorithm, and
-    ensure it is rejected
+    Test uploading a file with a checksum using an unknown algorithm,
+    and ensure it is rejected.
     """
     data = b"XyzzyXyzzy"
 
@@ -338,9 +332,9 @@ def test_upload_file_checksum_unknown_algorithm(test_client, test_auth):
 )
 def test_upload_file_deep_directory(
         test_client, test_auth, test_mongo, upload_tmpdir, name):
-    """
-    Test uploading a small file within a directory hierarchy, and ensure
-    the directories are created as well
+    """Test uploading a small file within a directory hierarchy.
+
+    Ensure that the directories are created as well.
     """
     data = b"XyzzyXyzzy"
 
@@ -373,9 +367,10 @@ def test_upload_file_deep_directory(
 
 
 def test_upload_file_exceed_quota(test_client, test_auth, database):
-    """
-    Upload one file and try uploading a second file which would exceed the
-    quota
+    """Test exceeding quota.
+
+    Upload one file and try uploading a second file which would exceed
+    the quota.
     """
     database.projects.set_quota("test_project", 15)
 
@@ -418,9 +413,7 @@ def test_upload_file_exceed_quota(test_client, test_auth, database):
 
 def test_upload_file_parallel_upload_exceed_quota(
         test_client, test_auth, database):
-    """
-    Start enough parallel uploads to exceed the user quota
-    """
+    """Start enough parallel uploads to exceed the user quota."""
     database.projects.set_quota("test_project", 4096)
 
     # User has a quota of exactly 4096 bytes. Initiate three uploads,
@@ -445,8 +438,8 @@ def test_upload_file_parallel_upload_exceed_quota(
         )
         assert resp.status_code == 201
 
-    # Initiate the third upload, which would result in exceeding the quota.
-    # This will fail.
+    # Initiate the third upload, which would result in exceeding the
+    # quota. This will fail.
     resp = test_client.post(
         "/v1/files_tus",
         headers={
@@ -470,9 +463,7 @@ def test_upload_file_parallel_upload_exceed_quota(
 
 @pytest.mark.usefixtures("database")
 def test_upload_file_conflict(test_client, test_auth):
-    """
-    Try initiating two uploads with the same file path
-    """
+    """Try initiating two uploads with the same file path."""
     upload_metadata = {
         "type": "file",
         "project_id": "test_project",
@@ -513,8 +504,9 @@ def test_upload_file_conflict(test_client, test_auth):
 def test_upload_archive(
         test_client, test_auth, test_mongo, upload_tmpdir,
         background_job_runner):
-    """
-    Test uploading an archive and ensure it is extracted successfully
+    """Test uploading an archive.
+
+    Ensure that the archive is extracted successfully.
     """
     upload_metadata = {
         "type": "archive",
@@ -549,12 +541,11 @@ def test_upload_archive(
 
 
 @pytest.mark.usefixtures("database")
-def test_upload_archive_create_metadata(
-        test_client, test_auth, test_mongo, upload_tmpdir,
-        background_job_runner, requests_mock):
+def test_upload_archive_create_metadata(test_client, test_auth, test_mongo,
+                                        background_job_runner, requests_mock):
     """
     Test uploading an archive and automatically creating its metadata
-    after extraction
+    after extraction.
     """
     upload_metadata = {
         "type": "archive",

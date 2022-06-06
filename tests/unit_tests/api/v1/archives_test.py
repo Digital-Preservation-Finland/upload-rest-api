@@ -115,7 +115,7 @@ def test_upload_archive_to_dirpath(
     response \
         = _upload_file(test_client, url, test_auth, 'tests/data/test.tar.gz')
     assert response.status_code == 202
-    assert response.json['file_path'] == '/{}'.format(dirpath.strip('/'))
+    assert response.json['file_path'] == f"/{dirpath.strip('/')}"
 
     # Complete the task
     response = background_job_runner(test_client, "upload", response)
@@ -324,7 +324,7 @@ def test_upload_invalid_dir(dirpath, app, test_auth):
     test_client = app.test_client()
     response = _upload_file(
         test_client,
-        "/v1/archives/test_project?dir=%s" % dirpath,
+        f"/v1/archives/test_project?dir={dirpath}",
         test_auth,
         "tests/data/test.zip"
     )
@@ -412,8 +412,10 @@ def test_upload_archive_multiple_archives(
 ])
 def test_upload_invalid_archive(
         archive, app, test_auth, test_mongo, background_job_runner):
-    """Test that trying to upload a archive with symlinks returns error
-    and doesn't create any files.
+    """Test uploading invalid archive.
+
+    Test that trying to upload a archive with symlinks returns error and
+    doesn't create any files.
     """
     test_client = app.test_client()
     upload_path = pathlib.Path(app.config.get("UPLOAD_PROJECTS_PATH"))
@@ -446,9 +448,7 @@ def test_upload_invalid_archive(
 
 
 def test_upload_file_as_archive(app, test_auth, background_job_runner):
-    """Test that trying to upload a file as an archive returns an
-    error.
-    """
+    """Test uploading a reqular file as an archive."""
     test_client = app.test_client()
 
     response = _upload_file(

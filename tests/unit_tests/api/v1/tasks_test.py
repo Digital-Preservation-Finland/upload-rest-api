@@ -2,20 +2,22 @@
 import pytest
 from rq import SimpleWorker
 
-import upload_rest_api.database as database
-import upload_rest_api.jobs as jobs
+from upload_rest_api import database
+from upload_rest_api import jobs
 
 
 def test_reverse_proxy_polling_url(app, mock_redis, test_auth):
-    """Mock the web application running behind a reverse proxy and ensure that
-    the reverse proxy's URL is detected by the web application.
+    """Test reverse proxy polling url.
+
+    Mock the web application running behind a reverse proxy and ensure
+    that the reverse proxy's URL is detected by the web application.
     """
     test_client = app.test_client()
 
-    # Add an environment variable containing the X-Forwarded-Host HTTP header
-    # value.
-    # This is how Werkzeug (eg. all WSGI servers) read the HTTP headers for an
-    # incoming request.
+    # Add an environment variable containing the X-Forwarded-Host HTTP
+    # header value.
+    # This is how Werkzeug (eg. all WSGI servers) read the HTTP headers
+    # for an incoming request.
     response = test_client.post(
         "/v1/metadata/test_project/*",
         headers=test_auth,

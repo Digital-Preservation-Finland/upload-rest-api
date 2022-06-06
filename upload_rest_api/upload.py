@@ -97,9 +97,9 @@ def save_file(database, project_id, stream, checksum, upload_path):
 
 
 def save_file_into_db(file_path, database, project_id, md5=None):
-    """
-    Save the file metadata into the database. This assumes the file has been
-    placed into its final location.
+    """Save the file metadata into the database.
+
+    This assumes the file has been placed into its final location.
 
     :param str file_path: Path to the file
     :param database: upload_rest_api database instance
@@ -178,9 +178,9 @@ def extract_archive(
     :param fpath: archive file path
     :param upload_path: upload directory where archive contents will be
                         extracted, relative to project directory
-    :param bool create_metadata: Launch Metax metadata generation background
-                                 job after extraction is complete.
-                                 Default is False.
+    :param bool create_metadata: Launch Metax metadata generation
+                                 background job after extraction is
+                                 complete. Default is False.
     :returns: Url of archive extraction task
     """
     # If zip or tar file was uploaded, extract all files

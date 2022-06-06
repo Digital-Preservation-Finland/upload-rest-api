@@ -124,7 +124,8 @@ def extract_task(project_id, fpath, dir_path, create_metadata, task_id):
             lock_manager.release(project_id, abs_dir_path)
             raise
     else:
-        # We're not doing metadata generation, so release the lock already
+        # We're not doing metadata generation, so release the lock
+        # already
         lock_manager.release(project_id, abs_dir_path)
 
     return "Archive uploaded and extracted"

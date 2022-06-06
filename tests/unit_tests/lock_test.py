@@ -1,6 +1,7 @@
 """Tests for ``upload_rest_api.lock`` module."""
-import pytest
 import time
+
+import pytest
 
 from upload_rest_api.lock import LockAlreadyTaken
 
@@ -21,9 +22,7 @@ def _upload_file(client, url, auth, fpath):
 
 
 def _test_lock(lock_manager, path):
-    """
-    Acquire a lock and release it immediately.
-    """
+    """Acquire a lock and release it immediately."""
     lock_manager.acquire("test_project", path, ttl=5, timeout=0.1)
     lock_manager.release("test_project", path)
 
@@ -54,9 +53,7 @@ def test_lock_block_related(lock_manager, upload_tmpdir):
 
 
 def test_lock_timeout(lock_manager, upload_tmpdir):
-    """
-    Test that locks will expire even if they're not released
-    """
+    """Test that locks will expire even if they're not released."""
     project_dir = upload_tmpdir / "projects"
 
     lock_manager.acquire("test_project", project_dir / "foo", ttl=0.5)
@@ -71,7 +68,7 @@ def test_lock_timeout(lock_manager, upload_tmpdir):
     _test_lock(lock_manager, project_dir / "foo")
 
 
-def test_lock_response(app, test_auth, test_client, mock_redis):
+def test_lock_response(test_auth, test_client, mock_redis):
     """
     Test performing a HTTP request that acquires a lock while a lock
     is already acquired.
@@ -81,7 +78,8 @@ def test_lock_response(app, test_auth, test_client, mock_redis):
         "tests/data/test.txt"
     )
 
-    # Start a metadata generation background job; this will acquire a lock
+    # Start a metadata generation background job; this will acquire a
+    # lock
     response = test_client.post(
         "/v1/metadata/test_project/foo", headers=test_auth
     )

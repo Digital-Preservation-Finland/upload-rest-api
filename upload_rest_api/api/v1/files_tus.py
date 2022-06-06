@@ -1,6 +1,4 @@
-"""
-Event handler for the /files_tus/v1 endpoint.
-"""
+"""Event handler for the /files_tus/v1 endpoint."""
 import os
 import uuid
 from pathlib import Path
@@ -26,8 +24,8 @@ FILES_TUS_API_V1 = Blueprint(
 
 def register_blueprint(app):
     """
-    Register the `flask_tus_io` application under the `/v1/files_tus` URL
-    prefix
+    Register the `flask_tus_io` application under the `/v1/files_tus`
+    URL prefix
     """
     flask_tus_io.register_blueprints(
         app,
@@ -38,9 +36,7 @@ def register_blueprint(app):
 
 
 def _delete_workspace(workspace):
-    """
-    Delete workspace and remove the corresponding database entry
-    """
+    """Delete workspace and remove the corresponding database entry."""
     uploads = Database().uploads
 
     resource = workspace.get_resource()
@@ -49,9 +45,7 @@ def _delete_workspace(workspace):
 
 
 def _upload_started(workspace, resource):
-    """
-    Callback function called when a new upload is started
-    """
+    """Callback function called when a new upload is started."""
     try:
         db = Database()
         uploads = db.uploads
@@ -90,7 +84,8 @@ def _upload_started(workspace, resource):
             # Remaining user quota too low to allow this upload
             abort(413, "Remaining user quota too low")
 
-        # Validate the user's quota and content type is not exceeded again.
+        # Validate the user's quota and content type is not exceeded
+        # again.
         upload.validate_upload(
             project_id=project_id,
             content_length=resource.upload_length,
@@ -123,16 +118,14 @@ def _upload_started(workspace, resource):
             resource=resource
         )
     except Exception:
-        # Remove the workspace to prevent filling up disk space with bogus
-        # requests
+        # Remove the workspace to prevent filling up disk space with
+        # bogus requests
         _delete_workspace(workspace)
         raise
 
 
 def _save_file(workspace, resource):
-    """
-    Save file to the project directory
-    """
+    """Save file to the project directory."""
     db = database.Database()
 
     project_id = resource.upload_metadata["project_id"]
@@ -152,8 +145,9 @@ def _save_file(workspace, resource):
 
     try:
         try:
-            # Retrieve the MD5 checksum we already calculated incrementally
-            # to skip the expensive checksum calculation for the entire file
+            # Retrieve the MD5 checksum we already calculated
+            # incrementally to skip the expensive checksum calculation
+            # for the entire file
             md5_checksum = calculate_incr_checksum(
                 algorithm="md5",
                 path=resource.upload_file_path,
@@ -170,16 +164,18 @@ def _save_file(workspace, resource):
             # Ensure the parent directories exist
             file_path.parent.mkdir(parents=True, exist_ok=True)
 
-            # Upload passed validation, move it to the actual file storage
+            # Upload passed validation, move it to the actual file
+            # storage
             resource.upload_file_path.rename(file_path)
             # g+w required for siptools-research
             os.chmod(file_path, 0o664)
         finally:
-            # Delete the tus-specific workspace regardless of the outcome.
+            # Delete the tus-specific workspace regardless of the
+            # outcome.
             _delete_workspace(workspace)
 
-        # Use `save_file_into_db` to handle the rest using the same code path
-        # as `/v1/files` API
+        # Use `save_file_into_db` to handle the rest using the same code
+        # path as `/v1/files` API
         save_file_into_db(
             file_path=file_path,
             database=db,
@@ -188,7 +184,8 @@ def _save_file(workspace, resource):
         )
 
         if create_metadata:
-            # If enabled, enqueue background job to create Metax metadata
+            # If enabled, enqueue background job to create Metax
+            # metadata
             storage_id = current_app.config.get("STORAGE_ID")
             enqueue_background_job(
                 task_func="upload_rest_api.jobs.metadata.post_metadata",
@@ -209,9 +206,7 @@ def _save_file(workspace, resource):
 
 
 def _extract_archive(workspace, resource):
-    """
-    Start the extraction job for an uploaded archive
-    """
+    """Start the extraction job for an uploaded archive."""
     db = database.Database()
 
     project_id = resource.upload_metadata["project_id"]
@@ -219,9 +214,9 @@ def _extract_archive(workspace, resource):
     create_metadata = \
         resource.upload_metadata.get("create_metadata", "") == "true"
 
-    # 'fpath' contains the destination directory as the last path component.
-    # We will replace it with the actual directory that will contain the
-    # extracted files.
+    # 'fpath' contains the destination directory as the last path
+    # component. We will replace it with the actual directory that will
+    # contain the extracted files.
     project_dir = Projects.get_project_directory(project_id)
     rel_upload_path = safe_join("", fpath)
     upload_path = project_dir / rel_upload_path
@@ -242,13 +237,15 @@ def _extract_archive(workspace, resource):
                     f"Directory '{rel_upload_path}' already exists"
                 )
 
-            # Move the archive to a temporary path to begin the extraction
+            # Move the archive to a temporary path to begin the
+            # extraction
             tmp_path = Path(current_app.config.get("UPLOAD_TMP_PATH"))
             fpath = tmp_path / str(uuid.uuid4())
             fpath.parent.mkdir(exist_ok=True)
             resource.upload_file_path.rename(fpath)
         finally:
-            # Delete the tus-specific workspace regardless of the outcome.
+            # Delete the tus-specific workspace regardless of the
+            # outcome.
             _delete_workspace(workspace)
 
         extract_archive(
@@ -267,7 +264,8 @@ def _get_checksum_tuple(checksum):
     """
     Return a (algorithm, checksum) tuple from a "checksum" tus metadata value
     """
-    # The 'checksum' tus field has the syntax '<algorithm>:<hex_checksum>'.
+    # The 'checksum' tus field has the syntax
+    # '<algorithm>:<hex_checksum>'.
     try:
         algorithm, expected_checksum = checksum.split(":")
     except ValueError:
@@ -281,8 +279,8 @@ def _get_checksum_tuple(checksum):
 
 def _chunk_upload_completed(workspace, resource):
     """
-    Process the received chunk, calculating both the MD5 checksum and the
-    optional user-provided algorithm incrementally
+    Process the received chunk, calculating both the MD5 checksum and
+    the optional user-provided algorithm incrementally
     """
     try:
         # Always calculate the MD5 checksum since that's what we'll
@@ -299,8 +297,9 @@ def _chunk_upload_completed(workspace, resource):
 
         algorithm, _ = _get_checksum_tuple(checksum)
 
-        # Calculate the checksum up to the current end; the function will
-        # save the current progress and resume where it left off later.
+        # Calculate the checksum up to the current end; the function
+        # will save the current progress and resume where it left off
+        # later.
         calculate_incr_checksum(
             algorithm=algorithm,
             path=resource.upload_file_path
@@ -312,8 +311,8 @@ def _chunk_upload_completed(workspace, resource):
 
 def _check_upload_integrity(resource, workspace, checksum):
     """
-    Check the integrity of an upload by comparing the user provided checksum
-    against the calculated checksum
+    Check the integrity of an upload by comparing the user provided
+    checksum against the calculated checksum
     """
     try:
         algorithm, expected_checksum = _get_checksum_tuple(checksum)
@@ -334,9 +333,7 @@ def _check_upload_integrity(resource, workspace, checksum):
 
 
 def _upload_completed(workspace, resource):
-    """
-    Callback function called when an upload is finished
-    """
+    """Callback function called when an upload is finished."""
     upload_type = resource.upload_metadata["type"]
 
     checksum = resource.upload_metadata.get("checksum", None)

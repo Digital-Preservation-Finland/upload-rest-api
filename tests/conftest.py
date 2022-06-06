@@ -7,11 +7,12 @@ from pathlib import Path
 from runpy import run_path
 
 import fakeredis
+from mongobox import MongoBox
 import pytest
+from rq import SimpleWorker
+
 import upload_rest_api.app as app_module
 import upload_rest_api.database as db
-from mongobox import MongoBox
-from rq import SimpleWorker
 from upload_rest_api.jobs.utils import get_job_queue
 from upload_rest_api.lock import ProjectLockManager
 
@@ -68,8 +69,8 @@ def mock_config(monkeypatch, upload_tmpdir):
     monkeypatch.setitem(CONFIG, "UPLOAD_TMP_PATH", str(temp_upload_path))
     monkeypatch.setitem(CONFIG, "UPLOAD_TRASH_PATH", str(trash_path))
 
-    # Use lower lock TTL and timeout to prevent tests from hanging for a long
-    # time in case of a bug
+    # Use lower lock TTL and timeout to prevent tests from hanging for a
+    # long time in case of a bug
     monkeypatch.setitem(CONFIG, "UPLOAD_LOCK_TTL", 30)
     monkeypatch.setitem(CONFIG, "UPLOAD_LOCK_TIMEOUT", 1)
 
@@ -118,8 +119,8 @@ def db_logging_fx(patch_mongo, test_mongo, request):
     """
     Optionally print list of database queries made during a test.
 
-    If --log-queries flag is provided to pytest, all the database queries made
-    during the test and it's setup are printed to stdout.
+    If --log-queries flag is provided to pytest, all the database
+    queries made during the test and it's setup are printed to stdout.
     """
     test_mongo.upload.command("profile", 2)
     yield

@@ -67,8 +67,9 @@ def test_upload(app, test_auth, test_mongo, name):
     assert fpath.read_bytes() \
         == pathlib.Path("tests/data/test.txt").read_bytes()
 
-    # Check that the file has 664 permissions. The group write permission
-    # is required, otherwise siptools-research will crash later.
+    # Check that the file has 664 permissions. The group write
+    # permission is required, otherwise siptools-research will crash
+    # later.
     assert oct(fpath.stat().st_mode)[5:8] == "664"
 
     # Check that the uploaded files checksum was added to mongo
@@ -486,7 +487,7 @@ def test_delete_directory(
     # Find the target files
     project_directory \
         = pathlib.Path(app.config.get("UPLOAD_PROJECTS_PATH")) / 'test_project'
-    target_files = list()
+    target_files = []
     for root, _, files in os.walk(project_directory / target.strip('/')):
         target_files += [pathlib.Path(root) / file_ for file_ in files]
 

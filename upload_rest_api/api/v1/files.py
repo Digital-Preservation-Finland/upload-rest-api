@@ -90,8 +90,8 @@ def get_path(project_id, fpath):
     return_path = db.Projects.get_return_path(project_id, upload_path)
 
     if request.args.get("all", None) == "true" and fpath.strip("/") == "":
-        # Retrieve entire directory listing if 'all' URL parameter is set
-        # and fpath is set to '' or '/'
+        # Retrieve entire directory listing if 'all' URL parameter is
+        # set and fpath is set to '' or '/'
         fpath = db.Projects.get_project_directory(project_id)
 
         if not os.path.exists(fpath):
