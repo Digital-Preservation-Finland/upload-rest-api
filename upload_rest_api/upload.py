@@ -17,15 +17,11 @@ from upload_rest_api.lock import ProjectLockManager
 SUPPORTED_TYPES = ("application/octet-stream",)
 
 
-def _check_extraction_size(project_id, archive_path, database):
-    """Check whether extracting the archive exceeds users quota.
+def _extracted_size(archive_path):
+    """Compute the total size of archive content.
 
-    :returns: Tuple (quota, used_quota, extracted_size)
+    :returns: Size of extracted archive
     """
-    project = database.projects.get(project_id)
-    quota = project["quota"]
-    used_quota = project["used_quota"]
-
     if tarfile.is_tarfile(archive_path):
         with tarfile.open(archive_path) as archive:
             size = sum(memb.size for memb in archive)
@@ -33,7 +29,7 @@ def _check_extraction_size(project_id, archive_path, database):
         with zipfile.ZipFile(archive_path) as archive:
             size = sum(memb.file_size for memb in archive.filelist)
 
-    return quota, used_quota, size
+    return size
 
 
 def _save_stream(fpath, stream, checksum, chunk_size=1024*1024):
@@ -184,39 +180,39 @@ def extract_archive(
                                  complete. Default is False.
     :returns: Url of archive extraction task
     """
-    # If zip or tar file was uploaded, extract all files
-    if zipfile.is_zipfile(fpath) or tarfile.is_tarfile(fpath):
-        # Check the uncompressed size
-        quota, used_quota, extracted_size = _check_extraction_size(
-            project_id=project_id, archive_path=fpath, database=database
-        )
-
-        if quota - used_quota - extracted_size < 0:
-            # Remove the archive and raise an exception
-            os.remove(fpath)
-            raise werkzeug.exceptions.RequestEntityTooLarge(
-                "Quota exceeded"
-            )
-
-        database.projects.set_used_quota(
-            project_id, used_quota + extracted_size
-        )
-        task_id = enqueue_background_job(
-            task_func="upload_rest_api.jobs.upload.extract_task",
-            queue_name=UPLOAD_QUEUE,
-            project_id=project_id,
-            job_kwargs={
-                "project_id": project_id,
-                "fpath": fpath,
-                "dir_path": upload_path,
-                "create_metadata": create_metadata
-            }
-        )
-    else:
+    # Ensure that arhive is supported format
+    if not (zipfile.is_zipfile(fpath) or tarfile.is_tarfile(fpath)):
         os.remove(fpath)
         raise werkzeug.exceptions.BadRequest(
             "Uploaded file is not a supported archive"
         )
+
+    # Ensure that the project has enough quota available
+    project = database.projects.get(project_id)
+    extracted_size = _extracted_size(fpath)
+    if project['quota'] - project['used_quota'] - extracted_size < 0:
+        # Remove the archive and raise an exception
+        os.remove(fpath)
+        raise werkzeug.exceptions.RequestEntityTooLarge(
+            "Quota exceeded"
+        )
+
+    # Update used quota
+    database.projects.set_used_quota(
+        project_id, project['used_quota'] + extracted_size
+    )
+
+    task_id = enqueue_background_job(
+        task_func="upload_rest_api.jobs.upload.extract_task",
+        queue_name=UPLOAD_QUEUE,
+        project_id=project_id,
+        job_kwargs={
+            "project_id": project_id,
+            "fpath": fpath,
+            "dir_path": upload_path,
+            "create_metadata": create_metadata
+        }
+    )
 
     return utils.get_polling_url(TASK_STATUS_API_V1.name, task_id)
 
