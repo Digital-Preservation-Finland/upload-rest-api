@@ -32,6 +32,7 @@ Requires:       python3-click
 Requires:       metax-access
 Requires:       archive-helpers
 BuildRequires:  python3-setuptools
+BuildRequires:  python3-setuptools_scm
 BuildRequires:  python3-pytest
 BuildRequires:  python3-mongobox
 BuildRequires:  python3-mock
@@ -61,7 +62,7 @@ usermod -aG %{user_group} %{user_name}
 
 %install
 rm -rf $RPM_BUILD_ROOT
-make install PREFIX="%{_prefix}" DESTDIR="%{buildroot}"
+make install PREFIX="%{_prefix}" DESTDIR="%{buildroot}" SETUPTOOLS_SCM_PRETEND_VERSION=%{file_version}
 mkdir -p %{buildroot}/var/spool/upload
 
 %post
