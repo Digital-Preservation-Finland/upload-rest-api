@@ -34,6 +34,7 @@ Requires:       python3-flask-tus-io
 Requires:       python3-rehash
 Requires:       python36-click
 BuildRequires:  python3-setuptools
+BuildRequires:  python36-setuptools_scm
 BuildRequires:  python36-pytest
 BuildRequires:  python3-mongobox
 BuildRequires:  python36-mock
@@ -62,7 +63,7 @@ usermod -aG %{user_group} %{user_name}
 
 %install
 rm -rf $RPM_BUILD_ROOT
-make install PREFIX="%{_prefix}" DESTDIR="%{buildroot}"
+make install PREFIX="%{_prefix}" DESTDIR="%{buildroot}" SETUPTOOLS_SCM_PRETEND_VERSION=%{file_version}
 mkdir -p %{buildroot}/var/spool/upload
 
 # Rename executable to prevent name collision with Python 2 RPM
