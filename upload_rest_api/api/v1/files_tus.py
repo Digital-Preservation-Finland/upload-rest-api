@@ -1,20 +1,17 @@
 """Event handler for the /files_tus/v1 endpoint."""
 import os
-import uuid
-from pathlib import Path
 
 import flask_tus_io
 import werkzeug
-from flask import Blueprint, abort, current_app, safe_join
+from flask import Blueprint, abort, safe_join
 
-from upload_rest_api import database, upload
 from upload_rest_api.authentication import current_user
 from upload_rest_api.checksum import (HASH_FUNCTION_ALIASES,
                                       calculate_incr_checksum)
 from upload_rest_api.database import Database, Projects
 from upload_rest_api.jobs.utils import METADATA_QUEUE, enqueue_background_job
 from upload_rest_api.lock import lock_manager
-from upload_rest_api.upload import extract_archive, save_file_into_db
+from upload_rest_api.upload import Upload
 from upload_rest_api.utils import parse_relative_user_path
 
 FILES_TUS_API_V1 = Blueprint(
@@ -86,8 +83,8 @@ def _upload_started(workspace, resource):
 
         # Validate the user's quota and content type is not exceeded
         # again.
-        upload.validate_upload(
-            project_id=project_id,
+        upload = Upload(project_id, upload_path)
+        upload.validate(
             content_length=resource.upload_length,
             content_type="application/octet-stream"
         )
@@ -126,8 +123,6 @@ def _upload_started(workspace, resource):
 
 def _save_file(workspace, resource):
     """Save file to the project directory."""
-    db = database.Database()
-
     project_id = resource.upload_metadata["project_id"]
     fpath = resource.upload_metadata["upload_path"]
 
@@ -153,20 +148,15 @@ def _save_file(workspace, resource):
             )
 
             # Validate the user's quota and content type again
-            upload.validate_upload(
-                project_id=project_id,
+            upload = Upload(project_id, upload_path)
+            upload.validate(
                 content_length=resource.upload_length,
                 content_type="application/octet-stream"
             )
 
-            # Ensure the parent directories exist
-            file_path.parent.mkdir(parents=True, exist_ok=True)
-
-            # Upload passed validation, move it to the actual file
-            # storage
-            resource.upload_file_path.rename(file_path)
-            # g+w required for siptools-research
-            os.chmod(file_path, 0o664)
+            # Upload passed validation, move it to temporary storage for
+            # metadata generation
+            resource.upload_file_path.rename(upload.tmp_path)
         finally:
             # Delete the tus-specific workspace regardless of the
             # outcome.
@@ -174,12 +164,7 @@ def _save_file(workspace, resource):
 
         # Use `save_file_into_db` to handle the rest using the same code
         # path as `/v1/files` API
-        save_file_into_db(
-            file_path=file_path,
-            database=db,
-            project_id=project_id,
-            md5=md5_checksum
-        )
+        upload.save_file_into_db(md5=md5_checksum)
 
         # Enqueue background job to create metadata
         enqueue_background_job(
@@ -187,8 +172,9 @@ def _save_file(workspace, resource):
             queue_name=METADATA_QUEUE,
             project_id=project_id,
             job_kwargs={
-                "path": fpath,
                 "project_id": project_id,
+                "tmp_path": upload.tmp_path,
+                "path": fpath,
             }
         )
     except Exception:
@@ -198,8 +184,6 @@ def _save_file(workspace, resource):
 
 def _extract_archive(workspace, resource):
     """Start the extraction job for an uploaded archive."""
-    db = database.Database()
-
     project_id = resource.upload_metadata["project_id"]
     fpath = resource.upload_metadata["upload_path"]
 
@@ -215,8 +199,8 @@ def _extract_archive(workspace, resource):
     try:
         try:
             # Validate the user's quota and content type again
-            upload.validate_upload(
-                project_id=project_id,
+            upload = Upload(project_id, rel_upload_path)
+            upload.validate(
                 content_length=resource.upload_length,
                 content_type="application/octet-stream"
             )
@@ -228,21 +212,15 @@ def _extract_archive(workspace, resource):
 
             # Move the archive to a temporary path to begin the
             # extraction
-            tmp_path = Path(current_app.config.get("UPLOAD_TMP_PATH"))
-            fpath = tmp_path / str(uuid.uuid4())
-            fpath.parent.mkdir(exist_ok=True)
-            resource.upload_file_path.rename(fpath)
+            tmp_path = upload.tmp_path
+            tmp_path.parent.mkdir(exist_ok=True)
+            resource.upload_file_path.rename(tmp_path)
         finally:
             # Delete the tus-specific workspace regardless of the
             # outcome.
             _delete_workspace(workspace)
 
-        extract_archive(
-            database=db,
-            project_id=project_id,
-            fpath=fpath,
-            upload_path=rel_upload_path
-        )
+        upload.extract_archive()
     except Exception:
         lock_manager.release(project_id, upload_path)
         raise

@@ -12,7 +12,7 @@ from flask import Blueprint, abort, current_app, jsonify, request, url_for
 
 import upload_rest_api.database as db
 import upload_rest_api.gen_metadata as md
-import upload_rest_api.upload as up
+from upload_rest_api.upload import Upload
 from upload_rest_api import utils
 from upload_rest_api.api.v1.tasks import TASK_STATUS_API_V1
 from upload_rest_api.authentication import current_user
@@ -50,33 +50,21 @@ def upload_file(project_id, fpath):
     except ValueError:
         abort(404)
 
-    upload_path = db.Projects.get_upload_path(project_id, rel_upload_path)
+    upload = Upload(project_id, rel_upload_path)
+    upload.validate(request.content_length, request.content_type)
+    upload.save_stream(request.stream, request.args.get('md5', None))
+    upload.save_file_into_db(request.args.get('md5', None))
 
-    database = db.Database()
-    lock_manager.acquire(project_id, upload_path)
-    try:
-        up.validate_upload(
-            project_id, request.content_length, request.content_type
-        )
-
-        up.save_file(database,
-                     project_id,
-                     request.stream,
-                     request.args.get('md5', None),
-                     rel_upload_path)
-
-        task_id = enqueue_background_job(
-            task_func="upload_rest_api.jobs.metadata.post_metadata",
-            queue_name=METADATA_QUEUE,
-            project_id=project_id,
-            job_kwargs={
-                "path": fpath,
-                "project_id": project_id
-            }
-        )
-    except Exception:
-        lock_manager.release(project_id, upload_path)
-        raise
+    task_id = enqueue_background_job(
+        task_func="upload_rest_api.jobs.metadata.post_metadata",
+        queue_name=METADATA_QUEUE,
+        project_id=project_id,
+        job_kwargs={
+            "project_id": project_id,
+            "tmp_path": upload.tmp_path,
+            "path": rel_upload_path,
+        }
+    )
 
     polling_url = utils.get_polling_url(TASK_STATUS_API_V1.name, task_id)
     response = jsonify({

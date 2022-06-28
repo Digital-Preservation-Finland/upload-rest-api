@@ -6,6 +6,8 @@ from io import BytesIO
 import pytest
 from flask_tus_io.resource import encode_tus_meta
 
+from upload_rest_api.jobs.utils import get_job_queue
+
 
 def _do_tus_upload(
         test_client, upload_metadata, data, auth,
@@ -349,6 +351,10 @@ def test_upload_file_deep_directory(
         data=data
     )
 
+    # Run metadata generation background job
+    queue = get_job_queue('metadata')
+    queue.run_job(queue.jobs[0])
+
     # Uploaded file was added to database
     files = list(test_mongo.upload.files.find())
     assert len(files) == 1
@@ -388,6 +394,10 @@ def test_upload_file_exceed_quota(test_client, test_auth, database,
         auth=test_auth,
         data=data
     )
+
+    # Run metadata generation background job
+    queue = get_job_queue('metadata')
+    queue.run_job(queue.jobs[0])
 
     # 10 bytes of quota used, the next upload shoud fail
     resp = test_client.post(

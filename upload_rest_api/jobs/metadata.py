@@ -1,5 +1,8 @@
 """Metadata API background jobs."""
 import os.path
+import pathlib
+import shutil
+import uuid
 
 from metax_access import ResourceAlreadyExistsError
 
@@ -11,20 +14,25 @@ from upload_rest_api.lock import ProjectLockManager
 
 
 @api_background_job
-def post_metadata(path, project_id, task_id):
+def post_metadata(project_id, tmp_path, path, task_id):
     """Create file metadata in Metax.
 
     This function creates the metadata in Metax for the file or
     directory denoted by path argument.
 
-    :param str path: relative path to file/directory
     :param str project_id: project identifier
+    :param str tmp_path: path to source file/directory
+    :param str path: target path of file/directory
     :param str task_id: mongo dentifier of the task
     """
-    root_upload_path = CONFIG["UPLOAD_PROJECTS_PATH"]
-
     metax_client = md.MetaxClient()
     database = db.Database()
+
+    # Extract files to temporary path
+    tmp_dir = pathlib.Path(CONFIG["UPLOAD_TMP_PATH"]) / str(uuid.uuid4())
+    (tmp_dir / path).parent.mkdir(parents=True)
+    # TODO: extract tmp_path if it is an archive
+    shutil.move(tmp_path, tmp_dir / path)
 
     fpath = db.Projects.get_upload_path(project_id, path)
     return_path = db.Projects.get_return_path(project_id, fpath)
@@ -34,21 +42,13 @@ def post_metadata(path, project_id, task_id):
     )
 
     try:
-        if os.path.isdir(fpath):
-            # POST metadata of all files under dir fpath
-            fpaths = []
-            for dirpath, _, files in os.walk(fpath):
-                for fname in files:
-                    fpaths.append(os.path.join(dirpath, fname))
-
-        elif os.path.isfile(fpath):
-            fpaths = [fpath]
-
-        else:
-            raise ClientError("File not found")
+        fpaths = []
+        for dirpath, _, files in os.walk(tmp_dir / path):
+            for fname in files:
+                fpaths.append(os.path.join(dirpath, fname))
 
         try:
-            metax_client.post_metadata(fpaths, root_upload_path, project_id)
+            metax_client.post_metadata(fpaths, tmp_dir, project_id)
         except ResourceAlreadyExistsError as error:
             try:
                 failed_files = [file_['object']['file_path']
@@ -57,7 +57,27 @@ def post_metadata(path, project_id, task_id):
                 # Most likely only one file was posted so Metax response
                 # format is different
                 failed_files = [return_path]
-            raise ClientError(error.message, files=failed_files)
+            raise ClientError(error.message, files=failed_files) from error
+
+        # Move file to storage
+        storage_path = db.Projects.get_upload_path(project_id, path)
+        storage_path.parent.mkdir(exist_ok=True, parents=True)
+        shutil.move(tmp_dir / path, storage_path)
+
+        # TODO: Write permission for group is required by packaging
+        # service (see https://jira.ci.csc.fi/browse/TPASPKT-516)
+        os.chmod(storage_path, 0o664)
+
+        # Remove temporary directory
+        for parent in pathlib.Path(path).parents:
+            print(parent)
+            print(tmp_dir / parent)
+            (tmp_dir / parent).rmdir()
+
+        # Update quota
+        database.projects.update_used_quota(
+            project_id, CONFIG["UPLOAD_PROJECTS_PATH"]
+        )
     finally:
         lock_manager = ProjectLockManager()
         lock_manager.release(project_id, fpath)

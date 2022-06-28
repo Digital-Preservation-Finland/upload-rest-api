@@ -170,7 +170,9 @@ class MetaxClient:
                 # Add created identifiers to Mongo
                 if "success" in response and response["success"]:
                     database.store_identifiers(
-                        response["success"], root_upload_path, project
+                        response["success"],
+                        CONFIG["UPLOAD_ROOT_PATH"],
+                        project
                     )
 
                 metadata = []
@@ -182,7 +184,9 @@ class MetaxClient:
             # Add created identifiers to Mongo
             if "success" in response and response["success"]:
                 database.store_identifiers(
-                    response["success"], root_upload_path, project
+                    response["success"],
+                    CONFIG["UPLOAD_ROOT_PATH"],
+                    project
                 )
 
         # Merge all responses into one response

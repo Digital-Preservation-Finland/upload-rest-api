@@ -6,8 +6,7 @@ from archive_helpers.extract import (MemberNameError, MemberOverwriteError,
                                      MemberTypeError)
 from flask import Blueprint, abort, jsonify, request
 
-import upload_rest_api.database as db
-import upload_rest_api.upload as up
+from upload_rest_api.upload import Upload
 from upload_rest_api.utils import parse_relative_user_path
 
 ARCHIVES_API_V1 = Blueprint("archives_v1", __name__, url_prefix="/v1/archives")
@@ -21,11 +20,6 @@ def upload_archive(project_id):
 
     :returns: HTTP Response
     """
-    database = db.Database()
-    up.validate_upload(
-        project_id, request.content_length, request.content_type
-    )
-
     try:
         rel_upload_path = parse_relative_user_path(
             request.args.get('dir', default='').lstrip('/')
@@ -33,14 +27,16 @@ def upload_archive(project_id):
     except ValueError:
         abort(404)
 
+    upload = Upload(project_id, rel_upload_path)
+    upload.validate(request.content_length, request.content_type)
+
     try:
-        polling_url = up.save_archive(
-            database=database,
-            project_id=project_id,
+
+        upload.save_stream(
             stream=request.stream,
             checksum=request.args.get('md5', None),
-            upload_path=rel_upload_path
         )
+        polling_url = upload.extract_archive()
     except (MemberOverwriteError) as error:
         abort(409, str(error))
     except MemberTypeError as error:

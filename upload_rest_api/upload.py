@@ -59,194 +59,159 @@ def _save_stream(fpath, stream, checksum, chunk_size=1024*1024):
             'Checksum of uploaded file does not match provided checksum.'
         )
 
-    os.chmod(fpath, 0o664)
 
+class Upload:
+    """Upload."""
 
-def save_file(database, project_id, stream, checksum, upload_path):
-    """Save the posted file on disk.
+    def __init__(self, project_id, path):
+        """Initialize upload."""
+        self.database = Database()
+        self.project_id = project_id
+        self.path = path
+        self.tmp_path = pathlib.Path(
+            current_app.config.get("UPLOAD_TMP_PATH")
+        ) / str(uuid.uuid4())
 
-    :param database: Database object
-    :param project_id: Project identifier
-    :param stream: HTTP request stream
-    :param checksum: MD5 checksum of file, or ``None`` if unknown
-    :param upload_path: Upload path, relative to project directory
-    :returns: MD5 checksum for file (generated from file)
-    """
-    file_path = Projects.get_project_directory(project_id) / upload_path
+    @property
+    def file_path(self):
+        """Absolute physical path of upload."""
+        return Projects.get_project_directory(self.project_id) / self.path
 
-    # Write the file if it does not exist already
-    if file_path.exists():
-        raise werkzeug.exceptions.Conflict("File already exists")
+    def save_stream(self, stream, checksum):
+        """Save archive on disk and enqueue extraction job.
 
-    file_path.parent.mkdir(parents=True, exist_ok=True)
-    _save_stream(file_path, stream, checksum)
+        Archive is saved to file by reading the upload stream in 1MB
+        chunks. Archive file is extracted and it is ensured that no
+        symlinks are created.
 
-    md5 = save_file_into_db(
-        file_path=file_path,
-        database=database,
-        project_id=project_id,
-        md5=checksum
-    )
+        :param stream: HTTP request stream
+        :param checksum: MD5 checksum of file, or ``None`` if unknown
+        :returns: Url of archive extraction task
+        """
+        lock_manager = ProjectLockManager()
+        lock_manager.acquire(self.project_id, self.file_path)
+        project_dir = Projects.get_project_directory(self.project_id)
+        try:
+            if self.file_path.is_dir() and \
+                    not self.file_path.samefile(project_dir):
+                raise werkzeug.exceptions.Conflict(
+                    f"Directory '{self.path}' already exists"
+                )
 
-    return md5
+            if self.file_path.is_file() and self.file_path.exists():
+                raise werkzeug.exceptions.Conflict("File already exists")
 
+            # Save stream to temporary file
+            self.tmp_path.parent.mkdir(exist_ok=True)
+            _save_stream(self.tmp_path, stream, checksum)
 
-def save_file_into_db(file_path, database, project_id, md5=None):
-    """Save the file metadata into the database.
+        except Exception:
+            lock_manager.release(self.project_id, self.file_path)
+            raise
 
-    This assumes the file has been placed into its final location.
+    def save_file_into_db(self, md5=None):
+        """Save the file metadata into the database.
 
-    :param str file_path: Path to the file
-    :param database: upload_rest_api database instance
-    :param project_id: Project identifier
-    :param str md5: Optional precomputed MD5 checksum. If not provided,
-                    the checksum will be calculated.
+        This assumes the file has been placed into its final location.
 
-    :returns: MD5 checksum of the file
-    :rtype: str
-    """
-    if not md5:
-        md5 = get_file_checksum(algorithm="md5", path=file_path)
+        :param str md5: Optional precomputed MD5 checksum. If not
+                        provided, the checksum will be calculated.
 
-    # Add file checksum to mongo
-    database.files.insert_one(str(file_path.resolve()), md5)
+        :returns: MD5 checksum of the file
+        :rtype: str
+        """
+        if not md5:
+            md5 = get_file_checksum(algorithm="md5", path=self.tmp_path)
 
-    # Update quota
-    database.projects.update_used_quota(
-        project_id, current_app.config.get("UPLOAD_PROJECTS_PATH")
-    )
+        # Add file checksum to mongo
+        self.database.files.insert_one(str(self.file_path.resolve()), md5)
 
-    return md5
+        return md5
 
+    def extract_archive(self):
+        """Enqueue extraction job for an existing archive file on disk.
 
-def save_archive(database, project_id, stream, checksum, upload_path):
-    """Save archive on disk and enqueue extraction job.
+        Archive file is extracted and it is ensured that no symlinks
+        are created. The original archive will be deleted upon
+        completion.
 
-    Archive is saved to file by reading the upload stream in 1MB
-    chunks. Archive file is extracted and it is ensured that no symlinks
-    are created.
+        :returns: Url of archive extraction task
+        """
+        try:
+            # Ensure that arhive is supported format
+            if not (zipfile.is_zipfile(self.tmp_path)
+                    or tarfile.is_tarfile(self.tmp_path)):
+                os.remove(self.tmp_path)
+                raise werkzeug.exceptions.BadRequest(
+                    "Uploaded file is not a supported archive"
+                )
 
-    :param database: Database instance
-    :param project_id: Project identifier
-    :param stream: HTTP request stream
-    :param checksum: MD5 checksum of file, or ``None`` if unknown
-    :param upload_path: upload directory, relative to project directory
-    :returns: Url of archive extraction task
-    """
-    project_dir = Projects.get_project_directory(project_id)
-    dir_path = project_dir / upload_path
+            # Ensure that the project has enough quota available
+            project = self.database.projects.get(self.project_id)
+            extracted_size = _extracted_size(self.tmp_path)
+            if project['quota'] - project['used_quota'] - extracted_size < 0:
+                # Remove the archive and raise an exception
+                os.remove(self.tmp_path)
+                raise werkzeug.exceptions.RequestEntityTooLarge(
+                    "Quota exceeded"
+                )
 
-    lock_manager = ProjectLockManager()
-    lock_manager.acquire(project_id, dir_path)
-    try:
-        if dir_path.is_dir() and not dir_path.samefile(project_dir):
-            raise werkzeug.exceptions.Conflict(
-                f"Directory '{upload_path}' already exists"
+            # Update used quota
+            self.database.projects.set_used_quota(
+                self.project_id, project['used_quota'] + extracted_size
             )
 
-        # Save stream to temporary file
-        tmp_path = pathlib.Path(current_app.config.get("UPLOAD_TMP_PATH"))
-        fpath = tmp_path / str(uuid.uuid4())
-        fpath.parent.mkdir(exist_ok=True)
-        _save_stream(fpath, stream, checksum)
+            task_id = enqueue_background_job(
+                task_func="upload_rest_api.jobs.upload.extract_task",
+                queue_name=UPLOAD_QUEUE,
+                project_id=self.project_id,
+                job_kwargs={
+                    "project_id": self.project_id,
+                    "fpath": self.tmp_path,
+                    "dir_path": self.path,
+                }
+            )
 
-        return extract_archive(
-            database=database,
-            project_id=project_id,
-            fpath=fpath,
-            upload_path=upload_path
+            return utils.get_polling_url(TASK_STATUS_API_V1.name, task_id)
+        except Exception:
+            lock_manager = ProjectLockManager()
+            lock_manager.release(self.project_id, self.file_path)
+            raise
+
+    def validate(self, content_length, content_type):
+        """Validate the upload request.
+
+        Raises error if upload request is not valid.
+
+        :param content_length: Content length of HTTP request
+        :param content_type: Content type of HTTP request
+        :returns: `None`
+        """
+        # Check that Content-Length header is provided and uploaded file
+        # is not too large
+        if content_length is None:
+            raise werkzeug.exceptions.LengthRequired(
+                "Missing Content-Length header"
+            )
+        if content_length > current_app.config.get("MAX_CONTENT_LENGTH"):
+            raise werkzeug.exceptions.RequestEntityTooLarge(
+                "Max single file size exceeded"
+            )
+
+        # Check whether the request exceeds users quota. Update used
+        # quota first, since multiple users might be using the same
+        # project
+        database = Database()
+        database.projects.update_used_quota(
+            self.project_id, current_app.config.get("UPLOAD_PROJECTS_PATH")
         )
-    except Exception:
-        lock_manager.release(project_id, dir_path)
-        raise
+        project = database.projects.get(self.project_id)
+        remaining_quota = project["quota"] - project["used_quota"]
+        if remaining_quota - content_length < 0:
+            raise werkzeug.exceptions.RequestEntityTooLarge("Quota exceeded")
 
-
-def extract_archive(database, project_id, fpath, upload_path):
-    """Enqueue extraction job for an existing archive file on disk.
-
-    Archive file is extracted and it is ensured that no symlinks
-    are created. The original archive will be deleted upon completion.
-
-    :param database: Database instance
-    :param project_id: Project identifier
-    :param fpath: archive file path
-    :param upload_path: upload directory where archive contents will be
-                        extracted, relative to project directory
-    :param bool create_metadata: Launch Metax metadata generation
-                                 background job after extraction is
-                                 complete. Default is False.
-    :returns: Url of archive extraction task
-    """
-    # Ensure that arhive is supported format
-    if not (zipfile.is_zipfile(fpath) or tarfile.is_tarfile(fpath)):
-        os.remove(fpath)
-        raise werkzeug.exceptions.BadRequest(
-            "Uploaded file is not a supported archive"
-        )
-
-    # Ensure that the project has enough quota available
-    project = database.projects.get(project_id)
-    extracted_size = _extracted_size(fpath)
-    if project['quota'] - project['used_quota'] - extracted_size < 0:
-        # Remove the archive and raise an exception
-        os.remove(fpath)
-        raise werkzeug.exceptions.RequestEntityTooLarge(
-            "Quota exceeded"
-        )
-
-    # Update used quota
-    database.projects.set_used_quota(
-        project_id, project['used_quota'] + extracted_size
-    )
-
-    task_id = enqueue_background_job(
-        task_func="upload_rest_api.jobs.upload.extract_task",
-        queue_name=UPLOAD_QUEUE,
-        project_id=project_id,
-        job_kwargs={
-            "project_id": project_id,
-            "fpath": fpath,
-            "dir_path": upload_path,
-        }
-    )
-
-    return utils.get_polling_url(TASK_STATUS_API_V1.name, task_id)
-
-
-def validate_upload(project_id, content_length, content_type):
-    """Validate the upload request.
-
-    Raises error if upload request is not valid.
-
-    :param project_id: Project identifier
-    :param content_length: Content length of HTTP request
-    :param content_type: Content type of HTTP request
-    :returns: `None`
-    """
-    # Check that Content-Length header is provided and uploaded file is
-    # not too large
-    if content_length is None:
-        raise werkzeug.exceptions.LengthRequired(
-            "Missing Content-Length header"
-        )
-    if content_length > current_app.config.get("MAX_CONTENT_LENGTH"):
-        raise werkzeug.exceptions.RequestEntityTooLarge(
-            "Max single file size exceeded"
-        )
-
-    # Check whether the request exceeds users quota. Update used quota
-    # first, since multiple users might be using the same project
-    database = Database()
-    database.projects.update_used_quota(
-        project_id, current_app.config.get("UPLOAD_PROJECTS_PATH")
-    )
-    project = database.projects.get(project_id)
-    remaining_quota = project["quota"] - project["used_quota"]
-    if remaining_quota - content_length < 0:
-        raise werkzeug.exceptions.RequestEntityTooLarge("Quota exceeded")
-
-    # Check that Content-Type is supported if the header is provided
-    if content_type and content_type not in SUPPORTED_TYPES:
-        raise werkzeug.exceptions.UnsupportedMediaType(
-            f"Unsupported Content-Type: {content_type}"
-        )
+        # Check that Content-Type is supported if the header is provided
+        if content_type and content_type not in SUPPORTED_TYPES:
+            raise werkzeug.exceptions.UnsupportedMediaType(
+                f"Unsupported Content-Type: {content_type}"
+            )

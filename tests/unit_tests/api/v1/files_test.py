@@ -47,8 +47,12 @@ def test_incorrect_authentication(app, wrong_auth):
         "tämä on testi.txt"
     ]
 )
-def test_upload(app, test_auth, test_mongo, name, mock_redis):
+def test_upload(app, test_auth, test_mongo, name, background_job_runner,
+                requests_mock):
     """Test uploading a plain text file."""
+    # Mock metax
+    requests_mock.post('/rest/v2/files/', json={})
+
     test_client = app.test_client()
     upload_path = app.config.get("UPLOAD_PROJECTS_PATH")
     files = test_mongo.upload.files
@@ -62,7 +66,10 @@ def test_upload(app, test_auth, test_mongo, name, mock_redis):
     assert response.json['file_path'] == f'/{name}'
     assert response.json['message'] == 'Creating metadata'
 
+    # File should be available after metadata has been created
     fpath = pathlib.Path(upload_path, "test_project", name)
+    assert not fpath.exists()
+    background_job_runner(test_client, 'metadata', response)
     assert fpath.is_file()
     assert fpath.read_bytes() \
         == pathlib.Path("tests/data/test.txt").read_bytes()
@@ -85,9 +92,6 @@ def test_upload(app, test_auth, test_mongo, name, mock_redis):
         test_auth, "tests/data/test.txt"
     )
     assert response.status_code == 409
-
-    # Release lock of unfinished metadata generation job
-    mock_redis.flushall()
 
 
 def test_upload_max_size(app, test_auth):

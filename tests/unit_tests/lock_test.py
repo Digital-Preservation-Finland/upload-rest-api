@@ -67,10 +67,12 @@ def test_lock_response(test_auth, test_client, mock_redis):
 
     assert response.status_code == 202
 
-    # Try to delete the file before metadata generation has finished.
-    # This will be blocked.
-    response = test_client.delete(
-        "/v1/files/test_project/foo", headers=test_auth
+    # Try to upload another file to same location before metadata
+    # generation has finished. This will be blocked.
+    response = test_client.post(
+        "/v1/files/test_project/foo",
+        data='foo',
+        headers=test_auth
     )
 
     assert response.status_code == 409  # Conflict
