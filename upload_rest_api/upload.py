@@ -112,8 +112,6 @@ class Upload:
     def save_file_into_db(self, md5=None):
         """Save the file metadata into the database.
 
-        This assumes the file has been placed into its final location.
-
         :param str md5: Optional precomputed MD5 checksum. If not
                         provided, the checksum will be calculated.
 
@@ -128,12 +126,11 @@ class Upload:
 
         return md5
 
-    def extract_archive(self):
-        """Enqueue extraction job for an existing archive file on disk.
+    def validate_archive(self):
+        """Validate archive.
 
-        Archive file is extracted and it is ensured that no symlinks
-        are created. The original archive will be deleted upon
-        completion.
+        Check that archive is supported format and that the project has
+        enough quota.
 
         :returns: Url of archive extraction task
         """
@@ -160,9 +157,46 @@ class Upload:
             self.database.projects.set_used_quota(
                 self.project_id, project['used_quota'] + extracted_size
             )
+        except Exception:
+            lock_manager = ProjectLockManager()
+            lock_manager.release(self.project_id, self.file_path)
+            raise
 
+    def store_file(self):
+        """Enqueue metadata craetion task for a file.
+
+        :returns: Url of archive extraction task
+        """
+        try:
             task_id = enqueue_background_job(
-                task_func="upload_rest_api.jobs.upload.extract_task",
+                task_func="upload_rest_api.jobs.upload.store_file",
+                queue_name=UPLOAD_QUEUE,
+                project_id=self.project_id,
+                job_kwargs={
+                    "project_id": self.project_id,
+                    "tmp_path": self.tmp_path,
+                    "path": self.path,
+                }
+            )
+
+            return utils.get_polling_url(TASK_STATUS_API_V1.name, task_id)
+        except Exception:
+            lock_manager = ProjectLockManager()
+            lock_manager.release(self.project_id, self.file_path)
+            raise
+
+    def store_archive(self):
+        """Enqueue extraction job for an existing archive file on disk.
+
+        Archive file is extracted and it is ensured that no symlinks
+        are created. The original archive will be deleted upon
+        completion.
+
+        :returns: Url of archive extraction task
+        """
+        try:
+            task_id = enqueue_background_job(
+                task_func="upload_rest_api.jobs.upload.store_archive",
                 queue_name=UPLOAD_QUEUE,
                 project_id=self.project_id,
                 job_kwargs={

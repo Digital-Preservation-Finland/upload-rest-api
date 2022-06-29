@@ -7,10 +7,8 @@ import upload_rest_api.database as db
 from upload_rest_api.config import CONFIG
 
 FILES_QUEUE = "files"
-METADATA_QUEUE = "metadata"
 UPLOAD_QUEUE = "upload"
-
-JOB_QUEUE_NAMES = (FILES_QUEUE, METADATA_QUEUE, UPLOAD_QUEUE)
+JOB_QUEUE_NAMES = (FILES_QUEUE, UPLOAD_QUEUE)
 
 # Maximum execution time for a job
 DEFAULT_JOB_TIMEOUT = 12 * 60 * 60  # 12 hours

@@ -1,6 +1,4 @@
 """Event handler for the /files_tus/v1 endpoint."""
-import os
-
 import flask_tus_io
 import werkzeug
 from flask import Blueprint, abort, safe_join
@@ -9,7 +7,6 @@ from upload_rest_api.authentication import current_user
 from upload_rest_api.checksum import (HASH_FUNCTION_ALIASES,
                                       calculate_incr_checksum)
 from upload_rest_api.database import Database, Projects
-from upload_rest_api.jobs.utils import METADATA_QUEUE, enqueue_background_job
 from upload_rest_api.lock import lock_manager
 from upload_rest_api.upload import Upload
 from upload_rest_api.utils import parse_relative_user_path
@@ -165,18 +162,7 @@ def _save_file(workspace, resource):
         # Use `save_file_into_db` to handle the rest using the same code
         # path as `/v1/files` API
         upload.save_file_into_db(md5=md5_checksum)
-
-        # Enqueue background job to create metadata
-        enqueue_background_job(
-            task_func="upload_rest_api.jobs.metadata.post_metadata",
-            queue_name=METADATA_QUEUE,
-            project_id=project_id,
-            job_kwargs={
-                "project_id": project_id,
-                "tmp_path": upload.tmp_path,
-                "path": fpath,
-            }
-        )
+        upload.store_file()
     except Exception:
         lock_manager.release(project_id, file_path)
         raise
@@ -220,7 +206,8 @@ def _extract_archive(workspace, resource):
             # outcome.
             _delete_workspace(workspace)
 
-        upload.extract_archive()
+        upload.validate_archive()
+        upload.store_archive()
     except Exception:
         lock_manager.release(project_id, upload_path)
         raise

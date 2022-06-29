@@ -16,8 +16,7 @@ from upload_rest_api.upload import Upload
 from upload_rest_api import utils
 from upload_rest_api.api.v1.tasks import TASK_STATUS_API_V1
 from upload_rest_api.authentication import current_user
-from upload_rest_api.jobs.utils import (FILES_QUEUE, METADATA_QUEUE,
-                                        enqueue_background_job)
+from upload_rest_api.jobs.utils import FILES_QUEUE, enqueue_background_job
 from upload_rest_api.lock import lock_manager
 
 FILES_API_V1 = Blueprint("files_v1", __name__, url_prefix="/v1/files")
@@ -54,28 +53,15 @@ def upload_file(project_id, fpath):
     upload.validate(request.content_length, request.content_type)
     upload.save_stream(request.stream, request.args.get('md5', None))
     upload.save_file_into_db(request.args.get('md5', None))
+    polling_url = upload.store_file()
 
-    task_id = enqueue_background_job(
-        task_func="upload_rest_api.jobs.metadata.post_metadata",
-        queue_name=METADATA_QUEUE,
-        project_id=project_id,
-        job_kwargs={
-            "project_id": project_id,
-            "tmp_path": upload.tmp_path,
-            "path": rel_upload_path,
-        }
-    )
-
-    polling_url = utils.get_polling_url(TASK_STATUS_API_V1.name, task_id)
     response = jsonify({
         "file_path": f"/{rel_upload_path}",
         "message": "Creating metadata",
         "polling_url": polling_url,
         "status": "pending"
     })
-    location = url_for(TASK_STATUS_API_V1.name + ".task_status",
-                       task_id=task_id)
-    response.headers[b'Location'] = location
+    response.headers[b'Location'] = polling_url
     response.status_code = 202
 
     return response

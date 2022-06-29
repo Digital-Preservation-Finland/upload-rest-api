@@ -69,7 +69,7 @@ def test_upload(app, test_auth, test_mongo, name, background_job_runner,
     # File should be available after metadata has been created
     fpath = pathlib.Path(upload_path, "test_project", name)
     assert not fpath.exists()
-    background_job_runner(test_client, 'metadata', response)
+    background_job_runner(test_client, 'upload', response)
     assert fpath.is_file()
     assert fpath.read_bytes() \
         == pathlib.Path("tests/data/test.txt").read_bytes()
@@ -149,12 +149,12 @@ def test_used_quota(app, database, test_auth, requests_mock,
         test_client, "/v1/files/test_project/test1",
         test_auth, "tests/data/test.txt"
     )
-    background_job_runner(test_client, 'metadata', response)
+    background_job_runner(test_client, 'upload', response)
     response = _upload_file(
         test_client, "/v1/files/test_project/test2",
         test_auth, "tests/data/test.txt"
     )
-    background_job_runner(test_client, 'metadata', response)
+    background_job_runner(test_client, 'upload', response)
 
     used_quota = database.projects.get("test_project")["used_quota"]
     assert used_quota == 62
@@ -511,13 +511,13 @@ def test_delete_directory(
                             '/v1/files/test_project/test.txt',
                             test_auth,
                             'tests/data/test.txt')
-    background_job_runner(test_client, 'metadata', response)
+    background_job_runner(test_client, 'upload', response)
 
     response = _upload_file(test_client,
                             '/v1/files/test_project/test/test.txt',
                             test_auth,
                             'tests/data/test.txt')
-    background_job_runner(test_client, 'metadata', response)
+    background_job_runner(test_client, 'upload', response)
 
     # Find the target files
     project_directory \

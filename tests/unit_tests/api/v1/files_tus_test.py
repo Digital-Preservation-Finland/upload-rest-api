@@ -96,7 +96,7 @@ def test_upload_file(test_client, app, test_auth, test_mongo, name,
     tasks = list(test_mongo.upload.tasks.find())
     assert len(tasks) == 1
     task_id = str(tasks[0]["_id"])
-    background_job_runner(test_client, "metadata", task_id=task_id)
+    background_job_runner(test_client, "upload", task_id=task_id)
 
     # Uploaded file was added to database
     files = list(test_mongo.upload.files.find())
@@ -177,7 +177,7 @@ def test_upload_file_checksum(test_client, test_auth, test_mongo,
     tasks = list(test_mongo.upload.tasks.find())
     assert len(tasks) == 1
     task_id = str(tasks[0]["_id"])
-    background_job_runner(test_client, "metadata", task_id=task_id)
+    background_job_runner(test_client, "upload", task_id=task_id)
 
     # Try again with incorrect checksum
     upload_metadata["upload_path"] = "test2.txt"
@@ -352,7 +352,7 @@ def test_upload_file_deep_directory(
     )
 
     # Run metadata generation background job
-    queue = get_job_queue('metadata')
+    queue = get_job_queue('upload')
     queue.run_job(queue.jobs[0])
 
     # Uploaded file was added to database
@@ -396,7 +396,7 @@ def test_upload_file_exceed_quota(test_client, test_auth, database,
     )
 
     # Run metadata generation background job
-    queue = get_job_queue('metadata')
+    queue = get_job_queue('upload')
     queue.run_job(queue.jobs[0])
 
     # 10 bytes of quota used, the next upload shoud fail
