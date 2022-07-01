@@ -48,21 +48,22 @@ def get_metax_path(fpath, root_upload_path):
 def _generate_metadata(fpath, root_upload_path, project, checksums):
     """Generate metadata in json format."""
     timestamp = iso8601_timestamp(fpath)
-    file_path = get_metax_path(pathlib.Path(fpath), root_upload_path)
+    file_path = pathlib.Path(fpath).relative_to(root_upload_path)
+    checksum_path = db.Projects.get_project_directory(project) / file_path
 
     metadata = {
         "identifier": str(uuid4().urn),
         "file_name": str(os.path.split(fpath)[1]),
         "file_format": _get_mimetype(fpath),
         "byte_size": os.stat(fpath).st_size,
-        "file_path": file_path,
+        "file_path": str(file_path),
         "project_identifier": project,
         "file_uploaded": timestamp,
         "file_modified": timestamp,
         "file_frozen": timestamp,
         "checksum": {
             "algorithm": "MD5",
-            "value": checksums[os.path.abspath(fpath)],
+            "value": checksums[str(checksum_path)],
             "checked": _timestamp_now()
         },
         "file_storage": CONFIG["STORAGE_ID"]

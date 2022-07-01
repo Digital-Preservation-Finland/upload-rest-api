@@ -200,7 +200,9 @@ def test_upload_file_checksum(test_client, test_auth, test_mongo,
 
 @pytest.mark.usefixtures("project")
 def test_upload_file_checksum_iterative(
-        app, test_client, test_auth, test_mongo, mock_redis):
+        app, test_client, test_auth, test_mongo, mock_redis,
+        background_job_runner
+):
     """
     Test uploading a file in multiple parts and ensure the checksum
     is calculated correctly
@@ -256,6 +258,12 @@ def test_upload_file_checksum_iterative(
         )
 
         assert resp.status_code == 204
+
+    # Run metadata generation task
+    tasks = list(test_mongo.upload.tasks.find())
+    assert len(tasks) == 1
+    task_id = str(tasks[0]["_id"])
+    background_job_runner(test_client, "upload", task_id=task_id)
 
     upload_path = pathlib.Path(app.config.get("UPLOAD_PROJECTS_PATH"))
     assert test_mongo.upload.files.find_one(

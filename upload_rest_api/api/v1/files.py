@@ -52,7 +52,6 @@ def upload_file(project_id, fpath):
     upload = Upload(project_id, rel_upload_path)
     upload.validate(request.content_length, request.content_type)
     upload.save_stream(request.stream, request.args.get('md5', None))
-    upload.save_file_into_db(request.args.get('md5', None))
     polling_url = upload.store_file()
 
     response = jsonify({

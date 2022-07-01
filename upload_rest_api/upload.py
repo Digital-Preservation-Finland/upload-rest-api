@@ -109,23 +109,6 @@ class Upload:
             lock_manager.release(self.project_id, self.file_path)
             raise
 
-    def save_file_into_db(self, md5=None):
-        """Save the file metadata into the database.
-
-        :param str md5: Optional precomputed MD5 checksum. If not
-                        provided, the checksum will be calculated.
-
-        :returns: MD5 checksum of the file
-        :rtype: str
-        """
-        if not md5:
-            md5 = get_file_checksum(algorithm="md5", path=self.tmp_path)
-
-        # Add file checksum to mongo
-        self.database.files.insert_one(str(self.file_path.resolve()), md5)
-
-        return md5
-
     def validate_archive(self):
         """Validate archive.
 
@@ -196,13 +179,14 @@ class Upload:
         """
         try:
             task_id = enqueue_background_job(
-                task_func="upload_rest_api.jobs.upload.store_archive",
+                task_func="upload_rest_api.jobs.upload.store_file",
                 queue_name=UPLOAD_QUEUE,
                 project_id=self.project_id,
                 job_kwargs={
                     "project_id": self.project_id,
-                    "fpath": self.tmp_path,
-                    "dir_path": self.path,
+                    "tmp_path": self.tmp_path,
+                    "path": self.path,
+                    "file_type": 'archive'
                 }
             )
 

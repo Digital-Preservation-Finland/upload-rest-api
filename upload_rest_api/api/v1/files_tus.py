@@ -135,15 +135,6 @@ def _save_file(workspace, resource):
 
     try:
         try:
-            # Retrieve the MD5 checksum we already calculated
-            # incrementally to skip the expensive checksum calculation
-            # for the entire file
-            md5_checksum = calculate_incr_checksum(
-                algorithm="md5",
-                path=resource.upload_file_path,
-                finalize=True
-            )
-
             # Validate the user's quota and content type again
             upload = Upload(project_id, upload_path)
             upload.validate(
@@ -159,9 +150,6 @@ def _save_file(workspace, resource):
             # outcome.
             _delete_workspace(workspace)
 
-        # Use `save_file_into_db` to handle the rest using the same code
-        # path as `/v1/files` API
-        upload.save_file_into_db(md5=md5_checksum)
         upload.store_file()
     except Exception:
         lock_manager.release(project_id, file_path)

@@ -1,5 +1,4 @@
 """Unit tests for metadata generation."""
-import os
 import pathlib
 
 import pytest
@@ -29,28 +28,25 @@ def test_mimetype():
     assert md._get_mimetype("tests/data/test.zip") == "application/zip"
 
 
-def test_gen_metadata(monkeypatch, mock_config):
+def test_gen_metadata(mock_config):
     """Test that _generate_metadata() produces the correct metadata."""
-    fpath = os.path.abspath("tests/data/test.txt")
-
-    monkeypatch.setattr(
-        db.Files, "get_path_checksum_dict",
-        lambda self: {
-            fpath: "150b62e4e7d58c70503bd5fc8a26463c"
-        }
-    )
+    project = 'project1'
     metadata = md._generate_metadata(
         "tests/data/test.txt",
-        "tests", "data",
-        db.Database().files.get_path_checksum_dict()
+        "tests",
+        project,
+        {
+            str(db.Projects.get_project_directory(project) / 'data/test.txt'):
+            "150b62e4e7d58c70503bd5fc8a26463c"
+        }
     )
 
     assert len(metadata["identifier"]) == 45
     assert metadata["file_name"] == "test.txt"
     assert metadata["file_format"] == "text/plain"
     assert metadata["byte_size"] == 31
-    assert metadata["file_path"] == "/test.txt"
-    assert metadata["project_identifier"] == "data"
+    assert metadata["file_path"] == "data/test.txt"
+    assert metadata["project_identifier"] == project
     assert "file_uploaded" in metadata
     assert "file_modified" in metadata
     assert "file_frozen" in metadata
