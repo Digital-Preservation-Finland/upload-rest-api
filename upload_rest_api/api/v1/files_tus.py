@@ -150,7 +150,7 @@ def _save_file(workspace, resource):
             # outcome.
             _delete_workspace(workspace)
 
-        upload.store_file()
+        upload.store(file_type='file')
     except Exception:
         lock_manager.release(project_id, file_path)
         raise
@@ -195,7 +195,7 @@ def _extract_archive(workspace, resource):
             _delete_workspace(workspace)
 
         upload.validate_archive()
-        upload.store_archive()
+        upload.store(file_type='archive')
     except Exception:
         lock_manager.release(project_id, upload_path)
         raise

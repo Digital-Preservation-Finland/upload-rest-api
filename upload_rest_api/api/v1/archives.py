@@ -37,7 +37,7 @@ def upload_archive(project_id):
             checksum=request.args.get('md5', None),
         )
         upload.validate_archive()
-        polling_url = upload.store_archive()
+        polling_url = upload.store(file_type='archive')
     except (MemberOverwriteError) as error:
         abort(409, str(error))
     except MemberTypeError as error:

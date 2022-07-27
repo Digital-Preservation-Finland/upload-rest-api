@@ -32,34 +32,6 @@ def _extracted_size(archive_path):
     return size
 
 
-def _save_stream(fpath, stream, checksum, chunk_size=1024*1024):
-    """Save the file from request stream.
-
-    Request content is saved to file by reading the stream in chunks of
-    chunk_size bytes. If checksum is provided, MD5 sum of file is
-    compared to provided MD5 sum. Raises error if checksums do not
-    match.
-
-    :param fpath: file path
-    :param stream: HTTP request stream
-    :param checksum: MD5 checksum of file
-    :returns: ``None``
-    """
-    with open(fpath, "wb") as f_out:
-        while True:
-            chunk = stream.read(chunk_size)
-            if chunk == b'':
-                break
-            f_out.write(chunk)
-
-    # Verify integrity of uploaded file if checksum was provided
-    if checksum and checksum != get_file_checksum("md5", fpath):
-        os.remove(fpath)
-        raise werkzeug.exceptions.BadRequest(
-            'Checksum of uploaded file does not match provided checksum.'
-        )
-
-
 class Upload:
     """Upload."""
 
@@ -78,15 +50,15 @@ class Upload:
         return Projects.get_project_directory(self.project_id) / self.path
 
     def save_stream(self, stream, checksum):
-        """Save archive on disk and enqueue extraction job.
+        """Save the file from stream and verify checksum.
 
-        Archive is saved to file by reading the upload stream in 1MB
-        chunks. Archive file is extracted and it is ensured that no
-        symlinks are created.
+        Save stream to file. If checksum is provided, MD5 sum of file is
+        compared to provided MD5 sum. Raises error if checksums do not
+        match.
 
-        :param stream: HTTP request stream
+        :param stream: File stream
         :param checksum: MD5 checksum of file, or ``None`` if unknown
-        :returns: Url of archive extraction task
+        :returns: ``None``
         """
         lock_manager = ProjectLockManager()
         lock_manager.acquire(self.project_id, self.file_path)
@@ -101,52 +73,30 @@ class Upload:
             if self.file_path.is_file() and self.file_path.exists():
                 raise werkzeug.exceptions.Conflict("File already exists")
 
-            # Save stream to temporary file
+            # Save stream to temporary file in 1MB chunks
             self.tmp_path.parent.mkdir(exist_ok=True)
-            _save_stream(self.tmp_path, stream, checksum)
+            with open(self.tmp_path, "wb") as tmp_file:
+                while True:
+                    chunk = stream.read(1024*1024)
+                    if chunk == b'':
+                        break
+                    tmp_file.write(chunk)
 
-        except Exception:
-            lock_manager.release(self.project_id, self.file_path)
-            raise
-
-    def validate_archive(self):
-        """Validate archive.
-
-        Check that archive is supported format and that the project has
-        enough quota.
-
-        :returns: Url of archive extraction task
-        """
-        try:
-            # Ensure that arhive is supported format
-            if not (zipfile.is_zipfile(self.tmp_path)
-                    or tarfile.is_tarfile(self.tmp_path)):
+            # Verify integrity of uploaded file if checksum was provided
+            if checksum \
+                    and checksum != get_file_checksum("md5", self.tmp_path):
                 os.remove(self.tmp_path)
                 raise werkzeug.exceptions.BadRequest(
-                    "Uploaded file is not a supported archive"
+                    'Checksum of uploaded file does not match provided '
+                    'checksum.'
                 )
 
-            # Ensure that the project has enough quota available
-            project = self.database.projects.get(self.project_id)
-            extracted_size = _extracted_size(self.tmp_path)
-            if project['quota'] - project['used_quota'] - extracted_size < 0:
-                # Remove the archive and raise an exception
-                os.remove(self.tmp_path)
-                raise werkzeug.exceptions.RequestEntityTooLarge(
-                    "Quota exceeded"
-                )
-
-            # Update used quota
-            self.database.projects.set_used_quota(
-                self.project_id, project['used_quota'] + extracted_size
-            )
         except Exception:
-            lock_manager = ProjectLockManager()
             lock_manager.release(self.project_id, self.file_path)
             raise
 
-    def store_file(self):
-        """Enqueue metadata craetion task for a file.
+    def store(self, file_type="file"):
+        """Enqueue store task for upload.
 
         :returns: Url of archive extraction task
         """
@@ -159,34 +109,7 @@ class Upload:
                     "project_id": self.project_id,
                     "tmp_path": self.tmp_path,
                     "path": self.path,
-                }
-            )
-
-            return utils.get_polling_url(TASK_STATUS_API_V1.name, task_id)
-        except Exception:
-            lock_manager = ProjectLockManager()
-            lock_manager.release(self.project_id, self.file_path)
-            raise
-
-    def store_archive(self):
-        """Enqueue extraction job for an existing archive file on disk.
-
-        Archive file is extracted and it is ensured that no symlinks
-        are created. The original archive will be deleted upon
-        completion.
-
-        :returns: Url of archive extraction task
-        """
-        try:
-            task_id = enqueue_background_job(
-                task_func="upload_rest_api.jobs.upload.store_file",
-                queue_name=UPLOAD_QUEUE,
-                project_id=self.project_id,
-                job_kwargs={
-                    "project_id": self.project_id,
-                    "tmp_path": self.tmp_path,
-                    "path": self.path,
-                    "file_type": 'archive'
+                    "file_type": file_type
                 }
             )
 
@@ -197,9 +120,9 @@ class Upload:
             raise
 
     def validate(self, content_length, content_type):
-        """Validate the upload request.
+        """Validate the upload.
 
-        Raises error if upload request is not valid.
+        Raises error if upload is not valid.
 
         :param content_length: Content length of HTTP request
         :param content_type: Content type of HTTP request
@@ -233,3 +156,37 @@ class Upload:
             raise werkzeug.exceptions.UnsupportedMediaType(
                 f"Unsupported Content-Type: {content_type}"
             )
+
+    def validate_archive(self):
+        """Validate archive.
+
+        Check that archive is supported format and that the project has
+        enough quota.
+        """
+        try:
+            # Ensure that arhive is supported format
+            if not (zipfile.is_zipfile(self.tmp_path)
+                    or tarfile.is_tarfile(self.tmp_path)):
+                os.remove(self.tmp_path)
+                raise werkzeug.exceptions.BadRequest(
+                    "Uploaded file is not a supported archive"
+                )
+
+            # Ensure that the project has enough quota available
+            project = self.database.projects.get(self.project_id)
+            extracted_size = _extracted_size(self.tmp_path)
+            if project['quota'] - project['used_quota'] - extracted_size < 0:
+                # Remove the archive and raise an exception
+                os.remove(self.tmp_path)
+                raise werkzeug.exceptions.RequestEntityTooLarge(
+                    "Quota exceeded"
+                )
+
+            # Update used quota
+            self.database.projects.set_used_quota(
+                self.project_id, project['used_quota'] + extracted_size
+            )
+        except Exception:
+            lock_manager = ProjectLockManager()
+            lock_manager.release(self.project_id, self.file_path)
+            raise
