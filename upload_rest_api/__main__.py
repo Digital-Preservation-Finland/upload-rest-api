@@ -8,7 +8,6 @@ import click
 
 import upload_rest_api.config
 import upload_rest_api.database as db
-import upload_rest_api.gen_metadata as md
 from upload_rest_api.cleanup import clean_disk, clean_mongo, clean_tus_uploads
 
 
@@ -225,54 +224,6 @@ def delete_project(project):
     """Delete PROJECT."""
     db.Database().projects.delete(project)
     click.echo(f"Project '{project}' was deleted")
-
-
-@projects.command("generate-metadata")
-@click.argument("project")
-@click.option(
-    "-o", "--output",
-    type=click.Path(
-        dir_okay=False, writable=True, allow_dash=True),
-    default="identifiers.txt",
-    show_default=True,
-    help="Output filepath."
-)
-def generate_metadata(project, output):
-    """Generate metadata for PROJECT."""
-    if os.path.exists(output):
-        raise ValueError("Output file exists")
-
-    conf = upload_rest_api.config.CONFIG
-    project_path = os.path.join(conf["UPLOAD_PROJECTS_PATH"], project)
-    metax_client = md.MetaxClient(conf["METAX_URL"],
-                                  conf["METAX_USER"],
-                                  conf["METAX_PASSWORD"],
-                                  conf["METAX_SSL_VERIFICATION"])
-
-    fpaths = []
-    for dirpath, _, files in os.walk(project_path):
-        for fname in files:
-            fpaths.append(os.path.join(dirpath, fname))
-
-    # POST metadata to Metax
-    response = metax_client.post_metadata(
-        fpaths, conf["UPLOAD_PROJECTS_PATH"], project, md.PAS_FILE_STORAGE_ID
-    )
-
-    click.echo(f"Success: {len(response['success'])}")
-    click.echo(f"Failed: {len(response['failed'])}")
-
-    # Write created identifiers to output file
-    with click.open_file(output, "wt", encoding="utf-8") as f_out:
-        for _file_md in response["success"]:
-            # pylint: disable=consider-using-f-string
-            f_out.write("{}\t{}\t{}\t{}\n".format(
-                _file_md["object"]["parent_directory"]["identifier"],
-                _file_md["object"]["identifier"],
-                _file_md["object"]["checksum"]["value"],
-                _file_md["object"]["file_path"]
-            ))
-    click.echo(f"Created identifiers written to {output}")
 
 
 @projects.command("list")
