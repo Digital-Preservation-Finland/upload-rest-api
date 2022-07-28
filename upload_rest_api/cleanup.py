@@ -197,6 +197,9 @@ def clean_mongo():
     # in configuration or the file cannot be found at all, add identifier to a
     # list of identifiers that are to be deleted.
     for file_ in mongo_files:
+        if "identifier" not in file_:
+            continue
+
         if file_["identifier"] not in metax_ids:
             is_expired = False
             try:

@@ -193,6 +193,11 @@ def test_expired_identifiers(test_mongo, mock_config, requests_mock):
     assert identifiers_left[0] \
         == {"_id": str(fpath), "identifier": "id_1", "checksum": "1"}
 
+    # Cleanup can be performed again without issue
+    clean.clean_mongo()
+
+    assert len(list(files.find({"identifier": {"$exists": True}}))) == 1
+
 
 def test_clean_project(mock_config, requests_mock, test_mongo):
     """Test cleaning project."""
