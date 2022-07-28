@@ -2,7 +2,6 @@
 import os
 import pathlib
 from datetime import datetime, timezone
-from uuid import uuid4
 
 import magic
 from metax_access import (DS_STATE_ACCEPTED_TO_DIGITAL_PRESERVATION,
@@ -45,25 +44,27 @@ def get_metax_path(fpath, root_upload_path):
     return file_path[len(project)+1:]
 
 
-def _generate_metadata(fpath, root_upload_path, project, checksums):
+def _generate_metadata(fpath, root_upload_path, project, database):
     """Generate metadata in json format."""
     timestamp = iso8601_timestamp(fpath)
-    file_path = pathlib.Path(fpath).relative_to(root_upload_path)
-    checksum_path = db.Projects.get_project_directory(project) / file_path
+    relative_path = pathlib.Path(fpath).relative_to(root_upload_path)
+    absolute_path \
+        = database.projects.get_project_directory(project) / relative_path
+    file = database.files.get(str(absolute_path))
 
     metadata = {
-        "identifier": str(uuid4().urn),
+        "identifier": file['identifier'],
         "file_name": str(os.path.split(fpath)[1]),
         "file_format": _get_mimetype(fpath),
         "byte_size": os.stat(fpath).st_size,
-        "file_path": str(file_path),
+        "file_path": str(relative_path),
         "project_identifier": project,
         "file_uploaded": timestamp,
         "file_modified": timestamp,
         "file_frozen": timestamp,
         "checksum": {
             "algorithm": "MD5",
-            "value": checksums[str(checksum_path)],
+            "value": file['checksum'],
             "checked": _timestamp_now()
         },
         "file_storage": CONFIG["STORAGE_ID"]
@@ -153,14 +154,13 @@ class MetaxClient:
                   ]
         """
         database = db.Database()
-        checksums = database.files.get_path_checksum_dict()
         metadata = []
         responses = []
 
         i = 0
         for fpath in fpaths:
             metadata.append(_generate_metadata(
-                fpath, root_upload_path, project, checksums
+                fpath, root_upload_path, project, database
             ))
 
             # POST metadata to Metax every 5k steps
@@ -168,27 +168,12 @@ class MetaxClient:
             if i % 5000 == 0:
                 response = self.client.post_file(metadata)
                 responses.append(_strip_metax_response(response))
-                # Add created identifiers to Mongo
-                if "success" in response and response["success"]:
-                    database.store_identifiers(
-                        response["success"],
-                        CONFIG["UPLOAD_ROOT_PATH"],
-                        project
-                    )
-
                 metadata = []
 
         # POST remaining metadata
         if metadata:
             response = self.client.post_file(metadata)
             responses.append(_strip_metax_response(response))
-            # Add created identifiers to Mongo
-            if "success" in response and response["success"]:
-                database.store_identifiers(
-                    response["success"],
-                    CONFIG["UPLOAD_ROOT_PATH"],
-                    project
-                )
 
         # Merge all responses into one response
         response = {"success": [], "failed": []}
@@ -230,9 +215,6 @@ class MetaxClient:
         if not file_ids_to_delete:
             return {"deleted_files_count": 0}
 
-        # Delete identifiers from Mongo
-        db.Database().files.delete_identifiers(file_ids_to_delete)
-
         return self.client.delete_files(file_ids_to_delete)
 
     def delete_file_metadata(self, project, fpath, root_upload_path=None,
@@ -261,9 +243,6 @@ class MetaxClient:
             )
 
         file_id = str(file_metadata["identifier"])
-
-        # Delete identifier from Mongo
-        db.Database().files.delete_identifier(file_id)
 
         self.client.delete_file(file_id)
         return {'deleted_files_count': 1}
@@ -333,29 +312,7 @@ class MetaxClient:
         if not file_ids_to_delete:
             return {"deleted_files_count": 0}
 
-        # Delete identifiers from Mongo
-        db.Database().files.delete_identifiers(file_ids_to_delete)
-
         return self.client.delete_files(file_ids_to_delete)
-
-    def get_all_ids(self, project_list):
-        """Get a set of all identifiers of files in any of the projects
-        in project_list.
-        """
-        id_set = set()
-
-        # Iterate all projects
-        for project in project_list:
-            # Find all indentifiers in one project
-            files_dict = self.get_files_dict(project)
-            project_id_set = {
-                _file["identifier"] for _file in files_dict.values()
-            }
-
-            # Add the identifiers to id_set
-            id_set |= project_id_set
-
-        return id_set
 
     def file_has_dataset(self, metax_path, files_dict):
         """Check if file belongs to any dataset."""

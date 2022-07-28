@@ -31,17 +31,22 @@ def test_mimetype():
 def test_gen_metadata(mock_config):
     """Test that _generate_metadata() produces the correct metadata."""
     project = 'project1'
+    database = db.Database()
+    project_directory = database.projects.get_project_directory(project)
+
+    # Add a file to database
+    database.files.insert([{'path':  str(project_directory / 'data/test.txt'),
+                            'identifier': 'foo',
+                            'checksum': '150b62e4e7d58c70503bd5fc8a26463c'}])
+
     metadata = md._generate_metadata(
         "tests/data/test.txt",
         "tests",
         project,
-        {
-            str(db.Projects.get_project_directory(project) / 'data/test.txt'):
-            "150b62e4e7d58c70503bd5fc8a26463c"
-        }
+        database
     )
 
-    assert len(metadata["identifier"]) == 45
+    assert metadata["identifier"] == 'foo'
     assert metadata["file_name"] == "test.txt"
     assert metadata["file_format"] == "text/plain"
     assert metadata["byte_size"] == 31

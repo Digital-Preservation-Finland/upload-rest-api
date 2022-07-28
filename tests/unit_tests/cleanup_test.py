@@ -150,55 +150,6 @@ def test_expired_tasks(test_mongo, mock_config):
     assert tasks.count() == 0
 
 
-def test_expired_identifiers(test_mongo, mock_config, requests_mock):
-    """Test that expired identifiers and identifiers of nonexistent files are
-    removed.
-    """
-    mock_config["CLEANUP_TIMELIM"] = 10
-    upload_path = pathlib.Path(mock_config["UPLOAD_PROJECTS_PATH"])
-
-    # Make test directories with test.txt files
-    project_path = upload_path / "test_project"
-    fpath = project_path / "new_file.txt"
-    fpath_expired = project_path / "old_file.txt"
-    fpath_nonexistent = project_path / "nonexistent_file.txt"
-
-    project_path.mkdir()
-    fpath.write_text("I'm new")
-    fpath_expired.write_text("I'm old")
-
-    # Set access time and modification time of one file to be expired
-    os.utime(fpath_expired, (0, 0))
-
-    # Add files to Mongo
-    files = test_mongo.upload.files
-    documents = [
-        {"_id": str(fpath), "identifier": "id_1", "checksum": "1"},
-        {"_id": str(fpath_expired), "identifier": "id_2", "checksum": "2"},
-        {"_id": str(fpath_nonexistent), "identifier": "id_3", "checksum": "3"}
-    ]
-    files.insert_many(documents)
-    assert files.count() == 3
-
-    # Mock Metax sending no identifiers
-    requests_mock.get('https://metax.localdomain/rest/v2/files',
-                      json={'next': None, 'results': []})
-
-    # Clean identifiers of files older than 10s and files that do not exist
-    clean.clean_mongo()
-
-    # Verify that one file with identifier is left in Mongo
-    identifiers_left = list(files.find({"identifier": {"$exists": True}}))
-    assert len(identifiers_left) == 1
-    assert identifiers_left[0] \
-        == {"_id": str(fpath), "identifier": "id_1", "checksum": "1"}
-
-    # Cleanup can be performed again without issue
-    clean.clean_mongo()
-
-    assert len(list(files.find({"identifier": {"$exists": True}}))) == 1
-
-
 def test_clean_project(mock_config, requests_mock, test_mongo):
     """Test cleaning project."""
     project = 'foo'

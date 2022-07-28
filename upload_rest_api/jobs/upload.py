@@ -24,15 +24,16 @@ def _process_extracted_files(fpath, storage_dir):
     all files in fpath and returns a list of dicts::
 
         {
-            "_id": filepath,
-            "checksum": md5 digest
+            "path": file path,
+            "checksum": md5 digest,
+            "identifier": urn
         }
 
     :param fpath: Path to the directory to be processed
     :param storage_dir: Path to storage directory
     :returns: A list of checksum dicts
     """
-    checksums = []
+    file_info = []
     for dirpath, _, files in os.walk(fpath):
         for fname in files:
             _file = os.path.join(dirpath, fname)
@@ -46,12 +47,13 @@ def _process_extracted_files(fpath, storage_dir):
                 # TODO: files should not be 'None'
                 raise ClientError(f"File '{relative_path}' already exists",
                                   files=None)
-            checksums.append({
-                "_id": str(target_path),
-                "checksum": get_file_checksum("md5", _file)
+            file_info.append({
+                "path": str(target_path),
+                "checksum": get_file_checksum("md5", _file),
+                "identifier": str(uuid.uuid4().urn)
             })
 
-    return checksums
+    return file_info
 
 
 def _move_extracted_files(fpath, storage_dir):

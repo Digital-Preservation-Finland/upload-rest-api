@@ -43,18 +43,6 @@ def _clean_empty_dirs(fpath):
                 raise
 
 
-def _clean_old_tasks(time_lim):
-    """Remove tasks that are older than time_lim.
-
-    :param time_lim: : expiration time in seconds
-    """
-    current_time = time.time()
-    tasks = db.Database().tasks
-    for task in tasks.get_all_tasks():
-        if current_time - task["timestamp"] > time_lim:
-            tasks.delete_one(task["_id"])
-
-
 def _get_projects():
     """Return a list of all projects with files uploaded."""
     conf = upload_rest_api.config.CONFIG
@@ -166,54 +154,16 @@ def clean_disk(metax=True):
 def clean_mongo():
     """Clean old tasks from Mongo.
 
-    Clean file identifiers that do not exist in Metax any more from
-    Mongo.
-
     :returns: Count of cleaned Mongo documents
     """
     conf = upload_rest_api.config.CONFIG
-    url = conf["METAX_URL"]
-    user = conf["METAX_USER"]
-    password = conf["METAX_PASSWORD"]
-    ssl_verification = conf["METAX_SSL_VERIFICATION"]
     time_lim = conf["CLEANUP_TIMELIM"]
 
-    _clean_old_tasks(time_lim)
-
-    projects = _get_projects()
-
-    metax_ids = md.MetaxClient(url,
-                               user,
-                               password,
-                               ssl_verification).get_all_ids(projects)
-
-    files = db.Database().files
-    mongo_files = files.iter_all_files()
-    id_list = []
     current_time = time.time()
-
-    # Check for identifiers found in Mongo but not in Metax. If identifier is
-    # not found in Metax and the file has not been accessed for time limit set
-    # in configuration or the file cannot be found at all, add identifier to a
-    # list of identifiers that are to be deleted.
-    for file_ in mongo_files:
-        if "identifier" not in file_:
-            continue
-
-        if file_["identifier"] not in metax_ids:
-            is_expired = False
-            try:
-                # Assess if file is expired – "_id" refers to file path
-                is_expired = _is_expired(
-                    file_["_id"], current_time, time_lim)
-            except FileNotFoundError:
-                is_expired = True
-
-            if is_expired:
-                id_list.append(file_["identifier"])
-
-    # Remove identifiers from Mongo
-    return files.delete_identifiers(id_list)
+    tasks = db.Database().tasks
+    for task in tasks.get_all_tasks():
+        if current_time - task["timestamp"] > time_lim:
+            tasks.delete_one(task["_id"])
 
 
 def clean_tus_uploads():

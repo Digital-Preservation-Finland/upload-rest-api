@@ -84,13 +84,12 @@ def test_upload_archive(
     # archive file is removed
     assert not tmp_files[0].is_file()
 
-    # checksum is added to mongo
+    # file is added to database
     assert files.count({}) == 1
     document = files.find_one({"_id": str(text_file)})
-    assert document == {
-        "_id": str(text_file),
-        "checksum": "150b62e4e7d58c70503bd5fc8a26463c"
-    }
+    assert document['_id'] == str(text_file)
+    assert document['checksum'] == "150b62e4e7d58c70503bd5fc8a26463c"
+    assert document['identifier'].startswith('urn:uuid:')
 
 
 @pytest.mark.parametrize(
@@ -424,16 +423,8 @@ def test_upload_archive_multiple_archives(
 
     # files are added to mongo
     assert files.count() == 2
-    document = files.find_one({"_id": str(test_text_file)})
-    assert document == {
-        "_id": str(test_text_file),
-        "checksum": "150b62e4e7d58c70503bd5fc8a26463c"
-    }
-    document = files.find_one({"_id": str(test_2_text_file)})
-    assert document == {
-        "_id": str(test_2_text_file),
-        "checksum": "150b62e4e7d58c70503bd5fc8a26463c"
-    }
+    assert files.find_one({"_id": str(test_text_file)})
+    assert files.find_one({"_id": str(test_2_text_file)})
 
 
 @pytest.mark.parametrize("archive", [

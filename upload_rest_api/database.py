@@ -14,7 +14,6 @@ from string import ascii_letters, digits
 import dateutil
 import dateutil.parser
 import pymongo
-from pymongo.operations import UpdateOne
 from bson.binary import Binary
 from bson.codec_options import CodecOptions
 from bson.objectid import ObjectId
@@ -124,30 +123,6 @@ class Database:
         """Return a list of all the users in upload.users collection."""
         users = self.client.upload.users
         return sorted(users.find().distinct("_id"))
-
-    def store_identifiers(self, file_md_list, root_upload_path, project_id):
-        """Store file identifiers to Mongo.
-
-        This function assumes that the files already exist in Mongo, and the
-        identifiers are updated on existing file documents.
-
-        :param file_md_list: List of created file metadata returned by
-                             Metax
-        :returns: None
-        """
-        # Create list of needed update operations
-        operations = []
-        for file_md in file_md_list:
-            file_path = _get_abs_path(file_md["object"]["file_path"],
-                                      root_upload_path, project_id)
-            identifier = file_md["object"]["identifier"]
-            operations.append(UpdateOne(
-                {"_id": file_path},
-                {"$set": {"identifier": identifier}}
-            ))
-
-        # Update identifiers to file documents as a bulk
-        self.files.files.bulk_write(operations, ordered=False)
 
     def user(self, username):
         """Return user."""
@@ -401,40 +376,19 @@ class Files:
     def insert(self, files):
         """Insert multiple files into the files collection.
 
-        :param files: List of dicts {"_id": file path
-                                     "identifier": identifier,
-                                     "checksum": checksum}
+        :param files: List of dicts {"path": file path
+                                     "checksum": checksum,
+                                     "identifier": identifier}
         :returns: Number of documents inserted
         """
-        return len(self.files.insert_many(files).inserted_ids)
-
-    def delete_identifiers(self, ids):
-        """Delete multiple identifiers from the files collection.
-
-        This function keeps the file documents, only deleting the identifier
-        field.
-
-        :param ids: List of identifiers to be removed
-        :returns: Number of documents deleted
-        """
-        return self.files.update_many(
-            {"identifier": {"$in": ids}},
-            {"$unset": {"identifier": ""}}
-        ).modified_count
-
-    def delete_identifier(self, id):
-        """Delete identifier from the files collection.
-
-        This function keeps the file document, only deleting the identifier
-        field.
-
-        :param id: Identifier to be removed
-        :returns: Number of documents deleted
-        """
-        return self.files.update_one(
-            {"identifier": id},
-            {"$unset": {"identifier": ""}}
-        ).modified_count
+        documents = [
+            {
+                "_id": file["path"],
+                "checksum": file["checksum"],
+                "identifier": file["identifier"],
+            } for file in files
+        ]
+        return len(self.files.insert_many(documents).inserted_ids)
 
     def delete(self, paths):
         """Delete multiple documents, identified by file path, from the files
@@ -458,20 +412,6 @@ class Files:
             ).deleted_count
 
         return deleted_count
-
-    def insert_one(self, file_path, checksum, identifier=None):
-        """Insert one file document.
-
-        :param file_path: path to the file in upload-rest-api
-        :param checksum: file checksum
-        :param identifier: metax identifier of the file
-
-        :returns: None
-        """
-        document = {"_id": file_path, "checksum": checksum}
-        if identifier:
-            document["identifier"] = identifier
-        self.files.insert_one(document)
 
     def delete_one(self, file_path):
         """Delete one file document.

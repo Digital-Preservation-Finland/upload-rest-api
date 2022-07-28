@@ -403,7 +403,9 @@ def test_modify_project_fail(command_runner):
 
 def test_get_file_by_path(command_runner, database):
     """Test displaying information of file specified by path."""
-    database.files.insert_one("path_1", "checksum_1", "pid:urn:1")
+    database.files.insert([{"path": "path_1",
+                            "checksum": "checksum_1",
+                            "identifier": "pid:urn:1"}])
 
     result = command_runner(["files", "get", "path", "path_1"])
     result_data = json.loads(result.output)
@@ -417,7 +419,9 @@ def test_get_file_by_path(command_runner, database):
 
 def test_get_file_by_identifier(command_runner, database):
     """Test displaying information of file specified by identifier."""
-    database.files.insert_one("path_1", "checksum_1", "pid:urn:1")
+    database.files.insert([{"path": "path_1",
+                            "checksum": "checksum_1",
+                            "identifier": "pid:urn:1"}])
 
     result = command_runner(["files", "get", "identifier", "pid:urn:1"])
     result_data = json.loads(result.output)
@@ -432,21 +436,36 @@ def test_get_file_by_identifier(command_runner, database):
 def test_list_files(database, command_runner):
     """Test listing all files."""
     files = [
-        {"_id": "path_1", "identifier": "pid:urn:1", "checksum": "checksum_1"},
-        {"_id": "path_2", "identifier": "pid:urn:2", "checksum": "checksum_2"}
+        {"path": "path_1",
+         "identifier": "pid:urn:1",
+         "checksum": "checksum_1"},
+        {"path": "path_2",
+         "identifier": "pid:urn:2",
+         "checksum": "checksum_2"}
     ]
     database.files.insert(files)
 
     result = command_runner(["files", "list"])
     result_data = json.loads(result.output)
-    assert result_data == files
+    assert result_data == [
+        {"_id": "path_1",
+         "identifier": "pid:urn:1",
+         "checksum": "checksum_1"},
+        {"_id": "path_2",
+         "identifier": "pid:urn:2",
+         "checksum": "checksum_2"}
+    ]
 
 
 def test_list_file_identifiers(database, command_runner):
     """Test listing all file identifiers."""
     files = [
-        {"_id": "path_1", "identifier": "pid:urn:1", "checksum": "checksum_1"},
-        {"_id": "path_2", "identifier": "pid:urn:2", "checksum": "checksum_2"}
+        {"path": "path_1",
+         "identifier": "pid:urn:1",
+         "checksum": "checksum_1"},
+        {"path": "path_2",
+         "identifier": "pid:urn:2",
+         "checksum": "checksum_2"}
     ]
     database.files.insert(files)
 
@@ -458,8 +477,12 @@ def test_list_file_identifiers(database, command_runner):
 def test_list_checksums(database, command_runner):
     """Test listing all file checksums."""
     files = [
-        {"_id": "path_1", "identifier": "pid:urn:1", "checksum": "checksum_1"},
-        {"_id": "path_2", "identifier": "pid:urn:2", "checksum": "checksum_2"}
+        {"path": "path_1",
+         "identifier": "pid:urn:1",
+         "checksum": "checksum_1"},
+        {"path": "path_2",
+         "identifier": "pid:urn:2",
+         "checksum": "checksum_2"}
     ]
     database.files.insert(files)
 
@@ -500,45 +523,3 @@ def test_list_checksums_when_no_checksums(command_runner):
     """Test listing all file checksums when there are no checksums."""
     result = command_runner(["files", "list", "--checksums-only"])
     assert result.output == "No checksums found\n"
-
-def test_db_migration_script(command_runner, database):
-    """Test database migration script.
-
-    Checksums collection contains three documents, two of which has a
-    corresponding document in the files collection and one does not. All
-    should still be represented in the resulting new files collection, two of
-    them having the correct identifier and one of them simply not containing an
-    identifier field.
-
-    Traces of old file documents should be gone, and checksums collection not
-    exist at all.
-    """
-    # Set up database
-    files = [
-        {"_id": "id_1", "file_path": "/path_1"},
-        {"_id": "id_2", "file_path": "/path_2"}
-    ]
-    checksums = [
-        {"_id": "/path_1", "checksum": "checksum_1"},
-        {"_id": "/path_2", "checksum": "checksum_2"},
-        {"_id": "/path_3", "checksum": "checksum_3"}
-    ]
-    database.client.upload.files.insert_many(files)
-    database.client.upload.checksums.insert_many(checksums)
-
-    # Run the migration command
-    command_runner(["migrate-db"])
-
-    # See that files collection contains the correct new documents, contains no
-    # old documents and that checksums collection does not exist
-    correct_result = [
-        {"_id": "/path_1", "checksum": "checksum_1", "identifier": "id_1"},
-        {"_id": "/path_2", "checksum": "checksum_2", "identifier": "id_2"},
-        {"_id": "/path_3", "checksum": "checksum_3"}
-    ]
-    result = list(database.client.upload.files.find())
-    assert result == correct_result
-    assert "checksums" not in database.client.upload.list_collection_names()
-
-    # Test that files collection has two indexes
-    assert len(list(database.client.upload.files.list_indexes())) == 2

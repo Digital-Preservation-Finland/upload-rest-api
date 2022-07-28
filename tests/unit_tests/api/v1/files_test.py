@@ -79,12 +79,11 @@ def test_upload(app, test_auth, test_mongo, name, background_job_runner,
     # later.
     assert oct(fpath.stat().st_mode)[5:8] == "664"
 
-    # Check that the uploaded files checksum was added to mongo
+    # Check that the uploaded files checksum was added to database
     document = files.find_one({"_id": str(fpath)})
-    assert document == {
-        "_id": str(fpath),
-        "checksum": "150b62e4e7d58c70503bd5fc8a26463c"
-    }
+    assert document["_id"] == str(fpath)
+    assert document["checksum"] == "150b62e4e7d58c70503bd5fc8a26463c"
+    assert document["identifier"].startswith('urn:uuid:')
 
     # Test that trying to upload the file again returns 409 Conflict
     response = _upload_file(
