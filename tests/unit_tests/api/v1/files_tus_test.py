@@ -201,12 +201,15 @@ def test_upload_file_checksum(test_client, test_auth, test_mongo,
 @pytest.mark.usefixtures("project")
 def test_upload_file_checksum_iterative(
         app, test_client, test_auth, test_mongo, mock_redis,
-        background_job_runner
+        background_job_runner, requests_mock
 ):
     """
     Test uploading a file in multiple parts and ensure the checksum
     is calculated correctly
     """
+    # Mock Metax
+    requests_mock.post('/rest/v2/files/', json={})
+
     upload_metadata = {
         "type": "file",
         "project_id": "test_project",
@@ -337,12 +340,16 @@ def test_upload_file_checksum_unknown_algorithm(test_client, test_auth):
     "name", ("test.txt", "tämäontesti.txt", "tämä on testi.txt")
 )
 def test_upload_file_deep_directory(
-        test_client, test_auth, test_mongo, name, mock_redis, mock_config
+    test_client, test_auth, test_mongo, name, mock_redis, mock_config,
+    requests_mock
 ):
     """Test uploading a small file within a directory hierarchy.
 
     Ensure that the directories are created as well.
     """
+    # Mock Metax
+    requests_mock.post('/rest/v2/files/', json={})
+
     data = b"XyzzyXyzzy"
 
     upload_metadata = {
@@ -380,12 +387,15 @@ def test_upload_file_deep_directory(
 
 
 def test_upload_file_exceed_quota(test_client, test_auth, database,
-                                  mock_redis):
+                                  mock_redis, requests_mock):
     """Test exceeding quota.
 
     Upload one file and try uploading a second file which would exceed
     the quota.
     """
+    # Mock Metax
+    requests_mock.post('/rest/v2/files/', json={})
+
     database.projects.set_quota("test_project", 15)
 
     upload_metadata = {
@@ -563,7 +573,7 @@ def test_upload_archive(
     response = background_job_runner(test_client, "upload", task_id=task_id)
     data = response.json
 
-    assert data["message"] == "Archive uploaded and extracted"
+    assert data["message"] == "archive uploaded to /extract_dir"
 
     base_path = pathlib.Path(mock_config["UPLOAD_BASE_PATH"])
     assert (

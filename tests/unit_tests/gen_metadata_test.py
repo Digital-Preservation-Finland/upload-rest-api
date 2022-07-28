@@ -4,7 +4,6 @@ import pathlib
 import pytest
 
 import upload_rest_api.gen_metadata as md
-import upload_rest_api.database as db
 
 
 @pytest.mark.parametrize(
@@ -20,48 +19,6 @@ def test_metax_path(fpath, upload_path, expected):
     /project/<path:fpath>.
     """
     assert md.get_metax_path(pathlib.Path(fpath), upload_path) == expected
-
-
-def test_mimetype():
-    """Test that _get_mimetype() returns correct MIME types."""
-    assert md._get_mimetype("tests/data/test.txt") == "text/plain"
-    assert md._get_mimetype("tests/data/test.zip") == "application/zip"
-
-
-def test_gen_metadata(mock_config):
-    """Test that _generate_metadata() produces the correct metadata."""
-    project = 'project1'
-    database = db.Database()
-    project_directory = database.projects.get_project_directory(project)
-
-    # Add a file to database
-    database.files.insert([{'path':  str(project_directory / 'data/test.txt'),
-                            'identifier': 'foo',
-                            'checksum': '150b62e4e7d58c70503bd5fc8a26463c'}])
-
-    metadata = md._generate_metadata(
-        "tests/data/test.txt",
-        "tests",
-        project,
-        database
-    )
-
-    assert metadata["identifier"] == 'foo'
-    assert metadata["file_name"] == "test.txt"
-    assert metadata["file_format"] == "text/plain"
-    assert metadata["byte_size"] == 31
-    assert metadata["file_path"] == "data/test.txt"
-    assert metadata["project_identifier"] == project
-    assert "file_uploaded" in metadata
-    assert "file_modified" in metadata
-    assert "file_frozen" in metadata
-
-    checksum = metadata["checksum"]
-    assert checksum["algorithm"] == "MD5"
-    assert checksum["value"] == "150b62e4e7d58c70503bd5fc8a26463c"
-    assert "checked" in checksum
-
-    assert metadata["file_storage"] == mock_config["STORAGE_ID"]
 
 
 @pytest.mark.parametrize('verify', [True, False])

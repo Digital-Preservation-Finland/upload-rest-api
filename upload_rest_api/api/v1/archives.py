@@ -2,8 +2,6 @@
 
 Functionality for uploading and extracting an archive.
 """
-from archive_helpers.extract import (MemberNameError, MemberOverwriteError,
-                                     MemberTypeError)
 from flask import Blueprint, abort, jsonify, request
 
 from upload_rest_api.upload import Upload
@@ -29,21 +27,10 @@ def upload_archive(project_id):
 
     upload = Upload(project_id, rel_upload_path)
     upload.validate(request.content_length, request.content_type)
-
-    try:
-
-        upload.save_stream(
-            stream=request.stream,
-            checksum=request.args.get('md5', None),
-        )
-        upload.validate_archive()
-        polling_url = upload.store(file_type='archive')
-    except (MemberOverwriteError) as error:
-        abort(409, str(error))
-    except MemberTypeError as error:
-        abort(415, str(error))
-    except MemberNameError as error:
-        abort(400, str(error))
+    upload.save_stream(stream=request.stream,
+                       checksum=request.args.get('md5', None))
+    upload.validate_archive()
+    polling_url = upload.store(file_type='archive')
 
     response = jsonify(
         {

@@ -93,10 +93,10 @@ def test_upload(app, test_auth, test_mongo, name, background_job_runner,
     assert response.status_code == 409
 
 
-def test_upload_max_size(app, test_auth):
+def test_upload_max_size(app, test_auth, mock_config):
     """Test uploading file larger than the supported max file size."""
     # Set max upload size to 1 byte
-    app.config["MAX_CONTENT_LENGTH"] = 1
+    mock_config["MAX_CONTENT_LENGTH"] = 1
     test_client = app.test_client()
     upload_path = app.config.get("UPLOAD_PROJECTS_PATH")
 

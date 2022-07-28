@@ -7,7 +7,6 @@ from upload_rest_api.authentication import current_user
 from upload_rest_api.checksum import (HASH_FUNCTION_ALIASES,
                                       calculate_incr_checksum)
 from upload_rest_api.database import Database, Projects
-from upload_rest_api.lock import lock_manager
 from upload_rest_api.upload import Upload
 from upload_rest_api.utils import parse_relative_user_path
 
@@ -78,14 +77,6 @@ def _upload_started(workspace, resource):
             # Remaining user quota too low to allow this upload
             abort(413, "Remaining user quota too low")
 
-        # Validate the user's quota and content type is not exceeded
-        # again.
-        upload = Upload(project_id, upload_path)
-        upload.validate(
-            content_length=resource.upload_length,
-            content_type="application/octet-stream"
-        )
-
         # check if the file/dirctory exists:
         # either an upload has been initiated with
         # the same path, or a file already exists at the final location
@@ -128,32 +119,23 @@ def _save_file(workspace, resource):
     except ValueError:
         abort(404)
 
-    project_dir = Projects.get_project_directory(project_id)
-    file_path = project_dir / upload_path
-
-    lock_manager.acquire(project_id, file_path)
-
     try:
-        try:
-            # Validate the user's quota and content type again
-            upload = Upload(project_id, upload_path)
-            upload.validate(
-                content_length=resource.upload_length,
-                content_type="application/octet-stream"
-            )
+        # Validate the user's quota and content type again
+        upload = Upload(project_id, upload_path)
+        upload.validate(
+            content_length=resource.upload_length,
+            content_type="application/octet-stream"
+        )
 
-            # Upload passed validation, move it to temporary storage for
-            # metadata generation
-            resource.upload_file_path.rename(upload.tmp_path)
-        finally:
-            # Delete the tus-specific workspace regardless of the
-            # outcome.
-            _delete_workspace(workspace)
+        # Upload passed validation, move file to temporary storage for
+        # metadata generation
+        resource.upload_file_path.rename(upload.source_path)
+    finally:
+        # Delete the tus-specific workspace regardless of the
+        # outcome.
+        _delete_workspace(workspace)
 
-        upload.store(file_type='file')
-    except Exception:
-        lock_manager.release(project_id, file_path)
-        raise
+    upload.store(file_type='file')
 
 
 def _extract_archive(workspace, resource):
@@ -168,37 +150,29 @@ def _extract_archive(workspace, resource):
     rel_upload_path = safe_join("", fpath)
     upload_path = project_dir / rel_upload_path
 
-    lock_manager.acquire(project_id, upload_path)
-
     try:
-        try:
-            # Validate the user's quota and content type again
-            upload = Upload(project_id, rel_upload_path)
-            upload.validate(
-                content_length=resource.upload_length,
-                content_type="application/octet-stream"
+        # Validate the user's quota and content type again
+        upload = Upload(project_id, rel_upload_path)
+        upload.validate(
+            content_length=resource.upload_length,
+            content_type="application/octet-stream"
+        )
+
+        if upload_path.is_dir() and not upload_path.samefile(project_dir):
+            raise werkzeug.exceptions.Conflict(
+                f"Directory '{rel_upload_path}' already exists"
             )
 
-            if upload_path.is_dir() and not upload_path.samefile(project_dir):
-                raise werkzeug.exceptions.Conflict(
-                    f"Directory '{rel_upload_path}' already exists"
-                )
+        # Move the archive to a temporary path to begin the
+        # extraction
+        resource.upload_file_path.rename(upload.source_path)
+    finally:
+        # Delete the tus-specific workspace regardless of the
+        # outcome.
+        _delete_workspace(workspace)
 
-            # Move the archive to a temporary path to begin the
-            # extraction
-            tmp_path = upload.tmp_path
-            tmp_path.parent.mkdir(exist_ok=True)
-            resource.upload_file_path.rename(tmp_path)
-        finally:
-            # Delete the tus-specific workspace regardless of the
-            # outcome.
-            _delete_workspace(workspace)
-
-        upload.validate_archive()
-        upload.store(file_type='archive')
-    except Exception:
-        lock_manager.release(project_id, upload_path)
-        raise
+    upload.validate_archive()
+    upload.store(file_type='archive')
 
 
 def _get_checksum_tuple(checksum):

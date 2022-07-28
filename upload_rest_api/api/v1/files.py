@@ -10,9 +10,9 @@ import shutil
 import metax_access
 from flask import Blueprint, abort, current_app, jsonify, request, url_for
 
-import upload_rest_api.database as db
 import upload_rest_api.gen_metadata as md
-from upload_rest_api.upload import Upload
+import upload_rest_api.database as db
+from upload_rest_api.upload import Upload, iso8601_timestamp
 from upload_rest_api import utils
 from upload_rest_api.api.v1.tasks import TASK_STATUS_API_V1
 from upload_rest_api.authentication import current_user
@@ -101,7 +101,7 @@ def get_path(project_id, fpath):
             "file_path": return_path,
             "identifier": file_doc.get("identifier", None),
             "md5": file_doc["checksum"],
-            "timestamp": md.iso8601_timestamp(upload_path)
+            "timestamp": iso8601_timestamp(upload_path)
         }
 
     elif os.path.isdir(upload_path):

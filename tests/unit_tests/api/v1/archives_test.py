@@ -65,9 +65,9 @@ def test_upload_archive(
     assert response.json["status"] == "pending"
     assert response.headers['Location'] == response.json["polling_url"]
 
-    # archive file is saved to temporary path
+    # archive file is saved to temporary directory
     upload_tmp_path = pathlib.Path(app.config.get("UPLOAD_TMP_PATH"))
-    tmp_files = [path for path in upload_tmp_path.iterdir() if path.is_file()]
+    tmp_files = [path for path in upload_tmp_path.iterdir() if path.is_dir()]
     assert len(tmp_files) == 1
 
     # Complete the task and check task status
@@ -81,8 +81,8 @@ def test_upload_archive(
     assert text_file.is_file()
     assert "test" in text_file.read_text()
 
-    # archive file is removed
-    assert not tmp_files[0].is_file()
+    # Archive file is removed. Tmp directory should be empty.
+    assert not any(upload_tmp_path.iterdir())
 
     # file is added to database
     assert files.count({}) == 1
@@ -330,7 +330,7 @@ def test_upload_two_archives(
     )
     assert response.status_code == 200
     assert response.json["status"] == "done"
-    assert response.json["message"] == "Archive uploaded and extracted"
+    assert response.json["message"] == "archive uploaded to /"
 
 
 @pytest.mark.parametrize("dirpath", [
@@ -382,7 +382,7 @@ def test_upload_archive_multiple_archives(
         response_1 = background_job_runner(test_client, "upload", response_1)
         assert response_1.status_code == 200
         assert response_1.json["status"] == "done"
-        assert response_1.json["message"] == "Archive uploaded and extracted"
+        assert response_1.json["message"] == "archive uploaded to /"
 
         response_1 = test_client.delete(polling_url, headers=test_auth)
         assert response_1.status_code == 404
@@ -398,7 +398,7 @@ def test_upload_archive_multiple_archives(
         response_2 = background_job_runner(test_client, "upload", response_2)
         assert response_2.status_code == 200
         assert response_2.json["status"] == "done"
-        assert response_2.json["message"] == "Archive uploaded and extracted"
+        assert response_2.json["message"] == "archive uploaded to /"
 
         response_2 = test_client.delete(polling_url, headers=test_auth)
         assert response_2.status_code == 404
@@ -485,9 +485,9 @@ def test_upload_file_as_archive(app, test_auth, background_job_runner):
     assert response.json["error"] == "Uploaded file is not a supported archive"
 
 
-def test_upload_large_archive(app, test_auth):
+def test_upload_large_archive(app, test_auth, mock_config):
     """Test uploading too large archive."""
-    app.config["MAX_CONTENT_LENGTH"] = 1
+    mock_config["MAX_CONTENT_LENGTH"] = 1
 
     response = _upload_file(app.test_client(),
                             '/v1/archives/test_project',

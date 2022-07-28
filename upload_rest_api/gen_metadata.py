@@ -1,38 +1,11 @@
-"""Module for generating basic file metadata and posting it to Metax."""
+"""Module for managing metadata in Metax."""
 import os
 import pathlib
-from datetime import datetime, timezone
 
-import magic
 from metax_access import (DS_STATE_ACCEPTED_TO_DIGITAL_PRESERVATION,
                           DS_STATE_IN_DIGITAL_PRESERVATION, Metax)
 
-import upload_rest_api.database as db
 from upload_rest_api.config import CONFIG
-
-
-def _get_mimetype(fpath):
-    """Return the MIME type of file fpath."""
-    _magic = magic.open(magic.MAGIC_MIME_TYPE)
-    _magic.load()
-    mimetype = _magic.file(fpath)
-    _magic.close()
-
-    return mimetype
-
-
-def iso8601_timestamp(fpath):
-    """Return last access time in ISO 8601 format."""
-    timestamp = datetime.fromtimestamp(
-        os.stat(fpath).st_atime, tz=timezone.utc
-    ).replace(microsecond=0)
-    return timestamp.replace(microsecond=0).isoformat()
-
-
-def _timestamp_now():
-    """Return current time in ISO 8601 format."""
-    timestamp = datetime.now(timezone.utc).replace(microsecond=0)
-    return timestamp.isoformat()
 
 
 def get_metax_path(fpath, root_upload_path):
@@ -42,35 +15,6 @@ def get_metax_path(fpath, root_upload_path):
     project = file_path.split("/")[1]
 
     return file_path[len(project)+1:]
-
-
-def _generate_metadata(fpath, root_upload_path, project, database):
-    """Generate metadata in json format."""
-    timestamp = iso8601_timestamp(fpath)
-    relative_path = pathlib.Path(fpath).relative_to(root_upload_path)
-    absolute_path \
-        = database.projects.get_project_directory(project) / relative_path
-    file = database.files.get(str(absolute_path))
-
-    metadata = {
-        "identifier": file['identifier'],
-        "file_name": str(os.path.split(fpath)[1]),
-        "file_format": _get_mimetype(fpath),
-        "byte_size": os.stat(fpath).st_size,
-        "file_path": str(relative_path),
-        "project_identifier": project,
-        "file_uploaded": timestamp,
-        "file_modified": timestamp,
-        "file_frozen": timestamp,
-        "checksum": {
-            "algorithm": "MD5",
-            "value": file['checksum'],
-            "checked": _timestamp_now()
-        },
-        "file_storage": CONFIG["STORAGE_ID"]
-    }
-
-    return metadata
 
 
 def _strip_metax_response(metax_response):
@@ -128,12 +72,10 @@ class MetaxClient:
         """
         return self.client.get_files_dict(project)
 
-    def post_metadata(self, fpaths, root_upload_path, project):
-        """Generate file metadata and POST it to Metax in 5k chunks.
+    def post_metadata(self, metadata_dicts):
+        """Post multiple file metadata dictionaries to Metax.
 
-        :param fpaths: List of files for which to generate the metadata
-        :param root_upload_path: root upload directory
-        :param username: current user
+        :param metadata_dicts: List of file metadata dictionaries
         :returns: Stripped HTTP response returned by Metax.
                   Success list contains succesfully generated file
                   metadata in format:
@@ -153,17 +95,15 @@ class MetaxClient:
                       .
                   ]
         """
-        database = db.Database()
         metadata = []
         responses = []
 
+        # Post file metadata to Metax, 5000 files at time. Larger amount
+        # would cause performance issues.
         i = 0
-        for fpath in fpaths:
-            metadata.append(_generate_metadata(
-                fpath, root_upload_path, project, database
-            ))
+        for metadata_dict in metadata_dicts:
+            metadata.append(metadata_dict)
 
-            # POST metadata to Metax every 5k steps
             i += 1
             if i % 5000 == 0:
                 response = self.client.post_file(metadata)
