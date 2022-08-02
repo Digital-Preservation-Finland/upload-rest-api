@@ -91,6 +91,7 @@ def test_upload(app, test_auth, test_mongo, name, background_job_runner,
         test_auth, "tests/data/test.txt"
     )
     assert response.status_code == 409
+    assert response.json['error'] == f"File '{resolved_path}' already exists"
 
 
 def test_upload_max_size(app, test_auth, mock_config):
@@ -165,6 +166,45 @@ def test_used_quota(app, database, test_auth, requests_mock,
     )
     used_quota = database.projects.get("test_project")["used_quota"]
     assert used_quota == 31
+
+
+def test_upload_conflicting_directory(app, test_auth, requests_mock,
+                                      background_job_runner):
+    """Test uploading file to path is a directory."""
+    # Mock metax
+    requests_mock.post('/rest/v2/files/', json={})
+
+    # First upload file to "/foo/bar", so that directory "/foo" is
+    # created.
+    test_client = app.test_client()
+    response = _upload_file(
+        test_client, "/v1/files/test_project/foo/bar",
+        test_auth, "tests/data/test.txt"
+    )
+    assert response.status_code == 202
+    background_job_runner(test_client, 'upload', response)
+
+    # Then, try to upload file to "/foo". It should fail because
+    # directory "/foo" exists
+    test_client = app.test_client()
+    response = _upload_file(
+        test_client, "/v1/files/test_project/foo",
+        test_auth, "tests/data/test.txt"
+    )
+    assert response.status_code == 409
+    assert response.json['error'] == "Directory '/foo' already exists"
+
+
+def test_upload_to_root(app, test_auth):
+    """Test uploading file to root directory."""
+    test_client = app.test_client()
+    response = _upload_file(
+        test_client, "/v1/files/test_project/",
+        test_auth, "tests/data/test.txt"
+    )
+    assert response.status_code == 405
+    assert response.json['error'] \
+        == 'The method is not allowed for the requested URL.'
 
 
 def test_upload_outside(app, test_auth):

@@ -1,6 +1,7 @@
 """Tests for ``upload_rest_api.app`` module."""
 import os
 import pathlib
+import tarfile
 
 import pytest
 
@@ -135,56 +136,14 @@ def test_upload_archive_to_dirpath(
     assert "test" in text_file.read_text()
 
 
-@pytest.mark.parametrize(
-    ["archive", "url"],
-    [
-        ("tests/data/test.tar.gz", "/v1/archives/test_project?dir=dataset"),
-        ("tests/data/file1.tar", "/v1/archives/test_project?dir=dataset")
-    ]
-)
-def test_upload_archive_overwrite_directory(
-        archive, url, app, test_auth, background_job_runner, requests_mock
-):
-    """Test uploading archive that would overwrite a directory.
-
-    :param archive: path to test archive
-    :param url: url where archive is uploaded
-    :param app: Flask app
-    :param test_auth: authentication headers
-    :param background_job_runner: RQ job mocker
-    :param requests_mock: HTTP request mocker
-    """
-    # Mock metax
-    requests_mock.post('/rest/v2/files/', json={})
-
-    test_client = app.test_client()
-
-    # Upload first archive
-    response = _upload_file(test_client, url, test_auth, archive)
-    assert response.status_code == 202
-    response = background_job_runner(test_client, "upload", response)
-    assert response.status_code == 200
-
-    # Trying to upload same archive again should return 409 - Conflict
-    response = _upload_file(test_client, url, test_auth, archive)
-    assert response.status_code == 409
-    assert response.json["error"] == "Directory 'dataset' already exists"
-
-
-@pytest.mark.parametrize(
-    ["archive", "url"],
-    [
-        ("tests/data/test.tar.gz", "/v1/archives/test_project")
-    ]
-)
 def test_upload_archive_overwrite_file(
-        archive, url, app, test_auth, background_job_runner, requests_mock
+    test_client, test_auth, background_job_runner, requests_mock
 ):
-    """Test uploading archive that would overwrite a file.
+    """Test uploading archive that would overwrite a files.
 
     :param archive: path to test archive
-    :param url: url where archive is uploaded
-    :param app: Flask app
+    :param directory: target directory archive upload
+    :param test_client: Flask test client
     :param test_auth: authentication headers
     :param background_job_runner: RQ job mocker
     :param requests_mock: HTTP request mocker
@@ -192,24 +151,71 @@ def test_upload_archive_overwrite_file(
     # Mock metax
     requests_mock.post('/rest/v2/files/', json={})
 
-    test_client = app.test_client()
+    # Upload a file
+    response = _upload_file(test_client,
+                            '/v1/files/test_project/foo',
+                            test_auth,
+                            "tests/data/test.txt")
+    response = background_job_runner(test_client, "upload", response)
+
+    # Try to Upload an archive to same path
+    response = _upload_file(test_client,
+                            '/v1/archives/test_project?dir=foo',
+                            test_auth,
+                            "tests/data/test.tar.gz")
+    assert response.status_code == 409
+    assert response.json['error'] == "File '/foo' already exists"
+
+
+@pytest.mark.parametrize(
+    ["archive", "directory"],
+    [
+        ("tests/data/dir1_file1.tar", "dataset/"),
+        ("tests/data/file1.tar", "dataset/"),
+        ("tests/data/file1.tar", "")
+    ]
+)
+def test_upload_archive_overwrite_files(
+    archive, directory, test_client, test_auth, background_job_runner,
+    requests_mock
+):
+    """Test uploading archive that would overwrite a files.
+
+    :param archive: path to test archive
+    :param directory: target directory archive upload
+    :param test_client: Flask test client
+    :param test_auth: authentication headers
+    :param background_job_runner: RQ job mocker
+    :param requests_mock: HTTP request mocker
+    """
+    # Mock metax
+    requests_mock.post('/rest/v2/files/', json={})
 
     # Upload first archive
+    url = '/v1/archives/test_project'
+    if directory:
+        url += f"?dir={directory}"
+
     response = _upload_file(test_client, url, test_auth, archive)
     assert response.status_code == 202
     response = background_job_runner(test_client, "upload", response)
     assert response.status_code == 200
+    assert response.json['status'] == 'done'
 
-    # Trying to upload same archive again should return cause error
+    # Trying to upload same archive again should cause error
     response = _upload_file(test_client, url, test_auth, archive)
-    response = background_job_runner(
-        test_client, "upload", response, expect_success=False
-    )
-
+    assert response.status_code == 202
+    response = background_job_runner(test_client, "upload", response,
+                                     expect_success=False)
     assert response.status_code == 200
-    assert response.json["status"] == "error"
-    assert response.json["errors"][0]["message"] \
-        == "File 'test/test.txt' already exists"
+    assert response.json['status'] == 'error'
+
+    # Error message should complain about conflicting file
+    with tarfile.open(archive) as tar_file:
+        archive_content = [member.name for member
+                           in tar_file.getmembers() if member.isfile()]
+    assert response.json['errors'][0]['message'] \
+        == f"File '{directory}{archive_content[0]}' already exists"
 
 
 @pytest.mark.parametrize(
@@ -287,14 +293,12 @@ def test_archive_integrity_validation(
             "tests/data/dir1_file2.tar",
             "/v1/archives/test_project"
         ),
-        # TODO: For some reason this test case fails. See issue
-        # TPASPKT-722
-        # (
-        #     "tests/data/file1.tar",
-        #     "/v1/archives?dir=dir1",
-        #     "tests/data/file2.tar",
-        #     "/v1/archives?dir=dir1"
-        # )
+        (
+            "tests/data/file1.tar",
+            "/v1/archives/test_project?dir=dir1",
+            "tests/data/file2.tar",
+            "/v1/archives/test_project?dir=dir1"
+        )
     ]
 )
 def test_upload_two_archives(
@@ -330,7 +334,6 @@ def test_upload_two_archives(
     )
     assert response.status_code == 200
     assert response.json["status"] == "done"
-    assert response.json["message"] == "archive uploaded to /"
 
 
 @pytest.mark.parametrize("dirpath", [

@@ -43,16 +43,18 @@ def _extracted_size(archive_path):
 class Upload:
     """Class for handling uploads."""
 
-    def __init__(self, project_id, path, upload_id=None):
+    def __init__(self, project_id, path, upload_type="file", upload_id=None):
         """Initialize upload.
 
         :param project_id: project identifier
         :param path: upload path
+        :param upload_type: Type of upload ("file" or "archive")
         :param upload_id: Unique identifier of upload
         """
         self.database = Database()
         self.project_id = project_id
         self.path = path
+        self.type = upload_type
 
         if upload_id:
             # Continuing previously started upload
@@ -125,7 +127,7 @@ class Upload:
             lock_manager.release(self.project_id, self.target_path)
             raise
 
-    def enqueue_store_task(self, file_type="file"):
+    def enqueue_store_task(self):
         """Enqueue store task for upload.
 
         :returns: Task identifier
@@ -137,9 +139,9 @@ class Upload:
                 project_id=self.project_id,
                 job_kwargs={
                     "project_id": self.project_id,
-                    "tmp_path": self.tmp_path,
                     "path": self.path,
-                    "file_type": file_type
+                    "upload_type": self.type,
+                    "upload_id": self.upload_id
                 }
             )
 
@@ -159,14 +161,15 @@ class Upload:
         :returns: `None`
         """
         try:
-            if self.target_path.is_dir() and \
-                    not self.target_path.samefile(self.project_directory):
+            if self.target_path.is_file():
                 raise werkzeug.exceptions.Conflict(
-                    f"Directory '{self.path}' already exists"
+                    f"File '/{self.path}' already exists"
                 )
 
-            if self.target_path.is_file() and self.target_path.exists():
-                raise werkzeug.exceptions.Conflict("File already exists")
+            if self.type == "file" and self.target_path.is_dir():
+                raise werkzeug.exceptions.Conflict(
+                    f"Directory '/{self.path}' already exists"
+                )
 
             # Check that Content-Length header is provided and uploaded
             # file is not too large

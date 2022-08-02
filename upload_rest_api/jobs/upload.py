@@ -7,14 +7,15 @@ from upload_rest_api.jobs.utils import api_background_job
 
 
 @api_background_job
-def store_files(project_id, tmp_path, path, file_type, task_id):
+def store_files(project_id, path, upload_type, upload_id, task_id):
     """Store files.
 
     Create metadata for uploaded files and move them to storage.
 
     :param str project_id: project identifier
-    :param str tmp_path: path to source file/directory
-    :param str path: target path of file/directory
+    :param str path: upload path
+    :param str upload_type: Type of upload ("file" or "archive")
+    :param str upload_id: identifier of upload
     :param str task_id: identifier of the task
     """
     database = upload_rest_api.database.Database()
@@ -22,8 +23,11 @@ def store_files(project_id, tmp_path, path, file_type, task_id):
         task_id, f"Creating metadata: {path}"
     )
 
-    upload = upload_rest_api.upload.Upload(project_id, path, tmp_path)
-    if file_type == 'archive':
+    upload = upload_rest_api.upload.Upload(project_id,
+                                           path,
+                                           upload_type=upload_type,
+                                           upload_id=upload_id)
+    if upload_type == 'archive':
         database.tasks.update_message(task_id, "Extracting archive")
         upload.extract_archive()
         database.tasks.update_message(task_id, "Archive extracted")
@@ -42,4 +46,4 @@ def store_files(project_id, tmp_path, path, file_type, task_id):
 
     upload.store_files()
 
-    return f"{file_type} uploaded to /{upload.path}"
+    return f"{upload_type} uploaded to /{upload.path}"

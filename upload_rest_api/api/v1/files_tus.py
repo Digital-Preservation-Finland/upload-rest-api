@@ -135,7 +135,7 @@ def _save_file(workspace, resource):
         # outcome.
         _delete_workspace(workspace)
 
-    upload.enqueue_store_task(file_type='file')
+    upload.enqueue_store_task()
 
 
 def _extract_archive(workspace, resource):
@@ -152,7 +152,7 @@ def _extract_archive(workspace, resource):
 
     try:
         # Validate the user's quota and content type again
-        upload = Upload(project_id, rel_upload_path)
+        upload = Upload(project_id, rel_upload_path, upload_type='archive')
         upload.validate(
             content_length=resource.upload_length,
             content_type="application/octet-stream"
@@ -172,7 +172,7 @@ def _extract_archive(workspace, resource):
         _delete_workspace(workspace)
 
     upload.validate_archive()
-    upload.enqueue_store_task(file_type='archive')
+    upload.enqueue_store_task()
 
 
 def _get_checksum_tuple(checksum):
