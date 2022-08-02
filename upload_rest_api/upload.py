@@ -17,10 +17,8 @@ import werkzeug
 from upload_rest_api.jobs.utils import ClientError
 from upload_rest_api.config import CONFIG
 from upload_rest_api import gen_metadata
-from upload_rest_api import utils
-from upload_rest_api.api.v1.tasks import TASK_STATUS_API_V1
 from upload_rest_api.checksum import get_file_checksum
-from upload_rest_api.database import Database, Projects
+from upload_rest_api.database import Database
 from upload_rest_api.jobs.utils import UPLOAD_QUEUE, enqueue_background_job
 from upload_rest_api.lock import ProjectLockManager
 
@@ -127,10 +125,10 @@ class Upload:
             lock_manager.release(self.project_id, self.target_path)
             raise
 
-    def store(self, file_type="file"):
+    def enqueue_store_task(self, file_type="file"):
         """Enqueue store task for upload.
 
-        :returns: Url of archive extraction task
+        :returns: Task identifier
         """
         try:
             task_id = enqueue_background_job(
@@ -145,7 +143,7 @@ class Upload:
                 }
             )
 
-            return utils.get_polling_url(TASK_STATUS_API_V1.name, task_id)
+            return task_id
         except Exception:
             lock_manager = ProjectLockManager()
             lock_manager.release(self.project_id, self.target_path)

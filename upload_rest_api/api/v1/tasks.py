@@ -1,10 +1,21 @@
 """REST api for querying upload status."""
-from flask import Blueprint, jsonify
+from urllib.parse import urlparse, urlunparse
+from flask import Blueprint, jsonify, url_for, request
 
 import upload_rest_api.database as db
 
 TASK_STATUS_API_V1 = Blueprint("tasks_v1", __name__,
                                url_prefix="/v1/tasks")
+
+
+def get_polling_url(task_id):
+    """Create url used to poll the status of asynchronous request.
+
+    :param task_id: task identifier
+    """
+    path = url_for(TASK_STATUS_API_V1.name + ".task_status", task_id=task_id)
+    parsed_url = urlparse(request.url)
+    return urlunparse([parsed_url[0], parsed_url[1], path, "", "", ""])
 
 
 def _create_gone_response():

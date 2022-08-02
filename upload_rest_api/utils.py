@@ -1,8 +1,5 @@
 """upload-rest-api utility functions."""
 from pathlib import Path
-from urllib.parse import urlparse, urlunparse
-
-from flask import request, url_for
 
 
 def parse_user_path(root, *paths):
@@ -47,10 +44,3 @@ def parse_relative_user_path(path):
         path = ""
 
     return path
-
-
-def get_polling_url(name, task_id):
-    """Create url used to poll the status of asynchronous request."""
-    path = url_for(name + ".task_status", task_id=task_id)
-    parsed_url = urlparse(request.url)
-    return urlunparse([parsed_url[0], parsed_url[1], path, "", "", ""])

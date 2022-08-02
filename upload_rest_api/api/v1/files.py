@@ -8,13 +8,13 @@ import secrets
 import shutil
 
 import metax_access
-from flask import Blueprint, abort, current_app, jsonify, request, url_for
+from flask import Blueprint, abort, current_app, jsonify, request
 
 import upload_rest_api.gen_metadata as md
 import upload_rest_api.database as db
 from upload_rest_api.upload import Upload, iso8601_timestamp
 from upload_rest_api import utils
-from upload_rest_api.api.v1.tasks import TASK_STATUS_API_V1
+from upload_rest_api.api.v1.tasks import get_polling_url
 from upload_rest_api.authentication import current_user
 from upload_rest_api.jobs.utils import FILES_QUEUE, enqueue_background_job
 from upload_rest_api.lock import lock_manager
@@ -52,15 +52,15 @@ def upload_file(project_id, fpath):
     upload = Upload(project_id, rel_upload_path)
     upload.validate(request.content_length, request.content_type)
     upload.save_stream(request.stream, request.args.get('md5', None))
-    polling_url = upload.store(file_type='file')
+    task_id = upload.enqueue_store_task(file_type='file')
 
     response = jsonify({
         "file_path": f"/{rel_upload_path}",
         "message": "Creating metadata",
-        "polling_url": polling_url,
+        "polling_url": get_polling_url(task_id),
         "status": "pending"
     })
-    response.headers[b'Location'] = polling_url
+    response.headers[b'Location'] = get_polling_url(task_id)
     response.status_code = 202
 
     return response
@@ -240,16 +240,14 @@ def delete_path(project_id, fpath):
             lock_manager.release(project_id, upload_path)
             raise
 
-        polling_url = utils.get_polling_url(TASK_STATUS_API_V1.name, task_id)
+        polling_url = get_polling_url(task_id)
         response = jsonify({
             "file_path": db.Projects.get_return_path(project_id, upload_path),
             "message": "Deleting metadata",
             "polling_url": polling_url,
             "status": "pending"
         })
-        location = url_for(TASK_STATUS_API_V1.name + ".task_status",
-                           task_id=task_id)
-        response.headers[b'Location'] = location
+        response.headers[b'Location'] = polling_url
         response.status_code = 202
         return response
 

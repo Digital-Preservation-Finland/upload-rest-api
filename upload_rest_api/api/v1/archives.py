@@ -6,6 +6,7 @@ from flask import Blueprint, abort, jsonify, request
 
 from upload_rest_api.upload import Upload
 from upload_rest_api.utils import parse_relative_user_path
+from upload_rest_api.api.v1.tasks import get_polling_url
 
 ARCHIVES_API_V1 = Blueprint("archives_v1", __name__, url_prefix="/v1/archives")
 
@@ -30,17 +31,17 @@ def upload_archive(project_id):
     upload.save_stream(stream=request.stream,
                        checksum=request.args.get('md5', None))
     upload.validate_archive()
-    polling_url = upload.store(file_type='archive')
+    task_id = upload.enqueue_store_task(file_type='archive')
 
     response = jsonify(
         {
             "file_path": f"/{rel_upload_path}",
             "message": "Uploading archive",
-            "polling_url": polling_url,
+            "polling_url": get_polling_url(task_id),
             "status": "pending"
         }
     )
-    response.headers[b'Location'] = polling_url
+    response.headers[b'Location'] = get_polling_url(task_id)
     response.status_code = 202
 
     return response

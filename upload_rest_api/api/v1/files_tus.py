@@ -135,7 +135,7 @@ def _save_file(workspace, resource):
         # outcome.
         _delete_workspace(workspace)
 
-    upload.store(file_type='file')
+    upload.enqueue_store_task(file_type='file')
 
 
 def _extract_archive(workspace, resource):
@@ -172,7 +172,7 @@ def _extract_archive(workspace, resource):
         _delete_workspace(workspace)
 
     upload.validate_archive()
-    upload.store(file_type='archive')
+    upload.enqueue_store_task(file_type='archive')
 
 
 def _get_checksum_tuple(checksum):
