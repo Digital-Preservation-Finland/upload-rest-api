@@ -40,34 +40,38 @@ def test_incorrect_authentication(app, wrong_auth):
 
 
 @pytest.mark.parametrize(
-    "name",
+    "path",
     [
         "test.txt",
+        "test_directory/test_file",
+        "test_directory/../test_file",
         "tämäontesti.txt",
         "tämä on testi.txt"
     ]
 )
-def test_upload(app, test_auth, test_mongo, name, background_job_runner,
+def test_upload(app, test_auth, test_mongo, path, background_job_runner,
                 requests_mock):
     """Test uploading a plain text file."""
     # Mock metax
-    requests_mock.post('/rest/v2/files/', json={})
+    metax_files_api = requests_mock.post('/rest/v2/files/', json={})
 
     test_client = app.test_client()
-    upload_path = app.config.get("UPLOAD_PROJECTS_PATH")
     files = test_mongo.upload.files
+    resolved_path = pathlib.Path('/', path).resolve()
+    project_path = pathlib.Path(app.config.get("UPLOAD_PROJECTS_PATH"),
+                                'test_project')
 
     response = _upload_file(
-        test_client, f"/v1/files/test_project/{name}",
+        test_client, f"/v1/files/test_project/{path}",
         test_auth, "tests/data/test.txt"
     )
     assert response.status_code == 202
     assert response.json['status'] == 'pending'
-    assert response.json['file_path'] == f'/{name}'
+    assert response.json['file_path'] == str(resolved_path)
     assert response.json['message'] == 'Creating metadata'
 
     # File should be available after metadata has been created
-    fpath = pathlib.Path(upload_path, "test_project", name)
+    fpath = project_path / resolved_path.relative_to('/')
     assert not fpath.exists()
     background_job_runner(test_client, 'upload', response)
     assert fpath.is_file()
@@ -79,15 +83,19 @@ def test_upload(app, test_auth, test_mongo, name, background_job_runner,
     # later.
     assert oct(fpath.stat().st_mode)[5:8] == "664"
 
-    # Check that the uploaded files checksum was added to database
+    # Check that the uploaded file was added to database
     document = files.find_one({"_id": str(fpath)})
-    assert document["_id"] == str(fpath)
     assert document["checksum"] == "150b62e4e7d58c70503bd5fc8a26463c"
     assert document["identifier"].startswith('urn:uuid:')
 
+    # Check that correct file metadata was sent to Metax
+    metadata = metax_files_api.last_request.json()[0]
+    assert metadata['file_path'] == str(resolved_path)
+    assert metadata['file_name'] == resolved_path.name
+
     # Test that trying to upload the file again returns 409 Conflict
     response = _upload_file(
-        test_client, f"/v1/files/test_project/{name}",
+        test_client, f"/v1/files/test_project/{path}",
         test_auth, "tests/data/test.txt"
     )
     assert response.status_code == 409

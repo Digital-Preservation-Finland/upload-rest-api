@@ -23,9 +23,9 @@ def test_store_file(mock_config, requests_mock):
     # Create a incomplete upload with one text file in temporary project
     # directory
     project = 'test_project'
-    upload = upload_rest_api.upload.Upload(project, 'test/path')
-    upload.tmp_project_directory.mkdir()
-    shutil.copy('tests/data/test.txt', upload.tmp_project_directory / 'foo')
+    upload = upload_rest_api.upload.Upload(project, 'foo/bar')
+    (upload.tmp_project_directory / 'foo').mkdir(parents=True)
+    shutil.copy('tests/data/test.txt', upload.tmp_project_directory / 'foo/bar')
 
     # Create metadata
     upload.store_files()
@@ -33,10 +33,10 @@ def test_store_file(mock_config, requests_mock):
     # Check the metadata that was posted to Metax
     metadata = metax_files_api.last_request.json()[0]
     assert metadata["identifier"].startswith('urn:uuid:')
-    assert metadata["file_name"] == "foo"
+    assert metadata["file_name"] == "bar"
     assert metadata["file_format"] == "text/plain"
     assert metadata["byte_size"] == 31
-    assert metadata["file_path"] == "foo"
+    assert metadata["file_path"] == "/foo/bar"
     assert metadata["project_identifier"] == project
     assert "file_uploaded" in metadata
     assert "file_modified" in metadata

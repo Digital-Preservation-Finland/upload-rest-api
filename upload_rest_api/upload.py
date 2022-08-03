@@ -270,7 +270,8 @@ class Upload:
         then moves the files to project directory.
         """
         try:
-            metadata_dicts = []
+            metadata_dicts = []  # File metada for Metax
+            file_documents = []  # Basic file information to database
             for dirpath, _, files in os.walk(self.tmp_project_directory):
                 for fname in files:
 
@@ -289,37 +290,39 @@ class Upload:
                         raise ClientError(f"File '{relative_path}' already "
                                           "exists", files=[str(relative_path)])
 
+                    # Create file information for database
+                    identifier = str(uuid.uuid4().urn)
+                    checksum = get_file_checksum("md5", _file)
+                    file_documents.append({
+                        "path": str(self.project_directory / relative_path),
+                        "checksum": checksum,
+                        "identifier": identifier
+                    })
+
                     # Create metadata
                     timestamp = iso8601_timestamp(_file)
                     metadata_dicts.append({
-                        "identifier": str(uuid.uuid4().urn),
+                        "identifier": identifier,
                         "file_name": str(os.path.split(_file)[1]),
                         "file_format": _get_mimetype(_file),
                         "byte_size": os.stat(_file).st_size,
-                        "file_path": str(relative_path),
+                        "file_path": f"/{relative_path}",
                         "project_identifier": self.project_id,
                         "file_uploaded": timestamp,
                         "file_modified": timestamp,
                         "file_frozen": timestamp,
                         "checksum": {
                             "algorithm": "MD5",
-                            "value": get_file_checksum("md5", _file),
+                            "value": checksum,
                             "checked": _timestamp_now()
                         },
                         "file_storage": CONFIG["STORAGE_ID"]
                     })
 
-            # Store basic metadata in database
-            self.database.files.insert(
-                [
-                    {"path": str(self.project_directory / f['file_path']),
-                     "checksum": f['checksum']['value'],
-                     "identifier": f['identifier']}
-                    for f in metadata_dicts
-                ]
-            )
+            # Insert information of all files to dababase in one go
+            self.database.files.insert(file_documents)
 
-            # Post all metadata to Metax
+            # Post all metadata to Metax in one go
             try:
                 gen_metadata.MetaxClient().post_metadata(metadata_dicts)
             except ResourceAlreadyExistsError as error:

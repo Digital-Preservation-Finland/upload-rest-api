@@ -2,6 +2,7 @@
 import os
 import pathlib
 import tarfile
+import filecmp
 
 import pytest
 
@@ -49,14 +50,15 @@ def test_upload_archive(
     :param request_mock: HTTP request mocker
     """
     # Mock metax
-    requests_mock.post('/rest/v2/files/', json={})
+    metax_files_api = requests_mock.post('/rest/v2/files/', json={})
 
     test_client = app.test_client()
-    upload_path = pathlib.Path(app.config.get("UPLOAD_PROJECTS_PATH"))
     files = test_mongo.upload.files
 
-    url = "/v1/archives/test_project"
-    response = _upload_file(test_client, url, test_auth, archive)
+    response = _upload_file(test_client,
+                            "/v1/archives/test_project",
+                            test_auth,
+                            archive)
     assert response.status_code == 202
     assert response.json['file_path'] == '/'
     assert response.json["message"] == "Uploading archive"
@@ -66,10 +68,11 @@ def test_upload_archive(
     assert response.json["status"] == "pending"
     assert response.headers['Location'] == response.json["polling_url"]
 
-    # archive file is saved to temporary directory
+    # archive is first saved to temporary directory as source file
     upload_tmp_path = pathlib.Path(app.config.get("UPLOAD_TMP_PATH"))
-    tmp_files = [path for path in upload_tmp_path.iterdir() if path.is_dir()]
-    assert len(tmp_files) == 1
+    tmp_dirs = [path for path in upload_tmp_path.iterdir() if path.is_dir()]
+    assert len(tmp_dirs) == 1
+    assert filecmp.cmp(tmp_dirs[0] / 'source', archive)
 
     # Complete the task and check task status
     response = background_job_runner(test_client, "upload", response)
@@ -77,8 +80,8 @@ def test_upload_archive(
     assert response.json['status'] == 'done'
 
     # test.txt is correctly extracted
-    fpath = upload_path / "test_project"
-    text_file = fpath / "test" / "test.txt"
+    text_file = pathlib.Path(app.config.get("UPLOAD_PROJECTS_PATH")) \
+        / "test_project" / "test" / "test.txt"
     assert text_file.is_file()
     assert "test" in text_file.read_text()
 
@@ -88,9 +91,13 @@ def test_upload_archive(
     # file is added to database
     assert files.count({}) == 1
     document = files.find_one({"_id": str(text_file)})
-    assert document['_id'] == str(text_file)
     assert document['checksum'] == "150b62e4e7d58c70503bd5fc8a26463c"
     assert document['identifier'].startswith('urn:uuid:')
+
+    # correct metadata is sent to Metax
+    metadata = metax_files_api.last_request.json()[0]
+    assert metadata['file_path'] == '/test/test.txt'
+    assert metadata['file_name'] == 'test.txt'
 
 
 @pytest.mark.parametrize(
