@@ -1,7 +1,7 @@
 """Event handler for the /files_tus/v1 endpoint."""
 import flask_tus_io
 import werkzeug
-from flask import Blueprint, abort, safe_join
+from flask import Blueprint, abort
 
 from upload_rest_api.authentication import current_user
 from upload_rest_api.checksum import (HASH_FUNCTION_ALIASES,
@@ -109,8 +109,8 @@ def _upload_started(workspace, resource):
         raise
 
 
-def _save_file(workspace, resource):
-    """Save file to the project directory."""
+def _store_files(workspace, resource, upload_type):
+    """Start the extraction job for an uploaded archive."""
     project_id = resource.upload_metadata["project_id"]
     fpath = resource.upload_metadata["upload_path"]
 
@@ -120,48 +120,12 @@ def _save_file(workspace, resource):
         abort(404)
 
     try:
+        upload = Upload(project_id, upload_path, upload_type=upload_type)
         # Validate the user's quota and content type again
-        upload = Upload(project_id, upload_path)
         upload.validate(
             content_length=resource.upload_length,
             content_type="application/octet-stream"
         )
-
-        # Upload passed validation, move file to temporary storage for
-        # metadata generation
-        resource.upload_file_path.rename(upload.source_path)
-    finally:
-        # Delete the tus-specific workspace regardless of the
-        # outcome.
-        _delete_workspace(workspace)
-
-    upload.enqueue_store_task()
-
-
-def _extract_archive(workspace, resource):
-    """Start the extraction job for an uploaded archive."""
-    project_id = resource.upload_metadata["project_id"]
-    fpath = resource.upload_metadata["upload_path"]
-
-    # 'fpath' contains the destination directory as the last path
-    # component. We will replace it with the actual directory that will
-    # contain the extracted files.
-    project_dir = Projects.get_project_directory(project_id)
-    rel_upload_path = safe_join("", fpath)
-    upload_path = project_dir / rel_upload_path
-
-    try:
-        # Validate the user's quota and content type again
-        upload = Upload(project_id, rel_upload_path, upload_type='archive')
-        upload.validate(
-            content_length=resource.upload_length,
-            content_type="application/octet-stream"
-        )
-
-        if upload_path.is_dir() and not upload_path.samefile(project_dir):
-            raise werkzeug.exceptions.Conflict(
-                f"Directory '{rel_upload_path}' already exists"
-            )
 
         # Move the archive to a temporary path to begin the
         # extraction
@@ -171,7 +135,9 @@ def _extract_archive(workspace, resource):
         # outcome.
         _delete_workspace(workspace)
 
-    upload.validate_archive()
+    if upload_type == 'archive':
+        upload.validate_archive()
+
     upload.enqueue_store_task()
 
 
@@ -258,14 +224,12 @@ def _upload_completed(workspace, resource):
             resource=resource, workspace=workspace, checksum=checksum
         )
 
-    if upload_type == "file":
-        _save_file(workspace, resource)
-    elif upload_type == "archive":
-        _extract_archive(workspace, resource)
-    else:
+    if upload_type not in ['file', 'archive']:
         raise werkzeug.exceptions.BadRequest(
             f"Unknown upload type '{upload_type}'"
         )
+
+    _store_files(workspace, resource, upload_type)
 
 
 def tus_event_handler(event_type, workspace, resource):
