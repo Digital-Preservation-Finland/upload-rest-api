@@ -11,7 +11,6 @@ from archive_helpers.extract import (ExtractError, MemberNameError,
                                      MemberOverwriteError, MemberTypeError,
                                      extract)
 import magic
-from metax_access import ResourceAlreadyExistsError
 import werkzeug
 
 from upload_rest_api.jobs.utils import ClientError
@@ -292,13 +291,20 @@ class Upload:
         then moves the files to project directory.
         """
         try:
-            metadata_dicts = []  # File metada for Metax
+            metax = gen_metadata.MetaxClient()
+            old_metax_files = metax.get_files_dict(self.project_id).keys()
+            conflicts = []  # Uploaded files that already exist in Metax
+            metadata_dicts = []  # File metadata for Metax
             file_documents = []  # Basic file information to database
             for dirpath, _, files in os.walk(self.tmp_project_directory):
                 for fname in files:
                     file = pathlib.Path(dirpath, fname)
                     relative_path \
                         = file.relative_to(self.tmp_project_directory)
+
+                    if f"/{relative_path}" in old_metax_files:
+                        conflicts.append(str(relative_path))
+                        continue
 
                     # Create file information for database
                     identifier = str(uuid.uuid4().urn)
@@ -329,22 +335,20 @@ class Upload:
                         "file_storage": CONFIG["STORAGE_ID"]
                     })
 
-            # Insert information of all files to dababase in one go
-            self.database.files.insert(file_documents)
+            # Refuse to store files if Metax has conflicting files. See
+            # https://jira.ci.csc.fi/browse/TPASPKT-749 for more
+            # information.
+            if conflicts:
+                shutil.rmtree(self.tmp_path)
+                raise ClientError('Metadata could not be created because some '
+                                  'files already have metadata',
+                                  files=conflicts)
 
             # Post all metadata to Metax in one go
-            try:
-                gen_metadata.MetaxClient().post_metadata(metadata_dicts)
-            except ResourceAlreadyExistsError as error:
-                try:
-                    failed_files = [file_['object']['file_path']
-                                    for file_
-                                    in error.response.json()['failed']]
-                except KeyError:
-                    # Most likely only one file was posted so Metax
-                    # response format is different
-                    failed_files = [self.path]
-                raise ClientError(error.message, files=failed_files) from error
+            metax.post_metadata(metadata_dicts)
+
+            # Insert information of all files to dababase in one go
+            self.database.files.insert(file_documents)
 
             # Move files to project directory
             self._move_files_to_project_directory()

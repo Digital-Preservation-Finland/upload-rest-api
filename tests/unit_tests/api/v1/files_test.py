@@ -54,6 +54,7 @@ def test_upload(app, test_auth, test_mongo, path, background_job_runner,
     """Test uploading a plain text file."""
     # Mock metax
     metax_files_api = requests_mock.post('/rest/v2/files/', json={})
+    requests_mock.get('/rest/v2/files', json={'results': [], 'next': None})
 
     test_client = app.test_client()
     files = test_mongo.upload.files
@@ -178,9 +179,10 @@ def test_used_quota(app, database, test_auth, requests_mock,
 
 def test_upload_conflicting_directory(app, test_auth, requests_mock,
                                       background_job_runner):
-    """Test uploading file to path is a directory."""
+    """Test uploading file to path that is a directory."""
     # Mock metax
     requests_mock.post('/rest/v2/files/', json={})
+    requests_mock.get('/rest/v2/files', json={'results': [], 'next': None})
 
     # First upload file to "/foo/bar", so that directory "/foo" is
     # created.
@@ -530,8 +532,26 @@ def test_delete_directory(
     upload_tmpdir, target, files_to_delete
 ):
     """Test deleting a directory."""
-    # Mock metax
+    # Mock metax. First, there is no file metadata available.
     requests_mock.post('/rest/v2/files/', json={})
+    requests_mock.get('/rest/v2/files', json={"results": [], "next": None})
+
+    # Create test data
+    test_client = app.test_client()
+
+    response = _upload_file(test_client,
+                            '/v1/files/test_project/test.txt',
+                            test_auth,
+                            'tests/data/test.txt')
+    background_job_runner(test_client, 'upload', response)
+
+    response = _upload_file(test_client,
+                            '/v1/files/test_project/test/test.txt',
+                            test_auth,
+                            'tests/data/test.txt')
+    background_job_runner(test_client, 'upload', response)
+
+    # After creating the test data, each file has metadata in Metax.
     requests_mock.get(
         "https://metax.localdomain/rest/v2/files?limit=10000&"
         "project_identifier=test_project",
@@ -550,21 +570,6 @@ def test_delete_directory(
             'next': None
         }
     )
-
-    # Create test data
-    test_client = app.test_client()
-
-    response = _upload_file(test_client,
-                            '/v1/files/test_project/test.txt',
-                            test_auth,
-                            'tests/data/test.txt')
-    background_job_runner(test_client, 'upload', response)
-
-    response = _upload_file(test_client,
-                            '/v1/files/test_project/test/test.txt',
-                            test_auth,
-                            'tests/data/test.txt')
-    background_job_runner(test_client, 'upload', response)
 
     # Find the target files
     project_directory \

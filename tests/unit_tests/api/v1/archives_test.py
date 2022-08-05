@@ -51,6 +51,7 @@ def test_upload_archive(
     """
     # Mock metax
     metax_files_api = requests_mock.post('/rest/v2/files/', json={})
+    requests_mock.get('/rest/v2/files', json={'next': None, 'results': []})
 
     test_client = app.test_client()
     files = test_mongo.upload.files
@@ -123,6 +124,7 @@ def test_upload_archive_to_dirpath(
     """
     # Mock metax
     requests_mock.post('/rest/v2/files/', json={})
+    requests_mock.get('/rest/v2/files', json={'next': None, 'results': []})
 
     test_client = app.test_client()
 
@@ -157,6 +159,7 @@ def test_upload_archive_overwrite_file(
     """
     # Mock metax
     requests_mock.post('/rest/v2/files/', json={})
+    requests_mock.get('/rest/v2/files', json={'next': None, 'results': []})
 
     # Upload a file
     response = _upload_file(test_client,
@@ -197,6 +200,7 @@ def test_upload_archive_overwrite_files(
     """
     # Mock metax
     requests_mock.post('/rest/v2/files/', json={})
+    requests_mock.get('/rest/v2/files', json={'next': None, 'results': []})
 
     # Upload first archive
     url = '/v1/archives/test_project'
@@ -330,6 +334,7 @@ def test_upload_two_archives(
     """
     # Mock metax
     requests_mock.post('/rest/v2/files/', json={})
+    requests_mock.get('/rest/v2/files', json={'next': None, 'results': []})
 
     test_client = app.test_client()
 
@@ -382,6 +387,7 @@ def test_upload_archive_multiple_archives(
     """
     # Mock metax
     requests_mock.post('/rest/v2/files/', json={})
+    requests_mock.get('/rest/v2/files', json={'next': None, 'results': []})
 
     test_client = app.test_client()
     upload_path = pathlib.Path(app.config.get("UPLOAD_PROJECTS_PATH"))

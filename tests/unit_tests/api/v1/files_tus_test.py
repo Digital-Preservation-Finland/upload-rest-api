@@ -76,6 +76,7 @@ def test_upload_file(test_client, app, test_auth, test_mongo, name,
     """
     # Mock metax
     requests_mock.post('/rest/v2/files/', json={})
+    requests_mock.get('/rest/v2/files', json={'results': [], 'next': None})
 
     # Upload file
     file_content = b"XyzzyXyzzy"
@@ -151,6 +152,7 @@ def test_upload_file_checksum(test_client, test_auth, test_mongo,
     """
     # Mock Metax
     requests_mock.post('/rest/v2/files/', json={})
+    requests_mock.get('/rest/v2/files', json={'results': [], 'next': None})
 
     data = b"XyzzyXyzzy"
     upload_metadata = {
@@ -209,6 +211,7 @@ def test_upload_file_checksum_iterative(
     """
     # Mock Metax
     requests_mock.post('/rest/v2/files/', json={})
+    requests_mock.get('/rest/v2/files', json={'results': [], 'next': None})
 
     upload_metadata = {
         "type": "file",
@@ -349,6 +352,7 @@ def test_upload_file_deep_directory(
     """
     # Mock Metax
     requests_mock.post('/rest/v2/files/', json={})
+    requests_mock.get('/rest/v2/files', json={'results': [], 'next': None})
 
     data = b"XyzzyXyzzy"
 
@@ -395,6 +399,7 @@ def test_upload_file_exceed_quota(test_client, test_auth, database,
     """
     # Mock Metax
     requests_mock.post('/rest/v2/files/', json={})
+    requests_mock.get('/rest/v2/files', json={'results': [], 'next': None})
 
     database.projects.set_quota("test_project", 15)
 
@@ -548,6 +553,7 @@ def test_upload_archive(
     """
     # Mock Metax
     requests_mock.post('/rest/v2/files/', json={})
+    requests_mock.get('/rest/v2/files', json={'results': [], 'next': None})
 
     upload_metadata = {
         "type": "archive",
