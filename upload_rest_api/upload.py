@@ -276,6 +276,7 @@ class Upload:
                         existing_files.append(str(relative_path))
 
             if existing_files:
+                shutil.rmtree(self.tmp_path)
                 raise ClientError("Some files already exist",
                                   files=existing_files)
 

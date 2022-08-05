@@ -184,7 +184,7 @@ def test_upload_archive_overwrite_file(
 )
 def test_upload_archive_overwrite_files(
     archive, directory, test_client, test_auth, background_job_runner,
-    requests_mock
+    requests_mock, mock_config
 ):
     """Test uploading archive that would overwrite a files.
 
@@ -225,6 +225,9 @@ def test_upload_archive_overwrite_files(
                              in tar_file.getmembers()
                              if member.isfile()]
     assert response.json['errors'][0]['files'] == conflicting_files
+
+    # Uploaded files should be removed, so tmp directory should be empty
+    assert not any(pathlib.Path(mock_config['UPLOAD_TMP_PATH']).iterdir())
 
 
 @pytest.mark.parametrize(
