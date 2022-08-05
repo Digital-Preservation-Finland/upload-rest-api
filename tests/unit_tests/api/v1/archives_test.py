@@ -217,12 +217,14 @@ def test_upload_archive_overwrite_files(
     assert response.status_code == 200
     assert response.json['status'] == 'error'
 
-    # Error message should complain about conflicting file
-    with tarfile.open(archive) as tar_file:
-        archive_content = [member.name for member
-                           in tar_file.getmembers() if member.isfile()]
+    # Error message should complain about conflicting files
     assert response.json['errors'][0]['message'] \
-        == f"File '{directory}{archive_content[0]}' already exists"
+        == "Some files already exist"
+    with tarfile.open(archive) as tar_file:
+        conflicting_files = [directory + member.name for member
+                             in tar_file.getmembers()
+                             if member.isfile()]
+    assert response.json['errors'][0]['files'] == conflicting_files
 
 
 @pytest.mark.parametrize(

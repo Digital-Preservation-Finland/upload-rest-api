@@ -258,6 +258,27 @@ class Upload:
 
             # Remove archive
             os.remove(self.source_path)
+
+            # Remove symbolic links, and check that archive does not
+            # overwrite existing files
+            existing_files = []
+            for dirpath, _, files in os.walk(self.tmp_project_directory):
+                for fname in files:
+                    file = pathlib.Path(dirpath, fname)
+                    relative_path \
+                        = file.relative_to(self.tmp_project_directory)
+
+                    if file.is_symlink():
+                        file.unlink()
+                        continue
+
+                    if (self.project_directory / relative_path).exists():
+                        existing_files.append(str(relative_path))
+
+            if existing_files:
+                raise ClientError("Some files already exist",
+                                  files=existing_files)
+
         except Exception:
             lock_manager = ProjectLockManager()
             lock_manager.release(self.project_id, self.target_path)
@@ -274,25 +295,13 @@ class Upload:
             file_documents = []  # Basic file information to database
             for dirpath, _, files in os.walk(self.tmp_project_directory):
                 for fname in files:
-
-                    # Remove symbolic links
-                    _file = os.path.join(dirpath, fname)
-                    if os.path.islink(_file):
-                        os.unlink(_file)
-                        continue
-
-                    relative_path = pathlib.Path(_file).relative_to(
-                        self.tmp_project_directory
-                    )
-
-                    target_path = self.project_directory / relative_path
-                    if target_path.exists():
-                        raise ClientError(f"File '{relative_path}' already "
-                                          "exists", files=[str(relative_path)])
+                    file = pathlib.Path(dirpath, fname)
+                    relative_path \
+                        = file.relative_to(self.tmp_project_directory)
 
                     # Create file information for database
                     identifier = str(uuid.uuid4().urn)
-                    checksum = get_file_checksum("md5", _file)
+                    checksum = get_file_checksum("md5", file)
                     file_documents.append({
                         "path": str(self.project_directory / relative_path),
                         "checksum": checksum,
@@ -300,12 +309,12 @@ class Upload:
                     })
 
                     # Create metadata
-                    timestamp = iso8601_timestamp(_file)
+                    timestamp = iso8601_timestamp(file)
                     metadata_dicts.append({
                         "identifier": identifier,
-                        "file_name": str(os.path.split(_file)[1]),
-                        "file_format": _get_mimetype(_file),
-                        "byte_size": os.stat(_file).st_size,
+                        "file_name": file.name,
+                        "file_format": _get_mimetype(file),
+                        "byte_size": file.stat().st_size,
                         "file_path": f"/{relative_path}",
                         "project_identifier": self.project_id,
                         "file_uploaded": timestamp,
@@ -373,7 +382,7 @@ class Upload:
 def iso8601_timestamp(fpath):
     """Return last access time in ISO 8601 format."""
     timestamp = datetime.fromtimestamp(
-        os.stat(fpath).st_atime, tz=timezone.utc
+        fpath.stat().st_atime, tz=timezone.utc
     ).replace(microsecond=0)
     return timestamp.replace(microsecond=0).isoformat()
 
