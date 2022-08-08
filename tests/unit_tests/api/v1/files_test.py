@@ -294,6 +294,7 @@ def test_file_integrity_validation(app, test_auth, checksum, mock_redis,
     :param app: Flask app
     :param test_auth: authentication headers
     :param cheksum: checksum included in HTTP headers
+    :param mock_redis: Redis mocker
     :param expected_status_code: expected status of response from API
     :param expected_response: expected JSON response from API
     """
@@ -312,8 +313,9 @@ def test_file_integrity_validation(app, test_auth, checksum, mock_redis,
     for key in expected_response:
         assert response.json[key] == expected_response[key]
 
-    # Release lock of unfinished metadata generation job
-    mock_redis.flushall()
+    # Release lock of unfinished background job
+    if response.status_code == 202:
+        mock_redis.flushall()
 
 
 def test_get_file(app, test_auth, test2_auth, test3_auth, test_mongo):
@@ -456,7 +458,8 @@ def test_get_files(app, test_auth, path, expected_data, requests_mock):
     :param app: Flask app
     :param test_auth: authentication headers
     :param path: directory path to be tested
-    :param data: expected response data
+    :param expected_data: expected response data
+    :param requests_mock: HTTP request mocker
     """
     requests_mock.get(
         'https://metax.localdomain/rest/v2/directories/files',
@@ -499,6 +502,7 @@ def test_get_directory_without_identifier(app, test_auth, requests_mock):
 
     :param app: Flask app
     :param test_auth: authentication headers
+    :param requests_mock: HTTP request mocker
     """
     # Create test directory
     upload_path = app.config.get("UPLOAD_PROJECTS_PATH")

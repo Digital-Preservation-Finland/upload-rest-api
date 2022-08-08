@@ -62,18 +62,17 @@ def _do_tus_upload(
 @pytest.mark.parametrize(
     "name", ("test.txt", "tämäontesti.txt", "tämä on testi.txt")
 )
-def test_upload_file(test_client, app, test_auth, test_mongo, name,
-                     background_job_runner, requests_mock):
+def test_upload_file(app, test_auth, test_mongo, name, requests_mock):
     """Test uploading a small file.
 
-    :param test_client: Flask client
     :param app: Flask app
     :param test_auth: Authentication headers
     :param test_mongo: Mongo client
     :param name: Name of uploaded file
-    :param background_job_runner: RQ job mocker
     :param requests_mock: HTTP request mocker
     """
+    test_client = app.test_client()
+
     # Mock metax
     requests_mock.post('/rest/v2/files/', json={})
     requests_mock.get('/rest/v2/files', json={'results': [], 'next': None})
@@ -93,11 +92,9 @@ def test_upload_file(test_client, app, test_auth, test_mongo, name,
         data=file_content
     )
 
-    # Run metadata generation task
-    tasks = list(test_mongo.upload.tasks.find())
-    assert len(tasks) == 1
-    task_id = str(tasks[0]["_id"])
-    background_job_runner(test_client, "upload", task_id=task_id)
+    # Run the upload background job
+    queue = get_job_queue('upload')
+    queue.run_job(queue.jobs[0])
 
     # Uploaded file was added to database
     files = list(test_mongo.upload.files.find())
@@ -138,16 +135,13 @@ def test_upload_file(test_client, app, test_auth, test_mongo, name,
 
 
 @pytest.mark.usefixtures("project", "mock_redis")
-def test_upload_file_checksum(test_client, test_auth, test_mongo,
-                              background_job_runner, requests_mock):
+def test_upload_file_checksum(test_client, test_auth, requests_mock):
     """Test uploading a file with a checksum.
 
     Ensure that the checksum is checked.
 
     :param test_client: Flask client
     :param test_auth: Authentication headers
-    :param test_mongo: Mongo client
-    :param background_job_runner: RQ job mocker
     :param requests_mock: HTTP request mocker
     """
     # Mock Metax
@@ -175,11 +169,9 @@ def test_upload_file_checksum(test_client, test_auth, test_mongo,
         expected_status=204
     )
 
-    # Run metadata generation task
-    tasks = list(test_mongo.upload.tasks.find())
-    assert len(tasks) == 1
-    task_id = str(tasks[0]["_id"])
-    background_job_runner(test_client, "upload", task_id=task_id)
+    # Run the upload background job
+    queue = get_job_queue('upload')
+    queue.run_job(queue.jobs[0])
 
     # Try again with incorrect checksum
     upload_metadata["upload_path"] = "test2.txt"
@@ -202,8 +194,7 @@ def test_upload_file_checksum(test_client, test_auth, test_mongo,
 
 @pytest.mark.usefixtures("project")
 def test_upload_file_checksum_iterative(
-        app, test_client, test_auth, test_mongo, mock_redis,
-        background_job_runner, requests_mock
+        app, test_client, test_auth, test_mongo, requests_mock
 ):
     """
     Test uploading a file in multiple parts and ensure the checksum
@@ -265,12 +256,11 @@ def test_upload_file_checksum_iterative(
 
         assert resp.status_code == 204
 
-    # Run metadata generation task
-    tasks = list(test_mongo.upload.tasks.find())
-    assert len(tasks) == 1
-    task_id = str(tasks[0]["_id"])
-    background_job_runner(test_client, "upload", task_id=task_id)
+    # Run the upload background job
+    queue = get_job_queue('upload')
+    queue.run_job(queue.jobs[0])
 
+    # Check that correct checksum was added to database
     upload_path = pathlib.Path(app.config.get("UPLOAD_PROJECTS_PATH"))
     assert test_mongo.upload.files.find_one(
         {
@@ -278,9 +268,6 @@ def test_upload_file_checksum_iterative(
             "checksum": "71680afeb1ac710d2cc230b96c9cc894"
         }
     )
-
-    # Release locks of unfinished metadata generation jobs
-    mock_redis.flushall()
 
 
 @pytest.mark.usefixtures("project", "mock_redis")
@@ -343,8 +330,7 @@ def test_upload_file_checksum_unknown_algorithm(test_client, test_auth):
     "name", ("test.txt", "tämäontesti.txt", "tämä on testi.txt")
 )
 def test_upload_file_deep_directory(
-    test_client, test_auth, test_mongo, name, mock_redis, mock_config,
-    requests_mock
+    test_client, test_auth, test_mongo, name, mock_config, requests_mock
 ):
     """Test uploading a small file within a directory hierarchy.
 
@@ -370,7 +356,7 @@ def test_upload_file_deep_directory(
         data=data
     )
 
-    # Run metadata generation background job
+    # Run the upload background job
     queue = get_job_queue('upload')
     queue.run_job(queue.jobs[0])
 
@@ -386,12 +372,9 @@ def test_upload_file_deep_directory(
         base_path / "projects" / "test_project" / "foo" / "bar" / name
     ).read_bytes() == data
 
-    # Release locks of unfinished metadata generation jobs
-    mock_redis.flushall()
-
 
 def test_upload_file_exceed_quota(test_client, test_auth, database,
-                                  mock_redis, requests_mock):
+                                  requests_mock):
     """Test exceeding quota.
 
     Upload one file and try uploading a second file which would exceed
@@ -418,7 +401,7 @@ def test_upload_file_exceed_quota(test_client, test_auth, database,
         data=data
     )
 
-    # Run metadata generation background job
+    # Run the upload background job
     queue = get_job_queue('upload')
     queue.run_job(queue.jobs[0])
 
@@ -442,9 +425,6 @@ def test_upload_file_exceed_quota(test_client, test_auth, database,
 
     assert resp.status_code == 413
     assert resp.json["error"] == "Remaining user quota too low"
-
-    # Release locks of unfinished metadata generation jobs
-    mock_redis.flushall()
 
 
 def test_upload_file_parallel_upload_exceed_quota(
@@ -537,18 +517,14 @@ def test_upload_file_conflict(test_client, test_auth):
 
 
 @pytest.mark.usefixtures("database")
-def test_upload_archive(
-        test_client, test_auth, test_mongo, mock_config,
-        background_job_runner, requests_mock):
+def test_upload_archive(test_client, test_auth, mock_config, requests_mock):
     """Test uploading an archive.
 
     Ensure that the archive is extracted successfully.
 
     :param test_client: Flask client
     :param test_auth: Authorization headers
-    :param test_mongo: Mongo client
     :param mock_config: Configuration
-    :param background_job_runner: RQ job mocker
     :param requests_mock: HTTP request mocker
     """
     # Mock Metax
@@ -571,15 +547,9 @@ def test_upload_archive(
         data=test_data
     )
 
-    tasks = list(test_mongo.upload.tasks.find())
-    assert len(tasks) == 1
-
-    task_id = str(tasks[0]["_id"])
-
-    response = background_job_runner(test_client, "upload", task_id=task_id)
-    data = response.json
-
-    assert data["message"] == "archive uploaded to /extract_dir"
+    # Run the upload background job
+    queue = get_job_queue('upload')
+    queue.run_job(queue.jobs[0])
 
     base_path = pathlib.Path(mock_config["UPLOAD_BASE_PATH"])
     assert (

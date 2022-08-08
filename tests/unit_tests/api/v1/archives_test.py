@@ -79,6 +79,7 @@ def test_upload_archive(
     response = background_job_runner(test_client, "upload", response)
     assert response.status_code == 200
     assert response.json['status'] == 'done'
+    assert response.json['message'] == 'archive uploaded to /'
 
     # test.txt is correctly extracted
     text_file = pathlib.Path(app.config.get("UPLOAD_PROJECTS_PATH")) \
@@ -136,6 +137,10 @@ def test_upload_archive_to_dirpath(
 
     # Complete the task
     response = background_job_runner(test_client, "upload", response)
+    assert response.status_code == 200
+    assert response.json['status'] == 'done'
+    assert response.json['message'] \
+        == f'archive uploaded to /{dirpath.strip("/")}'
 
     # test.txt is correctly extracted
     text_file = (pathlib.Path(app.config.get("UPLOAD_PROJECTS_PATH"))
@@ -148,10 +153,8 @@ def test_upload_archive_to_dirpath(
 def test_upload_archive_overwrite_file(
     test_client, test_auth, background_job_runner, requests_mock
 ):
-    """Test uploading archive that would overwrite a files.
+    """Test uploading archive that would overwrite files.
 
-    :param archive: path to test archive
-    :param directory: target directory archive upload
     :param test_client: Flask test client
     :param test_auth: authentication headers
     :param background_job_runner: RQ job mocker
@@ -197,6 +200,7 @@ def test_upload_archive_overwrite_files(
     :param test_auth: authentication headers
     :param background_job_runner: RQ job mocker
     :param requests_mock: HTTP request mocker
+    :param mock_config: Mocked configuration
     """
     # Mock metax
     requests_mock.post('/rest/v2/files/', json={})
@@ -269,6 +273,7 @@ def test_archive_integrity_validation(
 
     :param app: Flask app
     :param test_auth: authentication headers
+    :param mock_redis: Redis mocker
     :param cheksum: checksum included in HTTP headers
     :param expected_status_code: expected status of response from API
     :param expected_response: expected JSON response from API
