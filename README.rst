@@ -1,6 +1,6 @@
 Pre-ingest filestorage
 ======================
-Temporary filestorage service for datasets to be packaged by packaging service. Provides REST API for file uploads and technical metadata generation.
+Temporary filestorage service for datasets to be packaged by packaging service. Provides REST API for file uploads.
 
 Usage
 -----
@@ -22,9 +22,9 @@ Start local development/test server::
 
     python upload_rest_api/app.py
 
-Start rq workers that read jobs from queues: `files`, `metadata`, and `upload`::
+Start rq workers that read jobs from queues: `files`, and `upload`::
 
-    rq worker -c upload_rest_api.rq_config --queue-class "upload_rest_api.jobs.BackgroundJobQueue" files metadata upload
+    rq worker -c upload_rest_api.rq_config --queue-class "upload_rest_api.jobs.BackgroundJobQueue" files upload
 
 Create a user and project using CLI::
 
@@ -43,24 +43,6 @@ GET file::
 DELETE file::
 
     curl -X DELETE -u <user>:<password> localhost:5000/v1/files/<project>/<path-to-file-on-server>
-
-POST file metadata to Metax::
-
-    curl -X POST -u <user>:<password> localhost:5000/v1/metadata/<project>/<path-to-file-or-dir>
-
-If the given path resolves to a directory, all files inside the directory and its
-subdirectories are posted to Metax. POST metadata of all uploaded files to Metax::
-
-    curl -X POST -u <user>:<password> localhost:5000/v1/metadata/<project>/*
-
-DELETE file metadata from Metax::
-
-    curl -X DELETE -u <user>:<password> localhost:5000/v1/metadata/<project>/<path-to-file-or-dir>
-
-If the given path resolves to a directory, all files inside the directory and its
-subdirectories are deleted from Metax. Delete metadata of all uploaded files from Metax::
-
-    curl -X DELETE -u <user>:<password> localhost:5000/v1/metadata/<project>/*
 
 Copyright
 ---------
