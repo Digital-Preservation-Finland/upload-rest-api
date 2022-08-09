@@ -40,8 +40,9 @@ def task_status(task_id):
         response = _create_gone_response()
 
     else:
-        content = {'status': task["status"],
-                   "message": task["message"]}
+        content = {'status': task["status"]}
+        if 'message' in task:
+            content["message"] = task["message"]
         if 'errors' in task:
             content['errors'] = task['errors']
         response = jsonify(content)

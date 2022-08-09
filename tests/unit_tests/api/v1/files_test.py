@@ -69,7 +69,7 @@ def test_upload(app, test_auth, test_mongo, path, background_job_runner,
     assert response.status_code == 202
     assert response.json['status'] == 'pending'
     assert response.json['file_path'] == str(resolved_path)
-    assert response.json['message'] == 'Creating metadata'
+    assert response.json['message'] == 'Uploading file'
 
     # File should be available after metadata has been created
     fpath = project_path / resolved_path.relative_to('/')
@@ -268,7 +268,7 @@ def test_unknown_content_length(app, test_auth):
             {
                 'file_path': '/test_path',
                 'status': 'pending',
-                'message': 'Creating metadata'
+                'message': 'Uploading file'
             }
 
         ),

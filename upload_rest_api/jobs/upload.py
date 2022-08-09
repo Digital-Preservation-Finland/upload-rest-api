@@ -19,10 +19,6 @@ def store_files(project_id, path, upload_type, upload_id, task_id):
     :param str task_id: identifier of the task
     """
     database = upload_rest_api.database.Database()
-    database.tasks.update_message(
-        task_id, f"Creating metadata: {path}"
-    )
-
     upload = upload_rest_api.upload.Upload(project_id,
                                            path,
                                            upload_type=upload_type,
@@ -30,7 +26,6 @@ def store_files(project_id, path, upload_type, upload_id, task_id):
     if upload_type == 'archive':
         database.tasks.update_message(task_id, "Extracting archive")
         upload.extract_archive()
-        database.tasks.update_message(task_id, "Archive extracted")
     else:
         # The source file is not an archive. Just move the file to
         # temporary project directory.
@@ -41,7 +36,7 @@ def store_files(project_id, path, upload_type, upload_id, task_id):
                     upload.tmp_project_directory / upload.path)
 
     database.tasks.update_message(
-        task_id, f"Creating metadata: {upload.path}"
+        task_id, f"Creating metadata: /{upload.path}"
     )
 
     upload.store_files()

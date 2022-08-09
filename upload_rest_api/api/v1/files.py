@@ -56,7 +56,7 @@ def upload_file(project_id, fpath):
 
     response = jsonify({
         "file_path": f"/{rel_upload_path}",
-        "message": "Creating metadata",
+        "message": "Uploading file",
         "polling_url": get_polling_url(task_id),
         "status": "pending"
     })
@@ -99,7 +99,7 @@ def get_path(project_id, fpath):
         file_doc = database.files.get(str(upload_path))
         response = {
             "file_path": return_path,
-            "identifier": file_doc.get("identifier", None),
+            "identifier": file_doc.get("identifier"),
             "md5": file_doc["checksum"],
             "timestamp": iso8601_timestamp(upload_path)
         }
