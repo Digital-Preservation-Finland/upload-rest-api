@@ -5,6 +5,7 @@ import hashlib
 import json
 import os
 import random
+import re
 import secrets
 import time
 import uuid
@@ -18,6 +19,7 @@ from bson.binary import Binary
 from bson.codec_options import CodecOptions
 from bson.objectid import ObjectId
 from pymongo.errors import DuplicateKeyError
+from pymongo.operations import UpdateOne
 from redis import Redis
 from rq.exceptions import NoSuchJobError
 from rq.job import Job
@@ -420,6 +422,18 @@ class Files:
         :returns: Number of documents deleted
         """
         return self.files.delete_one({"_id": file_path}).deleted_count
+
+    def iter_files_in_dir(self, file_path):
+        """Retrieve all files recursively under the given path.
+
+        :returns: List of file documents
+        """
+        escaped_file_path = re.escape(str(file_path))
+        files = self.files.find(
+            {"_id": {"$regex": f"^{escaped_file_path}/"}}
+        )
+        for file_ in files:
+            yield file_
 
     def get_all_ids(self):
         """Return a list of all stored identifiers."""
