@@ -29,6 +29,17 @@ def http_error_404(error):
     return make_response(404, message)
 
 
+def upload_conflict(error):
+    """Create HTTP 409 Conflict error.
+
+    The error should contain list of conflicting files.
+    """
+    response = jsonify({'error': error.message, 'files': error.files})
+    response.status_code = 409
+
+    return response
+
+
 def http_error_locked(error):
     """Create HTTP 409 Conflict error indicating the resource is locked."""
     current_app.logger.error(error, exc_info=True)

@@ -24,19 +24,18 @@ from upload_rest_api.lock import ProjectLockManager
 SUPPORTED_TYPES = ("application/octet-stream",)
 
 
-def _extracted_size(archive_path):
-    """Compute the total size of archive content.
+class UploadConflict(Exception):
+    """Exception raised when upload would overwrite existing files."""
 
-    :returns: Size of extracted archive
-    """
-    if tarfile.is_tarfile(archive_path):
-        with tarfile.open(archive_path) as archive:
-            size = sum(memb.size for memb in archive)
-    else:
-        with zipfile.ZipFile(archive_path) as archive:
-            size = sum(memb.file_size for memb in archive.filelist)
+    def __init__(self, message, files):
+        """Initialize exception.
 
-    return size
+        :param message: Error message
+        :param files: List of conflicting files.
+        """
+        super().__init__()
+        self.message = message
+        self.files = files
 
 
 class Upload:
@@ -115,7 +114,7 @@ class Upload:
             # Verify integrity of uploaded file if checksum was provided
             if checksum \
                     and checksum != get_file_checksum("md5", self.source_path):
-                os.remove(self.source_path)
+                self.source_path.unlink()
                 raise werkzeug.exceptions.BadRequest(
                     'Checksum of uploaded file does not match provided '
                     'checksum.'
@@ -161,13 +160,13 @@ class Upload:
         """
         try:
             if self.target_path.is_file():
-                raise werkzeug.exceptions.Conflict(
-                    f"File '/{self.path}' already exists"
+                raise UploadConflict(
+                    f"File '/{self.path}' already exists", [self.path]
                 )
 
             if self.type == "file" and self.target_path.is_dir():
-                raise werkzeug.exceptions.Conflict(
-                    f"Directory '/{self.path}' already exists"
+                raise UploadConflict(
+                    f"Directory '/{self.path}' already exists", [self.path]
                 )
 
             # Check that Content-Length header is provided and uploaded
@@ -208,24 +207,59 @@ class Upload:
     def validate_archive(self):
         """Validate archive.
 
-        Check that archive is supported format and that the project has
-        enough quota.
+        Check that archive is supported format, the project has
+        enough quota, and archive does not overwrite existing files.
         """
         try:
             # Ensure that arhive is supported format
             if not (zipfile.is_zipfile(self.source_path)
                     or tarfile.is_tarfile(self.source_path)):
-                os.remove(self.source_path)
+                self.source_path.unlink()
                 raise werkzeug.exceptions.BadRequest(
                     "Uploaded file is not a supported archive"
                 )
 
             # Ensure that the project has enough quota available
             project = self.database.projects.get(self.project_id)
-            extracted_size = _extracted_size(self.source_path)
+
+            if tarfile.is_tarfile(self.source_path):
+                with tarfile.open(self.source_path) as archive:
+                    extracted_size = sum(member.size for member in archive)
+                    files = [member.name for member in archive
+                             if member.isfile()]
+                    directories = [member.name for member in archive
+                                   if member.isdir()]
+            else:
+                with zipfile.ZipFile(self.source_path) as archive:
+                    extracted_size = sum(member.file_size
+                                         for member in archive.filelist)
+                    files = [member.filename for member
+                             in archive.infolist() if not member.is_dir()]
+                    directories = [member.filename for member in
+                                   archive.infolist() if member.is_dir()]
+
+            # Check that files in archive does not overwrite existing
+            # files or directories, and that directories in archive do
+            # not overwrite files.
+            conflicts = []
+            for file in files:
+                extract_path = self.project_directory / self.path / file
+                if extract_path.exists():
+                    conflicts.append(f'{self.path}/{file}')
+            for directory in directories:
+                extract_path \
+                    = self.project_directory / self.path / directory
+                if extract_path.is_file():
+                    conflicts.append(f'{self.path}/{directory}')
+            if conflicts:
+                self.source_path.unlink()
+                raise UploadConflict(
+                    'Some files already exist', files=conflicts
+                )
+
             if project['quota'] - project['used_quota'] - extracted_size < 0:
                 # Remove the archive and raise an exception
-                os.remove(self.source_path)
+                self.source_path.unlink()
                 raise werkzeug.exceptions.RequestEntityTooLarge(
                     "Quota exceeded"
                 )
@@ -252,32 +286,19 @@ class Upload:
             except (MemberNameError, MemberTypeError, MemberOverwriteError,
                     ExtractError) as error:
                 # Remove the archive and set task's state
-                os.remove(self.source_path)
+                self.source_path.unlink()
                 raise ClientError(str(error)) from error
 
             # Remove archive
-            os.remove(self.source_path)
+            self.source_path.unlink()
 
-            # Remove symbolic links, and check that archive does not
-            # overwrite existing files
-            existing_files = []
+            # Remove symbolic links
             for dirpath, _, files in os.walk(self.tmp_project_directory):
                 for fname in files:
                     file = pathlib.Path(dirpath, fname)
-                    relative_path \
-                        = file.relative_to(self.tmp_project_directory)
-
                     if file.is_symlink():
                         file.unlink()
                         continue
-
-                    if (self.project_directory / relative_path).exists():
-                        existing_files.append(str(relative_path))
-
-            if existing_files:
-                shutil.rmtree(self.tmp_path)
-                raise ClientError("Some files already exist",
-                                  files=existing_files)
 
         except Exception:
             lock_manager = ProjectLockManager()

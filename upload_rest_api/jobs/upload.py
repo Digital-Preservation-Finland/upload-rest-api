@@ -41,4 +41,4 @@ def store_files(project_id, path, upload_type, upload_id, task_id):
 
     upload.store_files()
 
-    return f"{upload_type} uploaded to /{upload.path}"
+    return f"{upload_type} uploaded to /{str(upload.path)}"
