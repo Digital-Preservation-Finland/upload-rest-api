@@ -313,10 +313,12 @@ class Upload:
         """
         try:
             metax = gen_metadata.MetaxClient()
+
+            # Refuse to store files if Metax has conflicting files. See
+            # https://jira.ci.csc.fi/browse/TPASPKT-749 for more
+            # information.
             old_metax_files = metax.get_files_dict(self.project_id).keys()
             conflicts = []  # Uploaded files that already exist in Metax
-            metadata_dicts = []  # File metadata for Metax
-            file_documents = []  # Basic file information to database
             for dirpath, _, files in os.walk(self.tmp_project_directory):
                 for fname in files:
                     file = pathlib.Path(dirpath, fname)
@@ -326,6 +328,20 @@ class Upload:
                     if f"/{relative_path}" in old_metax_files:
                         conflicts.append(str(relative_path))
                         continue
+            if conflicts:
+                shutil.rmtree(self.tmp_path)
+                raise ClientError('Metadata could not be created because some '
+                                  'files already have metadata',
+                                  files=conflicts)
+
+            # Generate metadata
+            metadata_dicts = []  # File metadata for Metax
+            file_documents = []  # Basic file information to database
+            for dirpath, _, files in os.walk(self.tmp_project_directory):
+                for fname in files:
+                    file = pathlib.Path(dirpath, fname)
+                    relative_path \
+                        = file.relative_to(self.tmp_project_directory)
 
                     # Create file information for database
                     identifier = str(uuid.uuid4().urn)
@@ -355,15 +371,6 @@ class Upload:
                         },
                         "file_storage": CONFIG["STORAGE_ID"]
                     })
-
-            # Refuse to store files if Metax has conflicting files. See
-            # https://jira.ci.csc.fi/browse/TPASPKT-749 for more
-            # information.
-            if conflicts:
-                shutil.rmtree(self.tmp_path)
-                raise ClientError('Metadata could not be created because some '
-                                  'files already have metadata',
-                                  files=conflicts)
 
             # Post all metadata to Metax in one go
             metax.post_metadata(metadata_dicts)
