@@ -403,8 +403,11 @@ class Upload:
                 )
                 source_path = self.tmp_project_directory / relative_path
                 target_path = self.project_directory / relative_path
-                target_path.parent.mkdir(exist_ok=True, parents=True)
-                source_path.rename(target_path)
+                try:
+                    source_path.rename(target_path)
+                except FileNotFoundError:
+                    target_path.parent.mkdir(exist_ok=True, parents=True)
+                    source_path.rename(target_path)
 
                 # TODO: Write permission for group is required by
                 # packaging service
