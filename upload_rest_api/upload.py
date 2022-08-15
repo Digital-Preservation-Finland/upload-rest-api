@@ -428,9 +428,11 @@ def _timestamp_now():
 
 def _get_mimetype(fpath):
     """Return the MIME type of file fpath."""
-    _magic = magic.open(magic.MAGIC_MIME_TYPE)
-    _magic.load()
-    mimetype = _magic.file(fpath)
-    _magic.close()
+    try:
+        magic_ = magic.open(magic.MAGIC_MIME_TYPE)
+        magic_.load()
+        mimetype = magic_.file(fpath)
+    finally:
+        magic_.close()
 
     return mimetype
