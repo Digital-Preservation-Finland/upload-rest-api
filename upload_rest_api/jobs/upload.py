@@ -1,9 +1,7 @@
 """Upload module background jobs."""
-import shutil
-
 import upload_rest_api.database
-import upload_rest_api.upload
-from upload_rest_api.jobs.utils import api_background_job
+from upload_rest_api.upload import Upload, InvalidArchiveError
+from upload_rest_api.jobs.utils import api_background_job, ClientError
 
 
 @api_background_job
@@ -19,26 +17,19 @@ def store_files(project_id, path, upload_type, upload_id, task_id):
     :param str task_id: identifier of the task
     """
     database = upload_rest_api.database.Database()
-    upload = upload_rest_api.upload.Upload(project_id,
-                                           path,
-                                           upload_type=upload_type,
-                                           upload_id=upload_id)
+    upload = Upload(project_id, path, upload_type=upload_type,
+                    upload_id=upload_id)
+
     if upload_type == 'archive':
         database.tasks.update_message(task_id, "Extracting archive")
-        upload.extract_archive()
     else:
-        # The source file is not an archive. Just move the file to
-        # temporary project directory.
-        (upload.tmp_project_directory / upload.path).parent.mkdir(
-            parents=True, exist_ok=True
+        database.tasks.update_message(
+            task_id, f"Creating metadata /{upload.path}"
         )
-        shutil.move(upload.source_path,
-                    upload.tmp_project_directory / upload.path)
 
-    database.tasks.update_message(
-        task_id, f"Creating metadata: /{upload.path}"
-    )
+    try:
+        upload.store_files()
+    except InvalidArchiveError as error:
+        raise ClientError(error.message) from error
 
-    upload.store_files()
-
-    return f"{upload_type} uploaded to /{str(upload.path)}"
+    return f"{upload_type} uploaded to /{upload.path}"

@@ -92,10 +92,6 @@ def test_upload_file(app, test_auth, test_mongo, name, requests_mock):
         data=file_content
     )
 
-    # Run the upload background job
-    queue = get_job_queue('upload')
-    queue.run_job(queue.jobs[0])
-
     # Uploaded file was added to database
     files = list(test_mongo.upload.files.find())
     assert len(files) == 1
@@ -168,10 +164,6 @@ def test_upload_file_checksum(test_client, test_auth, requests_mock):
         data=data,
         expected_status=204
     )
-
-    # Run the upload background job
-    queue = get_job_queue('upload')
-    queue.run_job(queue.jobs[0])
 
     # Try again with incorrect checksum
     upload_metadata["upload_path"] = "test2.txt"
@@ -255,10 +247,6 @@ def test_upload_file_checksum_iterative(
         )
 
         assert resp.status_code == 204
-
-    # Run the upload background job
-    queue = get_job_queue('upload')
-    queue.run_job(queue.jobs[0])
 
     # Check that correct checksum was added to database
     upload_path = pathlib.Path(app.config.get("UPLOAD_PROJECTS_PATH"))
@@ -356,10 +344,6 @@ def test_upload_file_deep_directory(
         data=data
     )
 
-    # Run the upload background job
-    queue = get_job_queue('upload')
-    queue.run_job(queue.jobs[0])
-
     # Uploaded file was added to database
     files = list(test_mongo.upload.files.find())
     assert len(files) == 1
@@ -400,10 +384,6 @@ def test_upload_file_exceed_quota(test_client, test_auth, database,
         auth=test_auth,
         data=data
     )
-
-    # Run the upload background job
-    queue = get_job_queue('upload')
-    queue.run_job(queue.jobs[0])
 
     # 10 bytes of quota used, the next upload shoud fail
     resp = test_client.post(

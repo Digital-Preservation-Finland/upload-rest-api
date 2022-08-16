@@ -6,7 +6,6 @@ import shutil
 import pytest
 
 import upload_rest_api.upload
-import upload_rest_api.jobs.utils
 
 
 @pytest.mark.usefixtures('app')
@@ -25,13 +24,12 @@ def test_store_file(
     metax_files_api = requests_mock.post('/rest/v2/files/', json={})
     requests_mock.get('/rest/v2/files', json={'next': None, 'results': []})
 
-    # Create an incomplete upload with one text file in temporary
-    # project directory
+    # Create an incomplete upload with one text file uploaded to
+    # source path
     test_file = pathlib.Path(file_path)
     project = 'test_project'
     upload = upload_rest_api.upload.Upload(project, 'foo/bar')
-    (upload.tmp_project_directory / 'foo').mkdir(parents=True)
-    shutil.copy(test_file, upload.tmp_project_directory / 'foo/bar')
+    shutil.copy(test_file, upload.source_path)
 
     # Create metadata
     upload.store_files()
@@ -57,18 +55,13 @@ def test_store_file(
 @pytest.mark.usefixtures('app')
 def test_file_metadata_conflict(mock_config, requests_mock):
     """Test uploading a file that already has metadata in Metax."""
-    # Create an incomplete upload with two text files in temporary
-    # project directory
+    # Create an incomplete upload with a text file copied to source path
     project = 'test_project'
-    upload = upload_rest_api.upload.Upload(project, 'path')
+    upload = upload_rest_api.upload.Upload(project, 'path/file1')
     (upload.tmp_project_directory / 'path').mkdir(parents=True)
-    shutil.copy('tests/data/test.txt',
-                upload.tmp_project_directory / 'path/file1')
-    shutil.copy('tests/data/test.txt',
-                upload.tmp_project_directory / 'path/file2')
+    shutil.copy('tests/data/test.txt', upload.source_path)
 
-    # Mock metax. The first text file does not have metadata in Metax,
-    # but the second text file does have.
+    # Mock metax.
     metax_files_api = requests_mock.post('/rest/v2/files/', json={})
     requests_mock.get(
         '/rest/v2/files',
@@ -76,7 +69,7 @@ def test_file_metadata_conflict(mock_config, requests_mock):
             'next': None,
             'results': [
                 {
-                    'file_path': '/path/file2',
+                    'file_path': '/path/file1',
                     'id': 2,
                     'identifier': '2',
                     'file_storage': {'identifier': 'foo'}
@@ -86,11 +79,11 @@ def test_file_metadata_conflict(mock_config, requests_mock):
     )
 
     # Try to create metadata. Metadata creation should fail.
-    with pytest.raises(upload_rest_api.jobs.utils.ClientError) as error:
+    with pytest.raises(upload_rest_api.upload.UploadConflict) as error:
         upload.store_files()
-    assert error.value.message == ('Metadata could not be created because some'
-                                   ' files already have metadata')
-    assert error.value.files == ['path/file2']
+    assert error.value.message == ('Metadata could not be created because the'
+                                   ' file already has metadata')
+    assert error.value.files == ['/path/file1']
 
     # Nothing should have been posted to Metax
     assert not metax_files_api.called

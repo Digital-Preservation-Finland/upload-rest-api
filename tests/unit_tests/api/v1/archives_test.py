@@ -1,7 +1,6 @@
 """Tests for ``upload_rest_api.app`` module."""
 import os
 import pathlib
-import tarfile
 import filecmp
 
 import pytest
@@ -151,13 +150,12 @@ def test_upload_archive_to_dirpath(
 
 
 def test_upload_archive_already_exists(
-        test_client, test_auth, background_job_runner, requests_mock
+        test_client, test_auth, requests_mock
 ):
     """Test uploading archive to path that is a file.
 
     :param test_client: Flask test client
     :param test_auth: authentication headers
-    :param background_job_runner: RQ job mocker
     :param requests_mock: HTTP request mocker
     """
     # Mock metax
@@ -166,8 +164,7 @@ def test_upload_archive_already_exists(
 
     # Upload a file to a path that will cause a conflict
     url = '/v1/files/test_project/foo'
-    response = _upload_file(test_client, url, test_auth, "tests/data/test.txt")
-    response = background_job_runner(test_client, "upload", response)
+    _upload_file(test_client, url, test_auth, "tests/data/test.txt")
 
     # Try to upload an archive to same path
     response = _upload_file(test_client,
@@ -199,8 +196,7 @@ def test_upload_archive_already_exists(
     ]
 )
 def test_upload_archive_conflict(
-    archive, existing_file, conflicts, test_client, test_auth,
-    background_job_runner, requests_mock
+    archive, existing_file, conflicts, test_client, test_auth, requests_mock
 ):
     """Test uploading archive that would overwrite files or directories.
 
@@ -210,7 +206,6 @@ def test_upload_archive_conflict(
     :param conflicts: List of expected file conflicts in HTTP response
     :param test_client: Flask test client
     :param test_auth: authentication headers
-    :param background_job_runner: RQ job mocker
     :param requests_mock: HTTP request mocker
     """
     # Mock metax
@@ -219,8 +214,7 @@ def test_upload_archive_conflict(
 
     # Upload a file to a path that will cause a conflict
     url = f'/v1/files/test_project/{existing_file}'
-    response = _upload_file(test_client, url, test_auth, "tests/data/test.txt")
-    response = background_job_runner(test_client, "upload", response)
+    _upload_file(test_client, url, test_auth, "tests/data/test.txt")
 
     # Try to upload an archive that will overwrite the file that was
     # just uploaded (or its parent directory).

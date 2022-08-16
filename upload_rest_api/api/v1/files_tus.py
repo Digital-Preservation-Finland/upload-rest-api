@@ -137,8 +137,10 @@ def _store_files(workspace, resource, upload_type):
 
     if upload_type == 'archive':
         upload.validate_archive()
+        upload.enqueue_store_task()
 
-    upload.enqueue_store_task()
+    else:
+        upload.store_files()
 
 
 def _get_checksum_tuple(checksum):

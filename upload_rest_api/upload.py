@@ -14,7 +14,6 @@ import magic
 import metax_access
 import werkzeug
 
-from upload_rest_api.jobs.utils import ClientError
 from upload_rest_api.config import CONFIG
 from upload_rest_api import gen_metadata
 from upload_rest_api.checksum import get_file_checksum
@@ -55,6 +54,18 @@ class UploadConflict(Exception):
         super().__init__()
         self.message = message
         self.files = files
+
+
+class InvalidArchiveError(Exception):
+    """Exception raised when archive can not be extracted or stored."""
+
+    def __init__(self, message):
+        """Initialize exception.
+
+        :param message: Error message
+        """
+        super().__init__()
+        self.message = message
 
 
 class Upload:
@@ -266,8 +277,7 @@ class Upload:
             self.project_id, project['used_quota'] + extracted_size
         )
 
-    @release_lock_on_exception
-    def extract_archive(self):
+    def _extract_archive(self):
         """Extract archive to temporary project directory."""
         # Extract files to temporary project directory
         (self.tmp_project_directory / self.path).parent.mkdir(parents=True,
@@ -278,7 +288,7 @@ class Upload:
                 ExtractError) as error:
             # Remove the archive and set task's state
             self.source_path.unlink()
-            raise ClientError(str(error)) from error
+            raise InvalidArchiveError(str(error)) from error
 
         # Remove archive
         self.source_path.unlink()
@@ -295,15 +305,22 @@ class Upload:
     def store_files(self):
         """Store files.
 
-        Creates metadata for files in temporary project directory, and
-        then moves the files to project directory.
+        Moves/extracts source files to temporary project directory,
+        creates file metadata, and then moves the files to project
+        directory.
         """
-        metax = gen_metadata.MetaxClient()
+        if self.type == 'file':
+            (self.tmp_project_directory / self.path).parent.mkdir(
+                parents=True, exist_ok=True
+            )
+            self.source_path.rename(self.tmp_project_directory / self.path)
+        else:
+            self._extract_archive()
 
         # Refuse to store files if Metax has conflicting files. See
         # https://jira.ci.csc.fi/browse/TPASPKT-749 for more
         # information.
-        conflicts = []  # Uploaded files that already exist in Metax
+        metax = gen_metadata.MetaxClient()
         new_files = []
         for dirpath, _, files in os.walk(self.tmp_project_directory):
             for fname in files:
@@ -318,21 +335,29 @@ class Upload:
             try:
                 old_file = metax.client.get_project_file(self.project_id,
                                                          self.path)
-                conflicts.append(old_file['file_path'])
+                shutil.rmtree(self.tmp_path)
+                raise UploadConflict(
+                    'Metadata could not be created because the file'
+                    ' already has metadata',
+                    files=[old_file['file_path']]
+                )
             except metax_access.metax.FileNotAvailableError:
                 # No conflicts
                 pass
         else:
             # Retrieve list of all files as one request to avoid sending
             # too many requests to Metax.
+            conflicts = []  # Uploaded files that already exist in Metax
             old_files = metax.get_files_dict(self.project_id).keys()
             for file in new_files:
                 if f"/{file}" in old_files:
                     conflicts.append(str(file))
-        if conflicts:
-            shutil.rmtree(self.tmp_path)
-            raise ClientError('Metadata could not be created because some '
-                              'files already have metadata', files=conflicts)
+            if conflicts:
+                shutil.rmtree(self.tmp_path)
+                raise UploadConflict(
+                    'Metadata could not be created because some files '
+                    'already have metadata', files=conflicts
+                )
 
         # Generate metadata
         metadata_dicts = []  # File metadata for Metax

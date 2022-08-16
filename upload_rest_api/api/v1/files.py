@@ -52,18 +52,14 @@ def upload_file(project_id, fpath):
     upload = Upload(project_id, rel_upload_path)
     upload.validate(request.content_length, request.content_type)
     upload.save_stream(request.stream, request.args.get('md5', None))
-    task_id = upload.enqueue_store_task()
+    upload.store_files()
 
-    response = jsonify({
-        "file_path": f"/{rel_upload_path}",
-        "message": "Uploading file",
-        "polling_url": get_polling_url(task_id),
-        "status": "pending"
-    })
-    response.headers[b'Location'] = get_polling_url(task_id)
-    response.status_code = 202
-
-    return response
+    return jsonify(
+        {
+            'file_path': f"/{rel_upload_path}",
+            'status': 'created'
+        }
+    )
 
 
 @FILES_API_V1.route(

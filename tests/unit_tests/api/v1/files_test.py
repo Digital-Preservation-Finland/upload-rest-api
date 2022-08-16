@@ -49,8 +49,7 @@ def test_incorrect_authentication(app, wrong_auth):
         "tämä on testi.txt"
     ]
 )
-def test_upload(app, test_auth, test_mongo, path, background_job_runner,
-                requests_mock):
+def test_upload(app, test_auth, test_mongo, path, requests_mock):
     """Test uploading a plain text file."""
     # Mock metax
     metax_files_api = requests_mock.post('/rest/v2/files/', json={})
@@ -66,15 +65,12 @@ def test_upload(app, test_auth, test_mongo, path, background_job_runner,
         test_client, f"/v1/files/test_project/{path}",
         test_auth, "tests/data/test.txt"
     )
-    assert response.status_code == 202
-    assert response.json['status'] == 'pending'
+    assert response.status_code == 200
+    assert response.json['status'] == 'created'
     assert response.json['file_path'] == str(resolved_path)
-    assert response.json['message'] == 'Uploading file'
 
     # File should be available after metadata has been created
     fpath = project_path / resolved_path.relative_to('/')
-    assert not fpath.exists()
-    background_job_runner(test_client, 'upload', response)
     assert fpath.is_file()
     assert fpath.read_bytes() \
         == pathlib.Path("tests/data/test.txt").read_bytes()
@@ -103,8 +99,7 @@ def test_upload(app, test_auth, test_mongo, path, background_job_runner,
     assert response.json['error'] == f"File '{resolved_path}' already exists"
 
 
-def test_upload_conflict(test_client, test_auth, background_job_runner,
-                         requests_mock):
+def test_upload_conflict(test_client, test_auth, requests_mock):
     """Test uploading a file that already has metadata in Metax."""
     # Mock metax
     requests_mock.get(
@@ -117,18 +112,10 @@ def test_upload_conflict(test_client, test_auth, background_job_runner,
         test_client, "/v1/files/test_project/foo/bar",
         test_auth, "tests/data/test.txt"
     )
-    assert response.status_code == 202
-    assert response.json['status'] == 'pending'
-
-    # Metadata generation should fail
-    response = background_job_runner(test_client,
-                                     'upload',
-                                     response,
-                                     expect_success=False)
-    assert response.json['errors'][0]['message'] \
-        == ('Metadata could not be created because some files already have'
+    assert response.status_code == 409
+    assert response.json['error'] \
+        == ('Metadata could not be created because the file already has'
             ' metadata')
-    assert response.json['errors'][0]['files'] == ['/foo/bar']
 
 
 def test_upload_max_size(app, test_auth, mock_config):
@@ -170,8 +157,7 @@ def test_user_quota(app, database, test_auth):
                                           "test.zip"))
 
 
-def test_used_quota(app, database, test_auth, requests_mock,
-                    background_job_runner):
+def test_used_quota(app, database, test_auth, requests_mock):
     """Test that used quota is calculated correctly."""
     # Mock Metax
     requests_mock.get("https://metax.localdomain/rest/v2/files",
@@ -181,16 +167,14 @@ def test_used_quota(app, database, test_auth, requests_mock,
     test_client = app.test_client()
 
     # Upload two 31B txt files
-    response = _upload_file(
+    _upload_file(
         test_client, "/v1/files/test_project/test1",
         test_auth, "tests/data/test.txt"
     )
-    background_job_runner(test_client, 'upload', response)
-    response = _upload_file(
+    _upload_file(
         test_client, "/v1/files/test_project/test2",
         test_auth, "tests/data/test.txt"
     )
-    background_job_runner(test_client, 'upload', response)
 
     used_quota = database.projects.get("test_project")["used_quota"]
     assert used_quota == 62
@@ -204,8 +188,7 @@ def test_used_quota(app, database, test_auth, requests_mock,
     assert used_quota == 31
 
 
-def test_upload_conflicting_directory(app, test_auth, requests_mock,
-                                      background_job_runner):
+def test_upload_conflicting_directory(app, test_auth, requests_mock):
     """Test uploading file to path that is a directory."""
     # Mock metax
     requests_mock.post('/rest/v2/files/', json={})
@@ -218,8 +201,7 @@ def test_upload_conflicting_directory(app, test_auth, requests_mock,
         test_client, "/v1/files/test_project/foo/bar",
         test_auth, "tests/data/test.txt"
     )
-    assert response.status_code == 202
-    background_job_runner(test_client, 'upload', response)
+    assert response.status_code == 200
 
     # Then, try to upload file to "/foo". It should fail because
     # directory "/foo" exists
@@ -291,11 +273,10 @@ def test_unknown_content_length(app, test_auth):
         # The actual md5sum of tests/data/test.txt
         (
             '150b62e4e7d58c70503bd5fc8a26463c',
-            202,
+            200,
             {
                 'file_path': '/test_path',
-                'status': 'pending',
-                'message': 'Uploading file'
+                'status': 'created'
             }
 
         ),
@@ -311,9 +292,9 @@ def test_unknown_content_length(app, test_auth):
         )
     ]
 )
-def test_file_integrity_validation(app, test_auth, checksum, mock_redis,
+def test_file_integrity_validation(app, test_auth, checksum,
                                    expected_status_code,
-                                   expected_response):
+                                   expected_response, requests_mock):
     """Test integrity validation of uploaded file.
 
     Upload file with checksum provided in HTTP request header.
@@ -321,10 +302,14 @@ def test_file_integrity_validation(app, test_auth, checksum, mock_redis,
     :param app: Flask app
     :param test_auth: authentication headers
     :param cheksum: checksum included in HTTP headers
-    :param mock_redis: Redis mocker
     :param expected_status_code: expected status of response from API
     :param expected_response: expected JSON response from API
+    :param requests_mock: HTTP request mocker
     """
+    # Mock Metax
+    requests_mock.post('/rest/v2/files/', json={})
+    requests_mock.get('/rest/v2/files', json={'results': [], 'next': None})
+
     # Post a file
     test_client = app.test_client()
     with open('tests/data/test.txt', "rb") as test_file:
@@ -338,11 +323,8 @@ def test_file_integrity_validation(app, test_auth, checksum, mock_redis,
     # Check response
     assert response.status_code == expected_status_code
     for key in expected_response:
-        assert response.json[key] == expected_response[key]
 
-    # Release lock of unfinished background job
-    if response.status_code == 202:
-        mock_redis.flushall()
+        assert response.json[key] == expected_response[key]
 
 
 def test_get_file(app, test_auth, test2_auth, test3_auth, test_mongo):
@@ -574,13 +556,11 @@ def test_delete_directory(
                             '/v1/files/test_project/test.txt',
                             test_auth,
                             'tests/data/test.txt')
-    background_job_runner(test_client, 'upload', response)
 
     response = _upload_file(test_client,
                             '/v1/files/test_project/test/test.txt',
                             test_auth,
                             'tests/data/test.txt')
-    background_job_runner(test_client, 'upload', response)
 
     # After creating the test data, each file has metadata in Metax.
     requests_mock.get(

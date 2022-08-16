@@ -58,17 +58,18 @@ def test_lock_response(test_auth, test_client, mock_redis):
     Test performing a HTTP request that acquires a lock while a lock
     is already acquired.
     """
-    # Upload a file. This will acquire a lock.
-    response = test_client.post(
-        "/v1/files/test_project/foo",
-        data='foo',
-        headers=test_auth
-    )
+    # Upload a archive. This will acquire a lock.
+    with open('tests/data/test.tar.gz', 'rb') as archive:
+        response = test_client.post(
+            "/v1/archives/test_project?dir=foo",
+            data=archive.read(),
+            headers=test_auth
+        )
 
     assert response.status_code == 202
 
-    # Try to upload another file to same location before metadata
-    # generation has finished. This will be blocked.
+    # Try to upload a file to same location before metadata generation
+    # has finished. This will be blocked.
     response = test_client.post(
         "/v1/files/test_project/foo",
         data='foo',
