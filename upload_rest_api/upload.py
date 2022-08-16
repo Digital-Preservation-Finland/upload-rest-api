@@ -11,6 +11,7 @@ from archive_helpers.extract import (ExtractError, MemberNameError,
                                      MemberOverwriteError, MemberTypeError,
                                      extract)
 import magic
+import metax_access
 import werkzeug
 
 from upload_rest_api.jobs.utils import ClientError
@@ -302,16 +303,32 @@ class Upload:
         # Refuse to store files if Metax has conflicting files. See
         # https://jira.ci.csc.fi/browse/TPASPKT-749 for more
         # information.
-        old_metax_files = metax.get_files_dict(self.project_id).keys()
         conflicts = []  # Uploaded files that already exist in Metax
+        new_files = []
         for dirpath, _, files in os.walk(self.tmp_project_directory):
             for fname in files:
-                file = pathlib.Path(dirpath, fname)
-                relative_path = file.relative_to(self.tmp_project_directory)
-
-                if f"/{relative_path}" in old_metax_files:
-                    conflicts.append(str(relative_path))
-                    continue
+                new_files.append(
+                    pathlib.Path(dirpath, fname).relative_to(
+                        self.tmp_project_directory
+                    )
+                )
+        if len(new_files) == 1:
+            # Creating metadata for only one file, so it is probably
+            # more efficient to retrieve information about single file
+            try:
+                old_file = metax.client.get_project_file(self.project_id,
+                                                         self.path)
+                conflicts.append(old_file['file_path'])
+            except metax_access.metax.FileNotAvailableError:
+                # No conflicts
+                pass
+        else:
+            # Retrieve list of all files as one request to avoid sending
+            # too many requests to Metax.
+            old_files = metax.get_files_dict(self.project_id).keys()
+            for file in new_files:
+                if f"/{file}" in old_files:
+                    conflicts.append(str(file))
         if conflicts:
             shutil.rmtree(self.tmp_path)
             raise ClientError('Metadata could not be created because some '

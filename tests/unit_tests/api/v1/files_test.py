@@ -103,6 +103,34 @@ def test_upload(app, test_auth, test_mongo, path, background_job_runner,
     assert response.json['error'] == f"File '{resolved_path}' already exists"
 
 
+def test_upload_conflict(test_client, test_auth, background_job_runner,
+                         requests_mock):
+    """Test uploading a file that already has metadata in Metax."""
+    # Mock metax
+    requests_mock.get(
+        '/rest/v2/files?file_path=foo/bar&project_identifier=test_project',
+        json={'results': [{"file_path": '/foo/bar'}], 'next': None}
+    )
+
+    # Upload file
+    response = _upload_file(
+        test_client, "/v1/files/test_project/foo/bar",
+        test_auth, "tests/data/test.txt"
+    )
+    assert response.status_code == 202
+    assert response.json['status'] == 'pending'
+
+    # Metadata generation should fail
+    response = background_job_runner(test_client,
+                                     'upload',
+                                     response,
+                                     expect_success=False)
+    assert response.json['errors'][0]['message'] \
+        == ('Metadata could not be created because some files already have'
+            ' metadata')
+    assert response.json['errors'][0]['files'] == ['/foo/bar']
+
+
 def test_upload_max_size(app, test_auth, mock_config):
     """Test uploading file larger than the supported max file size."""
     # Set max upload size to 1 byte
@@ -146,8 +174,7 @@ def test_used_quota(app, database, test_auth, requests_mock,
                     background_job_runner):
     """Test that used quota is calculated correctly."""
     # Mock Metax
-    requests_mock.get("https://metax.localdomain/rest/v2/files?limit=10000&"
-                      "project_identifier=test_project",
+    requests_mock.get("https://metax.localdomain/rest/v2/files",
                       json={'next': None, 'results': []})
     requests_mock.post("/rest/v2/files/", json={})
 
