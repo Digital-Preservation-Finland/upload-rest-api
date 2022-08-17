@@ -29,7 +29,8 @@ def test_store_file(
     test_file = pathlib.Path(file_path)
     project = 'test_project'
     upload = upload_rest_api.upload.Upload(project, 'foo/bar')
-    shutil.copy(test_file, upload.source_path)
+    with open(test_file, 'rb') as file:
+        upload.add_source(file, None, False)
 
     # Create metadata
     upload.store_files()
@@ -56,9 +57,7 @@ def test_store_file(
 def test_file_metadata_conflict(mock_config, requests_mock):
     """Test uploading a file that already has metadata in Metax."""
     # Create an incomplete upload with a text file copied to source path
-    project = 'test_project'
-    upload = upload_rest_api.upload.Upload(project, 'path/file1')
-    (upload.tmp_project_directory / 'path').mkdir(parents=True)
+    upload = upload_rest_api.upload.Upload('test_project', 'path/file1')
     shutil.copy('tests/data/test.txt', upload.source_path)
 
     # Mock metax.
@@ -91,3 +90,41 @@ def test_file_metadata_conflict(mock_config, requests_mock):
     # Temporary files should be removed
     tmp_dir = pathlib.Path(mock_config['UPLOAD_TMP_PATH'])
     assert not any(tmp_dir.iterdir())
+
+
+@pytest.mark.usefixtures('app')
+@pytest.mark.parametrize(
+    ['checksum', 'verify'],
+    (
+        [None, True],
+        ['foo', True],
+        [None, False],
+        ['foo', False]
+    )
+)
+def test_checksum(checksum, verify, requests_mock, mock_get_file_checksum):
+    """Test that checksum is not computed needlessly."""
+    # Mock metax.
+    metax_files_api = requests_mock.post('/rest/v2/files/', json={})
+    requests_mock.get('/rest/v2/files', json={'results': []})
+
+    # Add source file to upload. Checksum should be computed only if
+    # a predefined checksum was provided and it must be verified.
+    upload = upload_rest_api.upload.Upload('test_project', 'path/file1')
+    with open('tests/data/test.txt', 'rb') as source_file:
+        upload.add_source(source_file, checksum=checksum, verify=verify)
+
+    if checksum and verify:
+        mock_get_file_checksum.assert_called_once()
+    else:
+        mock_get_file_checksum.assert_not_called()
+
+    # Generate metadata for file. Checksum should not be computed even
+    # during metadata generation, if predefined checksum was provided.
+    upload.store_files()
+    assert metax_files_api.last_request.json()[0]['checksum']['value'] == 'foo'
+
+    if checksum and not verify:
+        mock_get_file_checksum.assert_not_called()
+    else:
+        mock_get_file_checksum.assert_called_once()

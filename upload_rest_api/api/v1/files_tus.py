@@ -127,9 +127,10 @@ def _store_files(workspace, resource, upload_type):
             content_type="application/octet-stream"
         )
 
-        # Move the archive to a temporary path to begin the
-        # extraction
-        resource.upload_file_path.rename(upload.source_path)
+        checksum = calculate_incr_checksum(algorithm='md5',
+                                           path=resource.upload_file_path)
+        upload.add_source(resource.upload_file_path, checksum, verify=False)
+
     finally:
         # Delete the tus-specific workspace regardless of the
         # outcome.

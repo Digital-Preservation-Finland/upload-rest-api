@@ -51,7 +51,7 @@ def upload_file(project_id, fpath):
 
     upload = Upload(project_id, rel_upload_path)
     upload.validate(request.content_length, request.content_type)
-    upload.save_stream(request.stream, request.args.get('md5', None))
+    upload.add_source(request.stream, request.args.get('md5', None))
     upload.store_files()
 
     return jsonify(

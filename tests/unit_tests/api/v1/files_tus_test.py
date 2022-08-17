@@ -536,3 +536,41 @@ def test_upload_archive(test_client, test_auth, mock_config, requests_mock):
         base_path / "projects" / "test_project" / "extract_dir"
         / "test" / "test.txt"
     ).read_text(encoding="utf-8").startswith("test file for REST file upload")
+
+
+@pytest.mark.usefixtures("project")
+def test_compute_checksum_once(app, test_auth, requests_mock,
+                               mock_get_file_checksum):
+    """Test that file checksum is computed only once.
+
+    :param app: Flask app
+    :param test_auth: Authentication headers
+    :param requests_mock: HTTP request mocker
+    :param mock_get_file_checksum: get_file_checksum mock
+    """
+    test_client = app.test_client()
+
+    # Mock metax
+    metax_files_api = requests_mock.post('/rest/v2/files/', json={})
+    requests_mock.get('/rest/v2/files', json={'results': [], 'next': None})
+
+    # Upload file
+    upload_metadata = {
+        "type": "file",
+        "project_id": "test_project",
+        "filename": 'foo',
+        "upload_path": 'foo',
+    }
+    _do_tus_upload(
+        test_client=test_client,
+        upload_metadata=upload_metadata,
+        auth=test_auth,
+        data=b"asdf"
+    )
+
+    # The correct checksum should be posted to Metax, but the checksum
+    # should be computed only during the TUS upload. Checksum should NOT
+    # be computed again when metadata is generated.
+    assert metax_files_api.last_request.json()[0]['checksum']['value'] \
+        == '912ec803b2ce49e4a541068d495ab570'
+    mock_get_file_checksum.assert_not_called()

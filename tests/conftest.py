@@ -2,6 +2,7 @@
 import os
 import pprint
 import sys
+import unittest.mock
 from base64 import b64encode
 from pathlib import Path
 from runpy import run_path
@@ -412,3 +413,14 @@ def admin_auth(test_mongo, mock_config):
     return {
         "Authorization": "Bearer fddps-admin"
     }
+
+
+@pytest.fixture(scope="function")
+def mock_get_file_checksum(monkeypatch):
+    """Mock get_file_checksum function in upload module.
+
+    The mocked get_file_checksum function will always return "foo".
+    """
+    mock = unittest.mock.Mock(side_effect=lambda x, y: 'foo')
+    monkeypatch.setattr('upload_rest_api.upload.get_file_checksum', mock)
+    return mock

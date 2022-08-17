@@ -83,6 +83,7 @@ class Upload:
         self.project_id = project_id
         self.path = path
         self.type = upload_type
+        self.source_checksum = None
 
         if upload_id:
             # Continuing previously started upload
@@ -122,32 +123,39 @@ class Upload:
         return self.project_directory / self.path
 
     @release_lock_on_exception
-    def save_stream(self, stream, checksum):
-        """Save the file from stream and verify checksum.
+    def add_source(self, file, checksum, verify=True):
+        """Save file to source path and verify checksum.
 
-        Save stream to file. If checksum is provided, MD5 sum of file is
-        compared to provided MD5 sum. Raises error if checksums do not
-        match.
+        Save file to source path. If checksum is provided, MD5 sum of
+        file is compared to provided MD5 sum. Raises error if checksums
+        do not match.
 
-        :param stream: File stream
+        :param stream: File stream or path to file
         :param checksum: MD5 checksum of file, or ``None`` if unknown
         :returns: ``None``
         """
-        # Save stream to temporary file in 1MB chunks
-        with open(self.source_path, "wb") as source_file:
-            while True:
-                chunk = stream.read(1024*1024)
-                if chunk == b'':
-                    break
-                source_file.write(chunk)
+        if 'read' in dir(file):
+            # 'file' is a stream. Write it to source path in 1MB chunks
+            with open(self.source_path, "wb") as source_file:
+                while True:
+                    chunk = file.read(1024*1024)
+                    if chunk == b'':
+                        break
+                    source_file.write(chunk)
+        else:
+            # 'file' is path to a file. Move it to source path.
+            pathlib.Path(file).rename(self.source_path)
 
         # Verify integrity of uploaded file if checksum was provided
-        if checksum \
-                and checksum != get_file_checksum("md5", self.source_path):
-            self.source_path.unlink()
-            raise werkzeug.exceptions.BadRequest(
-                'Checksum of uploaded file does not match provided checksum.'
-            )
+        if checksum:
+            self.source_checksum = checksum
+            if verify and self.source_checksum \
+                    != get_file_checksum("md5", self.source_path):
+                self.source_path.unlink()
+                raise werkzeug.exceptions.BadRequest(
+                    'Checksum of uploaded file does not match provided '
+                    'checksum.'
+                )
 
     @release_lock_on_exception
     def enqueue_store_task(self):
@@ -369,7 +377,10 @@ class Upload:
 
                 # Create file information for database
                 identifier = str(uuid.uuid4().urn)
-                checksum = get_file_checksum("md5", file)
+                if self.type == 'file' and self.source_checksum:
+                    checksum = self.source_checksum
+                else:
+                    checksum = get_file_checksum("md5", file)
                 file_documents.append({
                     "path": str(self.project_directory / relative_path),
                     "checksum": checksum,
