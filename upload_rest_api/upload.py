@@ -301,14 +301,6 @@ class Upload:
         # Remove archive
         self.source_path.unlink()
 
-        # Remove symbolic links
-        for dirpath, _, files in os.walk(self.tmp_project_directory):
-            for fname in files:
-                file = pathlib.Path(dirpath, fname)
-                if file.is_symlink():
-                    file.unlink()
-                    continue
-
     @release_lock_on_exception
     def store_files(self):
         """Store files.
