@@ -42,7 +42,7 @@ def release_lock_on_exception(method):
     return wrapper
 
 
-class UploadConflict(Exception):
+class UploadConflictError(Exception):
     """Exception raised when upload would overwrite existing files."""
 
     def __init__(self, message, files):
@@ -188,12 +188,12 @@ class Upload:
         :returns: `None`
         """
         if self.target_path.is_file():
-            raise UploadConflict(
+            raise UploadConflictError(
                 f"File '/{self.path}' already exists", [self.path]
             )
 
         if self.type == "file" and self.target_path.is_dir():
-            raise UploadConflict(
+            raise UploadConflictError(
                 f"Directory '/{self.path}' already exists", [self.path]
             )
 
@@ -273,7 +273,8 @@ class Upload:
                 conflicts.append(f'{self.path}/{directory}')
         if conflicts:
             self.source_path.unlink()
-            raise UploadConflict('Some files already exist', files=conflicts)
+            raise UploadConflictError('Some files already exist',
+                                      files=conflicts)
 
         if project['quota'] - project['used_quota'] - extracted_size < 0:
             # Remove the archive and raise an exception
@@ -336,7 +337,7 @@ class Upload:
                 old_file = metax.client.get_project_file(self.project_id,
                                                          self.path)
                 shutil.rmtree(self.tmp_path)
-                raise UploadConflict(
+                raise UploadConflictError(
                     'Metadata could not be created because the file'
                     ' already has metadata',
                     files=[old_file['file_path']]
@@ -354,7 +355,7 @@ class Upload:
                     conflicts.append(str(file))
             if conflicts:
                 shutil.rmtree(self.tmp_path)
-                raise UploadConflict(
+                raise UploadConflictError(
                     'Metadata could not be created because some files '
                     'already have metadata', files=conflicts
                 )

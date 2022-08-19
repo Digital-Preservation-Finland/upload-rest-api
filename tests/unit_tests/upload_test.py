@@ -78,7 +78,7 @@ def test_file_metadata_conflict(mock_config, requests_mock):
     )
 
     # Try to create metadata. Metadata creation should fail.
-    with pytest.raises(upload_rest_api.upload.UploadConflict) as error:
+    with pytest.raises(upload_rest_api.upload.UploadConflictError) as error:
         upload.store_files()
     assert error.value.message == ('Metadata could not be created because the'
                                    ' file already has metadata')
