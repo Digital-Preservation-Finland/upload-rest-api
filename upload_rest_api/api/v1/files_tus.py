@@ -113,6 +113,8 @@ def _store_files(workspace, resource, upload_type):
     """Start the extraction job for an uploaded archive."""
     project_id = resource.upload_metadata["project_id"]
     fpath = resource.upload_metadata["upload_path"]
+    checksum = calculate_incr_checksum(algorithm='md5',
+                                       path=resource.upload_file_path)
 
     try:
         upload_path = parse_relative_user_path(fpath)
@@ -127,8 +129,6 @@ def _store_files(workspace, resource, upload_type):
             content_type="application/octet-stream"
         )
 
-        checksum = calculate_incr_checksum(algorithm='md5',
-                                           path=resource.upload_file_path)
         upload.add_source(resource.upload_file_path, checksum, verify=False)
 
     finally:
