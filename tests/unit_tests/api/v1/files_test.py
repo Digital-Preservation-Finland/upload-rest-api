@@ -762,3 +762,21 @@ def test_delete_file_in_dataset(
     assert response.status_code == 400
     assert response.json["error"] == \
         "File/directory is used in a pending dataset and cannot be deleted"
+
+
+@pytest.mark.parametrize(
+    ("method", "url"),
+    (
+        ("GET", "/v1/files/test_project/fake_file"),
+        ("POST", "/v1/files/test_project/fake_file"),
+        ("DELETE", "/v1/files/test_project/fake_file"),
+    )
+)
+def test_no_rights(user2_token_auth, test_client, method, url):
+    """
+    Test that attempting to access a project without permission results
+    in a 403 Forbidden response
+    """
+    response = test_client.open(url, method=method, headers=user2_token_auth)
+
+    assert response.status_code == 403

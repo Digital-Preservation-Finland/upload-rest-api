@@ -406,6 +406,23 @@ def user_token_auth(test_client, test_mongo, database):
 
 
 @pytest.fixture(scope="function")
+def user2_token_auth(test_client, test_mongo, database):
+    """Return credentials headers for a secondary user token"""
+    token_data = db.Database().tokens.create(
+        name="User 2 test token",
+        username="test2",
+        projects=["test_project_2"],
+        expiration_date=None,
+        admin=False
+    )
+    token = token_data["token"]
+
+    return {
+        "Authorization": f"Bearer {token}"
+    }
+
+
+@pytest.fixture(scope="function")
 def admin_auth(test_mongo, mock_config):
     """Return credentials header containing a token with admin privileges"""
     mock_config["ADMIN_TOKEN"] = "fddps-admin"
