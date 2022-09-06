@@ -123,11 +123,8 @@ def _store_files(workspace, resource, upload_type):
 
     try:
         upload = Upload(project_id, upload_path, upload_type=upload_type)
-        # Validate the user's quota and content type again
-        upload.validate(
-            content_length=resource.upload_length,
-            content_type="application/octet-stream"
-        )
+        # Validate the user's quota again
+        upload.validate(content_length=resource.upload_length)
 
         upload.add_source(resource.upload_file_path, checksum, verify=False)
 

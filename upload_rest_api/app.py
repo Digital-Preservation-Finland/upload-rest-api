@@ -12,14 +12,18 @@ from upload_rest_api.api.v1.errorhandlers import (http_error_404,
                                                   http_error_500,
                                                   http_error_generic,
                                                   http_error_locked,
-                                                  upload_conflict)
+                                                  upload_conflict,
+                                                  insufficient_quota,
+                                                  upload_error)
 from upload_rest_api.api.v1.files import FILES_API_V1
 from upload_rest_api.api.v1.tasks import TASK_STATUS_API_V1
 from upload_rest_api.api.v1.tokens import TOKEN_API_V1
 from upload_rest_api.api.v1.users import USERS_API_V1
 from upload_rest_api.lock import LockAlreadyTaken
 from upload_rest_api.config import get_config
-from upload_rest_api.upload import UploadConflictError
+from upload_rest_api.upload import (UploadConflictError,
+                                    InsufficientQuotaError,
+                                    UploadError)
 
 try:
     # Newer Werkzeug
@@ -93,6 +97,8 @@ def create_app():
     app.register_error_handler(500, http_error_500)
     app.register_error_handler(LockAlreadyTaken, http_error_locked)
     app.register_error_handler(UploadConflictError, upload_conflict)
+    app.register_error_handler(InsufficientQuotaError, insufficient_quota)
+    app.register_error_handler(UploadError, upload_error)
 
     return app
 

@@ -29,6 +29,11 @@ def http_error_404(error):
     return make_response(404, message)
 
 
+def upload_error(error):
+    """Create HTTP 400 Bad Request error."""
+    return make_response(400, error.message)
+
+
 def upload_conflict(error):
     """Create HTTP 409 Conflict error.
 
@@ -38,6 +43,11 @@ def upload_conflict(error):
     response.status_code = 409
 
     return response
+
+
+def insufficient_quota(error):
+    """Create HTTP 413 Conflict error."""
+    return make_response(413, error.message)
 
 
 def http_error_locked(error):

@@ -12,7 +12,6 @@ from archive_helpers.extract import (ExtractError, MemberNameError,
                                      extract)
 import magic
 import metax_access
-import werkzeug
 
 from upload_rest_api.config import CONFIG
 from upload_rest_api import gen_metadata
@@ -20,8 +19,6 @@ from upload_rest_api.checksum import get_file_checksum
 from upload_rest_api.database import Database
 from upload_rest_api.jobs.utils import UPLOAD_QUEUE, enqueue_background_job
 from upload_rest_api.lock import ProjectLockManager
-
-SUPPORTED_TYPES = ("application/octet-stream",)
 
 
 def release_lock_on_exception(method):
@@ -42,7 +39,20 @@ def release_lock_on_exception(method):
     return wrapper
 
 
-class UploadConflictError(Exception):
+class UploadError(Exception):
+    """Exception raised when upload fails."""
+
+    def __init__(self, message):
+        """Initialize exception.
+
+        :param message: Error message
+        :param files: List of conflicting files.
+        """
+        super().__init__()
+        self.message = message
+
+
+class UploadConflictError(UploadError):
     """Exception raised when upload would overwrite existing files."""
 
     def __init__(self, message, files):
@@ -51,21 +61,16 @@ class UploadConflictError(Exception):
         :param message: Error message
         :param files: List of conflicting files.
         """
-        super().__init__()
-        self.message = message
+        super().__init__(message)
         self.files = files
 
 
-class InvalidArchiveError(Exception):
+class InvalidArchiveError(UploadError):
     """Exception raised when archive can not be extracted or stored."""
 
-    def __init__(self, message):
-        """Initialize exception.
 
-        :param message: Error message
-        """
-        super().__init__()
-        self.message = message
+class InsufficientQuotaError(UploadError):
+    """Exception raised when upload would exceed remaining quota."""
 
 
 class Upload:
@@ -152,7 +157,7 @@ class Upload:
             if verify and self.source_checksum \
                     != get_file_checksum("md5", self.source_path):
                 self.source_path.unlink()
-                raise werkzeug.exceptions.BadRequest(
+                raise UploadError(
                     'Checksum of uploaded file does not match provided '
                     'checksum.'
                 )
@@ -178,13 +183,12 @@ class Upload:
         return task_id
 
     @release_lock_on_exception
-    def validate(self, content_length, content_type):
+    def validate(self, upload_size):
         """Validate the upload.
 
         Raises error if upload is not valid.
 
-        :param content_length: Content length of HTTP request
-        :param content_type: Content type of HTTP request
+        :param upload_size: Size of uploaded file/archive
         :returns: `None`
         """
         if self.target_path.is_file():
@@ -197,16 +201,8 @@ class Upload:
                 f"Directory '/{self.path}' already exists", [self.path]
             )
 
-        # Check that Content-Length header is provided and uploaded
-        # file is not too large
-        if content_length is None:
-            raise werkzeug.exceptions.LengthRequired(
-                "Missing Content-Length header"
-            )
-        if content_length > CONFIG["MAX_CONTENT_LENGTH"]:
-            raise werkzeug.exceptions.RequestEntityTooLarge(
-                "Max single file size exceeded"
-            )
+        if upload_size > CONFIG["MAX_CONTENT_LENGTH"]:
+            raise InsufficientQuotaError("Max single file size exceeded")
 
         # Check whether the request exceeds users quota. Update used
         # quota first, since multiple users might be using the same
@@ -216,15 +212,8 @@ class Upload:
         )
         project = self.database.projects.get(self.project_id)
         remaining_quota = project["quota"] - project["used_quota"]
-        if remaining_quota - content_length < 0:
-            raise werkzeug.exceptions.RequestEntityTooLarge("Quota exceeded")
-
-        # Check that Content-Type is supported if the header is
-        # provided
-        if content_type and content_type not in SUPPORTED_TYPES:
-            raise werkzeug.exceptions.UnsupportedMediaType(
-                f"Unsupported Content-Type: {content_type}"
-            )
+        if remaining_quota - upload_size < 0:
+            raise InsufficientQuotaError("Quota exceeded")
 
     @release_lock_on_exception
     def validate_archive(self):
@@ -237,7 +226,7 @@ class Upload:
         if not (zipfile.is_zipfile(self.source_path)
                 or tarfile.is_tarfile(self.source_path)):
             self.source_path.unlink()
-            raise werkzeug.exceptions.BadRequest(
+            raise UploadError(
                 "Uploaded file is not a supported archive"
             )
 
@@ -279,7 +268,7 @@ class Upload:
         if project['quota'] - project['used_quota'] - extracted_size < 0:
             # Remove the archive and raise an exception
             self.source_path.unlink()
-            raise werkzeug.exceptions.RequestEntityTooLarge("Quota exceeded")
+            raise InsufficientQuotaError("Quota exceeded")
 
         # Update used quota
         self.database.projects.set_used_quota(

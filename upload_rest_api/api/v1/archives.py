@@ -3,6 +3,7 @@
 Functionality for uploading and extracting an archive.
 """
 from flask import Blueprint, abort, jsonify, request
+import werkzeug
 
 from upload_rest_api.upload import Upload
 from upload_rest_api.utils import parse_relative_user_path
@@ -26,8 +27,18 @@ def upload_archive(project_id):
     except ValueError:
         abort(404)
 
+    if request.content_type not in ('application/octet-stream', None):
+        raise werkzeug.exceptions.UnsupportedMediaType(
+            f"Unsupported Content-Type: {request.content_type}"
+        )
+
+    if request.content_length is None:
+        raise werkzeug.exceptions.LengthRequired(
+            "Missing Content-Length header"
+        )
+
     upload = Upload(project_id, rel_upload_path, upload_type='archive')
-    upload.validate(request.content_length, request.content_type)
+    upload.validate(request.content_length)
     upload.add_source(file=request.stream,
                       checksum=request.args.get('md5', None))
     upload.validate_archive()

@@ -11,6 +11,7 @@ import metax_access
 from flask import Blueprint, abort, current_app, jsonify, request
 from metax_access import (DS_STATE_ACCEPTED_TO_DIGITAL_PRESERVATION,
                           DS_STATE_REJECTED_IN_DIGITAL_PRESERVATION_SERVICE)
+import werkzeug
 
 import upload_rest_api.database as db
 import upload_rest_api.gen_metadata as md
@@ -51,8 +52,19 @@ def upload_file(project_id, fpath):
     except ValueError:
         abort(404)
 
+    if request.content_type not in ('application/octet-stream', None):
+        raise werkzeug.exceptions.UnsupportedMediaType(
+            f"Unsupported Content-Type: {request.content_type}"
+        )
+
+    if request.content_length is None:
+        raise werkzeug.exceptions.LengthRequired(
+            "Missing Content-Length header"
+        )
+
+
     upload = Upload(project_id, rel_upload_path)
-    upload.validate(request.content_length, request.content_type)
+    upload.validate(request.content_length)
     upload.add_source(request.stream, request.args.get('md5', None))
     upload.store_files()
 
