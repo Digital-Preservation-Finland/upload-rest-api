@@ -96,12 +96,30 @@ class Upload:
         else:
             # Starting new upload
             self.upload_id = str(uuid.uuid4())
+
+            # Check for conflicts
+            if self.target_path.is_file():
+                raise UploadConflictError(
+                    f"File '/{self.path}' already exists", [self.path]
+                )
+
+            if self.type == "file" and self.target_path.is_dir():
+                raise UploadConflictError(
+                    f"Directory '/{self.path}' already exists", [self.path]
+                )
+
+            # Lock the target path
             lock_manager = ProjectLockManager()
             lock_manager.acquire(self.project_id, self.target_path)
 
-        self.tmp_path \
-            = pathlib.Path(CONFIG["UPLOAD_TMP_PATH"]) / self.upload_id
-        self.tmp_path.mkdir(exist_ok=True, parents=True)
+            # Create temporary path
+            self.tmp_path.mkdir(exist_ok=True, parents=True)
+
+
+    @property
+    def tmp_path(self):
+        """Temporary path for upload."""
+        return pathlib.Path(CONFIG["UPLOAD_TMP_PATH"]) / self.upload_id
 
     @property
     def source_path(self):
@@ -128,7 +146,7 @@ class Upload:
         return self.project_directory / self.path
 
     @release_lock_on_exception
-    def add_source(self, file, checksum, verify=True):
+    def add_source(self, file, size, checksum, verify=True):
         """Save file to source path and verify checksum.
 
         Save file to source path. If checksum is provided, MD5 sum of
@@ -136,9 +154,24 @@ class Upload:
         do not match.
 
         :param stream: File stream or path to file
+        :param size: Size of file/archive
         :param checksum: MD5 checksum of file, or ``None`` if unknown
         :returns: ``None``
         """
+        if size > CONFIG["MAX_CONTENT_LENGTH"]:
+            raise InsufficientQuotaError("Max single file size exceeded")
+
+        # Check whether the request exceeds users quota. Update used
+        # quota first, since multiple users might be using the same
+        # project
+        self.database.projects.update_used_quota(
+            self.project_id, CONFIG["UPLOAD_PROJECTS_PATH"]
+        )
+        project = self.database.projects.get(self.project_id)
+        remaining_quota = project["quota"] - project["used_quota"]
+        if remaining_quota - size < 0:
+            raise InsufficientQuotaError("Quota exceeded")
+
         if 'read' in dir(file):
             # 'file' is a stream. Write it to source path in 1MB chunks
             with open(self.source_path, "wb") as source_file:
@@ -181,39 +214,6 @@ class Upload:
         )
 
         return task_id
-
-    @release_lock_on_exception
-    def validate(self, upload_size):
-        """Validate the upload.
-
-        Raises error if upload is not valid.
-
-        :param upload_size: Size of uploaded file/archive
-        :returns: `None`
-        """
-        if self.target_path.is_file():
-            raise UploadConflictError(
-                f"File '/{self.path}' already exists", [self.path]
-            )
-
-        if self.type == "file" and self.target_path.is_dir():
-            raise UploadConflictError(
-                f"Directory '/{self.path}' already exists", [self.path]
-            )
-
-        if upload_size > CONFIG["MAX_CONTENT_LENGTH"]:
-            raise InsufficientQuotaError("Max single file size exceeded")
-
-        # Check whether the request exceeds users quota. Update used
-        # quota first, since multiple users might be using the same
-        # project
-        self.database.projects.update_used_quota(
-            self.project_id, CONFIG["UPLOAD_PROJECTS_PATH"]
-        )
-        project = self.database.projects.get(self.project_id)
-        remaining_quota = project["quota"] - project["used_quota"]
-        if remaining_quota - upload_size < 0:
-            raise InsufficientQuotaError("Quota exceeded")
 
     @release_lock_on_exception
     def validate_archive(self):

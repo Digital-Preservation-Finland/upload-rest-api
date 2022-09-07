@@ -62,10 +62,10 @@ def upload_file(project_id, fpath):
             "Missing Content-Length header"
         )
 
-
     upload = Upload(project_id, rel_upload_path)
-    upload.validate(request.content_length)
-    upload.add_source(request.stream, request.args.get('md5', None))
+    upload.add_source(request.stream,
+                      request.content_length,
+                      request.args.get('md5', None))
     upload.store_files()
 
     return jsonify(

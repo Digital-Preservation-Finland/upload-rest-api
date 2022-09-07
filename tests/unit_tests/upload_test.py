@@ -30,7 +30,7 @@ def test_store_file(
     project = 'test_project'
     upload = upload_rest_api.upload.Upload(project, 'foo/bar')
     with open(test_file, 'rb') as file:
-        upload.add_source(file, None, False)
+        upload.add_source(file, 123, None, False)
 
     # Create metadata
     upload.store_files()
@@ -112,7 +112,7 @@ def test_checksum(checksum, verify, requests_mock, mock_get_file_checksum):
     # a predefined checksum was provided and it must be verified.
     upload = upload_rest_api.upload.Upload('test_project', 'path/file1')
     with open('tests/data/test.txt', 'rb') as source_file:
-        upload.add_source(source_file, checksum=checksum, verify=verify)
+        upload.add_source(source_file, 123, checksum=checksum, verify=verify)
 
     if checksum and verify:
         mock_get_file_checksum.assert_called_once()

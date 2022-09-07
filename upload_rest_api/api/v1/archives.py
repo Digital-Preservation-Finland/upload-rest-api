@@ -38,8 +38,8 @@ def upload_archive(project_id):
         )
 
     upload = Upload(project_id, rel_upload_path, upload_type='archive')
-    upload.validate(request.content_length)
     upload.add_source(file=request.stream,
+                      size=request.content_length,
                       checksum=request.args.get('md5', None))
     upload.validate_archive()
     task_id = upload.enqueue_store_task()
