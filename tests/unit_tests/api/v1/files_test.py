@@ -509,35 +509,6 @@ def test_get_files(app, test_auth, path, expected_data, requests_mock):
             or set(response.json[key]) == set(expected_data[key])
 
 
-def test_get_directory_without_identifier(app, test_auth, requests_mock):
-    """Test listing contents of directory without identifier.
-
-    Response should list directory contents, but the directory
-    identifier should be missing.
-
-    :param app: Flask app
-    :param test_auth: authentication headers
-    :param requests_mock: HTTP request mocker
-    """
-    # Create test directory
-    upload_path = app.config.get("UPLOAD_PROJECTS_PATH")
-    os.makedirs(os.path.join(upload_path, "test_project/test_directory"))
-
-    # Metax responds with 404, which means that test directory metadata
-    # does not (yet) exist in Metax.
-    requests_mock.get('https://metax.localdomain/rest/v2/directories/files',
-                      status_code=404)
-
-    test_client = app.test_client()
-    response = test_client.get(
-        "v1/files/test_project/test_directory", headers=test_auth
-    )
-    assert response.status_code == 200
-    assert response.json == {'directories': [],
-                             'files': [],
-                             'identifier': None}
-
-
 @pytest.mark.parametrize(
     'target,files_to_delete',
     [
