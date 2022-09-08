@@ -341,7 +341,9 @@ def test_get_file(app, test_auth, test2_auth, test3_auth, test_mongo):
     fpath = os.path.join(upload_path, "test_project/test.txt")
     shutil.copy("tests/data/test.txt", fpath)
     test_mongo.upload.files.insert_one({
-        "_id": fpath, "checksum": "150b62e4e7d58c70503bd5fc8a26463c"
+        "_id": fpath,
+        "checksum": "150b62e4e7d58c70503bd5fc8a26463c",
+        "identifier": 'foo'
     })
 
     # GET file that exists
@@ -353,7 +355,7 @@ def test_get_file(app, test_auth, test2_auth, test3_auth, test_mongo):
 
     assert response.json["file_path"] == "/test.txt"
     assert response.json["md5"] == "150b62e4e7d58c70503bd5fc8a26463c"
-    assert response.json["identifier"] is None
+    assert response.json["identifier"] == 'foo'
 
     # GET file with user test2, which is in the same project
     response = test_client.get(
