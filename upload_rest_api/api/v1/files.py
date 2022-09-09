@@ -8,21 +8,20 @@ import os
 from flask import Blueprint, abort, jsonify, request
 import werkzeug
 
-import upload_rest_api.database as db
 from upload_rest_api import utils
 from upload_rest_api.api.v1.tasks import get_polling_url
 from upload_rest_api.authentication import current_user
 from upload_rest_api.resource import get_resource
-from upload_rest_api.upload import Upload
+from upload_rest_api.upload import create_upload
 
 FILES_API_V1 = Blueprint("files_v1", __name__, url_prefix="/v1/files")
 
 
-def _get_dir_tree(project_id, fpath):
-    """Return with dir tree from fpath as a dict."""
+def _get_dir_tree(project):
+    """Return with dir tree from project directory."""
     file_dict = {}
-    for dirpath, _, files in os.walk(fpath):
-        path = db.Projects.get_return_path(project_id, dirpath)
+    for dirpath, _, files in os.walk(project.directory):
+        path = get_resource(project.identifier, dirpath).return_path
         file_dict[path] = files
 
     if "." in file_dict:
@@ -55,10 +54,8 @@ def upload_file(project_id, fpath):
             "Missing Content-Length header"
         )
 
-    upload = Upload(project_id, rel_upload_path)
-    upload.add_source(request.stream,
-                      request.content_length,
-                      request.args.get('md5', None))
+    upload = create_upload(project_id, rel_upload_path, request.content_length)
+    upload.add_source(request.stream, request.args.get('md5', None))
     upload.store_files()
 
     return jsonify(
@@ -84,20 +81,13 @@ def get_path(project_id, fpath):
     if not current_user.is_allowed_to_access_project(project_id):
         abort(403, "No permission to access this project")
 
-    if request.args.get("all", None) == "true" and fpath.strip("/") == "":
-        # Retrieve entire directory listing if 'all' URL parameter is
-        # set and fpath is set to '' or '/'
-        fpath = db.Projects.get_project_directory(project_id)
-
-        if not os.path.exists(fpath):
-            abort(404, "No files found")
-
-        return jsonify(_get_dir_tree(project_id, fpath))
-
     try:
         resource = get_resource(project_id, fpath)
     except FileNotFoundError:
         abort(404, "File not found")
+
+    if request.args.get("all", None) == "true" and fpath.strip("/") == "":
+        return jsonify(_get_dir_tree(resource.project))
 
     if resource.upload_path.is_file():
         response = {

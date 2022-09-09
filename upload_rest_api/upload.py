@@ -19,6 +19,7 @@ from upload_rest_api.checksum import get_file_checksum
 from upload_rest_api.database import Database
 from upload_rest_api.jobs.utils import UPLOAD_QUEUE, enqueue_background_job
 from upload_rest_api.lock import ProjectLockManager
+from upload_rest_api.project import Project
 
 
 def release_lock_on_exception(method):
@@ -33,7 +34,7 @@ def release_lock_on_exception(method):
 
         except Exception:
             lock_manager = ProjectLockManager()
-            lock_manager.release(self.project_id, self.target_path)
+            lock_manager.release(self.project.identifier, self.target_path)
             raise
 
     return wrapper
@@ -73,53 +74,83 @@ class InsufficientQuotaError(UploadError):
     """Exception raised when upload would exceed remaining quota."""
 
 
+def create_upload(project_id, path, size, upload_type='file', identifier=None):
+    """Create new upload."""
+    upload = Upload(project_id, path, upload_type=upload_type,
+                    identifier=identifier)
+    upload.create(size)
+    return upload
+
+
+def continue_upload(project_id, path, upload_type, identifier):
+    """Continue existing upload."""
+    upload = Upload(project_id, path, upload_type=upload_type,
+                    identifier=identifier)
+    return upload
+
+
 class Upload:
     """Class for handling uploads."""
 
-    def __init__(self, project_id, path, upload_type="file", upload_id=None):
+    def __init__(self, project_id, path, upload_type="file", identifier=None):
         """Initialize upload.
 
         :param project_id: project identifier
         :param path: upload path
         :param upload_type: Type of upload ("file" or "archive")
-        :param upload_id: Unique identifier of upload
+        :param identifier: Identifier of upload
         """
         self.database = Database()
-        self.project_id = project_id
+        self.project = Project(project_id)
         self.path = path
         self.type = upload_type
         self.source_checksum = None
+        self.identifier = identifier
 
-        if upload_id:
-            # Continuing previously started upload
-            self.upload_id = upload_id
-        else:
-            # Starting new upload
-            self.upload_id = str(uuid.uuid4())
+    def create(self, size):
+        """Create new upload.
 
-            # Check for conflicts
-            if self.target_path.is_file():
-                raise UploadConflictError(
-                    f"File '/{self.path}' already exists", [self.path]
-                )
+        Check that project has enough quota, check for conflicts and
+        lock the filestorage.
 
-            if self.type == "file" and self.target_path.is_dir():
-                raise UploadConflictError(
-                    f"Directory '/{self.path}' already exists", [self.path]
-                )
+        :param size: Size of upload
+        """
+        if not self.identifier:
+            self.identifier = str(uuid.uuid4())
+        if size > CONFIG["MAX_CONTENT_LENGTH"]:
+            raise InsufficientQuotaError("Max single file size exceeded")
 
-            # Lock the target path
-            lock_manager = ProjectLockManager()
-            lock_manager.acquire(self.project_id, self.target_path)
+        # Check that project has enough quota. Update used quota
+        # first, since multiple users might be using the same
+        # project
+        self.database.projects.update_used_quota(
+            self.project.identifier, CONFIG["UPLOAD_PROJECTS_PATH"]
+        )
+        if self.project.remaining_quota() - size < 0:
+            raise InsufficientQuotaError("Quota exceeded")
 
-            # Create temporary path
-            self.tmp_path.mkdir(exist_ok=True, parents=True)
+        # Check for conflicts
+        if self.target_path.is_file():
+            raise UploadConflictError(
+                f"File '/{self.path}' already exists", [self.path]
+            )
 
+        if self.type == "file" and self.target_path.is_dir():
+            raise UploadConflictError(
+                f"Directory '/{self.path}' already exists", [self.path]
+            )
+
+        # Lock the target path
+        lock_manager = ProjectLockManager()
+        lock_manager.acquire(self.project.identifier, self.target_path)
+
+        # Create temporary path
+        self.tmp_path.mkdir(exist_ok=True, parents=True)
 
     @property
     def tmp_path(self):
         """Temporary path for upload."""
-        return pathlib.Path(CONFIG["UPLOAD_TMP_PATH"]) / self.upload_id
+        return pathlib.Path(CONFIG["UPLOAD_TMP_PATH"]) / self.identifier
 
     @property
     def source_path(self):
@@ -136,17 +167,12 @@ class Upload:
         return self.tmp_path / "tmp_storage"
 
     @property
-    def project_directory(self):
-        """Path to project directory."""
-        return self.database.projects.get_project_directory(self.project_id)
-
-    @property
     def target_path(self):
         """Absolute physical path of upload."""
-        return self.project_directory / self.path
+        return self.project.directory / self.path
 
     @release_lock_on_exception
-    def add_source(self, file, size, checksum, verify=True):
+    def add_source(self, file, checksum, verify=True):
         """Save file to source path and verify checksum.
 
         Save file to source path. If checksum is provided, MD5 sum of
@@ -158,20 +184,6 @@ class Upload:
         :param checksum: MD5 checksum of file, or ``None`` if unknown
         :returns: ``None``
         """
-        if size > CONFIG["MAX_CONTENT_LENGTH"]:
-            raise InsufficientQuotaError("Max single file size exceeded")
-
-        # Check whether the request exceeds users quota. Update used
-        # quota first, since multiple users might be using the same
-        # project
-        self.database.projects.update_used_quota(
-            self.project_id, CONFIG["UPLOAD_PROJECTS_PATH"]
-        )
-        project = self.database.projects.get(self.project_id)
-        remaining_quota = project["quota"] - project["used_quota"]
-        if remaining_quota - size < 0:
-            raise InsufficientQuotaError("Quota exceeded")
-
         if 'read' in dir(file):
             # 'file' is a stream. Write it to source path in 1MB chunks
             with open(self.source_path, "wb") as source_file:
@@ -204,12 +216,12 @@ class Upload:
         task_id = enqueue_background_job(
             task_func="upload_rest_api.jobs.upload.store_files",
             queue_name=UPLOAD_QUEUE,
-            project_id=self.project_id,
+            project_id=self.project.identifier,
             job_kwargs={
-                "project_id": self.project_id,
+                "project_id": self.project.identifier,
                 "path": self.path,
                 "upload_type": self.type,
-                "upload_id": self.upload_id
+                "identifier": self.identifier
             }
         )
 
@@ -231,7 +243,7 @@ class Upload:
             )
 
         # Ensure that the project has enough quota available
-        project = self.database.projects.get(self.project_id)
+        project = self.database.projects.get(self.project.identifier)
 
         if tarfile.is_tarfile(self.source_path):
             with tarfile.open(self.source_path) as archive:
@@ -253,11 +265,11 @@ class Upload:
         # not overwrite files.
         conflicts = []
         for file in files:
-            extract_path = self.project_directory / self.path / file
+            extract_path = self.project.directory / self.path / file
             if extract_path.exists():
                 conflicts.append(f'{self.path}/{file}')
         for directory in directories:
-            extract_path = self.project_directory / self.path / directory
+            extract_path = self.project.directory / self.path / directory
             if extract_path.is_file():
                 conflicts.append(f'{self.path}/{directory}')
         if conflicts:
@@ -272,7 +284,7 @@ class Upload:
 
         # Update used quota
         self.database.projects.set_used_quota(
-            self.project_id, project['used_quota'] + extracted_size
+            self.project.identifier, project['used_quota'] + extracted_size
         )
 
     def _extract_archive(self):
@@ -323,8 +335,10 @@ class Upload:
             # Creating metadata for only one file, so it is probably
             # more efficient to retrieve information about single file
             try:
-                old_file = metax.client.get_project_file(self.project_id,
-                                                         self.path)
+                old_file = metax.client.get_project_file(
+                    self.project.identifier,
+                    self.path
+                )
                 shutil.rmtree(self.tmp_path)
                 raise UploadConflictError(
                     'Metadata could not be created because the file'
@@ -338,7 +352,7 @@ class Upload:
             # Retrieve list of all files as one request to avoid sending
             # too many requests to Metax.
             conflicts = []  # Uploaded files that already exist in Metax
-            old_files = metax.get_files_dict(self.project_id).keys()
+            old_files = metax.get_files_dict(self.project.identifier).keys()
             for file in new_files:
                 if f"/{file}" in old_files:
                     conflicts.append(str(file))
@@ -364,7 +378,7 @@ class Upload:
                 else:
                     checksum = get_file_checksum("md5", file)
                 file_documents.append({
-                    "path": str(self.project_directory / relative_path),
+                    "path": str(self.project.directory / relative_path),
                     "checksum": checksum,
                     "identifier": identifier
                 })
@@ -377,7 +391,7 @@ class Upload:
                     "file_format": _get_mimetype(file),
                     "byte_size": file.stat().st_size,
                     "file_path": f"/{relative_path}",
-                    "project_identifier": self.project_id,
+                    "project_identifier": self.project.identifier,
                     "file_uploaded": timestamp,
                     "file_modified": timestamp,
                     "file_frozen": timestamp,
@@ -404,12 +418,12 @@ class Upload:
 
         # Update quota
         self.database.projects.update_used_quota(
-            self.project_id, CONFIG["UPLOAD_PROJECTS_PATH"]
+            self.project.identifier, CONFIG["UPLOAD_PROJECTS_PATH"]
         )
 
         # Release file storage lock
         lock_manager = ProjectLockManager()
-        lock_manager.release(self.project_id, self.target_path)
+        lock_manager.release(self.project.identifier, self.target_path)
 
     def _move_files_to_project_directory(self):
         """Move files to project directory."""
@@ -420,7 +434,7 @@ class Upload:
                     self.tmp_project_directory
                 )
                 source_path = self.tmp_project_directory / relative_path
-                target_path = self.project_directory / relative_path
+                target_path = self.project.directory / relative_path
                 try:
                     source_path.rename(target_path)
                 except FileNotFoundError:

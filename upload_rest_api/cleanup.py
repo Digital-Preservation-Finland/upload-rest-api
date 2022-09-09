@@ -10,6 +10,7 @@ import time
 import upload_rest_api.config
 import upload_rest_api.database as db
 import upload_rest_api.gen_metadata as md
+from upload_rest_api.lock import ProjectLockManager
 
 
 def _is_expired(fpath, current_time, time_lim):
@@ -186,6 +187,12 @@ def clean_tus_uploads():
     }
 
     resource_ids_to_delete = list(resource_ids_on_mongo - resource_ids_on_disk)
+
+    lock_manager = ProjectLockManager()
+    for resource_id in resource_ids_to_delete:
+        upload = database.uploads.uploads.find_one({"_id": resource_id})
+        if upload:
+            lock_manager.release(upload['project'], upload['upload_path'])
 
     deleted_count = database.uploads.delete(resource_ids_to_delete)
 

@@ -6,8 +6,10 @@ from flask import Blueprint, abort
 from upload_rest_api.authentication import current_user
 from upload_rest_api.checksum import (HASH_FUNCTION_ALIASES,
                                       calculate_incr_checksum)
-from upload_rest_api.database import Database, Projects
-from upload_rest_api.upload import Upload
+from upload_rest_api.database import Database
+from upload_rest_api.lock import ProjectLockManager
+from upload_rest_api.project import Project
+from upload_rest_api.upload import create_upload, continue_upload
 from upload_rest_api.utils import parse_relative_user_path
 
 FILES_TUS_API_V1 = Blueprint(
@@ -28,6 +30,16 @@ def register_blueprint(app):
     app.register_blueprint(FILES_TUS_API_V1)
 
 
+def _release_lock(workspace):
+    """Release file storage lock."""
+    uploads = Database().uploads
+
+    resource = workspace.get_resource()
+    upload = uploads.uploads.find_one({"_id": resource.identifier})
+    if upload:
+        ProjectLockManager().release(upload["project"], upload["upload_path"])
+
+
 def _delete_workspace(workspace):
     """Delete workspace and remove the corresponding database entry."""
     uploads = Database().uploads
@@ -43,15 +55,14 @@ def _upload_started(workspace, resource):
         db = Database()
         uploads = db.uploads
 
-        upload_length = resource.upload_length
-        project_id = resource.upload_metadata["project_id"]
+        project = Project(resource.upload_metadata["project_id"])
         fpath = resource.upload_metadata["upload_path"]
         upload_type = resource.upload_metadata["type"]
 
         if upload_type not in ("file", "archive"):
             abort(400, f"Unknown upload type '{upload_type}'")
 
-        if not current_user.is_allowed_to_access_project(project_id):
+        if not current_user.is_allowed_to_access_project(project.identifier):
             abort(403)
 
         try:
@@ -59,52 +70,23 @@ def _upload_started(workspace, resource):
         except ValueError:
             abort(404)
 
-        project_dir = Projects.get_project_directory(project_id)
-        file_path = project_dir / upload_path
+        file_path = project.directory / upload_path
 
-        project = db.projects.get(project_id)
-
-        allocated_quota = uploads.get_project_allocated_quota(project_id)
-        remaining_quota = (
-            project["quota"]  # User's total quota
-            - project["used_quota"]  # Finished and saved uploads
-            - allocated_quota  # Disk space allocated for unfinished uploads
-            # Disk space that will be allocated for this upload
-            - upload_length
-        )
-
-        if remaining_quota < 0:
-            # Remaining user quota too low to allow this upload
-            abort(413, "Remaining user quota too low")
-
-        # check if the file/dirctory exists:
-        # either an upload has been initiated with
-        # the same path, or a file already exists at the final location
-        upload_exists = (
-            file_path.exists()
-            or db.uploads.uploads.find_one({"upload_path": str(file_path)})
-        )
-
-        if upload_exists:
-            if upload_type == "file":
-                error = "File already exists"
-            elif upload_type == "archive":
-                error = "Target directory already exists"
-
-            abort(
-                409,  # 409 CONFLICT
-                error
-            )
+        create_upload(project.identifier, upload_path,
+                      resource.upload_length,
+                      upload_type=upload_type,
+                      identifier=resource.identifier)
 
         # Quota is sufficient, create a new Upload entry
         uploads.create(
-            project_id=project_id,
+            project_id=project.identifier,
             upload_path=str(file_path),
-            resource=resource
+            resource=resource,
         )
     except Exception:
         # Remove the workspace to prevent filling up disk space with
         # bogus requests
+        _release_lock(workspace)
         _delete_workspace(workspace)
         raise
 
@@ -122,11 +104,10 @@ def _store_files(workspace, resource, upload_type):
         abort(404)
 
     try:
-        upload = Upload(project_id, upload_path, upload_type=upload_type)
-        upload.add_source(resource.upload_file_path,
-                          resource.upload_length,
-                          checksum,
-                          verify=False)
+        upload = continue_upload(project_id, upload_path,
+                                 upload_type=upload_type,
+                                 identifier=resource.identifier)
+        upload.add_source(resource.upload_file_path, checksum, verify=False)
 
     finally:
         # Delete the tus-specific workspace regardless of the
@@ -186,6 +167,7 @@ def _chunk_upload_completed(workspace, resource):
             path=resource.upload_file_path
         )
     except Exception:
+        _release_lock(workspace)
         _delete_workspace(workspace)
         raise
 
@@ -209,6 +191,7 @@ def _check_upload_integrity(resource, workspace, checksum):
         if calculated_checksum != expected_checksum:
             abort(400, "Upload checksum mismatch")
     except Exception:
+        _release_lock(workspace)
         _delete_workspace(workspace)
         raise
 

@@ -5,7 +5,7 @@ Functionality for uploading and extracting an archive.
 from flask import Blueprint, abort, jsonify, request
 import werkzeug
 
-from upload_rest_api.upload import Upload
+from upload_rest_api.upload import create_upload
 from upload_rest_api.utils import parse_relative_user_path
 from upload_rest_api.api.v1.tasks import get_polling_url
 
@@ -37,9 +37,10 @@ def upload_archive(project_id):
             "Missing Content-Length header"
         )
 
-    upload = Upload(project_id, rel_upload_path, upload_type='archive')
+    upload = create_upload(project_id, rel_upload_path,
+                           size=request.content_length,
+                           upload_type='archive')
     upload.add_source(file=request.stream,
-                      size=request.content_length,
                       checksum=request.args.get('md5', None))
     upload.validate_archive()
     task_id = upload.enqueue_store_task()

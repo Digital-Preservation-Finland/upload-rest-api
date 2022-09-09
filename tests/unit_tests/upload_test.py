@@ -28,9 +28,9 @@ def test_store_file(
     # source path
     test_file = pathlib.Path(file_path)
     project = 'test_project'
-    upload = upload_rest_api.upload.Upload(project, 'foo/bar')
+    upload = upload_rest_api.upload.create_upload(project, 'foo/bar', 123)
     with open(test_file, 'rb') as file:
-        upload.add_source(file, 123, None, False)
+        upload.add_source(file, None, False)
 
     # Create metadata
     upload.store_files()
@@ -57,7 +57,9 @@ def test_store_file(
 def test_file_metadata_conflict(mock_config, requests_mock):
     """Test uploading a file that already has metadata in Metax."""
     # Create an incomplete upload with a text file copied to source path
-    upload = upload_rest_api.upload.Upload('test_project', 'path/file1')
+    upload = upload_rest_api.upload.create_upload('test_project',
+                                                  'path/file1',
+                                                  123)
     shutil.copy('tests/data/test.txt', upload.source_path)
 
     # Mock metax.
@@ -110,9 +112,11 @@ def test_checksum(checksum, verify, requests_mock, mock_get_file_checksum):
 
     # Add source file to upload. Checksum should be computed only if
     # a predefined checksum was provided and it must be verified.
-    upload = upload_rest_api.upload.Upload('test_project', 'path/file1')
+    upload = upload_rest_api.upload.create_upload('test_project',
+                                                  'path/file1',
+                                                  123)
     with open('tests/data/test.txt', 'rb') as source_file:
-        upload.add_source(source_file, 123, checksum=checksum, verify=verify)
+        upload.add_source(source_file, checksum=checksum, verify=verify)
 
     if checksum and verify:
         mock_get_file_checksum.assert_called_once()

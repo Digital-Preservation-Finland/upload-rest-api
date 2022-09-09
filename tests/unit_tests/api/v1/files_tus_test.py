@@ -127,7 +127,9 @@ def test_upload_file(app, test_auth, test_mongo, name, requests_mock):
     )
 
     assert resp.status_code == 409
-    assert resp.json == {"code": 409, "error": "File already exists"}
+    assert resp.json == {"code": 409,
+                         "error": f"File '/{name}' already exists",
+                         "files": [name]}
 
 
 @pytest.mark.usefixtures("project", "mock_redis")
@@ -404,24 +406,31 @@ def test_upload_file_exceed_quota(test_client, test_auth, database,
     )
 
     assert resp.status_code == 413
-    assert resp.json["error"] == "Remaining user quota too low"
+    assert resp.json["error"] == "Quota exceeded"
 
 
 def test_upload_file_parallel_upload_exceed_quota(
-        test_client, test_auth, database):
+        test_client, test_auth, database, requests_mock):
     """Start enough parallel uploads to exceed the user quota."""
-    database.projects.set_quota("test_project", 4096)
+    # Mock metax
+    requests_mock.post('/rest/v2/files/', json={})
+    requests_mock.get('/rest/v2/files', json={'results': [], 'next': None})
 
-    # User has a quota of exactly 4096 bytes. Initiate three uploads,
+    database.projects.set_quota("test_project", 2999)
+    data = b'0' * 1000
+    upload_length = len(data)
+
+    # User has a quota of exactly 2999 bytes. Initiate three uploads,
     # the last of which will exceed this quota.
-    for i in range(0, 2):
+    responses = {}
+    for i in range(0, 3):
         # Initiate upload, but don't finish it
-        resp = test_client.post(
+        responses[i] = test_client.post(
             "/v1/files_tus",
             headers={
                 **{
                     "Tus-Resumable": "1.0.0",
-                    "Upload-Length": "2000",
+                    "Upload-Length": str(upload_length),
                     "Upload-Metadata": encode_tus_meta({
                         "type": "file",
                         "project_id": "test_project",
@@ -432,34 +441,99 @@ def test_upload_file_parallel_upload_exceed_quota(
                 **test_auth
             }
         )
-        assert resp.status_code == 201
 
-    # Initiate the third upload, which would result in exceeding the
-    # quota. This will fail.
-    resp = test_client.post(
+    # The first two uploads should be OK, but the third should fail.
+    for i in range(0, 2):
+        assert responses[i].status_code == 201
+    assert responses[2].status_code == 413
+    assert responses[2].json["error"] == "Quota exceeded"
+
+    # The first two uploads can be continued
+    for i in range(0, 2):
+        response = test_client.patch(
+            responses[i].location,
+            content_type="application/offset+octet-stream",
+            headers={
+                **{
+                    "Content-Type": "application/offset+octet-stream",
+                    "Tus-Resumable": "1.0.0",
+                    "Upload-Offset": "0"
+                },
+                **test_auth
+            },
+            input_stream=BytesIO(data)
+        )
+        assert response.status_code == 204
+
+
+def test_mixed_parallel_upload_exceed_quota(
+        test_client, test_auth, database, requests_mock):
+    """Test parallel uploads to /v1/files_tus API and /v1/files API.
+
+    If all quota has been alloceted for TUS uploads, it should not be
+    possible to upload files using /v1/files API.
+    """
+    # Mock metax
+    requests_mock.post('/rest/v2/files/', json={})
+    requests_mock.get('/rest/v2/files', json={'results': [], 'next': None})
+
+    database.projects.set_quota("test_project", 2000)
+
+    # Allocate almost all quota for a TUS upload
+    tus_upload_data = b'0' * 1999
+    tus_upload = test_client.post(
         "/v1/files_tus",
         headers={
             **{
                 "Tus-Resumable": "1.0.0",
-                "Upload-Length": "97",
+                "Upload-Length": str(len(tus_upload_data)),
                 "Upload-Metadata": encode_tus_meta({
                     "type": "file",
                     "project_id": "test_project",
-                    "filename": "test2.txt",
-                    "upload_path": "test2.txt"
+                    "filename": "test.txt",
+                    "upload_path": "test.txt",
                 })
             },
             **test_auth
         }
     )
 
-    assert resp.status_code == 413
-    assert resp.json["error"] == "Remaining user quota too low"
+    # Try to upload a small file using /v1/files API.
+    upload = test_client.post(
+            '/v1/files/test_project/foo',
+            data=b'foobar',
+            headers=test_auth
+    )
+    assert upload.status_code == 413
+    assert upload.json['error'] == 'Quota exceeded'
+
+    # The TUS upload can be continued
+    tus_upload = test_client.patch(
+        tus_upload.location,
+        content_type="application/offset+octet-stream",
+        headers={
+            **{
+                "Content-Type": "application/offset+octet-stream",
+                "Tus-Resumable": "1.0.0",
+                "Upload-Offset": "0"
+            },
+            **test_auth
+        },
+        input_stream=BytesIO(tus_upload_data)
+    )
+    assert tus_upload.status_code == 204
 
 
 @pytest.mark.usefixtures("database")
-def test_upload_file_conflict(test_client, test_auth):
+def test_upload_file_conflict(test_client, test_auth, requests_mock):
     """Try initiating two uploads with the same file path."""
+    # Mock metax
+    requests_mock.post('/rest/v2/files/', json={})
+    requests_mock.get('/rest/v2/files', json={'results': [], 'next': None})
+
+    data = b'foo'
+    upload_length = len(data)
+
     upload_metadata = {
         "type": "file",
         "project_id": "test_project",
@@ -467,21 +541,21 @@ def test_upload_file_conflict(test_client, test_auth):
         "upload_path": "test.txt"
     }
 
-    resp = test_client.post(
+    resp1 = test_client.post(
         "/v1/files_tus",
         headers={
             **{
                 "Tus-Resumable": "1.0.0",
-                "Upload-Length": "10",
+                "Upload-Length": str(upload_length),
                 "Upload-Metadata": encode_tus_meta(upload_metadata)
             },
             **test_auth
         }
     )
-    assert resp.status_code == 201
+    assert resp1.status_code == 201
 
     # Another upload with the same path can't be initiated
-    resp = test_client.post(
+    resp2 = test_client.post(
         "/v1/files_tus",
         headers={
             **{
@@ -492,8 +566,83 @@ def test_upload_file_conflict(test_client, test_auth):
             **test_auth
         }
     )
-    assert resp.status_code == 409
-    assert resp.json["error"] == "File already exists"
+    assert resp2.status_code == 409
+    assert resp2.json["error"] \
+        == "The file/directory is currently locked by another task"
+
+    # The first upload can be continued
+    response = test_client.patch(
+        resp1.location,
+        content_type="application/offset+octet-stream",
+        headers={
+            **{
+                "Content-Type": "application/offset+octet-stream",
+                "Tus-Resumable": "1.0.0",
+                "Upload-Offset": "0"
+            },
+            **test_auth
+        },
+        input_stream=BytesIO(data)
+    )
+    assert response.status_code == 204
+
+
+def test_mixed_parallel_upload_conflict(test_client, test_auth, requests_mock):
+    """Test parallel uploads to /v1/files_tus API and /v1/files API.
+
+    If a TUS upload has been started, uploading a file to conflicting
+    path using /v1/files API should not be possible.
+    """
+    # Mock metax
+    requests_mock.post('/rest/v2/files/', json={})
+    requests_mock.get('/rest/v2/files', json={'results': [], 'next': None})
+
+    # Start a tus upload to '/test.txt'
+    data = b'foo'
+    tus_upload = test_client.post(
+        "/v1/files_tus",
+        headers={
+            **{
+                "Tus-Resumable": "1.0.0",
+                "Upload-Length": str(len(data)),
+                "Upload-Metadata": encode_tus_meta({
+                    "type": "file",
+                    "project_id": "test_project",
+                    "filename": "test.txt",
+                    "upload_path": "test.txt",
+                })
+            },
+            **test_auth
+        }
+    )
+
+    # Try to upload a file to same path using /v1/files API
+    upload = test_client.post(
+            '/v1/files/test_project/test.txt',
+            data=data,
+            headers=test_auth
+    )
+    assert upload.status_code == 409
+    assert upload.json['error'] \
+        == 'The file/directory is currently locked by another task'
+
+    # The TUS upload can be continued
+    tus_upload = test_client.patch(
+        tus_upload.location,
+        content_type="application/offset+octet-stream",
+        headers={
+            **{
+                "Content-Type": "application/offset+octet-stream",
+                "Tus-Resumable": "1.0.0",
+                "Upload-Offset": "0"
+            },
+            **test_auth
+        },
+        input_stream=BytesIO(data)
+    )
+    assert tus_upload.status_code == 204
+
+
 
 
 @pytest.mark.usefixtures("database")

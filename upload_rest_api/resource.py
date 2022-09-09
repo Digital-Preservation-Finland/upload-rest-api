@@ -15,6 +15,7 @@ from upload_rest_api.config import CONFIG
 from upload_rest_api.jobs.utils import FILES_QUEUE, enqueue_background_job
 from upload_rest_api.lock import lock_manager
 from upload_rest_api.upload import iso8601_timestamp
+from upload_rest_api.project import Project
 
 
 class HasPendingDatasetError(Exception):
@@ -44,26 +45,27 @@ class Resource():
     def __init__(self, project, path):
         """Initialize resource."""
         self.path = pathlib.Path(path)
-        self.project = project
+        self.project = Project(project)
         self.database = database.Database()
         self._datasets = None
 
     @property
     def upload_path(self):
         """Absolute path of resource."""
-        return database.Projects.get_upload_path(self.project, self.path)
+        return database.Projects.get_upload_path(self.project.identifier,
+                                                 self.path)
 
     @property
     def return_path(self):
         """Path of resource relative to project directory."""
-        return database.Projects.get_return_path(self.project,
+        return database.Projects.get_return_path(self.project.identifier,
                                                  self.upload_path)
 
     def datasets(self):
         """List pending datasets."""
         metax = gen_metadata.MetaxClient()
         if self._datasets is None:
-            self._datasets = metax.get_file_datasets(self.project,
+            self._datasets = metax.get_file_datasets(self.project.identifier,
                                                      self.upload_path)
         return self._datasets
 
@@ -108,12 +110,12 @@ class File(Resource):
 
         root_upload_path = CONFIG.get("UPLOAD_PROJECTS_PATH")
 
-        with lock_manager.lock(self.project, self.upload_path):
+        with lock_manager.lock(self.project.identifier, self.upload_path):
             # Remove metadata from Metax
             try:
                 metax_client = gen_metadata.MetaxClient()
                 metax_response = metax_client.delete_file_metadata(
-                    self.project,
+                    self.project.identifier,
                     self.upload_path,
                     root_upload_path
                 )
@@ -124,7 +126,7 @@ class File(Resource):
             self.database.files.delete_one(os.path.abspath(self.upload_path))
             os.remove(self.upload_path)
 
-            self.database.projects.update_used_quota(self.project,
+            self.database.projects.update_used_quota(self.project.identifier,
                                                      root_upload_path)
 
             return metax_response
@@ -142,7 +144,7 @@ class Directory(Resource):
             password=CONFIG.get("METAX_PASSWORD"),
             verify=CONFIG.get("METAX_SSL_VERIFICATION")
         )
-        return metax.get_project_directory(self.project,
+        return metax.get_project_directory(self.project.identifier,
                                            self.path)['identifier']
 
     def _entries(self):
@@ -150,12 +152,12 @@ class Directory(Resource):
 
     def files(self):
         """List of files in directory."""
-        return [File(self.project, self.path / entry.name)
+        return [File(self.project.identifier, self.path / entry.name)
                 for entry in self._entries() if entry.is_file()]
 
     def directories(self):
         """List of directories in directory."""
-        return [Directory(self.project, self.path / entry.name)
+        return [Directory(self.project.identifier, self.path / entry.name)
                 for entry in self._entries() if entry.is_dir()]
 
     def delete(self):
@@ -163,10 +165,9 @@ class Directory(Resource):
         if self.has_pending_dataset():
             raise HasPendingDatasetError
 
-        project_dir = database.Projects.get_project_directory(self.project)
-        is_project_dir = self.upload_path.samefile(project_dir)
+        is_project_dir = self.upload_path.samefile(self.project.directory)
 
-        if is_project_dir and not any(project_dir.iterdir()):
+        if is_project_dir and not any(self.project.directory.iterdir()):
             raise FileNotFoundError('Project directory is empty')
 
         # Create a random ID for the directory that will contain the
@@ -187,18 +188,18 @@ class Directory(Resource):
         trash_id = secrets.token_hex(8)
 
         trash_root = self.database.projects.get_trash_root(
-            project_id=self.project,
+            project_id=self.project.identifier,
             trash_id=trash_id
         )
         trash_path = self.database.projects.get_trash_path(
-            project_id=self.project,
+            project_id=self.project.identifier,
             trash_id=trash_id,
             file_path=self.path
         )
         # Acquire a lock *and* keep it alive even after this HTTP
         # request. It will be released by the 'delete_files' background
         # job once it finishes.
-        lock_manager.acquire(self.project, self.upload_path)
+        lock_manager.acquire(self.project.identifier, self.upload_path)
 
         try:
             try:
@@ -213,23 +214,23 @@ class Directory(Resource):
             if is_project_dir:
                 # If we're deleting the entire project directory, create
                 # an empty directory before proceeding with deletion
-                project_dir.mkdir(exist_ok=True)
+                self.project.directory.mkdir(exist_ok=True)
 
             # Remove all file metadata of files under fpath from Metax
             task_id = enqueue_background_job(
                 task_func="upload_rest_api.jobs.files.delete_files",
                 queue_name=FILES_QUEUE,
-                project_id=self.project,
+                project_id=self.project.identifier,
                 job_kwargs={
                     "fpath": self.upload_path,
                     "trash_path": trash_path,
                     "trash_root": trash_root,
-                    "project_id": self.project,
+                    "project_id": self.project.identifier,
                 }
             )
         except Exception:
             # If we couldn't enqueue background job, release the lock
-            lock_manager.release(self.project, self.upload_path)
+            lock_manager.release(self.project.identifier, self.upload_path)
             raise
 
         return task_id

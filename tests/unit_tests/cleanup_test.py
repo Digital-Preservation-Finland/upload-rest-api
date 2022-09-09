@@ -3,10 +3,12 @@ import os
 import pathlib
 import shutil
 import time
+import pytest
 
 from flask_tus_io.resource import encode_tus_meta
 
 import upload_rest_api.cleanup as clean
+from  upload_rest_api.lock import ProjectLockManager
 
 
 def test_no_expired_files(mock_config):
@@ -220,16 +222,32 @@ def test_aborted_tus_uploads(app, test_mongo, test_client, test_auth):
     assert deleted_count == 2
     assert test_mongo.upload.uploads.count() == 3
 
-    paths = [
-        entry["upload_path"] for entry in test_mongo.upload.uploads.find()
-    ]
-
+    # Pending uploads should be found in database, and their upload
+    # paths should be locked
+    lock_manager = ProjectLockManager()
+    project_path \
+        = pathlib.Path(app.config["UPLOAD_PROJECTS_PATH"]) / 'test_project'
     for name in ("test_0.txt", "test_3.txt", "test_4.txt"):
-        assert any(path for path in paths if path.endswith(name))
+        upload_path = str(project_path / name)
+        assert test_mongo.upload.uploads.find_one({'upload_path': upload_path})
+        with pytest.raises(ValueError) as error:
+            lock_manager.acquire('test_project', upload_path)
+        assert str(error.value) == 'File lock could not be acquired'
 
+    # Aborted uploads should not be found in database, and upload paths
+    # should not be locked i.e. lock can be acquired
     for name in ("test_1.txt", "test_2.txt"):
-        assert not any(path for path in paths if path.endswith(name))
+        upload_path = str(project_path / name)
+        assert not test_mongo.upload.uploads.find_one(
+            {'upload_path': upload_path}
+        )
+        lock_manager.acquire('test_project', upload_path)
 
     # Nothing is cleaned on second run
     deleted_count = clean.clean_tus_uploads()
     assert deleted_count == 0
+
+    # Release the file storage locks
+    for i in range(0, 5):
+        upload_path = str(project_path / f"test_{i}.txt")
+        lock_manager.release('test_project', upload_path)
