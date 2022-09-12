@@ -20,7 +20,11 @@ flask==1.1.2
 itsdangerous==1.1.0
 Werkzeug==1.0.1
 pymongo==3.6.1
-file-magic
+
+# file-magic 0.4.1 is broken, since it requires a newer libmagic that CentOS 7
+# ships by default.
+file-magic==0.4.0
+
 # Latest fakeredis (version 1.7.1) is incompatible with redis 4.2.0. The pip
 # version (20.2.4) used in GitLab testing pipeline can not resolve
 # compatibility problems, and will therefore install redis 4.2.0 anyway.
