@@ -19,7 +19,6 @@ from bson.binary import Binary
 from bson.codec_options import CodecOptions
 from bson.objectid import ObjectId
 from pymongo.errors import DuplicateKeyError
-from pymongo.operations import UpdateOne
 from redis import Redis
 from rq.exceptions import NoSuchJobError
 from rq.job import Job

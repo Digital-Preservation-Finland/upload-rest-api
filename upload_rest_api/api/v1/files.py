@@ -9,15 +9,17 @@ import shutil
 
 import metax_access
 from flask import Blueprint, abort, current_app, jsonify, request
+from metax_access import (DS_STATE_ACCEPTED_TO_DIGITAL_PRESERVATION,
+                          DS_STATE_REJECTED_IN_DIGITAL_PRESERVATION_SERVICE)
 
-import upload_rest_api.gen_metadata as md
 import upload_rest_api.database as db
-from upload_rest_api.upload import Upload, iso8601_timestamp
+import upload_rest_api.gen_metadata as md
 from upload_rest_api import utils
 from upload_rest_api.api.v1.tasks import get_polling_url
 from upload_rest_api.authentication import current_user
 from upload_rest_api.jobs.utils import FILES_QUEUE, enqueue_background_job
 from upload_rest_api.lock import lock_manager
+from upload_rest_api.upload import Upload, iso8601_timestamp
 
 FILES_API_V1 = Blueprint("files_v1", __name__, url_prefix="/v1/files")
 
@@ -150,6 +152,25 @@ def delete_path(project_id, fpath):
     database = db.Database()
     upload_path = db.Projects.get_upload_path(project_id, fpath)
     project_dir = database.projects.get_project_directory(project_id)
+
+    # Check if the file/directory is associated with any non-accepted datasets.
+    # If so, we can't delete it.
+    metax = md.MetaxClient()
+    datasets = metax.get_file_datasets(project_id, fpath)
+
+    has_pending_dataset = any(
+        dataset["preservation_state"]
+        < DS_STATE_ACCEPTED_TO_DIGITAL_PRESERVATION
+        or dataset["preservation_state"]
+        == DS_STATE_REJECTED_IN_DIGITAL_PRESERVATION_SERVICE
+        for dataset in datasets
+    )
+
+    if has_pending_dataset:
+        abort(
+            400,
+            "File/directory is used in a pending dataset and cannot be deleted"
+        )
 
     if os.path.isfile(upload_path):
         with lock_manager.lock(project_id, upload_path):

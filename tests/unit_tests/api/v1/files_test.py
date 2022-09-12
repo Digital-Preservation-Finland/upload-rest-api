@@ -1,9 +1,11 @@
 """Tests for ``upload_rest_api.api.v1.files`` module."""
+import json
 import os
 import pathlib
 import shutil
 
 import pytest
+from metax_access import DS_STATE_TECHNICAL_METADATA_GENERATED
 
 
 def _upload_file(client, url, auth, fpath):
@@ -163,6 +165,10 @@ def test_used_quota(app, database, test_auth, requests_mock):
     requests_mock.get("https://metax.localdomain/rest/v2/files",
                       json={'next': None, 'results': []})
     requests_mock.post("/rest/v2/files/", json={})
+    requests_mock.post(
+        "https://metax.localdomain/rest/v2/files/datasets?keys=files",
+        json=[]
+    )
 
     test_client = app.test_client()
 
@@ -652,11 +658,107 @@ def test_delete_directory(
         assert f"identifier-{file_}" in deleted_identifiers
 
 
-def test_delete_empty_project(app, test_auth):
+def test_delete_empty_project(app, test_auth, requests_mock):
     """Test DELETE for project that does not have any files."""
+    # Mock Metax
+    requests_mock.post(
+        "https://metax.localdomain/rest/v2/files/datasets?keys=files",
+        json=[]
+    )
+
     test_client = app.test_client()
 
     # Try to delete project
     response = test_client.delete("/v1/files/test_project", headers=test_auth)
     assert response.status_code == 404
     assert response.json['error'] == "No files found"
+
+
+def test_delete_file_in_dataset(
+        test_auth, test_client, requests_mock, test_mongo, upload_tmpdir):
+    """Test DELETE for a file that belongs to a pending dataset.
+
+    The deletion should fail.
+    """
+    requests_mock.get(
+        "https://metax.localdomain/rest/v2/files"
+        "?file_path=test.txt&project_identifier=test_project",
+        json={
+            "next": None,
+            "previous": None,
+            "results": []
+        }
+    )
+
+    requests_mock.post(
+        "https://metax.localdomain/rest/v2/files/",
+        additional_matcher=(
+            lambda req: json.loads(req.body)[0]["file_path"] == "/test.txt"
+        ),
+        json={
+            "success": [
+                {
+                    "object": {
+                        "identifier": "test_file",
+                        "file_path": "/test.txt",
+                        "parent_directory": {"identifier": "parent_dir"},
+                        "checksum": {"value": ""}
+                    }
+                }
+            ],
+            "failed": []
+        }
+    )
+
+    _upload_file(
+        test_client,
+        '/v1/files/test_project/test.txt',
+        test_auth,
+        'tests/data/test.txt'
+    )
+
+    # Set the identifier directly instead of mocking the Metax process
+    test_mongo.upload.files.update_one(
+        {"_id": str(upload_tmpdir / "projects" / "test_project" / "test.txt")},
+        {"$set": {"identifier": "test_file"}}
+    )
+
+    requests_mock.post(
+        "https://metax.localdomain/rest/v2/files/datasets",
+        additional_matcher=lambda req: json.loads(req.body) == ["test_file"],
+        json={
+            "test_file": ["test_dataset"]
+        }
+    )
+    requests_mock.post(
+        "https://metax.localdomain/rest/datasets/list",
+        additional_matcher=(
+            lambda req: json.loads(req.body) == ["test_dataset"]
+        ),
+        json={
+            "next": None,
+            "previous": None,
+            "count": 1,
+            "results": [
+                {
+                    "identifier": "test_dataset",
+                    "research_dataset": {
+                        "title": {"en": "Dataset"},
+                        "language": [
+                            {"identifier": "http://lexvo.org/id/iso639-3/eng"}
+                        ]
+                    },
+                    "preservation_state":
+                        DS_STATE_TECHNICAL_METADATA_GENERATED
+                }
+            ]
+        }
+    )
+
+    response = test_client.delete(
+        "/v1/files/test_project/test.txt", headers=test_auth
+    )
+
+    assert response.status_code == 400
+    assert response.json["error"] == \
+        "File/directory is used in a pending dataset and cannot be deleted"
