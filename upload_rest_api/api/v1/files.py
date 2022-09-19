@@ -4,11 +4,11 @@ Functionality for uploading, querying and deleting files from the
 server.
 """
 import os
+import pathlib
 
 from flask import Blueprint, abort, jsonify, request
 import werkzeug
 
-from upload_rest_api import utils
 from upload_rest_api.api.v1.tasks import get_polling_url
 from upload_rest_api.authentication import current_user
 from upload_rest_api.resource import get_resource
@@ -21,11 +21,11 @@ def _get_dir_tree(project):
     """Return with dir tree from project directory."""
     file_dict = {}
     for dirpath, _, files in os.walk(project.directory):
-        path = get_resource(project.identifier, dirpath).return_path
-        file_dict[path] = files
+        path = pathlib.Path(dirpath).relative_to(project.directory)
+        file_dict[f'/{path}'] = files
 
-    if "." in file_dict:
-        file_dict["/"] = file_dict.pop(".")
+    if "/." in file_dict:
+        file_dict["/"] = file_dict.pop("/.")
 
     return file_dict
 
@@ -39,11 +39,6 @@ def upload_file(project_id, fpath):
     if not current_user.is_allowed_to_access_project(project_id):
         abort(403, "No permission to access this project")
 
-    try:
-        rel_upload_path = utils.parse_relative_user_path(fpath)
-    except ValueError:
-        abort(404)
-
     if request.content_type not in ('application/octet-stream', None):
         raise werkzeug.exceptions.UnsupportedMediaType(
             f"Unsupported Content-Type: {request.content_type}"
@@ -54,13 +49,13 @@ def upload_file(project_id, fpath):
             "Missing Content-Length header"
         )
 
-    upload = create_upload(project_id, rel_upload_path, request.content_length)
+    upload = create_upload(project_id, fpath, request.content_length)
     upload.add_source(request.stream, request.args.get('md5', None))
     upload.store_files()
 
     return jsonify(
         {
-            'file_path': f"/{rel_upload_path}",
+            'file_path': str(upload.path),
             'status': 'created'
         }
     )
@@ -89,15 +84,15 @@ def get_path(project_id, fpath):
     if request.args.get("all", None) == "true" and fpath.strip("/") == "":
         return jsonify(_get_dir_tree(resource.project))
 
-    if resource.upload_path.is_file():
+    if resource.storage_path.is_file():
         response = {
-            "file_path": f'/{resource.path}',
+            "file_path": str(resource.path),
             "identifier": resource.identifier,
             "md5": resource.checksum,
             "timestamp": resource.timestamp
         }
 
-    elif resource.upload_path.is_dir():
+    elif resource.storage_path.is_dir():
         response = {
             'identifier': resource.identifier,
             'directories': [dir.path.name for dir in resource.directories()],
@@ -134,17 +129,17 @@ def delete_path(project_id, fpath):
             "File/directory is used in a pending dataset and cannot be deleted"
         )
 
-    if resource.upload_path.is_file():
+    if resource.storage_path.is_file():
         metax_response = resource.delete()
 
         response = jsonify({
-            "file_path": resource.return_path,
+            "file_path": str(resource.path),
             "message": "deleted",
             "metax": metax_response
         })
         response.status_code = 200
 
-    elif resource.upload_path.is_dir():
+    elif resource.storage_path.is_dir():
         try:
             task_id = resource.delete()
         except FileNotFoundError:
@@ -153,7 +148,7 @@ def delete_path(project_id, fpath):
 
         polling_url = get_polling_url(task_id)
         response = jsonify({
-            "file_path": resource.return_path,
+            "file_path": str(resource.path),
             "message": "Deleting metadata",
             "polling_url": polling_url,
             "status": "pending"

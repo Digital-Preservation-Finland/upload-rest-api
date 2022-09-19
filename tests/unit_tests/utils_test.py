@@ -1,7 +1,7 @@
-"""Unit tests for utility functions"""
+"""Unit tests for utility functions."""
 import pytest
 
-from upload_rest_api.utils import parse_user_path, parse_relative_user_path
+from upload_rest_api.utils import parse_user_path
 
 
 @pytest.mark.parametrize(
@@ -27,8 +27,8 @@ from upload_rest_api.utils import parse_user_path, parse_relative_user_path
 def test_parse_user_path(path, result):
     """Test valid and invalid user paths.
 
-    Ensure valid paths result in the given absolute path, while invalid paths
-    raise an exception.
+    Ensure valid paths result in the given absolute path, while invalid
+    paths raise an exception.
     """
     if result is not None:
         assert str(parse_user_path("/projects/a", path)) \
@@ -36,33 +36,3 @@ def test_parse_user_path(path, result):
     else:
         with pytest.raises(ValueError):
             parse_user_path("/projects/a", path)
-
-
-@pytest.mark.parametrize(
-    "path,result",
-    [
-        # Valid
-        ("test", "test"),
-        ("test/../taste", "taste"),
-        ("test/../test/../test", "test"),
-        ("äö/😂", "äö/😂"),
-        ("🐸/🐸🐸/🐸🐸🐸/..", "🐸/🐸🐸"),
-        ("test/..", ""),
-
-        # Invalid
-        ("/test", None),
-        ("test/../test/../test/../../../test", None),
-        ("🐸/🐸🐸/../../..", None),
-    ]
-)
-def test_parse_relative_user_path(path, result):
-    """Test valid and invalid user provided relative paths.
-
-    Ensure valid paths result in the given relative path, while invalid paths
-    raise an exception.
-    """
-    if result is not None:
-        assert str(parse_relative_user_path(path)) == result
-    else:
-        with pytest.raises(ValueError):
-            parse_relative_user_path(path)

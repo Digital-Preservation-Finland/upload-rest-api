@@ -2,11 +2,10 @@
 
 Functionality for uploading and extracting an archive.
 """
-from flask import Blueprint, abort, jsonify, request
+from flask import Blueprint, jsonify, request
 import werkzeug
 
 from upload_rest_api.upload import create_upload
-from upload_rest_api.utils import parse_relative_user_path
 from upload_rest_api.api.v1.tasks import get_polling_url
 
 ARCHIVES_API_V1 = Blueprint("archives_v1", __name__, url_prefix="/v1/archives")
@@ -20,13 +19,6 @@ def upload_archive(project_id):
 
     :returns: HTTP Response
     """
-    try:
-        rel_upload_path = parse_relative_user_path(
-            request.args.get('dir', default='').lstrip('/')
-        )
-    except ValueError:
-        abort(404)
-
     if request.content_type not in ('application/octet-stream', None):
         raise werkzeug.exceptions.UnsupportedMediaType(
             f"Unsupported Content-Type: {request.content_type}"
@@ -37,7 +29,7 @@ def upload_archive(project_id):
             "Missing Content-Length header"
         )
 
-    upload = create_upload(project_id, rel_upload_path,
+    upload = create_upload(project_id, request.args.get('dir', default='/'),
                            size=request.content_length,
                            upload_type='archive')
     upload.add_source(file=request.stream,
@@ -47,7 +39,7 @@ def upload_archive(project_id):
 
     response = jsonify(
         {
-            "file_path": f"/{rel_upload_path}",
+            "file_path": str(upload.path),
             "message": "Uploading archive",
             "polling_url": get_polling_url(task_id),
             "status": "pending"

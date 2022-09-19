@@ -8,9 +8,7 @@ from upload_rest_api.checksum import (HASH_FUNCTION_ALIASES,
                                       calculate_incr_checksum)
 from upload_rest_api.database import Database
 from upload_rest_api.lock import ProjectLockManager
-from upload_rest_api.project import Project
 from upload_rest_api.upload import create_upload, continue_upload
-from upload_rest_api.utils import parse_relative_user_path
 
 FILES_TUS_API_V1 = Blueprint(
     "files_tus_v1", __name__, url_prefix="/v1/files_tus"
@@ -54,34 +52,27 @@ def _upload_started(workspace, resource):
     try:
         db = Database()
         uploads = db.uploads
-
-        project = Project(resource.upload_metadata["project_id"])
-        fpath = resource.upload_metadata["upload_path"]
         upload_type = resource.upload_metadata["type"]
 
         if upload_type not in ("file", "archive"):
             abort(400, f"Unknown upload type '{upload_type}'")
 
-        if not current_user.is_allowed_to_access_project(project.identifier):
+        if not current_user.is_allowed_to_access_project(
+            resource.upload_metadata['project_id']
+        ):
             abort(403)
 
-        try:
-            upload_path = parse_relative_user_path(fpath)
-        except ValueError:
-            abort(404)
-
-        file_path = project.directory / upload_path
-
-        create_upload(project.identifier, upload_path,
-                      resource.upload_length,
-                      upload_type=upload_type,
-                      identifier=resource.identifier)
+        upload = create_upload(resource.upload_metadata['project_id'],
+                               resource.upload_metadata['upload_path'],
+                               resource.upload_length,
+                               upload_type=upload_type,
+                               identifier=resource.identifier)
 
         # Quota is sufficient, create a new Upload entry
         uploads.create(
-            project_id=project.identifier,
-            upload_path=str(file_path),
-            resource=resource,
+            project_id=resource.upload_metadata['project_id'],
+            upload_path=str(upload.storage_path),
+            resource=resource
         )
     except Exception:
         # Remove the workspace to prevent filling up disk space with
@@ -99,12 +90,7 @@ def _store_files(workspace, resource, upload_type):
                                        path=resource.upload_file_path)
 
     try:
-        upload_path = parse_relative_user_path(fpath)
-    except ValueError:
-        abort(404)
-
-    try:
-        upload = continue_upload(project_id, upload_path,
+        upload = continue_upload(project_id, fpath,
                                  upload_type=upload_type,
                                  identifier=resource.identifier)
         upload.add_source(resource.upload_file_path, checksum, verify=False)

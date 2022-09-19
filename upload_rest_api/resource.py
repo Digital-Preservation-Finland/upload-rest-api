@@ -1,5 +1,6 @@
 """Resource class."""
 
+from datetime import datetime, timezone
 import os
 import pathlib
 import secrets
@@ -14,7 +15,6 @@ from upload_rest_api import gen_metadata
 from upload_rest_api.config import CONFIG
 from upload_rest_api.jobs.utils import FILES_QUEUE, enqueue_background_job
 from upload_rest_api.lock import lock_manager
-from upload_rest_api.upload import iso8601_timestamp
 from upload_rest_api.project import Project
 
 
@@ -26,14 +26,21 @@ class HasPendingDatasetError(Exception):
     """
 
 
+class InvalidPathError(Exception):
+    """Invalid path error.
+
+    Raised if upload path is invalid.
+    """
+
+
 def get_resource(project, path):
     """Get existing file or directory."""
     resource = Resource(project, path)
-    if not resource.upload_path.exists():
+    if not resource.storage_path.exists():
         raise FileNotFoundError('Resource does not exist')
-    if resource.upload_path.is_file():
+    if resource.storage_path.is_file():
         return File(project, path)
-    if resource.upload_path.is_dir():
+    if resource.storage_path.is_dir():
         return Directory(project, path)
 
     raise Exception('Resource is not file or directory')
@@ -44,29 +51,32 @@ class Resource():
 
     def __init__(self, project, path):
         """Initialize resource."""
-        self.path = pathlib.Path(path)
+        path = str(path)  # Allow pathlib.Path objects or strings
+
+        # Raise InvalidPathError on attempted path escape
+        try:
+            relative_path = pathlib.Path(
+                '/root', path.strip('/')
+            ).resolve().relative_to('/root')
+        except ValueError as error:
+            raise InvalidPathError('Invalid path') from error
+
+        self.path = pathlib.Path('/') / relative_path
         self.project = Project(project)
         self.database = database.Database()
         self._datasets = None
 
     @property
-    def upload_path(self):
+    def storage_path(self):
         """Absolute path of resource."""
-        return database.Projects.get_upload_path(self.project.identifier,
-                                                 self.path)
-
-    @property
-    def return_path(self):
-        """Path of resource relative to project directory."""
-        return database.Projects.get_return_path(self.project.identifier,
-                                                 self.upload_path)
+        return self.project.directory / self.path.relative_to('/')
 
     def datasets(self):
         """List pending datasets."""
         metax = gen_metadata.MetaxClient()
         if self._datasets is None:
             self._datasets = metax.get_file_datasets(self.project.identifier,
-                                                     self.upload_path)
+                                                     self.storage_path)
         return self._datasets
 
     def has_pending_dataset(self):
@@ -86,7 +96,7 @@ class File(Resource):
     """File class."""
 
     def _document(self):
-        return self.database.files.get(str(self.upload_path))
+        return self.database.files.get(str(self.storage_path))
 
     @property
     def identifier(self):
@@ -100,8 +110,11 @@ class File(Resource):
 
     @property
     def timestamp(self):
-        """Creation date of file."""
-        return iso8601_timestamp(self.upload_path)
+        """Return last access time in ISO 8601 format."""
+        timestamp = datetime.fromtimestamp(
+            self.storage_path.stat().st_atime, tz=timezone.utc
+        ).replace(microsecond=0)
+        return timestamp.replace(microsecond=0).isoformat()
 
     def delete(self):
         """Delete file."""
@@ -110,21 +123,21 @@ class File(Resource):
 
         root_upload_path = CONFIG.get("UPLOAD_PROJECTS_PATH")
 
-        with lock_manager.lock(self.project.identifier, self.upload_path):
+        with lock_manager.lock(self.project.identifier, self.storage_path):
             # Remove metadata from Metax
             try:
                 metax_client = gen_metadata.MetaxClient()
                 metax_response = metax_client.delete_file_metadata(
                     self.project.identifier,
-                    self.upload_path,
+                    self.storage_path,
                     root_upload_path
                 )
             except gen_metadata.MetaxClientError as exception:
                 metax_response = str(exception)
 
             # Remove checksum and identifier from mongo
-            self.database.files.delete_one(os.path.abspath(self.upload_path))
-            os.remove(self.upload_path)
+            self.database.files.delete_one(os.path.abspath(self.storage_path))
+            os.remove(self.storage_path)
 
             self.database.projects.update_used_quota(self.project.identifier,
                                                      root_upload_path)
@@ -148,7 +161,7 @@ class Directory(Resource):
                                            self.path)['identifier']
 
     def _entries(self):
-        return list(os.scandir(self.upload_path))
+        return list(os.scandir(self.storage_path))
 
     def files(self):
         """List of files in directory."""
@@ -165,7 +178,7 @@ class Directory(Resource):
         if self.has_pending_dataset():
             raise HasPendingDatasetError
 
-        is_project_dir = self.upload_path.samefile(self.project.directory)
+        is_project_dir = self.storage_path.samefile(self.project.directory)
 
         if is_project_dir and not any(self.project.directory.iterdir()):
             raise FileNotFoundError('Project directory is empty')
@@ -194,17 +207,17 @@ class Directory(Resource):
         trash_path = self.database.projects.get_trash_path(
             project_id=self.project.identifier,
             trash_id=trash_id,
-            file_path=self.path
+            file_path=self.path.relative_to('/')
         )
         # Acquire a lock *and* keep it alive even after this HTTP
         # request. It will be released by the 'delete_files' background
         # job once it finishes.
-        lock_manager.acquire(self.project.identifier, self.upload_path)
+        lock_manager.acquire(self.project.identifier, self.storage_path)
 
         try:
             try:
                 trash_path.parent.mkdir(exist_ok=True, parents=True)
-                self.upload_path.rename(trash_path)
+                self.storage_path.rename(trash_path)
             except FileNotFoundError as exception:
                 # The directory to remove does not exist anymore;
                 # other request managed to start deletion first.
@@ -222,7 +235,7 @@ class Directory(Resource):
                 queue_name=FILES_QUEUE,
                 project_id=self.project.identifier,
                 job_kwargs={
-                    "fpath": self.upload_path,
+                    "fpath": self.storage_path,
                     "trash_path": trash_path,
                     "trash_root": trash_root,
                     "project_id": self.project.identifier,
@@ -230,7 +243,7 @@ class Directory(Resource):
             )
         except Exception:
             # If we couldn't enqueue background job, release the lock
-            lock_manager.release(self.project.identifier, self.upload_path)
+            lock_manager.release(self.project.identifier, self.storage_path)
             raise
 
         return task_id

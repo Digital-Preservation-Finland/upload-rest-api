@@ -173,26 +173,36 @@ def test_upload_archive_already_exists(
                             'tests/data/test.tar.gz')
     assert response.status_code == 409
     assert response.json['error'] == "File '/foo' already exists"
-    assert response.json['files'] == ['foo']
+    assert response.json['files'] == ['/foo']
 
 
 @pytest.mark.parametrize(
     ['archive', "existing_file", "conflicts"],
     [
         # tar archive writes directory to existing file path
-        ("tests/data/test.tar.gz", 'foo/test', ["foo/test"]),
+        ("tests/data/test.tar.gz",
+         'foo/test',
+         ["/foo/test"]),
         # tar archive writes file in place of to existing directory
-        ("tests/data/test.tar.gz", 'foo/test/test.txt/bar',
-         ["foo/test/test.txt"]),
+        ("tests/data/test.tar.gz",
+         'foo/test/test.txt/bar',
+         ["/foo/test/test.txt"]),
         # tar archive writes file to existing file path
-        ("tests/data/test.tar.gz", 'foo/test/test.txt', ["foo/test/test.txt"]),
+        ("tests/data/test.tar.gz",
+         'foo/test/test.txt',
+         ["/foo/test/test.txt"]),
         # zip archive writes directory to existing file path
-        ("tests/data/test.zip", 'foo/test', ["foo/test/"]),
+        ("tests/data/test.zip",
+         'foo/test',
+         ["/foo/test/"]),
         # zip archive writes file in place of to existing directory
-        ("tests/data/test.zip", 'foo/test/test.txt/bar',
-         ["foo/test/test.txt"]),
+        ("tests/data/test.zip",
+         'foo/test/test.txt/bar',
+         ["/foo/test/test.txt"]),
         # zip archive writes file to existing file path
-        ("tests/data/test.zip", 'foo/test/test.txt', ["foo/test/test.txt"]),
+        ("tests/data/test.zip",
+         'foo/test/test.txt',
+         ["/foo/test/test.txt"]),
     ]
 )
 def test_upload_archive_conflict(
@@ -360,8 +370,8 @@ def test_upload_invalid_dir(dirpath, app, test_auth):
         test_auth,
         "tests/data/test.zip"
     )
-    assert response.status_code == 404
-    assert response.json['error'] == "Page not found"
+    assert response.status_code == 400
+    assert response.json['error'] == "Invalid path"
 
 
 def test_upload_archive_multiple_archives(

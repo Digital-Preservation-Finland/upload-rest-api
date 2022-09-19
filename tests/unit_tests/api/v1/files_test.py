@@ -105,7 +105,7 @@ def test_upload_conflict(test_client, test_auth, requests_mock):
     """Test uploading a file that already has metadata in Metax."""
     # Mock metax
     requests_mock.get(
-        '/rest/v2/files?file_path=foo/bar&project_identifier=test_project',
+        '/rest/v2/files?file_path=/foo/bar&project_identifier=test_project',
         json={'results': [{"file_path": '/foo/bar'}], 'next': None}
     )
 
@@ -232,15 +232,25 @@ def test_upload_to_root(app, test_auth):
         == 'The method is not allowed for the requested URL.'
 
 
-def test_upload_outside(app, test_auth):
-    """Test uploading outside the user's dir."""
-    test_client = app.test_client()
-    response = _upload_file(
-        test_client, "/v1/files/test_project/../test.txt",
-        test_auth, "tests/data/test.txt"
-    )
-    assert response.status_code == 404
-    assert response.json['error'] == 'Page not found'
+@pytest.mark.parametrize(
+    'method,url,data',
+    [
+        ("POST", "/v1/files/test_project/../test.txt", b'foo'),
+        ("GET", "/v1/files/test_project/../test.txt", None),
+        ("DELETE", "/v1/files/test_project/../test.txt", None),
+    ]
+)
+def test_resource_outside_project_directory(app, method, url, data, test_auth):
+    """Test accessing resource outside project directory.
+
+    :param url: URL of request
+    :param data: content of Request
+    """
+    client = app.test_client()
+    response = client.open(url, data=data, headers=test_auth, method=method)
+
+    assert response.status_code == 400
+    assert response.json['error'] == 'Invalid path'
 
 
 def test_unsupported_content(app, test_auth):
@@ -655,7 +665,7 @@ def test_delete_file_in_dataset(
     """
     requests_mock.get(
         "https://metax.localdomain/rest/v2/files"
-        "?file_path=test.txt&project_identifier=test_project",
+        "?file_path=/test.txt&project_identifier=test_project",
         json={
             "next": None,
             "previous": None,

@@ -30,6 +30,6 @@ def store_files(project_id, path, upload_type, identifier, task_id):
     try:
         upload.store_files()
     except InvalidArchiveError as error:
-        raise ClientError(error.message) from error
+        raise ClientError(str(error)) from error
 
-    return f"{upload_type} uploaded to /{upload.path}"
+    return f"{upload_type} uploaded to {upload.path}"

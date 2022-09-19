@@ -14,7 +14,7 @@ from upload_rest_api.api.v1.errorhandlers import (http_error_404,
                                                   http_error_locked,
                                                   upload_conflict,
                                                   insufficient_quota,
-                                                  upload_error)
+                                                  http_error_400)
 from upload_rest_api.api.v1.files import FILES_API_V1
 from upload_rest_api.api.v1.tasks import TASK_STATUS_API_V1
 from upload_rest_api.api.v1.tokens import TOKEN_API_V1
@@ -24,6 +24,7 @@ from upload_rest_api.config import get_config
 from upload_rest_api.upload import (UploadConflictError,
                                     InsufficientQuotaError,
                                     UploadError)
+from upload_rest_api.resource import InvalidPathError
 
 try:
     # Newer Werkzeug
@@ -98,7 +99,8 @@ def create_app():
     app.register_error_handler(LockAlreadyTaken, http_error_locked)
     app.register_error_handler(UploadConflictError, upload_conflict)
     app.register_error_handler(InsufficientQuotaError, insufficient_quota)
-    app.register_error_handler(UploadError, upload_error)
+    app.register_error_handler(UploadError, http_error_400)
+    app.register_error_handler(InvalidPathError, http_error_400)
 
     return app
 

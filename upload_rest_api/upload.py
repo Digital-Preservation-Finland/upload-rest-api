@@ -19,7 +19,7 @@ from upload_rest_api.checksum import get_file_checksum
 from upload_rest_api.database import Database
 from upload_rest_api.jobs.utils import UPLOAD_QUEUE, enqueue_background_job
 from upload_rest_api.lock import ProjectLockManager
-from upload_rest_api.project import Project
+from upload_rest_api.resource import Resource
 
 
 def release_lock_on_exception(method):
@@ -34,7 +34,8 @@ def release_lock_on_exception(method):
 
         except Exception:
             lock_manager = ProjectLockManager()
-            lock_manager.release(self.project.identifier, self.target_path)
+            lock_manager.release(self.project.identifier,
+                                 self.storage_path)
             raise
 
     return wrapper
@@ -42,15 +43,6 @@ def release_lock_on_exception(method):
 
 class UploadError(Exception):
     """Exception raised when upload fails."""
-
-    def __init__(self, message):
-        """Initialize exception.
-
-        :param message: Error message
-        :param files: List of conflicting files.
-        """
-        super().__init__()
-        self.message = message
 
 
 class UploadConflictError(UploadError):
@@ -62,7 +54,8 @@ class UploadConflictError(UploadError):
         :param message: Error message
         :param files: List of conflicting files.
         """
-        super().__init__(message)
+        super().__init__()
+        self.message = message
         self.files = files
 
 
@@ -92,7 +85,7 @@ def continue_upload(project_id, path, upload_type, identifier):
 class Upload:
     """Class for handling uploads."""
 
-    def __init__(self, project_id, path, upload_type="file", identifier=None):
+    def __init__(self, project, path, upload_type="file", identifier=None):
         """Initialize upload.
 
         :param project_id: project identifier
@@ -101,8 +94,7 @@ class Upload:
         :param identifier: Identifier of upload
         """
         self.database = Database()
-        self.project = Project(project_id)
-        self.path = path
+        self._resource = Resource(project, path)
         self.type = upload_type
         self.source_checksum = None
         self.identifier = identifier
@@ -130,22 +122,37 @@ class Upload:
             raise InsufficientQuotaError("Quota exceeded")
 
         # Check for conflicts
-        if self.target_path.is_file():
+        if self.storage_path.is_file():
             raise UploadConflictError(
-                f"File '/{self.path}' already exists", [self.path]
+                f"File '{self.path}' already exists", [str(self.path)]
             )
 
-        if self.type == "file" and self.target_path.is_dir():
+        if self.type == "file" and self.storage_path.is_dir():
             raise UploadConflictError(
-                f"Directory '/{self.path}' already exists", [self.path]
+                f"Directory '{self.path}' already exists", [str(self.path)]
             )
 
-        # Lock the target path
+        # Lock the storage path
         lock_manager = ProjectLockManager()
-        lock_manager.acquire(self.project.identifier, self.target_path)
+        lock_manager.acquire(self.project.identifier, self.storage_path)
 
         # Create temporary path
         self.tmp_path.mkdir(exist_ok=True, parents=True)
+
+    @property
+    def project(self):
+        """Project of upload."""
+        return self._resource.project
+
+    @property
+    def path(self):
+        """Upload path."""
+        return self._resource.path
+
+    @property
+    def storage_path(self):
+        """Path where resource will be stored."""
+        return self._resource.storage_path
 
     @property
     def tmp_path(self):
@@ -167,9 +174,13 @@ class Upload:
         return self.tmp_path / "tmp_storage"
 
     @property
-    def target_path(self):
-        """Absolute physical path of upload."""
-        return self.project.directory / self.path
+    def tmp_storage_path(self):
+        """Temporary storage path of resource.
+
+        The storage path of resource in temporary project directory.
+        """
+        return self.tmp_project_directory \
+            / self.storage_path.relative_to(self.project.directory)
 
     @release_lock_on_exception
     def add_source(self, file, checksum, verify=True):
@@ -219,7 +230,7 @@ class Upload:
             project_id=self.project.identifier,
             job_kwargs={
                 "project_id": self.project.identifier,
-                "path": self.path,
+                "path": str(self.path),
                 "upload_type": self.type,
                 "identifier": self.identifier
             }
@@ -265,11 +276,11 @@ class Upload:
         # not overwrite files.
         conflicts = []
         for file in files:
-            extract_path = self.project.directory / self.path / file
+            extract_path = self.storage_path / file
             if extract_path.exists():
                 conflicts.append(f'{self.path}/{file}')
         for directory in directories:
-            extract_path = self.project.directory / self.path / directory
+            extract_path = self.storage_path / directory
             if extract_path.is_file():
                 conflicts.append(f'{self.path}/{directory}')
         if conflicts:
@@ -290,10 +301,9 @@ class Upload:
     def _extract_archive(self):
         """Extract archive to temporary project directory."""
         # Extract files to temporary project directory
-        (self.tmp_project_directory / self.path).parent.mkdir(parents=True,
-                                                              exist_ok=True)
+        self.tmp_storage_path.parent.mkdir(parents=True, exist_ok=True)
         try:
-            extract(self.source_path, self.tmp_project_directory / self.path)
+            extract(self.source_path, self.tmp_storage_path)
         except (MemberNameError, MemberTypeError, MemberOverwriteError,
                 ExtractError) as error:
             # Remove the archive and set task's state
@@ -312,10 +322,8 @@ class Upload:
         directory.
         """
         if self.type == 'file':
-            (self.tmp_project_directory / self.path).parent.mkdir(
-                parents=True, exist_ok=True
-            )
-            self.source_path.rename(self.tmp_project_directory / self.path)
+            self.tmp_storage_path.parent.mkdir(parents=True, exist_ok=True)
+            self.source_path.rename(self.tmp_storage_path)
         else:
             self._extract_archive()
 
@@ -337,7 +345,7 @@ class Upload:
             try:
                 old_file = metax.client.get_project_file(
                     self.project.identifier,
-                    self.path
+                    str(self.path)
                 )
                 shutil.rmtree(self.tmp_path)
                 raise UploadConflictError(
@@ -384,7 +392,7 @@ class Upload:
                 })
 
                 # Create metadata
-                timestamp = iso8601_timestamp(file)
+                timestamp = _iso8601_timestamp(file)
                 metadata_dicts.append({
                     "identifier": identifier,
                     "file_name": file.name,
@@ -423,7 +431,7 @@ class Upload:
 
         # Release file storage lock
         lock_manager = ProjectLockManager()
-        lock_manager.release(self.project.identifier, self.target_path)
+        lock_manager.release(self.project.identifier, self.storage_path)
 
     def _move_files_to_project_directory(self):
         """Move files to project directory."""
@@ -447,7 +455,7 @@ class Upload:
                 os.chmod(target_path, 0o664)
 
 
-def iso8601_timestamp(fpath):
+def _iso8601_timestamp(fpath):
     """Return last access time in ISO 8601 format."""
     timestamp = datetime.fromtimestamp(
         fpath.stat().st_atime, tz=timezone.utc

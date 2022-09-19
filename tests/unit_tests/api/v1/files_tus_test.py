@@ -129,7 +129,7 @@ def test_upload_file(app, test_auth, test_mongo, name, requests_mock):
     assert resp.status_code == 409
     assert resp.json == {"code": 409,
                          "error": f"File '/{name}' already exists",
-                         "files": [name]}
+                         "files": [f"/{name}"]}
 
 
 @pytest.mark.usefixtures("project", "mock_redis")

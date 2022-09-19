@@ -29,9 +29,9 @@ def http_error_404(error):
     return make_response(404, message)
 
 
-def upload_error(error):
+def http_error_400(error):
     """Create HTTP 400 Bad Request error."""
-    return make_response(400, error.message)
+    return make_response(400, str(error))
 
 
 def upload_conflict(error):
@@ -49,7 +49,7 @@ def upload_conflict(error):
 
 def insufficient_quota(error):
     """Create HTTP 413 Conflict error."""
-    return make_response(413, error.message)
+    return make_response(413, str(error))
 
 
 def http_error_locked(error):
