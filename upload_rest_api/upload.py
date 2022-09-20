@@ -93,7 +93,6 @@ class Upload:
         :param upload_type: Type of upload ("file" or "archive")
         :param identifier: Identifier of upload
         """
-        self.database = Database()
         self._resource = Resource(project, path)
         self.type = upload_type
         self.source_checksum = None
@@ -115,9 +114,8 @@ class Upload:
         # Check that project has enough quota. Update used quota
         # first, since multiple users might be using the same
         # project
-        self.database.projects.update_used_quota(
-            self.project.identifier, CONFIG["UPLOAD_PROJECTS_PATH"]
-        )
+        self.project.update_used_quota()
+
         if self.project.remaining_quota() - size < 0:
             raise InsufficientQuotaError("Quota exceeded")
 
@@ -253,9 +251,6 @@ class Upload:
                 "Uploaded file is not a supported archive"
             )
 
-        # Ensure that the project has enough quota available
-        project = self.database.projects.get(self.project.identifier)
-
         if tarfile.is_tarfile(self.source_path):
             with tarfile.open(self.source_path) as archive:
                 extracted_size = sum(member.size for member in archive)
@@ -288,15 +283,14 @@ class Upload:
             raise UploadConflictError('Some files already exist',
                                       files=conflicts)
 
-        if project['quota'] - project['used_quota'] - extracted_size < 0:
+        # Ensure that the project has enough quota available
+        if self.project.remaining_quota() - extracted_size < 0:
             # Remove the archive and raise an exception
             self.source_path.unlink()
             raise InsufficientQuotaError("Quota exceeded")
 
         # Update used quota
-        self.database.projects.set_used_quota(
-            self.project.identifier, project['used_quota'] + extracted_size
-        )
+        self.project.set_used_quota(self.project.used_quota + extracted_size)
 
     def _extract_archive(self):
         """Extract archive to temporary project directory."""
@@ -415,7 +409,7 @@ class Upload:
         metax.post_metadata(metadata_dicts)
 
         # Insert information of all files to dababase in one go
-        self.database.files.insert(file_documents)
+        Database().files.insert(file_documents)
 
         # Move files to project directory
         self._move_files_to_project_directory()
@@ -425,9 +419,7 @@ class Upload:
         shutil.rmtree(self.tmp_path)
 
         # Update quota
-        self.database.projects.update_used_quota(
-            self.project.identifier, CONFIG["UPLOAD_PROJECTS_PATH"]
-        )
+        self.project.update_used_quota()
 
         # Release file storage lock
         lock_manager = ProjectLockManager()
