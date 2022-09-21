@@ -7,7 +7,10 @@ class Project():
     """Project class."""
 
     def __init__(self, identifier):
-        """Initialize Project."""
+        """Initialize Project.
+
+        :param identifier: Project identifier
+        """
         self.identifier = identifier
         self.database = Database()
         self._project = self.database.projects.get(self.identifier)
@@ -22,6 +25,7 @@ class Project():
         """Get used quota."""
         return self._project['used_quota']
 
+    @property
     def remaining_quota(self):
         """Compute remaining quota."""
         allocated_quota = self.database.uploads.get_project_allocated_quota(
@@ -40,5 +44,8 @@ class Project():
         )
 
     def set_used_quota(self, used_quota):
-        """Set used quota."""
+        """Set used quota.
+
+        :param used_quota: New used quota
+        """
         self.database.projects.set_used_quota(self.identifier, used_quota)

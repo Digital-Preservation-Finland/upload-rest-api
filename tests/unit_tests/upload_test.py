@@ -60,7 +60,8 @@ def test_file_metadata_conflict(mock_config, requests_mock):
     upload = upload_rest_api.upload.create_upload('test_project',
                                                   'path/file1',
                                                   123)
-    shutil.copy('tests/data/test.txt', upload.source_path)
+    with open('tests/data/test.txt', 'rb') as file:
+        upload.add_source(file, None, False)
 
     # Mock metax.
     metax_files_api = requests_mock.post('/rest/v2/files/', json={})

@@ -20,6 +20,6 @@ def get_file_datasets(project_id, fpath):
     resource = get_resource(project_id, fpath)
 
     return {
-        "datasets": resource.datasets(),
+        "datasets": resource.get_datasets(),
         "has_pending_dataset": resource.has_pending_dataset()
     }

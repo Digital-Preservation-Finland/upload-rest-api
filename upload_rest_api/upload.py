@@ -60,24 +60,37 @@ class UploadConflictError(UploadError):
 
 
 class InvalidArchiveError(UploadError):
-    """Exception raised when archive can not be extracted or stored."""
+    """Exception raised when archive can not be extracted."""
 
 
 class InsufficientQuotaError(UploadError):
     """Exception raised when upload would exceed remaining quota."""
 
 
-def create_upload(project_id, path, size, upload_type='file', identifier=None):
-    """Create new upload."""
-    upload = Upload(project_id, path, upload_type=upload_type,
+def create_upload(project, path, size, upload_type='file', identifier=None):
+    """Create new upload.
+
+    :param project: Project identifier
+    :param path: Upload path
+    :param size: Size of upload
+    :param upload_type: Type of upload: 'file' or 'archive'
+    :param identifier: Identifier of upload
+    """
+    upload = Upload(project, path, upload_type=upload_type,
                     identifier=identifier)
     upload.create(size)
     return upload
 
 
-def continue_upload(project_id, path, upload_type, identifier):
-    """Continue existing upload."""
-    upload = Upload(project_id, path, upload_type=upload_type,
+def continue_upload(project, path, upload_type, identifier):
+    """Continue previously created upload.
+
+    :param project: Project identifier
+    :param path: Upload path
+    :param upload_type: Type of upload: 'file' or 'archive'
+    :param identifier: Identifier of upload
+    """
+    upload = Upload(project, path, upload_type=upload_type,
                     identifier=identifier)
     return upload
 
@@ -88,9 +101,9 @@ class Upload:
     def __init__(self, project, path, upload_type="file", identifier=None):
         """Initialize upload.
 
-        :param project_id: project identifier
-        :param path: upload path
-        :param upload_type: Type of upload ("file" or "archive")
+        :param project: Project identifier
+        :param path: Upload path
+        :param upload_type: Type of upload: 'file' or 'archive'
         :param identifier: Identifier of upload
         """
         self._resource = Resource(project, path)
@@ -116,7 +129,7 @@ class Upload:
         # project
         self.project.update_used_quota()
 
-        if self.project.remaining_quota() - size < 0:
+        if self.project.remaining_quota - size < 0:
             raise InsufficientQuotaError("Quota exceeded")
 
         # Check for conflicts
@@ -135,7 +148,7 @@ class Upload:
         lock_manager.acquire(self.project.identifier, self.storage_path)
 
         # Create temporary path
-        self.tmp_path.mkdir(exist_ok=True, parents=True)
+        self._tmp_path.mkdir(exist_ok=True, parents=True)
 
     @property
     def project(self):
@@ -153,32 +166,32 @@ class Upload:
         return self._resource.storage_path
 
     @property
-    def tmp_path(self):
+    def _tmp_path(self):
         """Temporary path for upload."""
         return pathlib.Path(CONFIG["UPLOAD_TMP_PATH"]) / self.identifier
 
     @property
-    def source_path(self):
-        """Path to the uploaded file/archive that will be stored."""
-        return self.tmp_path / "source"
-
-    @property
-    def tmp_project_directory(self):
+    def _tmp_project_directory(self):
         """Path to temporary project directory.
 
         The extracted files are stored here until they can be moved
         to project directory.
         """
-        return self.tmp_path / "tmp_storage"
+        return self._tmp_path / "tmp_storage"
 
     @property
-    def tmp_storage_path(self):
+    def _tmp_storage_path(self):
         """Temporary storage path of resource.
 
         The storage path of resource in temporary project directory.
         """
-        return self.tmp_project_directory \
+        return self._tmp_project_directory \
             / self.storage_path.relative_to(self.project.directory)
+
+    @property
+    def _source_path(self):
+        """Path to the source file/archive."""
+        return self._tmp_path / "source"
 
     @release_lock_on_exception
     def add_source(self, file, checksum, verify=True):
@@ -188,14 +201,14 @@ class Upload:
         file is compared to provided MD5 sum. Raises error if checksums
         do not match.
 
-        :param stream: File stream or path to file
-        :param size: Size of file/archive
+        :param file: File stream or path to file
         :param checksum: MD5 checksum of file, or ``None`` if unknown
+        :param verify: Verify integrity of file
         :returns: ``None``
         """
         if 'read' in dir(file):
             # 'file' is a stream. Write it to source path in 1MB chunks
-            with open(self.source_path, "wb") as source_file:
+            with open(self._source_path, "wb") as source_file:
                 while True:
                     chunk = file.read(1024*1024)
                     if chunk == b'':
@@ -203,14 +216,14 @@ class Upload:
                     source_file.write(chunk)
         else:
             # 'file' is path to a file. Move it to source path.
-            pathlib.Path(file).rename(self.source_path)
+            pathlib.Path(file).rename(self._source_path)
 
         # Verify integrity of uploaded file if checksum was provided
         if checksum:
             self.source_checksum = checksum
             if verify and self.source_checksum \
-                    != get_file_checksum("md5", self.source_path):
-                self.source_path.unlink()
+                    != get_file_checksum("md5", self._source_path):
+                self._source_path.unlink()
                 raise UploadError(
                     'Checksum of uploaded file does not match provided '
                     'checksum.'
@@ -244,21 +257,21 @@ class Upload:
         enough quota, and archive does not overwrite existing files.
         """
         # Ensure that arhive is supported format
-        if not (zipfile.is_zipfile(self.source_path)
-                or tarfile.is_tarfile(self.source_path)):
-            self.source_path.unlink()
+        if not (zipfile.is_zipfile(self._source_path)
+                or tarfile.is_tarfile(self._source_path)):
+            self._source_path.unlink()
             raise UploadError(
                 "Uploaded file is not a supported archive"
             )
 
-        if tarfile.is_tarfile(self.source_path):
-            with tarfile.open(self.source_path) as archive:
+        if tarfile.is_tarfile(self._source_path):
+            with tarfile.open(self._source_path) as archive:
                 extracted_size = sum(member.size for member in archive)
                 files = [member.name for member in archive if member.isfile()]
                 directories = [member.name for member in archive
                                if member.isdir()]
         else:
-            with zipfile.ZipFile(self.source_path) as archive:
+            with zipfile.ZipFile(self._source_path) as archive:
                 extracted_size = sum(member.file_size
                                      for member in archive.filelist)
                 files = [member.filename for member
@@ -279,14 +292,14 @@ class Upload:
             if extract_path.is_file():
                 conflicts.append(f'{self.path}/{directory}')
         if conflicts:
-            self.source_path.unlink()
+            self._source_path.unlink()
             raise UploadConflictError('Some files already exist',
                                       files=conflicts)
 
         # Ensure that the project has enough quota available
-        if self.project.remaining_quota() - extracted_size < 0:
+        if self.project.remaining_quota - extracted_size < 0:
             # Remove the archive and raise an exception
-            self.source_path.unlink()
+            self._source_path.unlink()
             raise InsufficientQuotaError("Quota exceeded")
 
         # Update used quota
@@ -295,17 +308,17 @@ class Upload:
     def _extract_archive(self):
         """Extract archive to temporary project directory."""
         # Extract files to temporary project directory
-        self.tmp_storage_path.parent.mkdir(parents=True, exist_ok=True)
+        self._tmp_storage_path.parent.mkdir(parents=True, exist_ok=True)
         try:
-            extract(self.source_path, self.tmp_storage_path)
+            extract(self._source_path, self._tmp_storage_path)
         except (MemberNameError, MemberTypeError, MemberOverwriteError,
                 ExtractError) as error:
             # Remove the archive and set task's state
-            self.source_path.unlink()
+            self._source_path.unlink()
             raise InvalidArchiveError(str(error)) from error
 
         # Remove archive
-        self.source_path.unlink()
+        self._source_path.unlink()
 
     @release_lock_on_exception
     def store_files(self):
@@ -316,8 +329,8 @@ class Upload:
         directory.
         """
         if self.type == 'file':
-            self.tmp_storage_path.parent.mkdir(parents=True, exist_ok=True)
-            self.source_path.rename(self.tmp_storage_path)
+            self._tmp_storage_path.parent.mkdir(parents=True, exist_ok=True)
+            self._source_path.rename(self._tmp_storage_path)
         else:
             self._extract_archive()
 
@@ -326,11 +339,11 @@ class Upload:
         # information.
         metax = gen_metadata.MetaxClient()
         new_files = []
-        for dirpath, _, files in os.walk(self.tmp_project_directory):
+        for dirpath, _, files in os.walk(self._tmp_project_directory):
             for fname in files:
                 new_files.append(
                     pathlib.Path(dirpath, fname).relative_to(
-                        self.tmp_project_directory
+                        self._tmp_project_directory
                     )
                 )
         if len(new_files) == 1:
@@ -341,7 +354,7 @@ class Upload:
                     self.project.identifier,
                     str(self.path)
                 )
-                shutil.rmtree(self.tmp_path)
+                shutil.rmtree(self._tmp_path)
                 raise UploadConflictError(
                     'Metadata could not be created because the file'
                     ' already has metadata',
@@ -359,7 +372,7 @@ class Upload:
                 if f"/{file}" in old_files:
                     conflicts.append(str(file))
             if conflicts:
-                shutil.rmtree(self.tmp_path)
+                shutil.rmtree(self._tmp_path)
                 raise UploadConflictError(
                     'Metadata could not be created because some files '
                     'already have metadata', files=conflicts
@@ -368,10 +381,10 @@ class Upload:
         # Generate metadata
         metadata_dicts = []  # File metadata for Metax
         file_documents = []  # Basic file information to database
-        for dirpath, _, files in os.walk(self.tmp_project_directory):
+        for dirpath, _, files in os.walk(self._tmp_project_directory):
             for fname in files:
                 file = pathlib.Path(dirpath, fname)
-                relative_path = file.relative_to(self.tmp_project_directory)
+                relative_path = file.relative_to(self._tmp_project_directory)
 
                 # Create file information for database
                 identifier = str(uuid.uuid4().urn)
@@ -416,7 +429,7 @@ class Upload:
 
         # Remove temporary directory. The directory might contain
         # empty directories, it must be removed recursively.
-        shutil.rmtree(self.tmp_path)
+        shutil.rmtree(self._tmp_path)
 
         # Update quota
         self.project.update_used_quota()
@@ -427,13 +440,13 @@ class Upload:
 
     def _move_files_to_project_directory(self):
         """Move files to project directory."""
-        for dirpath, _, files in os.walk(self.tmp_project_directory):
+        for dirpath, _, files in os.walk(self._tmp_project_directory):
             for fname in files:
                 _file = os.path.join(dirpath, fname)
                 relative_path = pathlib.Path(_file).relative_to(
-                    self.tmp_project_directory
+                    self._tmp_project_directory
                 )
-                source_path = self.tmp_project_directory / relative_path
+                source_path = self._tmp_project_directory / relative_path
                 target_path = self.project.directory / relative_path
                 try:
                     source_path.rename(target_path)
@@ -448,7 +461,10 @@ class Upload:
 
 
 def _iso8601_timestamp(fpath):
-    """Return last access time in ISO 8601 format."""
+    """Return last access time in ISO 8601 format.
+
+    :param fpath: File path
+    """
     timestamp = datetime.fromtimestamp(
         fpath.stat().st_atime, tz=timezone.utc
     ).replace(microsecond=0)

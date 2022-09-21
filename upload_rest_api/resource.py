@@ -29,12 +29,16 @@ class HasPendingDatasetError(Exception):
 class InvalidPathError(Exception):
     """Invalid path error.
 
-    Raised if upload path is invalid.
+    Raised if path of the resource is invalid.
     """
 
 
 def get_resource(project, path):
-    """Get existing file or directory."""
+    """Get existing file or directory.
+
+    :param project: The project that owns the resource.
+    :param path: Path of the resource.
+    """
     resource = Resource(project, path)
     if not resource.storage_path.exists():
         raise FileNotFoundError('Resource does not exist')
@@ -50,7 +54,11 @@ class Resource():
     """Resource class."""
 
     def __init__(self, project, path):
-        """Initialize resource."""
+        """Initialize resource.
+
+        :param project: The project that owns the resource.
+        :param path: Path of the resource.
+        """
         path = str(path)  # Allow pathlib.Path objects or strings
 
         # Raise InvalidPathError on attempted path escape
@@ -71,8 +79,8 @@ class Resource():
         """Absolute path of resource."""
         return self.project.directory / self.path.relative_to('/')
 
-    def datasets(self):
-        """List pending datasets."""
+    def get_datasets(self):
+        """List all datasets in which the resource has been added."""
         metax = gen_metadata.MetaxClient()
         if self._datasets is None:
             self._datasets = metax.get_file_datasets(self.project.identifier,
@@ -81,7 +89,7 @@ class Resource():
 
     def has_pending_dataset(self):
         """Check if resource has pending datasets."""
-        datasets = self.datasets()
+        datasets = self.get_datasets()
 
         return any(
             dataset["preservation_state"]
@@ -163,12 +171,12 @@ class Directory(Resource):
     def _entries(self):
         return list(os.scandir(self.storage_path))
 
-    def files(self):
+    def get_files(self):
         """List of files in directory."""
         return [File(self.project.identifier, self.path / entry.name)
                 for entry in self._entries() if entry.is_file()]
 
-    def directories(self):
+    def get_directories(self):
         """List of directories in directory."""
         return [Directory(self.project.identifier, self.path / entry.name)
                 for entry in self._entries() if entry.is_dir()]

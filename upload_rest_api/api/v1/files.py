@@ -95,8 +95,9 @@ def get_path(project_id, fpath):
     elif resource.storage_path.is_dir():
         response = {
             'identifier': resource.identifier,
-            'directories': [dir.path.name for dir in resource.directories()],
-            'files':  [file.path.name for file in resource.files()]
+            'directories': [dir.path.name for
+                            dir in resource.get_directories()],
+            'files':  [file.path.name for file in resource.get_files()]
         }
 
     return response
