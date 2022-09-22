@@ -6,7 +6,6 @@ import pathlib
 import secrets
 import shutil
 
-import metax_access
 from metax_access import (DS_STATE_ACCEPTED_TO_DIGITAL_PRESERVATION,
                           DS_STATE_REJECTED_IN_DIGITAL_PRESERVATION_SERVICE)
 
@@ -73,6 +72,7 @@ class Resource():
         self.project = Project(project)
         self.database = database.Database()
         self._datasets = None
+        self.metax = gen_metadata.MetaxClient()
 
     @property
     def storage_path(self):
@@ -81,10 +81,10 @@ class Resource():
 
     def get_datasets(self):
         """List all datasets in which the resource has been added."""
-        metax = gen_metadata.MetaxClient()
         if self._datasets is None:
-            self._datasets = metax.get_file_datasets(self.project.identifier,
-                                                     self.storage_path)
+            self._datasets \
+                = self.metax.get_file_datasets(self.project.identifier,
+                                               self.storage_path)
         return self._datasets
 
     def has_pending_dataset(self):
@@ -134,8 +134,7 @@ class File(Resource):
         with lock_manager.lock(self.project.identifier, self.storage_path):
             # Remove metadata from Metax
             try:
-                metax_client = gen_metadata.MetaxClient()
-                metax_response = metax_client.delete_file_metadata(
+                metax_response = self.metax.delete_file_metadata(
                     self.project.identifier,
                     self.storage_path,
                     root_upload_path
@@ -159,14 +158,8 @@ class Directory(Resource):
     @property
     def identifier(self):
         """Return identifier of directory."""
-        metax = metax_access.Metax(
-            url=CONFIG.get("METAX_URL"),
-            user=CONFIG.get("METAX_USER"),
-            password=CONFIG.get("METAX_PASSWORD"),
-            verify=CONFIG.get("METAX_SSL_VERIFICATION")
-        )
-        return metax.get_project_directory(self.project.identifier,
-                                           self.path)['identifier']
+        return self.metax.client.get_project_directory(self.project.identifier,
+                                                       self.path)['identifier']
 
     def _entries(self):
         return list(os.scandir(self.storage_path))
