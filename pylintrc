@@ -3,3 +3,13 @@
 # Only FIXME notes should affect rating. TODOs are used for documenting
 # potential future improvements and changes.
 notes=FIXME
+
+[TYPECHECK]
+# pylint cannot automatically detect MongoEngine's generated members without
+# a plugin.
+# List some of the members here to reduce the number of false positives.
+# The following regex could be used instead for better accuracy in 1.7.0,
+# but the system pylint is too old for that.
+#generated-members=(User|File|Task|Token|Upload|Project).(objects|DoesNotExist)
+
+generated-members=objects,DoesNotExist
