@@ -12,14 +12,13 @@ def make_response(status_code, message):
 
 def http_error_generic(error):
     """Create Generic HTTP error response."""
-    current_app.logger.error(error, exc_info=True)
+    if error.code > 499:
+        current_app.logger.error(error, exc_info=True)
     return make_response(error.code, error.description)
 
 
 def http_error_404(error):
     """Create HTTP 404 Not Found response."""
-    current_app.logger.error(error, exc_info=True)
-
     if error.description == werkzeug.exceptions.NotFound.description:
         # Replace the default NotFound error description
         message = "Page not found"
@@ -52,10 +51,8 @@ def insufficient_quota(error):
     return make_response(413, str(error))
 
 
-def http_error_locked(error):
+def http_error_locked(_error):
     """Create HTTP 409 Conflict error indicating the resource is locked."""
-    current_app.logger.error(error, exc_info=True)
-
     message = "The file/directory is currently locked by another task"
 
     return make_response(409, message)

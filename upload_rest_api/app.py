@@ -3,6 +3,7 @@ import logging
 import sys
 
 from flask import Flask
+from werkzeug.exceptions import HTTPException
 
 import upload_rest_api.authentication as auth
 from upload_rest_api.api.v1 import files_tus
@@ -92,8 +93,7 @@ def create_app():
     files_tus.register_blueprint(app)
 
     # Register error handlers
-    for status_code in [400, 401, 403, 405, 409, 411, 413, 415]:
-        app.register_error_handler(status_code, http_error_generic)
+    app.register_error_handler(HTTPException, http_error_generic)
     app.register_error_handler(404, http_error_404)
     app.register_error_handler(500, http_error_500)
     app.register_error_handler(LockAlreadyTaken, http_error_locked)
