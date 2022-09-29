@@ -3,6 +3,8 @@
 mongobox
 # Use pytest version that is available on centos7 to avoid deprecation warnings
 pytest==2.9.2
+# Pytest-catchlog is required for pytest<3.3
+pytest-catchlog
 # Pytest-warnings is required for pytest<3.1
 pytest-warnings
 # pytest-cov 2.5.1 is available for centos7. Newest versions are not compatible

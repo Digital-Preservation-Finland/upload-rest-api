@@ -40,6 +40,8 @@ BuildRequires:  python3-mongobox
 BuildRequires:  python36-mock
 BuildRequires:  python3-fakeredis
 BuildRequires:  python3-requests-mock
+BuildRequires:  python36-pytest-catchlog
+
 
 %description
 REST API for file uploads to passipservice.csc.fi
