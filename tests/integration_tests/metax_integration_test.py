@@ -12,12 +12,10 @@ import os
 from runpy import run_path
 
 from metax_access import Metax
-import pymongo
 import pytest
 import requests.exceptions
 
 import upload_rest_api.cleanup as clean
-import upload_rest_api.database as db
 from upload_rest_api.gen_metadata import MetaxClient
 
 URL = "https://metax.fd-test.csc.fi"
@@ -361,74 +359,6 @@ def test_disk_cleanup(
         assert len(files_dict) == 2
     else:
         assert not files_dict
-
-
-def test_mongo_cleanup(
-        app, test_auth, monkeypatch, background_job_runner, mock_config
-):
-    """Test database cleanup.
-
-    Test that cleaning files from mongo deletes all files that haven't
-    been posted to Metax.
-    """
-    # Mock configuration
-    mock_config["METAX_PASSWORD"] = PASSWORD
-    mock_config["CLEANUP_TIMELIM"] = -1
-
-    test_client = app.test_client()
-
-    # Mock Files mongo connection
-    def _mock_init(self, _client):
-        host = app.config.get("MONGO_HOST")
-        port = app.config.get("MONGO_PORT")
-        self.files = pymongo.MongoClient(host, port).upload.files
-
-    monkeypatch.setattr(db.Files, "__init__", _mock_init)
-
-    files_col = db.Database().files
-
-    # ----- Inserting fake files to Mongo and cleaning them
-    files_col.insert([
-        {"_id": "1", "identifier": "pid:urn:1", "checksum": "checksum_1"},
-        {"_id": "2", "identifier": "pid:urn:2", "checksum": "checksum_2"}
-    ])
-    assert len(files_col.get_all_ids()) == 2
-
-    clean.clean_mongo()
-
-    # File documents should persist, but identifiers should be gone
-    assert len(files_col.get_all_files()) == 2
-    assert not files_col.get_all_ids()
-
-    # Remove fake files before next test
-    files_col.delete(["1", "2"])
-
-    # Upload integration.zip, which is extracted by the server
-    poll_response = _upload_file(
-        test_client, "/v1/archives/test_project",
-        test_auth, "tests/data/integration.zip"
-    )
-    response = background_job_runner(test_client, "upload", poll_response)
-    assert response.status_code == 200
-
-    # Generate and POST metadata for all the files in test_project
-    poll_response = test_client.post(
-        "/v1/metadata/test_project/*", headers=test_auth
-    )
-    response = background_job_runner(test_client, "metadata", poll_response)
-    assert response.status_code == 200
-
-    # Check that generated identifiers were added to Mongo
-    assert len(files_col.get_all_ids()) == 2
-    # Check that generated file_paths resolve to actual files
-    for file_doc in files_col.get_all_files():
-        file_path = file_doc["_id"]
-        assert os.path.isfile(file_path)
-
-    # Try to clean file documents that still exist in Metax
-    clean.clean_mongo()
-
-    assert len(files_col.get_all_ids()) == 2
 
 
 def _create_dataset_with_file(accepted_dataset, dataset_file_data_block):
