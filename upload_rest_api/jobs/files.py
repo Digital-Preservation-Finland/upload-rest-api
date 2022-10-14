@@ -3,7 +3,6 @@ import os
 import shutil
 
 import upload_rest_api.gen_metadata as md
-from upload_rest_api.config import CONFIG
 from upload_rest_api.models import File, Project, Task
 from upload_rest_api.jobs.utils import api_background_job
 from upload_rest_api.lock import ProjectLockManager

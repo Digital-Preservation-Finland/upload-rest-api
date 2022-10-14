@@ -4,15 +4,12 @@ Functionality for uploading, querying and deleting files from the
 server.
 """
 import os
-import pathlib
 
 import werkzeug
 from flask import Blueprint, abort, jsonify, request
 
-import upload_rest_api.gen_metadata as md
 from upload_rest_api.api.v1.tasks import get_polling_url
 from upload_rest_api.authentication import current_user
-from upload_rest_api.jobs.utils import FILES_QUEUE
 from upload_rest_api.resource import get_resource
 from upload_rest_api.models import Upload, Project
 

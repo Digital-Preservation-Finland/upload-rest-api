@@ -66,4 +66,3 @@ class Task(Document):
         "collection": "tasks",
         "queryset_class": TaskQuerySet
     }
-

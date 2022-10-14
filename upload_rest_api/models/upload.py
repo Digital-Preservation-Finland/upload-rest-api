@@ -137,7 +137,12 @@ class Upload(Document):
                 [str(upload.resource.path)]
             )
 
-        if upload.upload_type == UploadType.FILE and upload.storage_path.is_dir():
+        dir_already_exists = (
+            upload.upload_type == UploadType.FILE
+            and upload.storage_path.is_dir()
+        )
+
+        if dir_already_exists:
             raise UploadConflictError(
                 f"Directory '{upload.resource.path}' already exists",
                 [str(upload.resource.path)]
@@ -389,7 +394,11 @@ class Upload(Document):
 
                 # Create file information for database
                 identifier = str(uuid.uuid4().urn)
-                if self.upload_type == UploadType.FILE and self.source_checksum:
+                file_checksum_provided = (
+                    self.upload_type == UploadType.FILE
+                    and self.source_checksum
+                )
+                if file_checksum_provided:
                     checksum = self.source_checksum
                 else:
                     checksum = get_file_checksum("md5", file)

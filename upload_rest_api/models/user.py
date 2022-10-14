@@ -119,5 +119,3 @@ class User(Document):
         """Revoke user access to the given project."""
         self.projects.remove(project)
         self.save()
-
-

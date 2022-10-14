@@ -4,7 +4,7 @@ import secrets
 import uuid
 
 from mongoengine import (BooleanField, DateTimeField, Document, ListField,
-                         StringField, UUIDField, ValidationError)
+                         StringField, ValidationError)
 
 from upload_rest_api.database import get_redis_connection
 
@@ -195,5 +195,3 @@ class Token(Document):
         return cls.objects.filter(
             session=True, expiration_date__lte=now, expiration_date__ne=None
         ).delete()
-
-
