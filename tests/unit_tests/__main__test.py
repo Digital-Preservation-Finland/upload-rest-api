@@ -68,7 +68,7 @@ def test_cleanup(mocker, command, command_runner):
             cli_func.assert_not_called()
 
 
-def test_cleanup_tokens(database, command_runner):
+def test_cleanup_tokens(command_runner):
     """
     Test cleaning session tokens using the CLI command
     """
@@ -110,7 +110,7 @@ def test_list_users(command_runner):
 
 
 @pytest.mark.usefixtures('test_mongo')
-def test_list_users_when_no_users(command_runner, database):
+def test_list_users_when_no_users(command_runner):
     """Test listing all users when there are no users."""
     result = command_runner(["users", "list"])
 
@@ -139,7 +139,7 @@ def test_get_nonexistent_user(command_runner):
 
 
 @pytest.mark.usefixtures('test_mongo')
-def test_list_projects(command_runner, database):
+def test_list_projects(command_runner):
     """Test listing all projects."""
     Project.create(identifier="test_project_o", quota=0)
     Project.create(identifier="test_project_q", quota=0)
@@ -151,7 +151,7 @@ def test_list_projects(command_runner, database):
 
 
 @pytest.mark.usefixtures('test_mongo')
-def test_list_projects_when_no_projects(command_runner, database):
+def test_list_projects_when_no_projects(command_runner):
     """Test listing all projects when there are no projects."""
     result = command_runner(["projects", "list"])
 
@@ -159,7 +159,7 @@ def test_list_projects_when_no_projects(command_runner, database):
 
 
 @pytest.mark.usefixtures('test_mongo')
-def test_get_project(command_runner, database):
+def test_get_project(command_runner):
     """Test getting information of one project."""
     Project.create(identifier="test_project_a", quota=1248)
 
@@ -247,7 +247,7 @@ def test_modify_user_fail(command_runner):
 
 
 @pytest.mark.usefixtures('test_mongo')
-def test_grant_user_projects(database, command_runner):
+def test_grant_user_projects(command_runner):
     """Test granting the user access to projects."""
     User.create(username="test", projects=["test_project"])
 
@@ -271,7 +271,7 @@ def test_grant_user_projects(database, command_runner):
 
 
 @pytest.mark.usefixtures('test_mongo')
-def test_grant_user_projects_nonexistent_project(database, command_runner):
+def test_grant_user_projects_nonexistent_project(command_runner):
     """Test granting the user access to project that does not exist."""
     User.create("test", projects=["test_project"])
 
@@ -284,8 +284,7 @@ def test_grant_user_projects_nonexistent_project(database, command_runner):
 
 
 @pytest.mark.usefixtures('test_mongo')
-def test_grant_user_projects_nonexistent_user(
-        database, monkeypatch, command_runner):
+def test_grant_user_projects_nonexistent_user(monkeypatch, command_runner):
     """Test granting a nonexistent user access to a project."""
     Project.create(identifier="test_project", quota=0)
 
@@ -298,7 +297,7 @@ def test_grant_user_projects_nonexistent_user(
 
 
 @pytest.mark.usefixtures('test_mongo')
-def test_revoke_user_projects(database, command_runner):
+def test_revoke_user_projects(command_runner):
     """Test revoking the user access to projects."""
     User.create(username="test", projects=["test_project"])
 
@@ -316,7 +315,7 @@ def test_revoke_user_projects(database, command_runner):
 
 @pytest.mark.parametrize("quota", [0, 2468])
 @pytest.mark.usefixtures("test_mongo")
-def test_create_project(database, command_runner, quota):
+def test_create_project(command_runner, quota):
     """Test creating a new project."""
     command_runner(["projects", "create", "test_project", "--quota", quota])
 
@@ -342,7 +341,7 @@ def test_create_project_with_negative_quota(command_runner):
 
 
 @pytest.mark.usefixtures("test_mongo")
-def test_create_project_already_exists(database, command_runner):
+def test_create_project_already_exists(command_runner):
     """Test creating a project that already exists."""
     Project.create(identifier="test_project", quota=2048)
 
@@ -355,7 +354,7 @@ def test_create_project_already_exists(database, command_runner):
 
 
 @pytest.mark.usefixtures("test_mongo")
-def test_delete_project(database, command_runner):
+def test_delete_project(command_runner):
     """Test deleting a project"""
     Project.create(identifier="test_project", quota=2048)
 
@@ -406,7 +405,7 @@ def test_modify_project_fail(command_runner):
     assert result.output == "Project 'test_project' does not exist.\n"
 
 
-def test_get_file_by_path(command_runner, database):
+def test_get_file_by_path(command_runner):
     """Test displaying information of file specified by path."""
     File(
         path="/path_1", checksum="checksum_1", identifier="pid:urn:1"
@@ -422,7 +421,7 @@ def test_get_file_by_path(command_runner, database):
     assert result_data == correct_result
 
 
-def test_get_file_by_identifier(command_runner, database):
+def test_get_file_by_identifier(command_runner):
     """Test displaying information of file specified by identifier."""
     File(
         path="/path_1", checksum="checksum_1", identifier="pid:urn:1"
@@ -438,7 +437,7 @@ def test_get_file_by_identifier(command_runner, database):
     assert result_data == correct_result
 
 
-def test_list_files(database, command_runner):
+def test_list_files(command_runner):
     """Test listing all files."""
     File.objects.insert([
         File(path="/path_1", identifier="pid:urn:1", checksum="checksum_1"),
@@ -457,7 +456,7 @@ def test_list_files(database, command_runner):
     ]
 
 
-def test_list_file_identifiers(database, command_runner):
+def test_list_file_identifiers(command_runner):
     """Test listing all file identifiers."""
     File.objects.insert([
         File(path="/path_1", identifier="pid:urn:1", checksum="checksum_1"),
@@ -469,7 +468,7 @@ def test_list_file_identifiers(database, command_runner):
     assert result_data == ["pid:urn:1", "pid:urn:2"]
 
 
-def test_list_checksums(database, command_runner):
+def test_list_checksums(command_runner):
     """Test listing all file checksums."""
     File.objects.insert([
         File(path="/path_1", identifier="pid:urn:1", checksum="checksum_1"),

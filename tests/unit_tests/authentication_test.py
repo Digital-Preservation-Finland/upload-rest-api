@@ -87,7 +87,7 @@ def test_auth_user_by_password(test_client, user, password, result):
         )
     ]
 )
-def test_auth_user_by_token(test_client, database, options, is_valid):
+def test_auth_user_by_token(test_client, options, is_valid):
     """
     Create a token and test authenticating using it
     """

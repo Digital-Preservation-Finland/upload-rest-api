@@ -360,8 +360,7 @@ def test_upload_file_deep_directory(
     ).read_bytes() == data
 
 
-def test_upload_file_exceed_quota(test_client, test_auth, database,
-                                  requests_mock):
+def test_upload_file_exceed_quota(test_client, test_auth, requests_mock):
     """Test exceeding quota.
 
     Upload one file and try uploading a second file which would exceed
@@ -413,7 +412,7 @@ def test_upload_file_exceed_quota(test_client, test_auth, database,
 
 
 def test_upload_file_parallel_upload_exceed_quota(
-        test_client, test_auth, database, requests_mock):
+        test_client, test_auth, requests_mock):
     """Start enough parallel uploads to exceed the user quota."""
     # Mock metax
     requests_mock.post('/rest/v2/files/', json={})
@@ -470,7 +469,7 @@ def test_upload_file_parallel_upload_exceed_quota(
 
 
 def test_mixed_parallel_upload_exceed_quota(
-        test_client, test_auth, database, requests_mock):
+        test_client, test_auth, requests_mock):
     """Test parallel uploads to /v1/files_tus API and /v1/files API.
 
     If all quota has been alloceted for TUS uploads, it should not be
@@ -529,7 +528,6 @@ def test_mixed_parallel_upload_exceed_quota(
     assert tus_upload.status_code == 204
 
 
-@pytest.mark.usefixtures("database")
 def test_upload_file_conflict(test_client, test_auth, requests_mock):
     """Try initiating two uploads with the same file path."""
     # Mock metax
@@ -648,7 +646,6 @@ def test_mixed_parallel_upload_conflict(test_client, test_auth, requests_mock):
     assert tus_upload.status_code == 204
 
 
-@pytest.mark.usefixtures("database")
 def test_upload_archive(test_client, test_auth, mock_config, requests_mock):
     """Test uploading an archive.
 

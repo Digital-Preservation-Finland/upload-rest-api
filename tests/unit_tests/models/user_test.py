@@ -35,10 +35,9 @@ def test_correct_document_structure(users_col):
                                       [],
                                       ['test_project'],
                                       ['project1', 'project2']])
-def test_create_user(database, projects):
+def test_create_user(projects):
     """Test creation of new user.
 
-    :param database: Database instance
     :param projects: List of user projects
     """
     user = User.create("test_user", projects=projects)

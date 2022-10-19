@@ -141,7 +141,7 @@ def test_upload_max_size(app, test_auth, mock_config):
     assert not os.path.isfile(fpath)
 
 
-def test_user_quota(app, database, test_auth):
+def test_user_quota(app, test_auth):
     """Test uploading files larger than allowed by user quota."""
     test_client = app.test_client()
     upload_path = app.config.get("UPLOAD_PROJECTS_PATH")
@@ -164,7 +164,7 @@ def test_user_quota(app, database, test_auth):
                                           "test.zip"))
 
 
-def test_used_quota(app, database, test_auth, requests_mock):
+def test_used_quota(app, test_auth, requests_mock):
     """Test that used quota is calculated correctly."""
     # Mock Metax
     requests_mock.get("https://metax.localdomain/rest/v2/files",

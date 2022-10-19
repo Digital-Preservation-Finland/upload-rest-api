@@ -233,7 +233,7 @@ def background_job_runner(test_auth):
     return wrapper
 
 
-def init_db(test_mongo, database):
+def init_db(test_mongo):
     """Initialize user db."""
     test_mongo.drop_database("upload")
 
@@ -257,7 +257,7 @@ def init_db(test_mongo, database):
 
 
 @pytest.yield_fixture(scope="function")
-def app(test_mongo, mock_config, database, monkeypatch):
+def app(test_mongo, mock_config, monkeypatch):
     """Create temporary upload directory and app, which uses it.
 
     Temp dirs are cleaned after use.
@@ -275,7 +275,7 @@ def app(test_mongo, mock_config, database, monkeypatch):
     monkeypatch.setattr(app_module, "configure_app", _mock_configure_app)
 
     flask_app = app_module.create_app()
-    init_db(test_mongo, database)
+    init_db(test_mongo)
 
     monkeypatch.setattr("pymongo.MongoClient", lambda *args: test_mongo)
 
@@ -286,15 +286,6 @@ def app(test_mongo, mock_config, database, monkeypatch):
     flask_app.config["TUS_API_SPOOL_PATH"] = mock_config["TUS_API_SPOOL_PATH"]
 
     yield flask_app
-
-
-@pytest.yield_fixture(scope="function")
-def database(test_mongo):
-    """
-    :returns: Database instance
-    :rtype: upload_rest_api.database.Database instance
-    """
-    return None
 
 
 @pytest.yield_fixture(scope="function")
@@ -315,7 +306,7 @@ def user(test_mongo):
 
 
 @pytest.fixture(scope="function")
-def project(database):
+def project():
     """Initialize and return a project dict
     """
     project = Project(id="test_project")
@@ -399,7 +390,7 @@ def wrong_auth():
 @pytest.fixture(scope="function")
 # pylint: disable=unused-argument
 # usefixtures not supported in fixture functions
-def user_token_auth(test_client, test_mongo, database):
+def user_token_auth(test_client, test_mongo):
     """Returns credentials header containing an user token"""
     token_data = Token.create(
         name="User test token",
@@ -416,7 +407,7 @@ def user_token_auth(test_client, test_mongo, database):
 
 
 @pytest.fixture(scope="function")
-def user2_token_auth(test_client, test_mongo, database):
+def user2_token_auth(test_client, test_mongo):
     """Return credentials headers for a secondary user token"""
     token_data = Token.create(
         name="User 2 test token",

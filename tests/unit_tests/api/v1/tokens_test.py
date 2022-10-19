@@ -99,7 +99,7 @@ def test_create_token_error(test_client, admin_auth, params, expected_error):
     assert response.json["error"] == expected_error
 
 
-def test_create_session_token(test_client, admin_auth, database):
+def test_create_session_token(test_client, admin_auth):
     """
     Create a token using the `/create_session` API endpoint
     """
@@ -137,8 +137,7 @@ def test_create_session_token_missing_username(test_client, admin_auth):
     assert response.json["error"] == "'username' is required"
 
 
-def test_create_session_token_new_user_created(
-        test_client, admin_auth, database):
+def test_create_session_token_new_user_created(test_client, admin_auth):
     """
     Create a session token for a nonexistent user and ensure that the
     user is automatically created.
@@ -211,7 +210,7 @@ def test_list_tokens_permission_denied(test_client, user_token_auth):
         "User does not have permission to list tokens"
 
 
-def test_delete_token(test_client, admin_auth, database):
+def test_delete_token(test_client, admin_auth):
     """
     Create a token and then delete it
     """
@@ -243,8 +242,7 @@ def test_delete_token(test_client, admin_auth, database):
     assert Token.get_by_token(token) is None
 
 
-def test_delete_token_permission_denied(
-        test_client, user_token_auth, database):
+def test_delete_token_permission_denied(test_client, user_token_auth):
     """
     Try deleting a token using an user token
     """
@@ -264,7 +262,7 @@ def test_delete_token_permission_denied(
 
 
 @pytest.mark.usefixtures("user_token_auth")
-def test_delete_token_username_not_provided(test_client, admin_auth, database):
+def test_delete_token_username_not_provided(test_client, admin_auth):
     """
     Try deleting a token without providing an username
     """
