@@ -7,14 +7,15 @@ import shutil
 from datetime import datetime, timezone
 
 from metax_access import (DS_STATE_ACCEPTED_TO_DIGITAL_PRESERVATION,
-                          DS_STATE_REJECTED_IN_DIGITAL_PRESERVATION_SERVICE)
+                          DS_STATE_REJECTED_IN_DIGITAL_PRESERVATION_SERVICE,
+                          DirectoryNotAvailableError)
 
 from upload_rest_api import gen_metadata
 from upload_rest_api.config import CONFIG
 from upload_rest_api.jobs.utils import FILES_QUEUE, enqueue_background_job
-from upload_rest_api.utils import parse_relative_user_path
 from upload_rest_api.lock import lock_manager
 from upload_rest_api.models import File, Project
+from upload_rest_api.utils import parse_relative_user_path
 
 
 class HasPendingDatasetError(Exception):
@@ -160,8 +161,17 @@ class DirectoryResource(Resource):
     @property
     def identifier(self):
         """Return identifier of directory."""
-        return self.metax.client.get_project_directory(self.project.id,
-                                                       self.path)['identifier']
+        try:
+            return self.metax.client.get_project_directory(
+                self.project.id, self.path
+            )['identifier']
+        except DirectoryNotAvailableError:
+            # The root directory is the first directory that's retrieved,
+            # and it might not exist in Metax yet.
+            if str(self.path) == "/":
+                return None
+
+            raise
 
     def _get_entries(self):
         return list(os.scandir(self.storage_path))
