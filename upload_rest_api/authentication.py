@@ -1,10 +1,12 @@
 """Module for authenticating users."""
 from hmac import compare_digest
 
-from upload_rest_api.config import CONFIG
-import upload_rest_api.database as db
 from flask import abort, g, request
 from werkzeug.local import LocalProxy
+
+from upload_rest_api.config import CONFIG
+from upload_rest_api.database import (Token, TokenInvalidError, User,
+                                      hash_passwd)
 
 
 class CurrentUser:
@@ -111,17 +113,15 @@ def _auth_user_by_token():
         return True
 
     # Check if it's a token in the database
-    database = db.Database()
-
     try:
-        data = database.tokens.get_and_validate(token=token)
+        data = Token.get_and_validate(token=token)
         g.current_user = CurrentUser(
-            username=data["username"],
-            projects=data["projects"],
-            admin=data["admin"]
+            username=data.username,
+            projects=data.projects,
+            admin=data.admin
         )
         return True
-    except db.TokenInvalidError:
+    except TokenInvalidError:
         # Token does not exist or expired
         return False
 
@@ -140,24 +140,22 @@ def _auth_user_by_password():
     username = auth.username
     password = auth.password
 
-    user = db.Database().user(username)
-
     try:
-        user = user.get()
-    except db.UserNotFoundError:
+        user = User.objects.get(username=username)
+    except User.DoesNotExist:
         # Calculate digest even if user does not exist to avoid
         # leaking information about which users exist
-        return compare_digest(b"hash"*16, db.hash_passwd("passwd", "salt"))
+        return compare_digest(b"hash"*16, hash_passwd("passwd", "salt"))
 
-    salt = user["salt"]
-    digest = user["digest"]
+    salt = user.salt
+    digest = user.digest
 
-    result = compare_digest(digest, db.hash_passwd(password, salt))
+    result = compare_digest(digest, hash_passwd(password, salt))
 
     if result:
         g.current_user = CurrentUser(
-            username=user["_id"],
-            projects=user["projects"],
+            username=user.username,
+            projects=user.projects,
             admin=False
         )
 

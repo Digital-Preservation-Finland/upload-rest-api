@@ -3,7 +3,7 @@ import base64
 import datetime
 
 import pytest
-import upload_rest_api.database as db
+from upload_rest_api.database import User, Token
 
 
 @pytest.mark.parametrize(
@@ -23,8 +23,9 @@ def test_auth_user_by_password(test_client, user, password, result):
     :param bool result: Excepted result of authentication
     """
     # Create one test user to database
-    usersdoc = db.Database().user('test_user')
-    usersdoc.create('test_project', 'test_password')
+    User.create(
+        "test_user", projects=["test_project"], password="test_password"
+    )
 
     auth_hash \
         = base64.urlsafe_b64encode(f"{user}:{password}".encode()).decode()
@@ -98,7 +99,7 @@ def test_auth_user_by_token(test_client, database, options, is_valid):
         "admin": False
     }
     kwargs.update(options)
-    token_data = database.tokens.create(**kwargs)
+    token_data = Token.create(**kwargs)
     token = token_data["token"]
 
     response = test_client.get(

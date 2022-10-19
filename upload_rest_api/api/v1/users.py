@@ -1,9 +1,8 @@
 """REST API for querying user information."""
-from flask import Blueprint, jsonify, request, abort
+from flask import Blueprint, abort, jsonify, request
 
-from upload_rest_api.database import Database
 from upload_rest_api.authentication import current_user
-
+from upload_rest_api.database import Project, User
 
 USERS_API_V1 = Blueprint("users_v1", __name__, url_prefix="/v1/users")
 
@@ -17,8 +16,6 @@ def list_user_projects():
     If the "username" parameter is determined, the authenticated user
     has to be an administrator to view the details.
     """
-    database = Database()
-
     if request.args.get("username", None):
         # If specific username is provided, retrieve the projects for that
         # user, if we have the permission
@@ -27,21 +24,21 @@ def list_user_projects():
         if not current_user.is_allowed_to_list_projects(username):
             abort(403, "User does not have permission to list projects")
 
-        projects = database.user(username).get_projects()
+        projects = User.objects.get(username=username).projects
     else:
         # If 'username' is not provided, retrieve projects accessible
         # to the current session
         projects = current_user.projects
 
-    projects = [database.projects.get(project_id) for project_id in projects]
+    projects = list(Project.objects.filter(id__in=projects))
 
     result = {"projects": []}
 
     for project in projects:
         result["projects"].append({
-            "identifier": project["_id"],
-            "used_quota": project["used_quota"],
-            "quota": project["quota"]
+            "identifier": project.id,
+            "used_quota": project.used_quota,
+            "quota": project.quota
         })
 
     return jsonify(result)

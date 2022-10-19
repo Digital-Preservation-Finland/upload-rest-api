@@ -16,7 +16,7 @@ import metax_access
 from upload_rest_api.config import CONFIG
 from upload_rest_api import gen_metadata
 from upload_rest_api.checksum import get_file_checksum
-from upload_rest_api.database import Database
+from upload_rest_api.database import DBFile, Project
 from upload_rest_api.jobs.utils import UPLOAD_QUEUE, enqueue_background_job
 from upload_rest_api.lock import ProjectLockManager
 from upload_rest_api.resource import Resource
@@ -34,7 +34,7 @@ def release_lock_on_exception(method):
 
         except Exception:
             lock_manager = ProjectLockManager()
-            lock_manager.release(self.project.identifier,
+            lock_manager.release(self.project.id,
                                  self.storage_path)
             raise
 
@@ -98,14 +98,15 @@ def continue_upload(project, path, upload_type, identifier):
 class Upload:
     """Class for handling uploads."""
 
-    def __init__(self, project, path, upload_type="file", identifier=None):
+    def __init__(self, project_id, path, upload_type="file", identifier=None):
         """Initialize upload.
 
-        :param project: Project identifier
+        :param project_id: Project identifier
         :param path: Upload path
         :param upload_type: Type of upload: 'file' or 'archive'
         :param identifier: Identifier of upload
         """
+        project = Project.objects.get(id=project_id)
         self._resource = Resource(project, path)
         self.type = upload_type
         self.source_checksum = None
@@ -145,7 +146,7 @@ class Upload:
 
         # Lock the storage path
         lock_manager = ProjectLockManager()
-        lock_manager.acquire(self.project.identifier, self.storage_path)
+        lock_manager.acquire(self.project.id, self.storage_path)
 
         # Create temporary path
         self._tmp_path.mkdir(exist_ok=True, parents=True)
@@ -187,6 +188,11 @@ class Upload:
         """
         return self._tmp_project_directory \
             / self.storage_path.relative_to(self.project.directory)
+
+    @property
+    def project_directory(self):
+        """Path to project directory."""
+        return Project.get_project_directory(self.project.id)
 
     @property
     def _source_path(self):
@@ -238,9 +244,9 @@ class Upload:
         task_id = enqueue_background_job(
             task_func="upload_rest_api.jobs.upload.store_files",
             queue_name=UPLOAD_QUEUE,
-            project_id=self.project.identifier,
+            project_id=self.project.id,
             job_kwargs={
-                "project_id": self.project.identifier,
+                "project_id": self.project.id,
                 "path": str(self.path),
                 "upload_type": self.type,
                 "identifier": self.identifier
@@ -303,7 +309,8 @@ class Upload:
             raise InsufficientQuotaError("Quota exceeded")
 
         # Update used quota
-        self.project.set_used_quota(self.project.used_quota + extracted_size)
+        self.project.used_quota += extracted_size
+        self.project.save()
 
     def _extract_archive(self):
         """Extract archive to temporary project directory."""
@@ -351,7 +358,7 @@ class Upload:
             # more efficient to retrieve information about single file
             try:
                 old_file = metax.client.get_project_file(
-                    self.project.identifier,
+                    self.project.id,
                     str(self.path)
                 )
                 shutil.rmtree(self._tmp_path)
@@ -367,7 +374,7 @@ class Upload:
             # Retrieve list of all files as one request to avoid sending
             # too many requests to Metax.
             conflicts = []  # Uploaded files that already exist in Metax
-            old_files = metax.get_files_dict(self.project.identifier).keys()
+            old_files = metax.get_files_dict(self.project.id).keys()
             for file in new_files:
                 if f"/{file}" in old_files:
                     conflicts.append(str(file))
@@ -392,11 +399,14 @@ class Upload:
                     checksum = self.source_checksum
                 else:
                     checksum = get_file_checksum("md5", file)
-                file_documents.append({
-                    "path": str(self.project.directory / relative_path),
-                    "checksum": checksum,
-                    "identifier": identifier
-                })
+
+                file_documents.append(
+                    DBFile(
+                        path=str(self.project_directory / relative_path),
+                        checksum=checksum,
+                        identifier=identifier
+                    )
+                )
 
                 # Create metadata
                 timestamp = _iso8601_timestamp(file)
@@ -406,7 +416,7 @@ class Upload:
                     "file_format": _get_mimetype(file),
                     "byte_size": file.stat().st_size,
                     "file_path": f"/{relative_path}",
-                    "project_identifier": self.project.identifier,
+                    "project_identifier": self.project.id,
                     "file_uploaded": timestamp,
                     "file_modified": timestamp,
                     "file_frozen": timestamp,
@@ -421,8 +431,8 @@ class Upload:
         # Post all metadata to Metax in one go
         metax.post_metadata(metadata_dicts)
 
-        # Insert information of all files to dababase in one go
-        Database().files.insert(file_documents)
+        # Insert information of all files to database in one go
+        DBFile.objects.insert(file_documents)
 
         # Move files to project directory
         self._move_files_to_project_directory()
@@ -436,7 +446,7 @@ class Upload:
 
         # Release file storage lock
         lock_manager = ProjectLockManager()
-        lock_manager.release(self.project.identifier, self.storage_path)
+        lock_manager.release(self.project.id, self.storage_path)
 
     def _move_files_to_project_directory(self):
         """Move files to project directory."""

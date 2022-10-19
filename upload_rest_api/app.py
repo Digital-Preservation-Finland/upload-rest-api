@@ -9,23 +9,22 @@ import upload_rest_api.authentication as auth
 from upload_rest_api.api.v1 import files_tus
 from upload_rest_api.api.v1.archives import ARCHIVES_API_V1
 from upload_rest_api.api.v1.datasets import DATASETS_API_V1
-from upload_rest_api.api.v1.errorhandlers import (http_error_404,
+from upload_rest_api.api.v1.errorhandlers import (http_error_400,
+                                                  http_error_404,
                                                   http_error_500,
                                                   http_error_generic,
                                                   http_error_locked,
-                                                  upload_conflict,
                                                   insufficient_quota,
-                                                  http_error_400)
+                                                  upload_conflict)
 from upload_rest_api.api.v1.files import FILES_API_V1
 from upload_rest_api.api.v1.tasks import TASK_STATUS_API_V1
 from upload_rest_api.api.v1.tokens import TOKEN_API_V1
 from upload_rest_api.api.v1.users import USERS_API_V1
-from upload_rest_api.lock import LockAlreadyTaken
 from upload_rest_api.config import get_config
-from upload_rest_api.upload import (UploadConflictError,
-                                    InsufficientQuotaError,
-                                    UploadError)
+from upload_rest_api.lock import LockAlreadyTaken
 from upload_rest_api.resource import InvalidPathError
+from upload_rest_api.upload import (InsufficientQuotaError,
+                                    UploadConflictError, UploadError)
 
 try:
     # Newer Werkzeug

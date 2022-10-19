@@ -19,6 +19,7 @@ def main():
             "python-dateutil",
             "rehash",
             "click",
+            "mongoengine",
             "metax_access@git+https://gitlab.ci.csc.fi/dpres/"
             "metax-access.git@develop",
             "archive_helpers@git+https://gitlab.ci.csc.fi/dpres/"

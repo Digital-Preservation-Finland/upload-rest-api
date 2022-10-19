@@ -1,7 +1,7 @@
 """Unit tests for user API"""
 
 
-def test_get_user_projects_by_token(test_client, user_token_auth):
+def test_get_user_projects_by_token(test_client, user_token_auth, test_mongo):
     """
     Test retrieving a list of projects when authenticated using a token
     """
@@ -15,14 +15,14 @@ def test_get_user_projects_by_token(test_client, user_token_auth):
     assert response.json == {
         "projects": [
             {
-                "identifier": "test_project",
-                "used_quota": 0,
-                "quota": 1000000
-            },
-            {
                 "identifier": "project",
                 "used_quota": 0,
                 "quota": 12345678
+            },
+            {
+                "identifier": "test_project",
+                "used_quota": 0,
+                "quota": 1000000
             },
         ]
     }

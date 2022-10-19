@@ -7,6 +7,8 @@ import shutil
 import pytest
 from metax_access import DS_STATE_TECHNICAL_METADATA_GENERATED
 
+from upload_rest_api.database import DBFile, Project
+
 
 def _upload_file(client, url, auth, fpath):
     """Send POST request to given URL with file fpath.
@@ -144,8 +146,11 @@ def test_user_quota(app, database, test_auth):
     test_client = app.test_client()
     upload_path = app.config.get("UPLOAD_PROJECTS_PATH")
 
-    database.projects.set_quota("test_project", 200)
-    database.projects.set_used_quota("test_project", 0)
+    project = Project.objects.get(id="test_project")
+    project.quota = 200
+    project.used_quota = 0
+    project.save()
+
     response = _upload_file(
         test_client, "/v1/files/test_project/test.zip",
         test_auth, "tests/data/test.zip"
@@ -182,16 +187,16 @@ def test_used_quota(app, database, test_auth, requests_mock):
         test_auth, "tests/data/test.txt"
     )
 
-    used_quota = database.projects.get("test_project")["used_quota"]
-    assert used_quota == 62
+    project = Project.objects.get(id="test_project")
+    assert project.used_quota == 62
 
     # Delete one of the files
     test_client.delete(
         "/v1/files/test_project/test1",
         headers=test_auth
     )
-    used_quota = database.projects.get("test_project")["used_quota"]
-    assert used_quota == 31
+    project = Project.objects.get(id="test_project")
+    assert project.used_quota == 31
 
 
 def test_upload_conflicting_directory(app, test_auth, requests_mock):
@@ -343,18 +348,17 @@ def test_file_integrity_validation(app, test_auth, checksum,
         assert response.json[key] == expected_response[key]
 
 
-def test_get_file(app, test_auth, test2_auth, test3_auth, test_mongo):
+def test_get_file(app, test_auth, test2_auth, test3_auth):
     """Test GET for single file."""
     test_client = app.test_client()
     upload_path = app.config.get("UPLOAD_PROJECTS_PATH")
 
     fpath = os.path.join(upload_path, "test_project/test.txt")
     shutil.copy("tests/data/test.txt", fpath)
-    test_mongo.upload.files.insert_one({
-        "_id": fpath,
-        "checksum": "150b62e4e7d58c70503bd5fc8a26463c",
-        "identifier": 'foo'
-    })
+    DBFile(
+        path=fpath, checksum="150b62e4e7d58c70503bd5fc8a26463c",
+        identifier="fake_identifier"
+    ).save()
 
     # GET file that exists
     response = test_client.get(
@@ -365,7 +369,7 @@ def test_get_file(app, test_auth, test2_auth, test3_auth, test_mongo):
 
     assert response.json["file_path"] == "/test.txt"
     assert response.json["md5"] == "150b62e4e7d58c70503bd5fc8a26463c"
-    assert response.json["identifier"] == 'foo'
+    assert response.json["identifier"] == "fake_identifier"
 
     # GET file with user test2, which is in the same project
     response = test_client.get(

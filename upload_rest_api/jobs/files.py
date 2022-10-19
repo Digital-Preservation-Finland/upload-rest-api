@@ -2,9 +2,9 @@
 import os
 import shutil
 
-import upload_rest_api.database as db
 import upload_rest_api.gen_metadata as md
 from upload_rest_api.config import CONFIG
+from upload_rest_api.database import DBFile, Project, Task
 from upload_rest_api.jobs.utils import api_background_job
 from upload_rest_api.lock import ProjectLockManager
 
@@ -46,17 +46,15 @@ def delete_files(fpath, trash_path, trash_root, project_id, task_id):
     :param str project: project identifier
     :param str task_id: mongo dentifier of the task
     """
-    root_upload_path = CONFIG["UPLOAD_PROJECTS_PATH"]
-
     # Remove metadata from Metax
     metax_client = md.MetaxClient()
-    database = db.Database()
-    project_dir = database.projects.get_project_directory(project_id)
-    ret_path = db.Projects.get_return_path(project_id, fpath)
-    database.tasks.update_message(
-        task_id,
-        "Deleting files and metadata: %s" % ret_path
+    project_dir = Project.get_project_directory(project_id)
+    ret_path = Project.get_return_path(project_id, fpath)
+
+    Task.objects.filter(id=task_id).update(
+        message=f"Deleting files and metadata: {ret_path}"
     )
+
     metax_client.delete_all_metadata(
         project=project_id,
         fpath=trash_path,
@@ -71,14 +69,15 @@ def delete_files(fpath, trash_path, trash_root, project_id, task_id):
         trash_root=trash_root,
         project_dir=project_dir
     )
-    database.files.delete(files_to_delete)
+    DBFile.objects.bulk_delete_by_paths(files_to_delete)
 
     # Ensure the directory containing the "fake" project directory is
     # deleted as well.
     shutil.rmtree(trash_root.parent)
 
     # Update used_quota
-    database.projects.update_used_quota(project_id, root_upload_path)
+    project = Project.objects.get(id=project_id)
+    project.update_used_quota()
 
     # Release the lock we've held from the time this background job was
     # enqueued

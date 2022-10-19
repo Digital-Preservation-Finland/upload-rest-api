@@ -26,6 +26,7 @@ BuildArch:      noarch
 Requires:       python3
 Requires:       python36-flask
 Requires:       python36-pymongo
+Requires:       python3-mongoengine
 Requires:       python3-magic
 Requires:       python3-rq
 Requires:       python3-metax-access

@@ -2,7 +2,7 @@
 import pytest
 from rq import SimpleWorker
 
-from upload_rest_api import database
+from upload_rest_api.database import Task, TaskStatus
 from upload_rest_api import jobs
 
 
@@ -36,9 +36,10 @@ def test_reverse_proxy_polling_url(app, mock_redis, test_auth):
 @jobs.api_background_job
 def _modify_task_info(task_id):
     """Modify task info in database."""
-    tasks = database.Database().tasks
-    tasks.update_message(task_id, "foo")
-    tasks.update_status(task_id, "bar")
+    task = Task.objects.get(id=task_id)
+    task.message = "foo"
+    task.status = TaskStatus.DONE
+    task.save()
     return "baz"
 
 

@@ -7,7 +7,8 @@ import pytest
 from click.testing import CliRunner
 
 import upload_rest_api.__main__
-import upload_rest_api.database as db
+from upload_rest_api.database import (DBFile, Project, ProjectExistsError, Token,
+                                      User, UserExistsError)
 
 
 @pytest.fixture(scope="function")
@@ -81,7 +82,7 @@ def test_cleanup_tokens(database, command_runner):
     ]
 
     for name, expiration_date in token_entries:
-        database.tokens.create(
+        Token.create(
             name=name,
             username="test",
             projects=[],
@@ -93,17 +94,16 @@ def test_cleanup_tokens(database, command_runner):
     result = command_runner(["cleanup", "tokens"])
     assert result.output == "Cleaned 2 expired token(s)\n"
 
-    assert database.tokens.tokens.count() == 1
-    token = next(database.tokens.tokens.find())
+    assert Token.objects.count() == 1
+    token = Token.objects.first()
     assert token["name"] == "Token 3"
 
 
 @pytest.mark.usefixtures('test_mongo')
 def test_list_users(command_runner):
     """Test listing all users."""
-    database = db.Database()
-    database.user("test1").create(projects=["test_project"])
-    database.user("test2").create(projects=["test_project"])
+    User.create(username="test1", projects=["test_project"])
+    User.create(username="test2", projects=["test_project"])
 
     result = command_runner(["users", "list"])
     assert result.output == "test1\ntest2\n"
@@ -119,8 +119,7 @@ def test_list_users_when_no_users(command_runner, database):
 
 def test_get_user(command_runner):
     """Test displaying information of one user."""
-    database = db.Database()
-    database.user("test1").create(projects=["test_project"])
+    User.create(username="test1", projects=["test_project"])
 
     result = command_runner(["users", "get", "test1"])
     result_data = json.loads(result.output)
@@ -142,9 +141,9 @@ def test_get_nonexistent_user(command_runner):
 @pytest.mark.usefixtures('test_mongo')
 def test_list_projects(command_runner, database):
     """Test listing all projects."""
-    database.projects.create("test_project_o")
-    database.projects.create("test_project_q")
-    database.projects.create("test_project_r")
+    Project.create(identifier="test_project_o", quota=0)
+    Project.create(identifier="test_project_q", quota=0)
+    Project.create(identifier="test_project_r", quota=0)
 
     result = command_runner(["projects", "list"])
 
@@ -162,7 +161,7 @@ def test_list_projects_when_no_projects(command_runner, database):
 @pytest.mark.usefixtures('test_mongo')
 def test_get_project(command_runner, database):
     """Test getting information of one project."""
-    database.projects.create("test_project_a", quota=1248)
+    Project.create(identifier="test_project_a", quota=1248)
 
     # Existing project
     result = command_runner(["projects", "get", "test_project_a"])
@@ -196,14 +195,14 @@ def test_create_existing_user(command_runner):
     """Test that creating a user that already exists raises
     UserExistsError.
     """
-    db.Database().user("test").create(projects=["test_project"])
-    with pytest.raises(db.UserExistsError):
+    User.create(username="test", projects=["test_project"])
+    with pytest.raises(UserExistsError):
         command_runner(["users", "create", "test"])
 
 
 def test_delete_user(test_mongo, command_runner):
     """Test deletion of an existing user."""
-    db.Database().user("test").create(projects=["test_project"])
+    User.create(username="test", projects=["test_project"])
     command_runner(["users", "delete", "test"])
 
     assert test_mongo.upload.users.count({"_id": "test"}) == 0
@@ -212,16 +211,16 @@ def test_delete_user(test_mongo, command_runner):
 @pytest.mark.usefixtures('test_mongo')
 def test_delete_user_fail(command_runner):
     """Test deletion of an user that does not exist."""
-    with pytest.raises(db.UserNotFoundError):
+    with pytest.raises(User.DoesNotExist):
         command_runner(["users", "delete", "test"])
 
 
 @pytest.mark.usefixtures('test_mongo')
 def test_modify_user(command_runner):
     """Test generating a new password for a user."""
-    old_password = db.Database().user("test").create()
+    old_password = User.create("test")
 
-    user = db.Database().user("test").get()
+    user = User.objects.get(username="test")
     old_salt = user["salt"]
     old_digest = user["digest"]
 
@@ -230,9 +229,9 @@ def test_modify_user(command_runner):
     ])
 
     # Assert that password has actually changed
-    user = db.Database().user("test").get()
-    assert user["salt"] != old_salt
-    assert user["digest"] != old_digest
+    user = User.objects.get(username="test")
+    assert user.salt != old_salt
+    assert user.digest != old_digest
 
     # Assert that output contains new password
     data = json.loads(response.output)
@@ -243,25 +242,26 @@ def test_modify_user(command_runner):
 @pytest.mark.usefixtures('test_mongo')
 def test_modify_user_fail(command_runner):
     """Test modifying a user that does not exist."""
-    with pytest.raises(db.UserNotFoundError):
+    with pytest.raises(User.DoesNotExist):
         command_runner(["users", "modify", "test"])
 
 
 @pytest.mark.usefixtures('test_mongo')
 def test_grant_user_projects(database, command_runner):
     """Test granting the user access to projects."""
-    user = db.Database().user("test")
-    user.create(projects=["test_project"])
+    User.create(username="test", projects=["test_project"])
 
-    database.projects.create("test_project_2", 2000)
-    database.projects.create("test_project_3", 2000)
+    Project.create("test_project_2", 2000)
+    Project.create("test_project_3", 2000)
 
     result = command_runner([
         "users", "project-rights", "grant", "test", "test_project_2",
         "test_project_3"
     ])
 
-    assert user.get_projects() == [
+    user = User.objects.get(username="test")
+
+    assert user.projects == [
         "test_project", "test_project_2", "test_project_3"
     ]
     assert result.output == (
@@ -273,42 +273,42 @@ def test_grant_user_projects(database, command_runner):
 @pytest.mark.usefixtures('test_mongo')
 def test_grant_user_projects_nonexistent_project(database, command_runner):
     """Test granting the user access to project that does not exist."""
-    user = db.Database().user("test")
-    user.create(projects=["test_project"])
+    User.create("test", projects=["test_project"])
 
-    with pytest.raises(db.ProjectNotFoundError) as exc:
+    with pytest.raises(Project.DoesNotExist) as exc:
         command_runner([
             "users", "project-rights", "grant", "test", "test_project_2"
         ])
 
-    assert str(exc.value) == "Project 'test_project_2' not found"
+    assert str(exc.value) == "Project matching query does not exist."
 
 
 @pytest.mark.usefixtures('test_mongo')
 def test_grant_user_projects_nonexistent_user(
         database, monkeypatch, command_runner):
     """Test granting a nonexistent user access to a project."""
-    database.projects.create("test_project")
+    Project.create(identifier="test_project", quota=0)
 
-    with pytest.raises(db.UserNotFoundError) as exc:
+    with pytest.raises(User.DoesNotExist) as exc:
         command_runner([
             "users", "project-rights", "grant", "fake_user", "test_project"
         ])
 
-    assert str(exc.value) == "User 'fake_user' not found"
+    assert str(exc.value) == "User matching query does not exist."
 
 
 @pytest.mark.usefixtures('test_mongo')
 def test_revoke_user_projects(database, command_runner):
     """Test revoking the user access to projects."""
-    user = db.Database().user("test")
-    user.create(projects=["test_project"])
+    User.create(username="test", projects=["test_project"])
 
     result = command_runner([
         "users", "project-rights", "revoke", "test", "test_project"
     ])
 
-    assert user.get_projects() == []
+    user = User.objects.get(username="test")
+
+    assert user.projects == []
     assert result.output == (
         "Revoked user 'test' access to project(s): test_project\n"
     )
@@ -320,7 +320,7 @@ def test_create_project(database, command_runner, quota):
     """Test creating a new project."""
     command_runner(["projects", "create", "test_project", "--quota", quota])
 
-    project = database.projects.get("test_project")
+    project = Project.objects.get(id="test_project")
     assert project["quota"] == quota
     assert project["used_quota"] == 0
 
@@ -344,9 +344,9 @@ def test_create_project_with_negative_quota(command_runner):
 @pytest.mark.usefixtures("test_mongo")
 def test_create_project_already_exists(database, command_runner):
     """Test creating a project that already exists."""
-    database.projects.create("test_project", quota=2048)
+    Project.create(identifier="test_project", quota=2048)
 
-    with pytest.raises(db.ProjectExistsError) as exc:
+    with pytest.raises(ProjectExistsError) as exc:
         command_runner([
             "projects", "create", "test_project", "--quota", "2048"
         ])
@@ -357,25 +357,26 @@ def test_create_project_already_exists(database, command_runner):
 @pytest.mark.usefixtures("test_mongo")
 def test_delete_project(database, command_runner):
     """Test deleting a project"""
-    database.projects.create("test_project", quota=2048)
+    Project.create(identifier="test_project", quota=2048)
 
     command_runner(["projects", "delete", "test_project"])
 
-    assert not database.projects.get("test_project")
+    with pytest.raises(Project.DoesNotExist):
+        Project.objects.get(id="test_project")
 
 
 @pytest.mark.parametrize("quota", [0, 1])
 @pytest.mark.usefixtures("test_mongo")
 def test_modify_project(command_runner, quota):
     """Test setting new quota for a project"""
-    db.Database().projects.create("test_project", quota=2048)
+    Project.create(identifier="test_project", quota=2048)
 
     result = command_runner([
         "projects", "modify", "test_project", "--quota", quota
     ])
 
     # Assert that quota has actually changed
-    project = db.Database().projects.get("test_project")
+    project = Project.objects.get(id="test_project")
     assert project["quota"] == quota
 
     # Assert that output tells the new quota
@@ -407,14 +408,14 @@ def test_modify_project_fail(command_runner):
 
 def test_get_file_by_path(command_runner, database):
     """Test displaying information of file specified by path."""
-    database.files.insert([{"path": "path_1",
-                            "checksum": "checksum_1",
-                            "identifier": "pid:urn:1"}])
+    DBFile(
+        path="/path_1", checksum="checksum_1", identifier="pid:urn:1"
+    ).save()
 
-    result = command_runner(["files", "get", "path", "path_1"])
+    result = command_runner(["files", "get", "path", "/path_1"])
     result_data = json.loads(result.output)
     correct_result = {
-        "_id": "path_1",
+        "_id": "/path_1",
         "checksum": "checksum_1",
         "identifier": "pid:urn:1"
     }
@@ -423,14 +424,14 @@ def test_get_file_by_path(command_runner, database):
 
 def test_get_file_by_identifier(command_runner, database):
     """Test displaying information of file specified by identifier."""
-    database.files.insert([{"path": "path_1",
-                            "checksum": "checksum_1",
-                            "identifier": "pid:urn:1"}])
+    DBFile(
+        path="/path_1", checksum="checksum_1", identifier="pid:urn:1"
+    ).save()
 
     result = command_runner(["files", "get", "identifier", "pid:urn:1"])
     result_data = json.loads(result.output)
     correct_result = {
-        "_id": "path_1",
+        "_id": "/path_1",
         "checksum": "checksum_1",
         "identifier": "pid:urn:1"
     }
@@ -439,23 +440,18 @@ def test_get_file_by_identifier(command_runner, database):
 
 def test_list_files(database, command_runner):
     """Test listing all files."""
-    files = [
-        {"path": "path_1",
-         "identifier": "pid:urn:1",
-         "checksum": "checksum_1"},
-        {"path": "path_2",
-         "identifier": "pid:urn:2",
-         "checksum": "checksum_2"}
-    ]
-    database.files.insert(files)
+    DBFile.objects.insert([
+        DBFile(path="/path_1", identifier="pid:urn:1", checksum="checksum_1"),
+        DBFile(path="/path_2", identifier="pid:urn:2", checksum="checksum_2")
+    ])
 
     result = command_runner(["files", "list"])
     result_data = json.loads(result.output)
     assert result_data == [
-        {"_id": "path_1",
+        {"_id": "/path_1",
          "identifier": "pid:urn:1",
          "checksum": "checksum_1"},
-        {"_id": "path_2",
+        {"_id": "/path_2",
          "identifier": "pid:urn:2",
          "checksum": "checksum_2"}
     ]
@@ -463,15 +459,10 @@ def test_list_files(database, command_runner):
 
 def test_list_file_identifiers(database, command_runner):
     """Test listing all file identifiers."""
-    files = [
-        {"path": "path_1",
-         "identifier": "pid:urn:1",
-         "checksum": "checksum_1"},
-        {"path": "path_2",
-         "identifier": "pid:urn:2",
-         "checksum": "checksum_2"}
-    ]
-    database.files.insert(files)
+    DBFile.objects.insert([
+        DBFile(path="/path_1", identifier="pid:urn:1", checksum="checksum_1"),
+        DBFile(path="/path_2", identifier="pid:urn:2", checksum="checksum_2")
+    ])
 
     result = command_runner(["files", "list", "--identifiers-only"])
     result_data = json.loads(result.output)
@@ -480,15 +471,10 @@ def test_list_file_identifiers(database, command_runner):
 
 def test_list_checksums(database, command_runner):
     """Test listing all file checksums."""
-    files = [
-        {"path": "path_1",
-         "identifier": "pid:urn:1",
-         "checksum": "checksum_1"},
-        {"path": "path_2",
-         "identifier": "pid:urn:2",
-         "checksum": "checksum_2"}
-    ]
-    database.files.insert(files)
+    DBFile.objects.insert([
+        DBFile(path="/path_1", identifier="pid:urn:1", checksum="checksum_1"),
+        DBFile(path="/path_2", identifier="pid:urn:2", checksum="checksum_2")
+    ])
 
     result = command_runner(["files", "list", "--checksums-only"])
     result_data = json.loads(result.output)

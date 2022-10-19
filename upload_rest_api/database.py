@@ -1,24 +1,21 @@
 """Module for accessing user database."""
-import binascii
 import datetime
 import hashlib
-import json
+import logging
 import os
 import random
-import re
 import secrets
 import time
 import uuid
+from enum import Enum
 from pathlib import Path
 from string import ascii_letters, digits
 
-import dateutil
-import dateutil.parser
-import pymongo
 from bson.binary import Binary
-from bson.codec_options import CodecOptions
-from bson.objectid import ObjectId
-from pymongo.errors import DuplicateKeyError
+from mongoengine import (BinaryField, BooleanField, DateTimeField, DictField,
+                         Document, EnumField, FloatField, ListField, LongField,
+                         NotUniqueError, QuerySet, StringField, UUIDField,
+                         ValidationError, connect)
 from redis import Redis
 from rq.exceptions import NoSuchJobError
 from rq.job import Job
@@ -34,6 +31,16 @@ SALT_LEN = 20
 # Hashing vars
 ITERATIONS = 200000
 HASH_ALG = "sha512"
+
+try:
+    connect(
+        host=f"mongodb://{CONFIG['MONGO_HOST']}:{CONFIG['MONGO_PORT']}/upload",
+        tz_aware=True
+    )
+except KeyError:
+    logging.error(
+        "MongoDB configuration missing, database connection not configured!"
+    )
 
 
 def get_random_string(chars):
@@ -88,20 +95,8 @@ class UserExistsError(Exception):
     """Exception for trying to create a user, which already exists."""
 
 
-class UserNotFoundError(Exception):
-    """Exception for querying a user, which does not exist."""
-
-
 class ProjectExistsError(Exception):
     """Exception for trying to create a project which already exists."""
-
-
-class ProjectNotFoundError(Exception):
-    """Exception for querying a project which does not exist."""
-
-
-class TaskNotFoundError(Exception):
-    """Exception for querying a task, which does not exist."""
 
 
 class TokenInvalidError(Exception):
@@ -111,75 +106,21 @@ class TokenInvalidError(Exception):
     """
 
 
-class Database:
-    """Class for accessing data in mongodb."""
+class User(Document):
+    """Database collection for users"""
+    username = StringField(primary_key=True, required=True)
 
-    def __init__(self):
-        """Initialize connection to mongodb."""
-        conf = upload_rest_api.config.CONFIG
-        self.client = pymongo.MongoClient(conf["MONGO_HOST"],
-                                          conf["MONGO_PORT"])
+    # Salt and digest if password authentication is enabled for this user.
+    salt = StringField(required=False, null=True, default=None)
+    digest = BinaryField(required=False, null=True, default=None)
 
-    def get_all_users(self):
-        """Return a list of all the users in upload.users collection."""
-        users = self.client.upload.users
-        return sorted(users.find().distinct("_id"))
+    # Projects this user has access to
+    projects = ListField(StringField())
 
-    def user(self, username):
-        """Return user."""
-        return User(self.client, username)
+    meta = {"collection": "users"}
 
-    @property
-    def files(self):
-        """Return files collection."""
-        return Files(self.client)
-
-    @property
-    def projects(self):
-        """Return projects collection."""
-        return Projects(self.client)
-
-    @property
-    def tasks(self):
-        """Return tasks collection."""
-        return Tasks(self.client)
-
-    @property
-    def uploads(self):
-        """Return uploads collection."""
-        return Uploads(self.client)
-
-    @property
-    def tokens(self):
-        """Return tokens collection."""
-        return Tokens(self.client)
-
-
-class User:
-    """Class for managing users in the database."""
-
-    def __init__(self, client, username):
-        """Initialize User instances.
-
-        :param username: Used as primary key _id
-        """
-        self.users = client.upload.users
-        self.username = username
-        self.projects = []
-
-    def __repr__(self):
-        """User instance representation."""
-        user = self.users.find_one({"_id": self.username})
-
-        if user is None:
-            return "User not found"
-
-        salt = user["salt"]
-        digest = binascii.hexlify(user["digest"])
-
-        return f"_id: {self.username}\nsalt: {salt}\ndigest: {digest}"
-
-    def create(self, projects=None, password=None):
+    @classmethod
+    def create(cls, username, projects=None, password=None):
         """Add new user to the database.
 
         Salt is always generated randomly, but password can be set by
@@ -189,484 +130,220 @@ class User:
         :param password: Password of the created user
         :returns: The password
         """
+        new_user = cls(username=username)
         if projects is None:
             projects = []
+
+        new_user.projects = projects
 
         if password is not None:
             passwd = password
         else:
             passwd = get_random_string(PASSWD_LEN)
 
-        salt = get_random_string(SALT_LEN)
-        digest = hash_passwd(passwd, salt)
+        new_user.salt = get_random_string(SALT_LEN)
+        new_user.digest = hash_passwd(passwd, new_user.salt)
 
         try:
-            self.users.insert_one(
-                {
-                    "_id": self.username,
-                    "projects": projects,
-                    "digest": digest,
-                    "salt": salt,
-                }
-            )
-        except DuplicateKeyError as exc:
+            new_user.save(force_insert=True)
+        except NotUniqueError as exc:
             raise UserExistsError(
-                f"User '{self.username}' already exists"
+                f"User '{username}' already exists"
             ) from exc
-
-        return passwd
+        return new_user
 
     def change_password(self):
         """Change user password."""
         passwd = get_random_string(PASSWD_LEN)
-        salt = get_random_string(SALT_LEN)
-        digest = hash_passwd(passwd, salt)
-
-        self.users.update_one(
-            {"_id": self.username},
-            {"$set": {
-                "salt": salt,
-                "digest": digest
-            }}
-        )
+        self.salt = get_random_string(SALT_LEN)
+        self.digest = hash_passwd(passwd, self.salt)
+        self.save()
 
         return passwd
 
     def grant_project(self, project):
         """Grant user access to the given project."""
-        database = Database()
-        if not database.projects.get(project):
-            raise ProjectNotFoundError(f"Project '{project}' not found")
+        project = Project.objects.get(id=project)
 
-        result = self.users.update_one(
-            {"_id": self.username},
-            {"$addToSet": {"projects": project}}
-        )
+        if project not in self.projects:
+            self.projects.append(project.id)
 
-        if result.matched_count == 0:
-            raise UserNotFoundError(f"User '{self.username}' not found")
+        self.save()
 
     def revoke_project(self, project):
         """Revoke user access to the given project."""
-        result = self.users.update_one(
-            {"_id": self.username},
-            {"$pull": {"projects": project}}
-        )
-
-        if result.matched_count == 0:
-            raise UserNotFoundError(f"User '{self.username}' not found")
-
-    def delete(self):
-        """Delete existing user."""
-        # Raise exception if user does not exist
-        if not self.exists():
-            raise UserNotFoundError(f"User '{self.username}' not found")
-
-        self.users.delete_one({"_id": self.username})
-
-    def get(self):
-        """Return existing user."""
-        # Raise exception if user does not exist
-        if not self.exists():
-            raise UserNotFoundError(f"User '{self.username}' not found")
-
-        return self.users.find_one({"_id": self.username})
-
-    def get_utf8(self):
-        """Return existing user with digest in utf8 format."""
-        # Raise exception if user does not exist
-        if not self.exists():
-            raise UserNotFoundError(f"User '{self.username}' not found")
-
-        user = self.users.find_one({"_id": self.username})
-        user["digest"] = binascii.hexlify(user["digest"]).decode("utf-8")
-
-        return user
-
-    def get_quota(self):
-        """Return the overall quota of the user."""
-        # Raise exception if user does not exist
-        if not self.exists():
-            raise UserNotFoundError(f"User '{self.username}' not found")
-
-        return self.users.find_one({"_id": self.username})["quota"]
-
-    def get_used_quota(self):
-        """Return the used quota of the user."""
-        # Raise exception if user does not exist
-        if not self.exists():
-            raise UserNotFoundError(f"User '{self.username}' not found")
-
-        return self.users.find_one({"_id": self.username})["used_quota"]
-
-    def set_quota(self, quota):
-        """Set the quota of the user."""
-        # Raise exception if user does not exist
-        if not self.exists():
-            raise UserNotFoundError(f"User '{self.username}' not found")
-
-        self.users.update_one(
-            {"_id": self.username},
-            {"$set": {"quota": quota}}
-        )
-
-    def set_used_quota(self, used_quota):
-        """Set the used quota of the user."""
-        # Raise exception if user does not exist
-        if not self.exists():
-            raise UserNotFoundError(f"User '{self.username}' not found")
-
-        self.users.update_one(
-            {"_id": self.username},
-            {"$set": {"used_quota": used_quota}}
-        )
-
-    def get_projects(self):
-        """Get user projects."""
-        result = self.users.find_one({"_id": self.username})
-        if not result:
-            raise UserNotFoundError(f"User '{self.username}' not found")
-
-        return result["projects"]
-
-    def exists(self):
-        """Check if the user is found in the db."""
-        return self.users.find_one({"_id": self.username}) is not None
+        self.projects.remove(project)
+        self.save()
 
 
-class Files:
-    """Class for managing files in the database."""
+def _validate_file_path(path):
+    """Validate that the file path is non-empty and starts with a slash."""
+    if path == "":
+        raise ValidationError("File path cannot be empty")
+    if not path.startswith("/"):
+        raise ValidationError("File path cannot be relative")
 
-    def __init__(self, client):
-        """Initialize Files instances."""
-        self.files = client.upload.files
 
-    def get(self, file_path):
-        """Get file document based on file path."""
-        return self.files.find_one({"_id": file_path})
+class FileQuerySet(QuerySet):
+    """
+    Custom query set for File documents that provides a function for
+    deleting files in multiple queries to avoid hitting the MongoDB query
+    size limit
+    """
+    def in_dir(self, path):
+        """Filter query to only include files in given directory."""
+        return self.filter(path__startswith=f"{path}/")
 
-    def get_by_identifier(self, identifier):
-        """Get file document based on file identifier."""
-        return self.files.find_one({"identifier": identifier})
+    def bulk_delete_by_paths(self, paths):
+        """Delete multiple documents identified by file paths.
 
-    def get_path(self, identifier):
-        """Get file path based on file identifier."""
-        _file = self.files.find_one({"identifier": identifier})
-        if _file is None:
-            return None
-
-        return _file["_id"]
-
-    def get_identifier(self, fpath):
-        """Get identifier based on file_path."""
-        _file = self.files.find_one({"_id": str(fpath)})
-
-        if _file is None or "identifier" not in _file.keys():
-            return None
-
-        return _file["identifier"]
-
-    def get_checksum(self, filepath):
-        """Get checksum of a single file."""
-        _file = self.files.find_one({"_id": filepath})
-        if _file is None:
-            return None
-
-        return _file["checksum"]
-
-    def insert(self, files):
-        """Insert multiple files into the files collection.
-
-        :param files: List of dicts {"path": file path
-                                     "checksum": checksum,
-                                     "identifier": identifier}
-        :returns: Number of documents inserted
-        """
-        documents = [
-            {
-                "_id": file["path"],
-                "checksum": file["checksum"],
-                "identifier": file["identifier"],
-            } for file in files
-        ]
-        return len(self.files.insert_many(documents).inserted_ids)
-
-    def delete(self, paths):
-        """Delete multiple documents, identified by file path, from the files
-        collection.
+        The deletion is performed using multiple queries to avoid hitting
+        the maximum query size limit.
 
         :param paths: List of paths to be removed
-        :returns: Number of documents deleted
         """
-        # Split list of file path names to delete into chunks as a workaround
-        # to MongoDB's 16 MB query size limitation.
-        # 10,000 path names per chunk is enough provided path names are no
-        # longer than 1,600 characters.
         file_path_chunks = [
             paths[i:i+10000] for i in range(0, len(paths), 10000)
         ]
 
-        deleted_count = 0
-        for chunk in file_path_chunks:
-            deleted_count += self.files.delete_many(
-                {"_id": {"$in": chunk}}
-            ).deleted_count
+        deleted_count = sum(
+            self.filter(path__in=file_path_chunk).delete()
+            for file_path_chunk in file_path_chunks
+        )
 
         return deleted_count
 
-    def delete_one(self, file_path):
-        """Delete one file document.
 
-        :param file_path: file_path of the document to be removed
-        :returns: Number of documents deleted
+class DBFile(Document):
+    """File stored in the pre-ingest file storage."""
+    # Absolute file system path for the file. *NOT* the relative path
+    # that is shown to the user.
+    path = StringField(
+        primary_key=True, required=True, validation=_validate_file_path
+    )
+
+    # MD5 checksum of the file
+    checksum = StringField(required=True)
+    # Metax identifier of the file
+    identifier = StringField(required=True, unique=True)
+
+    meta = {
+        "collection": "files",
+        "queryset_class": FileQuerySet,
+        # Do not auto create indexes. Otherwise, index will be created
+        # on first query which can lead to slow performance until the creation
+        # is finished, or a crash if the existing collection data conflicts
+        # with the index parameters
+        # (for example, unique index fails creation because there are
+        #  already duplicate values in the collection).
+        # Instead, create a CLI script that simply calls
+        # `DocumentName.ensure_indexes()` that we can run during a maintenance
+        # break.
+        "auto_create_index": False,
+        "indexes": [
+            # Index created before MongoEngine migration
+            {
+                "name": "identifier_1",
+                "fields": ["identifier"]
+            }
+        ]
+    }
+
+    @classmethod
+    def get_path_checksum_dict(cls):
+        """Return {filepath: checksum} dict of every file."""
+        return {
+            file_["_id"]: file_["checksum"]
+            for file_ in cls.objects.only("path", "checksum").as_pymongo()
+        }
+
+
+class TaskStatus(Enum):
+    """Task status for background tasks."""
+    PENDING = "pending"
+    ERROR = "error"
+    DONE = "done"
+
+
+class TaskQuerySet(QuerySet):
+    """
+    Custom query set for Task documents that takes care of automatically
+    synchronizing the state between the tasks on RQ and MongoDB.
+    """
+    def get(self, *args, **kwargs):
         """
-        return self.files.delete_one({"_id": file_path}).deleted_count
-
-    def iter_files_in_dir(self, file_path):
-        """Retrieve all files recursively under the given path.
-
-        :returns: List of file documents
+        Custom getter that also checks the RQ at the same time and synchronizes
+        the state for both if necessary
         """
-        escaped_file_path = re.escape(str(file_path))
-        files = self.files.find(
-            {"_id": {"$regex": f"^{escaped_file_path}/"}}
-        )
-        for file_ in files:
-            yield file_
+        task = super().get(*args, **kwargs)
 
-    def get_all_ids(self):
-        """Return a list of all stored identifiers."""
-        documents = self.files.find(
-            {"identifier": {"$exists": True}},
-            {"_id": False, "identifier": True}
-        )
-        return [document["identifier"] for document in documents]
-
-    def get_all_checksums(self):
-        """Return a list of all checksums stored."""
-        documents = self.files.find({}, {"_id": False, "checksum": True})
-        return [document["checksum"] for document in documents]
-
-    def get_all_files(self):
-        """Return a list of all file documents."""
-        return list(self.iter_all_files())
-
-    def iter_all_files(self):
-        """Return an iterator of all file documents."""
-        return self.files.find()
-
-    def get_path_checksum_dict(self):
-        """Return files as a dict of filepath as key and checksum as value."""
-        documents = self.files.find({}, {"_id": True, "checksum": True})
-        return {doc["_id"]: doc["checksum"] for doc in documents}
-
-
-class Tasks:
-    """Class for managing tasks in the database."""
-
-    def __init__(self, client):
-        """Initialize Tasks instance."""
-        self.tasks = client.upload.tasks
-        self.task_messages = client.upload.task_messages
-
-    def create(self, project_id):
-        """Create one task document.
-
-        :param str project_id: project name
-        :returns: str: task id as string
-        """
-        return self.tasks.insert_one({"project": project_id,
-                                      "timestamp": time.time(),
-                                      "status": 'pending'}).inserted_id
-
-    def delete_one(self, identifier):
-        """Delete one task document.
-
-        :param identifier: _id of the document to be removed
-        :returns: Number of documents deleted
-        """
-        self.task_messages.delete_many({"task_id": ObjectId(identifier)})
-
-        return self.tasks.delete_one(
-            {"_id": ObjectId(identifier)}
-        ).deleted_count
-
-    def delete(self, ids):
-        """Delete multiple documents from the tasks collection.
-
-        :param ids: List of identifiers to be removed
-        :returns: Number of documents deleted
-        """
-        obj_ids = []
-        for identifier in ids:
-            obj_ids.append(ObjectId(identifier))
-
-        self.task_messages.delete_many({"task_id": {"$in": obj_ids}})
-        return self.tasks.delete_many({"_id": {"$in": obj_ids}}).deleted_count
-
-    def find(self, project_id, status):
-        """Find tasks.
-
-        Return number of tasks for user having certain status for
-        project.
-
-        :param str project_id: project name
-        :param str status: status of task
-        :param bool include_message: whether to include task messages
-                                     in the results
-        :returns: Found tasks
-        """
-        tasks = list(self.tasks.find({
-            "project": project_id, "status": status
-        }))
-
-        return tasks
-
-    def _sync_task_status(self, task):
-        """Syncronize task status.
-
-        Check if the corresponding MongoDB task is in the failed RQ
-        queue. If it is, update the MongoDB task entry correspondingly.
-
-        This is used when the exception handler that updates the MongoDB
-        entry was not executed. One case where this can happen is if the
-        worker is killed by the out-of-memory killer.
-        """
-        task_id = str(task["_id"])
+        task_id = str(task.id)
 
         try:
             job = Job.fetch(task_id, connection=get_redis_connection())
         except NoSuchJobError:
             return task
 
-        if job.is_failed and task["status"] != "error":
-            self.update_status(task_id, "error")
-            self.update_message(task_id, "Internal server error")
-            task = self.tasks.find_one({"_id": ObjectId(task_id)})
+        # If the job has failed, update the status accordingly before
+        # returning it to the user.
+        if job.is_failed and task.status != TaskStatus.ERROR:
+            task.status = TaskStatus.ERROR
+            task.message = "Internal server error"
+            task.save()
 
         return task
 
-    def get(self, task_id):
-        """Return task document based on task_id.
 
-        :param str task_id: task identifier string
-        :returns: task document
+class Task(Document):
+    """Background task."""
+    project_id = StringField(required=True)
+    # Task UNIX timestamp
+    # TODO: Convert this to use the proper date type?
+    timestamp = FloatField(null=False, default=time.time)
+
+    # Status of the task
+    status = EnumField(TaskStatus, default=TaskStatus.PENDING)
+    # Optional status message for the task
+    message = StringField(required=False)
+    errors = ListField(DictField())
+
+    meta = {
+        "collection": "tasks",
+        "queryset_class": TaskQuerySet
+    }
+
+
+class DBUpload(Document):
+    """Database entry for an upload."""
+    # The upload ID created by flask-tus-io, used to identify the upload.
+    id = StringField(primary_key=True, required=True)
+    # Absolute upload path for the file
+    upload_path = StringField(required=True)
+    project = StringField(required=True)
+
+    # Size of the file to upload in bytes
+    size = LongField(required=True)
+
+    meta = {
+        "collection": "uploads"
+    }
+
+    @classmethod
+    def create(cls, project_id, upload_path, resource):
+        """Create upload database entry from the given tus resource.
         """
-        task = self.tasks.find_one({"_id": ObjectId(task_id)})
-        if task:
-            # Synchronize RQ and MongoDB state if they're out of sync
-            task = self._sync_task_status(task)
-
-        return task
-
-    def update_status(self, task_id, status):
-        """Update status of the task.
-
-        :param str task_id: task id as string
-        :param str status: new status for the task
-        """
-        result = self.tasks.update_one(
-            {"_id": ObjectId(task_id)},
-            {"$set": {"status": status}}
+        upload = cls(
+            id=resource.identifier,
+            project=project_id,
+            upload_path=str(upload_path),
+            size=resource.upload_length
         )
+        upload.save(force_insert=True)
 
-        if result.matched_count == 0:
-            raise TaskNotFoundError(f"Task '{task_id}' not found")
+        return upload
 
-    def update_message(self, task_id, message):
-        """Update message of the task.
-
-        :param str task_id: task id as string
-        :param str message: new message for the task
-        """
-        result = self.tasks.update_one(
-            {"_id": ObjectId(task_id)},
-            {"$set": {"message": message}}
-        )
-        if result.matched_count == 0:
-            raise TaskNotFoundError(f"Task '{task_id}' not found")
-
-    def update_error(self, task_id, error_message, files=None):
-        """Update error information of the task.
-
-        :param str task_id: task id as string
-        :param str error_message: Error message
-        :param list files: Files that caused error
-        """
-        result = self.tasks.update_one(
-            {
-                "_id": ObjectId(task_id)
-            },
-            {
-                "$set": {
-                    "errors": [
-                        {
-                            "message": error_message,
-                            "files": files
-                        }
-                    ]
-                }
-            }
-        )
-
-        if result.matched_count == 0:
-            raise TaskNotFoundError(f"Task '{task_id}' not found")
-
-    def get_all_tasks(self):
-        """Return all tasks."""
-        # Messages are *not* included in the response to prevent
-        # unnecessary memory usage
-        return self.tasks.find()
-
-
-class Uploads:
-    """Class for managing pending uploads in the database."""
-
-    def __init__(self, client):
-        """Initialize Tasks instance."""
-        self.uploads = client.upload.uploads
-
-    def create(self, project_id, upload_path, resource):
-        """Create one upload document.
-
-        :param str project_id: Project identifier
-        :param str upload_path: Path to the final location of the file or
-                                extraction destination
-        :param resource: tus resource corresponding to the upload
-        :returns: ID of the created upload instance
-        """
-        return self.uploads.insert_one({
-            # Resource ID contains an UUID, making it safe to use as an
-            # unique identifier
-            "_id": resource.identifier,
-            "upload_path": upload_path,
-            "project": project_id,
-            "size": resource.upload_length
-        }).inserted_id
-
-    def delete_one(self, identifier):
-        """Delete one Upload document.
-
-        :param str identifier: Resource ID of the document to be removed
-        :returns: Number of documents deleted
-
-        .. note::
-
-            This will *not* remove the corresponding tus workspace from disk.
-        """
-        return self.uploads.delete_one(
-            {"_id": identifier}
-        ).deleted_count
-
-    def delete(self, ids):
-        """Delete multiple documents from the uploads collection.
-
-        :param ids: List of identifiers to be removed
-        :returns: Number of documents deleted
-        """
-        return self.uploads.delete_many({"_id": {"$in": ids}}).deleted_count
-
-    def get_project_allocated_quota(self, project_id):
+    @classmethod
+    def get_project_allocated_quota(cls, project_id):
         """Get the amount of bytes currently allocated for an user's tus
         uploads.
 
@@ -675,23 +352,48 @@ class Uploads:
 
         :param project_id: Project identifier
         """
-        uploads = self.uploads.find({"project": project_id})
-
-        return sum(upload["size"] for upload in uploads)
+        return cls.objects.filter(project=project_id).sum("size")
 
 
-class Tokens:
-    """Class for managing user tokens."""
+def _validate_expiration_date(expiration_date):
+    """
+    Validate that the expiration date has time zone information if provided.
+    """
+    if isinstance(expiration_date, datetime.datetime) and \
+            not expiration_date.tzinfo:
+        raise ValidationError("Expiration date requires 'tzinfo'")
 
-    def __init__(self, client):
-        """Initialize Tokens instance."""
-        self.tokens = client.upload.get_collection(
-            "tokens",
-            CodecOptions(tz_aware=True, tzinfo=datetime.timezone.utc)
-        )
 
+class Token(Document):
+    """Authentication token for the pre-ingest file storage."""
+    id = UUIDField(primary_key=True)
+
+    # User-provided name for the token
+    name = StringField()
+    # User the token is intended for
+    username = StringField(required=True)
+    # List of projects this token grants access to
+    projects = ListField(StringField())
+
+    # SHA256 token hash
+    token_hash = StringField(required=True)
+    expiration_date = DateTimeField(
+        null=True, validation=_validate_expiration_date
+    )
+
+    # Whether the token has admin privileges.
+    admin = BooleanField(default=False)
+
+    # Whether the token is a temporary session token.
+    # Session tokens are automatically cleaned up periodically without
+    # user intereaction.
+    session = BooleanField(default=False)
+
+    meta = {"collection": "tasks"}
+
+    @classmethod
     def create(
-            self, name, username, projects, expiration_date=None,
+            cls, name, username, projects, expiration_date=None,
             admin=False, session=False):
         """Create one token.
 
@@ -711,46 +413,36 @@ class Tokens:
         # Token contains 256 bits of randomness per Python doc recommendation
         token = f"fddps-{secrets.token_urlsafe(32)}"
 
-        # Expiration date is optional, but if provided, it must have
-        # time zone information
-        is_valid_expiration_date = (
-            not expiration_date
-            or (
-                isinstance(expiration_date, datetime.datetime)
-                and expiration_date.tzinfo
-            )
-        )
-
-        if not is_valid_expiration_date:
-            raise TypeError("expiration_date is not a valid datetime object")
-
         token_hash = hashlib.sha256(token.encode("utf-8")).hexdigest()
-        data = {
-            # _id is only used to identify the token, but it doesn't
-            # allow authorization. This is used when the user wants to specify
-            # a created token (eg. when deleting an existing token).
-            "_id": str(uuid.uuid4()),
-            "name": name,
-            "username": username,
-            "projects": projects,
-            "token_hash": token_hash,
-            "expiration_date": expiration_date,
-            "session": session,
-            "admin": admin
-        }
-
-        self.tokens.insert_one(data)
-        self._cache_token_data_to_redis(data)
+        new_token = cls(
+            id=str(uuid.uuid4()),
+            name=name,
+            username=username,
+            projects=projects,
+            token_hash=token_hash,
+            expiration_date=expiration_date,
+            session=session,
+            admin=admin
+        )
+        new_token.save()
+        new_token._cache_token_to_redis()
 
         # Include the token in the initial creation request.
         # Only the SHA256 hash will be stored in the database.
-        data["token"] = token
-        del data["token_hash"]
+        data = {
+            "_id": new_token.id,
+            "name": name,
+            "username": username,
+            "projects": projects,
+            "expiration_date": expiration_date,
+            "session": session,
+            "admin": admin,
+            "token": token
+        }
 
         return data
 
-    @classmethod
-    def _cache_token_data_to_redis(cls, data):
+    def _cache_token_to_redis(self):
         """
         Cache given token data to Redis.
 
@@ -758,21 +450,13 @@ class Tokens:
         """
         redis = get_redis_connection()
 
-        redis_data = data.copy()
-        token_hash = redis_data["token_hash"]
-
-        del redis_data["token_hash"]
-
-        expiration_date = redis_data["expiration_date"]
-        if expiration_date:
-            redis_data["expiration_date"] = expiration_date.isoformat()
-
         redis.set(
-            f"fddps-token:{token_hash}", json.dumps(redis_data),
+            f"fddps-token:{self.token_hash}", self.to_json(),
             ex=30 * 60  # Cache token for 30 minutes
         )
 
-    def get_by_token(self, token):
+    @classmethod
+    def get_by_token(cls, token):
         """Get the token from the database using the token itself.
 
         .. note::
@@ -786,167 +470,101 @@ class Tokens:
 
         result = redis.get(f"fddps-token:{token_hash}")
         if result:
-            result = json.loads(result)
-            if result["expiration_date"]:
-                result["expiration_date"] = dateutil.parser.parse(
-                    result["expiration_date"]
-                )
+            token_ = cls.from_json(result)
         else:
             # Token not in Redis cache, use MongoDB instead
-            result = self.tokens.find_one({
-                "token_hash": token_hash
-            })
+            token_ = cls.objects.get(token_hash=token_hash)
 
-            if result:
-                self._cache_token_data_to_redis(result)
+            if token_:
+                token_._cache_token_to_redis()
 
-        if not result:
-            raise ValueError("Token not found")
+        return token_
 
-        return result
-
-    def get_and_validate(self, token):
+    @classmethod
+    def get_and_validate(cls, token):
         """Get the token from the database and validate it.
 
         :raises TokenInvalidError: Token is invalid
         """
-        try:
-            result = self.get_by_token(token=token)
-        except ValueError as exc:
-            raise TokenInvalidError("Token not found") from exc
+        result = cls.get_by_token(token=token)
 
-        if not result["expiration_date"]:
+        if not result.expiration_date:
             # No expiration date, meaning token is automatically valid
             return result
 
         now = datetime.datetime.now(datetime.timezone.utc)
 
-        if result["expiration_date"] < now:
+        if result.expiration_date < now:
             raise TokenInvalidError("Token has expired")
 
         return result
 
-    def delete(self, identifier):
+    def delete(self):
         """Delete the given token.
 
         :returns: Number of deleted documents, either 1 or 0
         """
         redis = get_redis_connection()
+        redis.delete(f"fddps-token:{self.token_hash}")
 
-        # We need to know the token hash in order to delete it from Redis as
-        # well
-        token_hash = self.tokens.find_one({"_id": identifier})["token_hash"]
+        return super().delete()
 
-        result = self.tokens.delete_one({"_id": identifier}).deleted_count
-        redis.delete(f"fddps-token:{token_hash}")
-
-        return result
-
-    def find(self, username):
+    @classmethod
+    def find(cls, username):
         """Find all user-created tokens belonging to an user."""
-        return list(
-            self.tokens.find({"username": username, "session": False})
-        )
+        return cls.objects.filter(username=username, session=False)
 
-    def clean_session_tokens(self):
+    @classmethod
+    def clean_session_tokens(cls):
         """Remove expired session tokens."""
         now = datetime.datetime.now(datetime.timezone.utc)
 
-        return self.tokens.delete_many(
-            {
-                "session": True,
-                "expiration_date": {"$lte": now, "$ne": None}
-            }
-        ).deleted_count
+        return cls.objects.filter(
+            session=True, expiration_date__lte=now, expiration_date__ne=None
+        ).delete()
 
 
-class Projects:
-    """Class for managing projects."""
+class Project(Document):
+    """Database entry for a project"""
+    id = StringField(primary_key=True)
 
-    def __init__(self, client):
-        """Initialize Projects instance."""
-        self.projects = client.upload.get_collection(
-            "projects",
-            CodecOptions(tz_aware=True, tzinfo=datetime.timezone.utc)
-        )
+    used_quota = LongField(default=0)
+    quota = LongField(default=0)
 
-    def create(self, identifier, quota=5 * 1024**3):
-        """Create one project.
+    meta = {"collection": "projects"}
 
-        :param str identifier: Project identifier.
-                               Also used as the displayed name.
-        :param int quota: Total quota for the project
-
-        :returns: Project entry as a dict
+    @classmethod
+    def create(cls, identifier, quota=5 * 1024**3):
+        """Create project and prepare the file storage directory.
         """
-        result = {
-            "_id": identifier,
-            "used_quota": 0,
-            "quota": int(quota)
-        }
+        project = cls(id=identifier, quota=int(quota))
 
         try:
-            self.projects.insert_one(result)
-            self.get_project_directory(identifier).mkdir(exist_ok=True)
-        except DuplicateKeyError as exc:
+            project.save(force_insert=True)
+        except NotUniqueError as exc:
             raise ProjectExistsError(
                 f"Project '{identifier}' already exists"
             ) from exc
 
-        return result
+        project.directory.mkdir(exist_ok=True)
 
-    def set_quota(self, identifier, quota):
-        """Change the quota for a project.
+        return project
 
-        :param str name: Project name
-        :param int quota: New quota for the project
-        """
-        result = self.projects.update_one(
-            {"_id": identifier},
-            {"$set": {"quota": int(quota)}}
-        )
+    @property
+    def directory(self):
+        return self.get_project_directory(self.id)
 
-        if result.matched_count == 0:
-            raise ProjectNotFoundError(f"Project '{identifier}' not found")
+    @property
+    def remaining_quota(self):
+        """Remaining quota as bytes"""
+        return self.quota - self.used_quota
 
-    def set_used_quota(self, identifier, used_quota):
-        """Set the used quota of the project."""
-        result = self.projects.update_one(
-            {"_id": identifier},
-            {"$set": {"used_quota": used_quota}}
-        )
-
-        if result.matched_count == 0:
-            raise ProjectNotFoundError(f"Project '{identifier}' not found")
-
-    def update_used_quota(self, identifier, root_upload_path):
+    def update_used_quota(self):
         """Update used quota of the project."""
-        path = parse_user_path(root_upload_path, identifier)
-        size = get_dir_size(path)
-        self.set_used_quota(identifier, size)
-
-    def delete(self, identifier):
-        """Delete single project.
-
-        :param str name: Project name
-        :returns: Whether the project was found and deleted
-        """
-        return self.projects.delete_one({"_id": identifier}).deleted_count
-
-    def get(self, identifier):
-        """Return project document based on the identifier.
-
-        :param str task_id: task identifier string
-        :returns: task document
-        """
-        return self.projects.find_one({"_id": identifier})
-
-    def get_all_projects(self):
-        """Return all project documents.
-
-        :returns: list of projects
-        """
-        return list(self.projects.find())
+        stored_size = get_dir_size(self.directory)
+        allocated_size = DBUpload.get_project_allocated_quota(self.id)
+        self.used_quota = stored_size + allocated_size
+        self.save()
 
     @classmethod
     def get_project_directory(cls, project_id):

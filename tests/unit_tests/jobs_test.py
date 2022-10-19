@@ -1,6 +1,8 @@
 """Unit tests for background jobs."""
 import pytest
 from rq import SimpleWorker
+
+from upload_rest_api.database import Task, TaskStatus
 from upload_rest_api.jobs.utils import (api_background_job,
                                         enqueue_background_job, get_job_queue)
 
@@ -18,7 +20,7 @@ def failing_task(task_id):
 
 
 @pytest.mark.usefixtures("app")
-def test_enqueue_background_job_successful(tasks_col, mock_redis):
+def test_enqueue_background_job_successful(mock_redis):
     """Test enqueuing a fake task using "enqueue_background_job"
     and ensure it can be executed properly.
     """
@@ -30,15 +32,19 @@ def test_enqueue_background_job_successful(tasks_col, mock_redis):
     )
 
     # Ensure the job is enqueued and MongoDB entry exists
-    pending_jobs = list(tasks_col.find("test_project", "pending"))
+    pending_jobs = list(
+        Task.objects.filter(
+            project_id="test_project", status=TaskStatus.PENDING
+        )
+    )
     assert len(pending_jobs) == 1
 
     job = pending_jobs[0]
-    assert str(job["_id"]) == job_id
+    assert str(job.id) == job_id
 
-    assert job["project"] == "test_project"
-    assert job["message"] == "processing"
-    assert job["status"] == "pending"
+    assert job.project_id == "test_project"
+    assert job.message == "processing"
+    assert job.status == TaskStatus.PENDING
 
     # Check that the Redis queue has the same job
     upload_queue = get_job_queue("upload")
@@ -53,7 +59,7 @@ def test_enqueue_background_job_successful(tasks_col, mock_redis):
 
 
 @pytest.mark.usefixtures("app")
-def test_enqueue_background_job_failing(tasks_col, mock_redis):
+def test_enqueue_background_job_failing(mock_redis):
     """Test enqueuing a fake task using "enqueue_background_job"
     and ensure it is handled properly if it raises an exception.
     """
@@ -65,15 +71,19 @@ def test_enqueue_background_job_failing(tasks_col, mock_redis):
     )
 
     # Ensure the job is enqueued and MongoDB entry exists
-    pending_jobs = list(tasks_col.find("test_project", "pending"))
+    pending_jobs = list(
+        Task.objects.filter(
+            project_id="test_project", status=TaskStatus.PENDING
+        )
+    )
     assert len(pending_jobs) == 1
 
     job = pending_jobs[0]
-    assert str(job["_id"]) == job_id
+    assert str(job.id) == job_id
 
-    assert job["project"] == "test_project"
-    assert job["message"] == "processing"
-    assert job["status"] == "pending"
+    assert job.project_id == "test_project"
+    assert job.message == "processing"
+    assert job.status == TaskStatus.PENDING
 
     # Check that the Redis queue has the same job
     upload_queue = get_job_queue("upload")
@@ -86,14 +96,16 @@ def test_enqueue_background_job_failing(tasks_col, mock_redis):
 
     assert rq_job.is_failed
 
-    failed_jobs = list(tasks_col.find("test_project", "error"))
+    failed_jobs = list(
+        Task.objects.filter(project_id="test_project", status=TaskStatus.ERROR)
+    )
     assert len(failed_jobs) == 1
 
     assert failed_jobs[0]["message"] == "Internal server error"
 
 
 @pytest.mark.usefixtures("app")
-def test_enqueue_background_job_failing_out_of_sync(tasks_col, mock_redis):
+def test_enqueue_background_job_failing_out_of_sync(mock_redis):
     """Test enqueuing a fake task using "enqueue_background_job"
     and ensure it is handled properly if the failure is recorded in RQ
     but not MongoDB.
@@ -118,15 +130,17 @@ def test_enqueue_background_job_failing_out_of_sync(tasks_col, mock_redis):
 
     # Update the status in MongoDB to appear in-progress, while in RQ
     # it has already failed
-    tasks_col.update_message(job_id, "processing")
-    tasks_col.update_status(job_id, "pending")
+    task = Task.objects.get(id=job_id)
+    task.message = "processing"
+    task.status = TaskStatus.PENDING
+    task.save()
 
     # Retrieve the task from MongoDB; it should be automatically updated
     # to match the status in RQ
-    task = tasks_col.get(job_id)
+    task = Task.objects.get(id=job_id)
 
-    assert task["message"] == "Internal server error"
-    assert task["status"] == "error"
+    assert task.message == "Internal server error"
+    assert task.status == TaskStatus.ERROR
 
 
 @pytest.mark.usefixtures("app", "mock_redis")

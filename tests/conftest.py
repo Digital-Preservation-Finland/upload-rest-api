@@ -8,12 +8,13 @@ from pathlib import Path
 from runpy import run_path
 
 import fakeredis
-from mongobox import MongoBox
 import pytest
+from mongobox import MongoBox
+from mongoengine import connect, disconnect
 from rq import SimpleWorker
 
 import upload_rest_api.app as app_module
-import upload_rest_api.database as db
+from upload_rest_api.database import Project, User, Token
 from upload_rest_api.jobs.utils import get_job_queue
 from upload_rest_api.lock import ProjectLockManager
 
@@ -38,7 +39,7 @@ def upload_tmpdir(tmpdir):
 
 
 @pytest.yield_fixture(scope="function", autouse=True)
-def mock_config(monkeypatch, upload_tmpdir):
+def mock_config(monkeypatch, upload_tmpdir, test_mongo):
     """Mock the generic configuration located in
     `upload_rest_api.config` that is accessible whether Flask is active
     or not.
@@ -77,6 +78,9 @@ def mock_config(monkeypatch, upload_tmpdir):
 
     monkeypatch.setitem(CONFIG, "TUS_API_SPOOL_PATH", str(temp_tus_path))
 
+    monkeypatch.setitem(CONFIG, "MONGO_HOST", test_mongo.address[0])
+    monkeypatch.setitem(CONFIG, "MONGO_PORT", test_mongo.address[1])
+
     yield CONFIG
 
 
@@ -85,7 +89,7 @@ def patch_hashing_iters(monkeypatch):
     """Run tests with only 2000 hashing iters to avoid CPU
     bottlenecking.
     """
-    monkeypatch.setattr(db, "ITERATIONS", 2000)
+    monkeypatch.setattr("upload_rest_api.database.ITERATIONS", 2000)
 
 
 @pytest.yield_fixture(autouse=True, scope="session")
@@ -105,18 +109,22 @@ def test_mongo():
     box.stop()
 
 
-@pytest.fixture(scope="function", autouse=True)
-def patch_mongo(test_mongo, monkeypatch):
+@pytest.yield_fixture(scope="function", autouse=True)
+def mongoengine(test_mongo):
     """
-    Monkeypatch pymongo to use the test instance and clear the database
-    before each test
+    Connect MongoEngine to the MongoBox instance
     """
+    disconnect()
+    connect(
+        host=f"mongodb://{test_mongo.address[0]}:{test_mongo.address[1]}/upload",
+        tz_aware=True
+    )
+    yield
     test_mongo.drop_database("upload")
-    monkeypatch.setattr("pymongo.MongoClient", lambda *args: test_mongo)
 
 
 @pytest.yield_fixture(autouse=True)
-def db_logging_fx(patch_mongo, test_mongo, request):
+def db_logging_fx(test_mongo, request):
     """
     Optionally print list of database queries made during a test.
 
@@ -148,18 +156,18 @@ def mock_redis(monkeypatch):
     """Patch job queue to use a mock Redis."""
     conn = fakeredis.FakeStrictRedis()
 
-    monkeypatch.setattr(
-        "upload_rest_api.checksum.get_redis_connection",
-        lambda: conn
-    )
-    monkeypatch.setattr(
-        "upload_rest_api.database.get_redis_connection",
-        lambda: conn
-    )
-    monkeypatch.setattr(
-        "upload_rest_api.lock.get_redis_connection",
-        lambda: conn
-    )
+    locations = [
+        "upload_rest_api.checksum",
+        "upload_rest_api.database",
+        "upload_rest_api.lock",
+        "upload_rest_api.jobs.utils"
+    ]
+
+    for location in locations:
+        monkeypatch.setattr(
+            f"{location}.get_redis_connection",
+            lambda: conn
+        )
 
     yield conn
 
@@ -237,20 +245,23 @@ def init_db(test_mongo, database):
     """Initialize user db."""
     test_mongo.drop_database("upload")
 
-    database.projects.create("test_project", quota=1000000)
-    database.projects.create("project", quota=12345678)
+    Project.create(identifier="test_project", quota=1000000)
+    Project.create(identifier="project", quota=12345678)
 
     # test user
-    user = database.user("test")
-    user.create(projects=["test_project"], password="test")
+    User.create(
+        username="test", projects=["test_project"], password="test"
+    )
 
     # test2 user with same project
-    user.username = "test2"
-    user.create(projects=["test_project"], password="test")
+    User.create(
+        username="test2", projects=["test_project"], password="test"
+    )
 
     # test3 user with different project
-    user.username = "test3"
-    user.create(projects=["project"], password="test")
+    User.create(
+        username="test3", projects=["project"], password="test"
+    )
 
 
 @pytest.yield_fixture(scope="function")
@@ -285,13 +296,13 @@ def app(test_mongo, mock_config, database, monkeypatch):
     yield flask_app
 
 
-@pytest.fixture(scope="function")
+@pytest.yield_fixture(scope="function")
 def database(test_mongo):
     """
     :returns: Database instance
     :rtype: upload_rest_api.database.Database instance
     """
-    return db.Database()
+    return None
 
 
 @pytest.yield_fixture(scope="function")
@@ -308,17 +319,16 @@ def user(test_mongo):
     """Initialize and return User instance with db connection through
     Mongobox.
     """
-    test_user = db.Database().user("test_user")
-    test_user.users = test_mongo.upload.users
-
-    return test_user
+    return User.create(username="test_user")
 
 
 @pytest.fixture(scope="function")
 def project(database):
     """Initialize and return a project dict
     """
-    return db.Database().projects.create("test_project")
+    project = Project(id="test_project")
+    project.save()
+    return project
 
 
 @pytest.fixture(scope="function")
@@ -326,10 +336,7 @@ def files_col(test_mongo):
     """Initialize and return Files instance with db connection through
     Mongobox.
     """
-    files_coll = db.Database().files
-    files_coll.files = test_mongo.upload.files
-
-    return files_coll
+    return test_mongo.upload.files
 
 
 @pytest.fixture(scope="function")
@@ -391,7 +398,7 @@ def wrong_auth():
 # usefixtures not supported in fixture functions
 def user_token_auth(test_client, test_mongo, database):
     """Returns credentials header containing an user token"""
-    token_data = db.Database().tokens.create(
+    token_data = Token.create(
         name="User test token",
         username="test",
         projects=["test_project", "project"],
@@ -408,7 +415,7 @@ def user_token_auth(test_client, test_mongo, database):
 @pytest.fixture(scope="function")
 def user2_token_auth(test_client, test_mongo, database):
     """Return credentials headers for a secondary user token"""
-    token_data = db.Database().tokens.create(
+    token_data = Token.create(
         name="User 2 test token",
         username="test2",
         projects=["test_project_2"],

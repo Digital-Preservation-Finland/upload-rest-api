@@ -3,8 +3,8 @@ from functools import wraps
 
 from rq import Queue
 
-import upload_rest_api.database as db
 from upload_rest_api.config import CONFIG
+from upload_rest_api.database import Task, TaskStatus, get_redis_connection
 
 FILES_QUEUE = "files"
 UPLOAD_QUEUE = "upload"
@@ -44,21 +44,29 @@ def api_background_job(func):
     @wraps(func)
     def wrapper(*args, **kwargs):
         task_id = kwargs["task_id"]
-        tasks = db.Database().tasks
+        task = Task.objects.get(id=task_id)
 
         try:
             result = func(*args, **kwargs)
         except ClientError as exception:
-            tasks.update_status(task_id, "error")
-            tasks.update_message(task_id, "Task failed")
-            tasks.update_error(task_id, exception.message, exception.files)
+            task.status = TaskStatus.ERROR
+            task.message = "Task failed"
+            task.errors = [
+                {
+                    "message": exception.message,
+                    "files": exception.files
+                }
+            ]
+            task.save()
         except Exception:
-            tasks.update_status(task_id, "error")
-            tasks.update_message(task_id, "Internal server error")
+            task.status = TaskStatus.ERROR
+            task.message = "Internal server error"
+            task.save()
             raise
         else:
-            tasks.update_status(task_id, "done")
-            tasks.update_message(task_id, result)
+            task.status = TaskStatus.DONE
+            task.message = result
+            task.save()
             return result
 
     return wrapper
@@ -72,7 +80,7 @@ def get_job_queue(queue_name):
     if queue_name not in JOB_QUEUE_NAMES:
         raise ValueError(f"Queue {queue_name} does not exist")
 
-    redis = db.get_redis_connection()
+    redis = get_redis_connection()
 
     return BackgroundJobQueue(queue_name, connection=redis)
 
@@ -89,9 +97,11 @@ def enqueue_background_job(task_func, queue_name, project_id, job_kwargs):
     """
     queue = get_job_queue(queue_name)
 
-    database = db.Database()
-    task_id = database.tasks.create(project_id)
-    database.tasks.update_message(task_id, "processing")
+    task = Task(project_id=project_id)
+    task.message = "processing"
+    task.save()
+
+    task_id = task.id
 
     job_kwargs["task_id"] = str(task_id)
 

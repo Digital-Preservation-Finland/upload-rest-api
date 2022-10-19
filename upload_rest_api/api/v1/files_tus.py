@@ -6,9 +6,9 @@ from flask import Blueprint, abort
 from upload_rest_api.authentication import current_user
 from upload_rest_api.checksum import (HASH_FUNCTION_ALIASES,
                                       calculate_incr_checksum)
-from upload_rest_api.database import Database
-from upload_rest_api.lock import ProjectLockManager
-from upload_rest_api.upload import create_upload, continue_upload
+from upload_rest_api.database import DBUpload
+from upload_rest_api.lock import lock_manager
+from upload_rest_api.upload import Upload, continue_upload, create_upload
 
 FILES_TUS_API_V1 = Blueprint(
     "files_tus_v1", __name__, url_prefix="/v1/files_tus"
@@ -30,28 +30,24 @@ def register_blueprint(app):
 
 def _release_lock(workspace):
     """Release file storage lock."""
-    uploads = Database().uploads
-
     resource = workspace.get_resource()
-    upload = uploads.uploads.find_one({"_id": resource.identifier})
-    if upload:
-        ProjectLockManager().release(upload["project"], upload["upload_path"])
+    try:
+        upload = DBUpload.objects.get(id=resource.identifier)
+        lock_manager.release(upload.project, upload.upload_path)
+    except DBUpload.DoesNotExist:
+        return
 
 
 def _delete_workspace(workspace):
     """Delete workspace and remove the corresponding database entry."""
-    uploads = Database().uploads
-
     resource = workspace.get_resource()
     workspace.remove()
-    uploads.delete_one(resource.identifier)
+    DBUpload.objects.filter(id=resource.identifier).delete()
 
 
 def _upload_started(workspace, resource):
     """Callback function called when a new upload is started."""
     try:
-        db = Database()
-        uploads = db.uploads
         upload_type = resource.upload_metadata["type"]
 
         if upload_type not in ("file", "archive"):
@@ -62,14 +58,16 @@ def _upload_started(workspace, resource):
         ):
             abort(403)
 
-        upload = create_upload(resource.upload_metadata['project_id'],
-                               resource.upload_metadata['upload_path'],
-                               resource.upload_length,
-                               upload_type=upload_type,
-                               identifier=resource.identifier)
+        upload = create_upload(
+            project=resource.upload_metadata['project_id'],
+            path=resource.upload_metadata['upload_path'],
+            size=resource.upload_length,
+            upload_type=upload_type,
+            identifier=resource.identifier
+        )
 
         # Quota is sufficient, create a new Upload entry
-        uploads.create(
+        DBUpload.create(
             project_id=resource.upload_metadata['project_id'],
             upload_path=str(upload.storage_path),
             resource=resource

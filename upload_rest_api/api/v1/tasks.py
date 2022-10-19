@@ -1,8 +1,9 @@
 """REST api for querying upload status."""
 from urllib.parse import urlparse, urlunparse
-from flask import Blueprint, jsonify, url_for, request
 
-import upload_rest_api.database as db
+from flask import Blueprint, jsonify, request, url_for
+
+from upload_rest_api.database import Task, TaskStatus
 
 TASK_STATUS_API_V1 = Blueprint("tasks_v1", __name__,
                                url_prefix="/v1/tasks")
@@ -34,21 +35,20 @@ def task_status(task_id):
     When task is not in pending state it will be removed automatically
     in GET. Further queries will return 404.
     """
-    tasks = db.Database().tasks
-    task = tasks.get(task_id)
-    if task is None:
-        response = _create_gone_response()
+    try:
+        task = Task.objects.get(id=task_id)
+    except Task.DoesNotExist:
+        return _create_gone_response()
 
-    else:
-        content = {'status': task["status"]}
-        if 'message' in task:
-            content["message"] = task["message"]
-        if 'errors' in task:
-            content['errors'] = task['errors']
-        response = jsonify(content)
+    content = {'status': task.status.value}
+    if task.message:
+        content["message"] = task.message
+    if task.errors:
+        content['errors'] = task.errors
+    response = jsonify(content)
 
-        if task["status"] != "pending":
-            tasks.delete_one(task_id)
+    if task.status != TaskStatus.PENDING:
+        task.delete()
 
     return response
 
@@ -59,12 +59,12 @@ def task_delete(task_id):
 
     Further queries will return 404.
     """
-    tasks = db.Database().tasks
-    task = tasks.get(task_id)
-    if task is None:
+    try:
+        task = Task.objects.get(id=task_id)
+    except Task.DoesNotExist:
         return _create_gone_response()
 
-    tasks.delete_one(task_id)
+    task.delete()
     response = jsonify({"message": "deleted"})
     response.status_code = 200
 

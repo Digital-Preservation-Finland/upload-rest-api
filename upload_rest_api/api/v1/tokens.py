@@ -9,7 +9,7 @@ import datetime
 import dateutil.parser
 from flask import Blueprint, abort, jsonify, request
 from upload_rest_api.authentication import current_user
-from upload_rest_api.database import Database, UserNotFoundError
+from upload_rest_api.database import User, Token
 
 TOKEN_API_V1 = Blueprint("tokens_v1", __name__, url_prefix="/v1/tokens")
 
@@ -51,8 +51,7 @@ def create_token():
     if expiration_date and expiration_date < now:
         abort(400, "'expiration_date' has already expired")
 
-    db = Database()
-    result = db.tokens.create(
+    data = Token.create(
         name=name,
         username=username,
         projects=projects,
@@ -60,8 +59,8 @@ def create_token():
     )
 
     return jsonify({
-        "identifier": result["_id"],
-        "token": result["token"]
+        "identifier": data["_id"],
+        "token": data["token"]
     })
 
 
@@ -81,24 +80,22 @@ def create_session_token():
     expiration_date = \
         datetime.datetime.now(tz=datetime.timezone.utc) + SESSION_TOKEN_PERIOD
 
-    db = Database()
     try:
-        user = db.user(username).get()
-    except UserNotFoundError:
+        user = User.objects.get(username=username)
+    except User.DoesNotExist:
         # Create the user automatically if one doesn't exist.
         # Since fddps-frontend tries to create a session token immediately
         # this ensures the user can be managed after they have logged in
         # at least once.
         # Administrator can later create and/or grant any needed projects;
         # by default the user cannot do anything.
-        user = db.user(username)
-        user.create()
-        user = user.get()
+        user = User.create(username)
+        user.save()
 
-    result = db.tokens.create(
+    result = Token.create(
         name=f"{username} session token",
         username=username,
-        projects=user["projects"],
+        projects=user.projects,
         session=True,
         expiration_date=expiration_date
     )
@@ -119,16 +116,19 @@ def list_tokens():
     if not current_user.is_allowed_to_list_tokens(username):
         abort(403, "User does not have permission to list tokens")
 
-    db = Database()
-    token_entries = db.tokens.find(username=username)
+    tokens = list(Token.objects.filter(username=username))
+    token_entries = []
 
     # Strip token hash from the results and rename '_id' field
-    for entry in token_entries:
-        entry["identifier"] = entry["_id"]
+    for token in tokens:
+        entry = token.to_mongo()
+        entry["identifier"] = token.id
         del entry["_id"]
         del entry["token_hash"]
         if entry["expiration_date"]:
             entry["expiration_date"] = entry["expiration_date"].isoformat()
+
+        token_entries.append(entry)
 
     return jsonify({
         "tokens": token_entries
@@ -155,12 +155,8 @@ def delete_token():
     if not token_id:
         abort(400, "'token_id' not provided")
 
-    db = Database()
-    deleted = db.tokens.delete(token_id)
-
-    if not deleted:
+    try:
+        Token.objects.get(id=token_id).delete()
+        return jsonify({"deleted": True})
+    except Token.DoesNotExist:
         abort(404, "Token not found")
-
-    return jsonify({
-        "deleted": True
-    })

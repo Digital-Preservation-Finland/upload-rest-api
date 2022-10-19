@@ -2,6 +2,8 @@
 
 import pytest
 
+from upload_rest_api.database import Token, User
+
 
 def test_create_token(test_client, admin_auth, database):
     """
@@ -22,7 +24,7 @@ def test_create_token(test_client, admin_auth, database):
     assert token
 
     # Token has correct permissions
-    token_data = database.tokens.get_by_token(token)
+    token_data = Token.get_by_token(token)
 
     assert token_data["name"] == "Test token"
     assert token_data["username"] == "sso_test_user"
@@ -112,7 +114,7 @@ def test_create_session_token(test_client, admin_auth, database):
     assert token
 
     # Token has correct permissions
-    token_data = database.tokens.get_by_token(token)
+    token_data = Token.get_by_token(token)
 
     assert token_data["name"] == "test session token"
     assert token_data["username"] == "test"
@@ -150,12 +152,12 @@ def test_create_session_token_new_user_created(
     assert response.json["token"]
 
     # User should be created without any default projects
-    user = database.user("acme_org/user").get()
-    assert user["_id"] == "acme_org/user"
-    assert user["projects"] == []
+    user = User.objects.get(username="acme_org/user")
+    assert user.username == "acme_org/user"
+    assert user.projects == []
 
 
-def test_list_tokens(test_client, admin_auth):
+def test_list_tokens(test_client, admin_auth, test_mongo):
     """
     Create multiple tokens and ensure they're included in the token
     listing
@@ -238,10 +240,8 @@ def test_delete_token(test_client, admin_auth, database):
     assert response.json["deleted"]
 
     # Token was really deleted
-    with pytest.raises(ValueError) as exc:
-        database.tokens.get_by_token(token)
-
-    assert str(exc.value) == "Token not found"
+    with pytest.raises(Token.DoesNotExist):
+        Token.get_by_token(token)
 
 
 def test_delete_token_permission_denied(
@@ -249,7 +249,7 @@ def test_delete_token_permission_denied(
     """
     Try deleting a token using an user token
     """
-    token_id = database.tokens.find("test")[0]["_id"]
+    token_id = Token.objects.get(username="test").id
     response = test_client.delete(
         "/v1/tokens/",
         data={
@@ -269,7 +269,7 @@ def test_delete_token_username_not_provided(test_client, admin_auth, database):
     """
     Try deleting a token without providing an username
     """
-    token_id = database.tokens.find("test")[0]["_id"]
+    token_id = Token.objects.get(username="test").id
     response = test_client.delete(
         "/v1/tokens/",
         data={

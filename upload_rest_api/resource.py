@@ -9,12 +9,11 @@ import shutil
 from metax_access import (DS_STATE_ACCEPTED_TO_DIGITAL_PRESERVATION,
                           DS_STATE_REJECTED_IN_DIGITAL_PRESERVATION_SERVICE)
 
-from upload_rest_api import database
 from upload_rest_api import gen_metadata
 from upload_rest_api.config import CONFIG
 from upload_rest_api.jobs.utils import FILES_QUEUE, enqueue_background_job
 from upload_rest_api.lock import lock_manager
-from upload_rest_api.project import Project
+from upload_rest_api.database import Project, DBFile
 
 
 class HasPendingDatasetError(Exception):
@@ -32,19 +31,21 @@ class InvalidPathError(Exception):
     """
 
 
-def get_resource(project, path):
+def get_resource(project_id, path):
     """Get existing file or directory.
 
     :param project: The project that owns the resource.
     :param path: Path of the resource.
     """
+    project = Project.objects.get(id=project_id)
+
     resource = Resource(project, path)
-    if not resource.storage_path.exists():
-        raise FileNotFoundError('Resource does not exist')
     if resource.storage_path.is_file():
         return File(project, path)
     if resource.storage_path.is_dir():
         return Directory(project, path)
+    if not resource.storage_path.exists():
+        raise FileNotFoundError('Resource does not exist')
 
     raise Exception('Resource is not file or directory')
 
@@ -55,7 +56,7 @@ class Resource():
     def __init__(self, project, path):
         """Initialize resource.
 
-        :param project: The project that owns the resource.
+        :param Project project: The project that owns the resource.
         :param path: Path of the resource.
         """
         path = str(path)  # Allow pathlib.Path objects or strings
@@ -69,8 +70,7 @@ class Resource():
             raise InvalidPathError('Invalid path') from error
 
         self.path = pathlib.Path('/') / relative_path
-        self.project = Project(project)
-        self.database = database.Database()
+        self.project = project
         self._datasets = None
         self.metax = gen_metadata.MetaxClient()
 
@@ -83,7 +83,7 @@ class Resource():
         """List all datasets in which the resource has been added."""
         if self._datasets is None:
             self._datasets \
-                = self.metax.get_file_datasets(self.project.identifier,
+                = self.metax.get_file_datasets(self.project.id,
                                                self.storage_path)
         return self._datasets
 
@@ -102,19 +102,33 @@ class Resource():
 
 class File(Resource):
     """File class."""
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
 
-    def _document(self):
-        return self.database.files.get(str(self.storage_path))
+        self._db_file = None
+
+    @property
+    def db_file(self):
+        """
+        The database entry for this file.
+
+        This property is lazy, meaning the database entry is not retrieved
+        until this property is accessed for the first time.
+        """
+        if not self._db_file:
+            self._db_file = DBFile.objects.get(path=str(self.storage_path))
+
+        return self._db_file
 
     @property
     def identifier(self):
         """Return identifier of file."""
-        return self._document()["identifier"]
+        return self.db_file.identifier
 
     @property
     def checksum(self):
         """Return checksum of file."""
-        return self._document()["checksum"]
+        return self.db_file.checksum
 
     @property
     def timestamp(self):
@@ -131,11 +145,11 @@ class File(Resource):
 
         root_upload_path = CONFIG.get("UPLOAD_PROJECTS_PATH")
 
-        with lock_manager.lock(self.project.identifier, self.storage_path):
+        with lock_manager.lock(self.project.id, self.storage_path):
             # Remove metadata from Metax
             try:
                 metax_response = self.metax.delete_file_metadata(
-                    self.project.identifier,
+                    self.project.id,
                     self.storage_path,
                     root_upload_path
                 )
@@ -143,11 +157,10 @@ class File(Resource):
                 metax_response = str(exception)
 
             # Remove checksum and identifier from mongo
-            self.database.files.delete_one(os.path.abspath(self.storage_path))
+            self.db_file.delete()
             os.remove(self.storage_path)
 
-            self.database.projects.update_used_quota(self.project.identifier,
-                                                     root_upload_path)
+            self.project.update_used_quota()
 
             return metax_response
 
@@ -158,21 +171,32 @@ class Directory(Resource):
     @property
     def identifier(self):
         """Return identifier of directory."""
-        return self.metax.client.get_project_directory(self.project.identifier,
+        return self.metax.client.get_project_directory(self.project.id,
                                                        self.path)['identifier']
 
-    def _entries(self):
+    def _get_entries(self):
         return list(os.scandir(self.storage_path))
 
     def get_files(self):
         """List of files in directory."""
-        return [File(self.project.identifier, self.path / entry.name)
-                for entry in self._entries() if entry.is_file()]
+        # TODO: Both 'get_files' and 'get_directories' are lazy when it comes
+        # to database access. This means the underlying database entry
+        # is not retrieved until it's accessed for the first time.
+        # This can lead to a "N + 1 query" performance issue if the identifier
+        # is retrieved from each file/directory, for example.
+        # Instead, we should preload any database entries that already exist
+        # in a bulk query and attach them to the instances here
+        return [
+            File(self.project, self.path / entry.name)
+            for entry in self._get_entries() if entry.is_file()
+        ]
 
     def get_directories(self):
         """List of directories in directory."""
-        return [Directory(self.project.identifier, self.path / entry.name)
-                for entry in self._entries() if entry.is_dir()]
+        return [
+            Directory(self.project, self.path / entry.name)
+            for entry in self._get_entries() if entry.is_dir()
+        ]
 
     def delete(self):
         """Delete directory."""
@@ -201,19 +225,19 @@ class Directory(Resource):
         # 4. Delete the temporary directory
         trash_id = secrets.token_hex(8)
 
-        trash_root = self.database.projects.get_trash_root(
-            project_id=self.project.identifier,
+        trash_root = Project.get_trash_root(
+            project_id=self.project.id,
             trash_id=trash_id
         )
-        trash_path = self.database.projects.get_trash_path(
-            project_id=self.project.identifier,
+        trash_path = Project.get_trash_path(
+            project_id=self.project.id,
             trash_id=trash_id,
             file_path=self.path.relative_to('/')
         )
         # Acquire a lock *and* keep it alive even after this HTTP
         # request. It will be released by the 'delete_files' background
         # job once it finishes.
-        lock_manager.acquire(self.project.identifier, self.storage_path)
+        lock_manager.acquire(self.project.id, self.storage_path)
 
         try:
             try:
@@ -234,17 +258,17 @@ class Directory(Resource):
             task_id = enqueue_background_job(
                 task_func="upload_rest_api.jobs.files.delete_files",
                 queue_name=FILES_QUEUE,
-                project_id=self.project.identifier,
+                project_id=self.project.id,
                 job_kwargs={
                     "fpath": self.storage_path,
                     "trash_path": trash_path,
                     "trash_root": trash_root,
-                    "project_id": self.project.identifier,
+                    "project_id": self.project.id,
                 }
             )
         except Exception:
             # If we couldn't enqueue background job, release the lock
-            lock_manager.release(self.project.identifier, self.storage_path)
+            lock_manager.release(self.project.id, self.storage_path)
             raise
 
         return task_id

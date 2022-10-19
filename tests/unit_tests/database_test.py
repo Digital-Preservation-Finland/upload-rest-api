@@ -6,7 +6,8 @@ import re
 import bson
 import pytest
 
-import upload_rest_api.database as db
+from upload_rest_api.database import (DBFile, Project, User, get_dir_size,
+                                      get_random_string, hash_passwd)
 
 
 def test_dir_size():
@@ -15,10 +16,10 @@ def test_dir_size():
     Dirs that do not exist should return size 0.
     """
     # Existing dir
-    assert db.get_dir_size("tests/data/get_dir_size") == 8
+    assert get_dir_size("tests/data/get_dir_size") == 8
 
     # Non-existent dir
-    assert db.get_dir_size("tests/data/test") == 0
+    assert get_dir_size("tests/data/test") == 0
 
 
 @pytest.mark.parametrize('projects', [None,
@@ -31,25 +32,25 @@ def test_create_user(database, projects):
     :param database: Database instance
     :param projects: List of user projects
     """
-    user = database.user('test_user')
-    user.create(projects=projects)
-    assert user.exists()
+    user = User.create("test_user", projects=projects)
 
-    user_dict = user.get()
-    assert len(user_dict["salt"]) == 20
-    assert len(user_dict["digest"]) == 64
+    data = user.to_mongo()
+    assert data["_id"] == "test_user"
+
+    assert len(user.salt) == 20
+    assert len(user.digest) == 64
 
     if projects:
-        assert user_dict["projects"] == projects
+        assert user.projects == projects
     else:
-        assert user_dict["projects"] == []
+        assert user.projects == []
 
 
-def test_create_project(database, mock_config):
+def test_create_project(test_mongo, mock_config):
     """Test creating new project."""
-    database.projects.create("test_project")
+    Project.create("test_project")
 
-    project_dict = database.projects.projects.find_one({"_id": "test_project"})
+    project_dict = test_mongo.upload.projects.find_one({"_id": "test_project"})
 
     assert project_dict["quota"] == 5 * 1024**3
     assert project_dict["used_quota"] == 0
@@ -58,91 +59,6 @@ def test_create_project(database, mock_config):
     project_directory \
         = pathlib.Path(mock_config["UPLOAD_PROJECTS_PATH"]) / "test_project"
     assert project_directory.is_dir()
-
-
-def test_create_two_users(user):
-    """Test creating two users with same project."""
-    users = user.users
-
-    user.username = "test_user1"
-    user.create(projects=["test_project"])
-
-    user.username = "test_user2"
-    user.create(projects=["test_project"])
-
-    user1_project = users.find_one({"_id": "test_user1"})["projects"][0]
-    user2_project = users.find_one({"_id": "test_user2"})["projects"][0]
-
-    assert user1_project == user2_project == "test_project"
-
-
-def test_delete_user(user):
-    """Test deletion of user."""
-    users = user.users
-
-    users.insert_one({"_id": "test_user"})
-    users.insert_one({"_id": "test_user2"})
-
-    user.delete()
-
-    assert users.find_one({"_id": "test_user"}) is None
-    assert users.find_one({"_id": "test_user2"}) is not None
-
-
-def test_get_all_ids(files_col):
-    """Test get_all_ids returns a list of all _ids in the collection."""
-    # Add a file without identifier to ensure a file without id does not
-    # create bugs
-    files_col.files.insert_one(
-        {"_id": "/file/without/id", "checksum": "checksum"}
-    )
-    assert files_col.get_all_ids() == []
-
-    # Insert files with identifiers and assert that get_all_ids() finds the
-    # correct identifiers
-    for i in range(10):
-        files_col.files.insert_one(
-            {"_id": str(i), "identifier": f"pid:urn:{i}", "checksum": str(i)}
-        )
-        assert files_col.get_all_ids() == [
-            f"pid:urn:{j}" for j in range(i+1)
-        ]
-
-
-def test_insert_and_delete_files(files_col):
-    """Test insertion and deletion of files documents."""
-    many_documents = [
-        {"path": "1", "identifier": "pid:urn:1", "checksum": "1"},
-        {"path": "2", "identifier": "pid:urn:2", "checksum": "2"},
-        {"path": "3", "identifier": "pid:urn:3", "checksum": "3"}
-    ]
-
-    files_col.insert(many_documents)
-    assert len(files_col.get_all_ids()) == 3
-
-    files_col.delete_one("1")
-    assert len(files_col.get_all_ids()) == 2
-
-    files_col.delete(["2", "3"])
-    assert len(files_col.get_all_ids()) == 0
-
-
-def test_quota(database):
-    """Test set_used_quota() and set_quota() functions."""
-    database.projects.create("test_project")
-    project = database.projects.get("test_project")
-
-    assert project["quota"] == 5 * 1024**3
-    assert project["used_quota"] == 0
-
-    # Set
-    database.projects.set_quota("test_project", 1024)
-    database.projects.set_used_quota("test_project", 512)
-
-    # Get
-    project = database.projects.get("test_project")
-    assert project["quota"] == 1024
-    assert project["used_quota"] == 512
 
 
 def test_get_random_string():
@@ -154,7 +70,7 @@ def test_get_random_string():
     strings = set()
 
     for _ in range(1000):
-        string = db.get_random_string(20)
+        string = get_random_string(20)
 
         assert len(string) == 20
         assert re.match("^[A-Za-z0-9_-]*$", string)
@@ -164,65 +80,11 @@ def test_get_random_string():
 
 def test_hash_passwd():
     """Test that salting and hashing returns the correct digest."""
-    digest = binascii.hexlify(db.hash_passwd("test", "test")[:16])
+    digest = binascii.hexlify(hash_passwd("test", "test")[:16])
     assert digest == b"4b119f6da6890ed1cc68d5b3adf7d053"
 
 
-def test_async_task_creation(tasks_col):
-    """Test creation of tasks documents."""
-    task_id_1 = tasks_col.create("test_project")
-    task_id_2 = tasks_col.create("test_project")
-    assert task_id_1 != task_id_2
-    assert len(tasks_col.find("test_project", "pending")) == 2
-
-
-def test_async_task_update(tasks_col):
-    """Test update of tasks documents."""
-    task_id_1 = tasks_col.create("test_project")
-    tasks_col.update_status(task_id_1, "done")
-    assert len(tasks_col.find("test_project", "done")) == 1
-    assert len(tasks_col.find("test_project", "pending")) == 0
-
-    task = tasks_col.get(task_id_1)
-    assert task["status"] == "done"
-    assert "message" not in task
-    tasks_col.update_message(task_id_1, "Message")
-    task = tasks_col.get(task_id_1)
-    assert task["status"] == "done"
-    assert task["message"] == "Message"
-
-
-def test_async_task_delete(tasks_col):
-    """Test deletion of tasks documents."""
-    task_id_1 = tasks_col.create("test_user_1")
-    task_id_2 = tasks_col.create("test_user_2")
-    assert tasks_col.delete_one(task_id_1) == 1
-    assert tasks_col.delete_one(task_id_2) == 1
-    assert tasks_col.delete_one(task_id_1) == 0
-    assert tasks_col.delete_one(task_id_2) == 0
-    assert tasks_col.delete([task_id_2, task_id_2]) == 0
-
-    task_id_1 = tasks_col.create("test_user_1")
-    task_id_2 = tasks_col.create("test_user_2")
-    assert tasks_col.delete([task_id_1, task_id_2]) == 2
-
-
-@pytest.mark.parametrize('method',
-                         ['update_status', 'update_message', 'update_error'])
-def test_task_not_found(tasks_col, method):
-    """Test that error is raised if task is not found.
-
-    :param tasks_col: Tasks object
-    :param method: method to be tested
-    """
-    # Create valid random identifier
-    task_identifier = bson.objectid.ObjectId()
-
-    with pytest.raises(db.TaskNotFoundError, match='Task .* not found'):
-        getattr(tasks_col, method)(task_identifier, 'bar')
-
-
-def test_files_delete_chunks(files_col):
+def test_files_delete_chunks(test_mongo):
     """Test deleting a large amount of files.
 
     The deletion queries are split into chunks internally to prevent
@@ -230,83 +92,39 @@ def test_files_delete_chunks(files_col):
     """
     # 20,100 files will be added
     for i in range(0, 201):
-        files_col.insert([
-            {"path": f"/path/{(i*100)+j}",
+        test_mongo.upload.files.insert([
+            {"_id": f"/path/{(i*100)+j}",
              "checksum": "foobar",
              "identifier": '1'}
             for j in range(0, 100)
         ])
 
-    assert files_col.files.count({}) == 20100
+    assert DBFile.objects.count() == 20100
 
     # Delete all but the last 3 files entries using `delete`
     paths_to_delete = [f"/path/{i}" for i in range(0, 20097)]
-    assert files_col.delete(paths_to_delete) == 20097
+    assert DBFile.objects.bulk_delete_by_paths(paths_to_delete) == 20097
 
     # 3 files are left
-    assert files_col.get_all_files() == [
+    assert DBFile.objects.count() == 3
+    assert list(test_mongo.upload.files.find()) == [
         {"_id": "/path/20097", "checksum": "foobar", "identifier": '1'},
         {"_id": "/path/20098", "checksum": "foobar", "identifier": '1'},
         {"_id": "/path/20099", "checksum": "foobar", "identifier": '1'}
     ]
 
 
-def test_get_all_files(database):
-    """Test getting all files."""
-    files = [
-        {"path": "1", "checksum": "checksum_1", "identifier": "pid:urn:1"},
-        {"path": "2", "checksum": "checksum_2", "identifier": "pid:urn:2"},
-        {"path": "3", "checksum": "checksum_3", "identifier": "pid:urn:3"}
-    ]
-    database.files.insert(files)
-    received_files = database.files.get_all_files()
-    assert received_files == [
-        {"_id": "1", "checksum": "checksum_1", "identifier": "pid:urn:1"},
-        {"_id": "2", "checksum": "checksum_2", "identifier": "pid:urn:2"},
-        {"_id": "3", "checksum": "checksum_3", "identifier": "pid:urn:3"}
-    ]
-
-
-def test_deleting_files_by_path(database):
-    """Test deleting files with given paths."""
-    files = [
-        {"path": "path_1",
-         "checksum": "checksum_1",
-         "identifier": "pid:urn:1"},
-        {"path": "path_2",
-         "checksum": "checksum_2",
-         "identifier": "pid:urn:2"},
-        {"path": "path_3",
-         "checksum": "checksum_3",
-         "identifier": "pid:urn:3"}
-    ]
-    database.files.insert(files)
-    database.files.delete(["path_1", "path_2", "path_does_not_exist"])
-    files = database.files.get_all_files()
-    assert files == [
-        {"_id": "path_3", "checksum": "checksum_3", "identifier": "pid:urn:3"}
-    ]
-
-
-def test_get_file_path(database):
-    """Test getting path of a file."""
-    database.files.insert([{"path": "/path",
-                            "checksum": "checksum",
-                            "identifier": "identifier"}])
-    assert database.files.get_path("identifier") == "/path"
-
-
-def test_get_path_checksum_dict(database):
+def test_get_path_checksum_dict(test_mongo):
     """Test getting files as dict of file paths and checksums."""
     files = [
-        {"path": "path_1",
+        {"_id": "path_1",
          "checksum": "checksum_1",
          "identifier": "pid:urn:1"},
-        {"path": "path_2",
+        {"_id": "path_2",
          "checksum": "checksum_2",
          "identifier": "pid:urn:2"}
     ]
-    database.files.insert(files)
+    test_mongo.upload.files.insert_many(files)
 
     correct_result = {"path_1": "checksum_1", "path_2": "checksum_2"}
-    assert database.files.get_path_checksum_dict() == correct_result
+    assert DBFile.get_path_checksum_dict() == correct_result

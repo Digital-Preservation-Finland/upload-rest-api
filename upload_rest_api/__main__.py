@@ -6,7 +6,7 @@ import pathlib
 import click
 
 import upload_rest_api.config
-import upload_rest_api.database as db
+from upload_rest_api.database import Token, Project, DBFile, User
 from upload_rest_api.cleanup import clean_disk, clean_mongo, clean_tus_uploads
 
 
@@ -16,6 +16,20 @@ def _echo_json(data):
     :param data: json data to echo.
     :returns: None
     """
+    if isinstance(data, list):
+        try:
+            for i, entry in enumerate(data):
+                # Convert MongoEngine documents to dicts
+                data[i] = entry.to_mongo()
+        except AttributeError:
+            pass
+    else:
+        try:
+            # Convert MongoEngine document to dict
+            data = data.to_mongo()
+        except AttributeError:
+            pass
+
     click.echo(json.dumps(data, indent=4))
 
 
@@ -42,8 +56,7 @@ def cleanup():
 @cleanup.command("tokens")
 def cleanup_tokens():
     """Clean expired session tokens from the database."""
-    database = db.Database()
-    deleted_count = database.tokens.clean_session_tokens()
+    deleted_count = Token.clean_session_tokens()
     click.echo(f"Cleaned {deleted_count} expired token(s)")
 
 
@@ -82,8 +95,7 @@ def users():
 @click.argument("username")
 def create_user(username):
     """Create a new user with specified USERNAME."""
-    user = db.Database().user(username)
-    passwd = user.create()
+    passwd = User.create(username)
     click.echo(f"{username}:{passwd}")
 
 
@@ -97,7 +109,7 @@ def project_rights():
 @click.argument("projects", nargs=-1)
 def grant_user_projects(username, projects):
     """Grant USERNAME access to PROJECTS."""
-    user = db.Database().user(username)
+    user = User.objects.get(username=username)
     for project in projects:
         user.grant_project(project)
     click.echo(
@@ -111,7 +123,7 @@ def grant_user_projects(username, projects):
 @click.argument("projects", nargs=-1)
 def revoke_user_projects(username, projects):
     """Revoke USERNAME access to PROJECTS."""
-    user = db.Database().user(username)
+    user = User.objects.get(username=username)
     for project in projects:
         user.revoke_project(project)
     click.echo(
@@ -124,7 +136,7 @@ def revoke_user_projects(username, projects):
 @click.argument("username")
 def delete_user(username):
     """Delete an existing user with specified USERNAME."""
-    db.Database().user(username).delete()
+    User.objects.get(username=username).delete()
     click.echo(f"Deleted user '{username}'")
 
 
@@ -134,14 +146,13 @@ def delete_user(username):
               help="Generate new password.")
 def modify_user(username, generate_password):
     """Modify an existing user with specified USERNAME."""
-    user = db.Database().user(username)
+    user = User.objects.get(username=username)
     if generate_password:
         passwd = user.change_password()
 
-    user = user.get()
     response = {
-        "_id": user["_id"],
-        "projects": user["projects"]
+        "_id": user.id,
+        "projects": user.projects
     }
     if generate_password:
         response["password"] = passwd
@@ -153,17 +164,15 @@ def modify_user(username, generate_password):
 @click.argument("username")
 def get_user(username):
     """Show information of USERNAME."""
-    database = db.Database()
-
     try:
-        user = database.user(username).get()
-    except db.UserNotFoundError:
+        user = User.objects.get(username=username)
+    except User.DoesNotExist:
         click.echo(f"User '{username}' not found")
         return
 
     response = {
-        "_id": user["_id"],
-        "projects": user["projects"]
+        "_id": user.id,
+        "projects": user.projects
     }
     _echo_json(response)
 
@@ -171,11 +180,10 @@ def get_user(username):
 @users.command("list")
 def list_users():
     """List all users."""
-    database = db.Database()
-    users = database.get_all_users()
+    users = list(User.objects.only("username"))
     if users:
         for user in users:
-            click.echo(user)
+            click.echo(user.username)
     else:
         click.echo("No users found")
 
@@ -192,9 +200,7 @@ def projects():
               help="Set project quota in bytes.")
 def create_project(project, quota):
     """Create a new PROJECT."""
-    project = db.Database().projects.create(
-        identifier=project, quota=quota
-    )
+    project = Project.create(identifier=project, quota=quota)
     _echo_json(project)
 
 
@@ -204,36 +210,34 @@ def create_project(project, quota):
               help="Set project quota in bytes.")
 def modify_project(project, quota):
     """Modify an existing PROJECT."""
-    database = db.Database()
-
-    if not database.projects.get(project):
+    try:
+        project_ = Project.objects.get(id=project)
+    except Project.DoesNotExist:
         click.echo(f"Project '{project}' does not exist.")
         return
 
     if quota is not None:
-        database.projects.set_quota(project, quota)
+        project_.quota = quota
 
-    project = database.projects.get(project)
-    _echo_json(project)
+    project_.save()
+    _echo_json(project_)
 
 
 @projects.command("delete")
 @click.argument("project")
 def delete_project(project):
     """Delete PROJECT."""
-    db.Database().projects.delete(project)
+    Project.objects.get(id=project).delete()
     click.echo(f"Project '{project}' was deleted")
 
 
 @projects.command("list")
 def list_projects():
     """List all projects."""
-    database = db.Database()
-
-    projects = database.projects.get_all_projects()
+    projects = list(Project.objects)
     if projects:
         for project in projects:
-            click.echo(project["_id"])
+            click.echo(project.id)
     else:
         click.echo("No projects found")
 
@@ -242,12 +246,10 @@ def list_projects():
 @click.argument("project")
 def get_project(project):
     """Show information of PROJECT."""
-    database = db.Database()
-
-    project_entry = database.projects.get(project)
-    if project_entry:
+    try:
+        project_entry = Project.objects.get(id=project)
         _echo_json(project_entry)
-    else:
+    except Project.DoesNotExist:
         click.echo(f"Project '{project}' not found")
 
 
@@ -267,12 +269,10 @@ def files_get():
 @click.argument("path")
 def get_file_by_path(path):
     """Show information of file in PATH."""
-    database = db.Database()
-    _file = database.files.get(path)
-
-    if _file:
-        _echo_json(_file)
-    else:
+    try:
+        file_ = DBFile.objects.get(path=path)
+        _echo_json(file_)
+    except DBFile.DoesNotExist:
         click.echo(f"File not found in path '{path}'")
 
 
@@ -280,12 +280,10 @@ def get_file_by_path(path):
 @click.argument("identifier")
 def get_file_by_identifier(identifier):
     """Show information of file specified by IDENTIFIER."""
-    database = db.Database()
-    _file = database.files.get_by_identifier(identifier)
-
-    if _file:
-        _echo_json(_file)
-    else:
+    try:
+        file_ = DBFile.objects.get(identifier=identifier)
+        _echo_json(file_)
+    except DBFile.DoesNotExist:
         click.echo(f"File '{identifier}' not found")
 
 
@@ -302,9 +300,7 @@ def list_files(identifiers_only, checksums_only):
         _list_checksums()
         return
 
-    database = db.Database()
-
-    files = database.files.get_all_files()
+    files = list(DBFile.objects)
     if not files:
         click.echo("No files found")
     else:
@@ -313,9 +309,10 @@ def list_files(identifiers_only, checksums_only):
 
 def _list_file_identifiers():
     """List all file identifiers."""
-    database = db.Database()
-
-    identifiers = database.files.get_all_ids()
+    identifiers = [
+        file_.identifier for file_
+        in DBFile.objects.only("identifier")
+    ]
     if identifiers:
         _echo_json(identifiers)
     else:
@@ -324,9 +321,10 @@ def _list_file_identifiers():
 
 def _list_checksums():
     """List all checksums of files."""
-    database = db.Database()
-
-    checksums = database.files.get_all_checksums()
+    checksums = [
+        file_.checksum for file_ in
+        DBFile.objects.only("checksum")
+    ]
     if checksums:
         _echo_json(checksums)
     else:

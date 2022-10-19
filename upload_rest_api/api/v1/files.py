@@ -6,13 +6,16 @@ server.
 import os
 import pathlib
 
-from flask import Blueprint, abort, jsonify, request
 import werkzeug
+from flask import Blueprint, abort, jsonify, request
 
+import upload_rest_api.gen_metadata as md
 from upload_rest_api.api.v1.tasks import get_polling_url
 from upload_rest_api.authentication import current_user
+from upload_rest_api.database import Project
+from upload_rest_api.jobs.utils import FILES_QUEUE
 from upload_rest_api.resource import get_resource
-from upload_rest_api.upload import create_upload
+from upload_rest_api.upload import Upload, create_upload
 
 FILES_API_V1 = Blueprint("files_v1", __name__, url_prefix="/v1/files")
 
@@ -21,8 +24,8 @@ def _get_dir_tree(project):
     """Return with dir tree from project directory."""
     file_dict = {}
     for dirpath, _, files in os.walk(project.directory):
-        path = pathlib.Path(dirpath).relative_to(project.directory)
-        file_dict[f'/{path}'] = files
+        path = Project.get_return_path(project.id, dirpath)
+        file_dict[path] = files
 
     if "/." in file_dict:
         file_dict["/"] = file_dict.pop("/.")
@@ -91,12 +94,11 @@ def get_path(project_id, fpath):
             "md5": resource.checksum,
             "timestamp": resource.timestamp
         }
-
     elif resource.storage_path.is_dir():
         response = {
             'identifier': resource.identifier,
-            'directories': [dir.path.name for
-                            dir in resource.get_directories()],
+            'directories': [dir_.path.name for
+                            dir_ in resource.get_directories()],
             'files':  [file.path.name for file in resource.get_files()]
         }
 
@@ -156,5 +158,6 @@ def delete_path(project_id, fpath):
         })
         response.headers[b'Location'] = polling_url
         response.status_code = 202
+        return response
 
     return response

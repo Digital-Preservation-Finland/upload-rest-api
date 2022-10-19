@@ -8,9 +8,10 @@ import pathlib
 import time
 
 import upload_rest_api.config
-import upload_rest_api.database as db
 import upload_rest_api.gen_metadata as md
 from upload_rest_api.lock import ProjectLockManager
+
+from upload_rest_api.database import DBFile, DBUpload, Task
 
 
 def _is_expired(fpath, current_time, time_lim):
@@ -125,7 +126,7 @@ def clean_project(project_id, fpath, metax=True):
     _clean_empty_dirs(fpath)
 
     # Clean deleted files from mongo
-    db.Database().files.delete(deleted_files)
+    DBFile.objects.filter(path__in=deleted_files).delete()
 
     # Remove Metax entries of deleted files that are not part of any
     # datasets
@@ -161,10 +162,9 @@ def clean_mongo():
     time_lim = conf["CLEANUP_TIMELIM"]
 
     current_time = time.time()
-    tasks = db.Database().tasks
-    for task in tasks.get_all_tasks():
-        if current_time - task["timestamp"] > time_lim:
-            tasks.delete_one(task["_id"])
+    for task in Task.objects:
+        if current_time - task.timestamp > time_lim:
+            task.delete()
 
 
 def clean_tus_uploads():
@@ -179,21 +179,19 @@ def clean_tus_uploads():
     conf = upload_rest_api.config.CONFIG
     tus_spool_dir = pathlib.Path(conf["TUS_API_SPOOL_PATH"])
 
-    database = db.Database()
-
     resource_ids_on_disk = {path.name for path in tus_spool_dir.iterdir()}
     resource_ids_on_mongo = {
-        str(entry["_id"]) for entry in database.uploads.uploads.find()
+        str(entry["_id"]) for entry in DBUpload.objects.only("id").as_pymongo()
     }
 
     resource_ids_to_delete = list(resource_ids_on_mongo - resource_ids_on_disk)
 
     lock_manager = ProjectLockManager()
-    for resource_id in resource_ids_to_delete:
-        upload = database.uploads.uploads.find_one({"_id": resource_id})
-        if upload:
-            lock_manager.release(upload['project'], upload['upload_path'])
 
-    deleted_count = database.uploads.delete(resource_ids_to_delete)
+    uploads_to_delete = DBUpload.objects.filter(id__in=resource_ids_to_delete)
+    for upload in uploads_to_delete:
+        lock_manager.release(upload.project, upload.upload_path)
+    deleted_count = \
+        DBUpload.objects.filter(id__in=resource_ids_to_delete).delete()
 
     return deleted_count
