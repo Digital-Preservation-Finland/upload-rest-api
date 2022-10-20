@@ -31,16 +31,20 @@ def command_runner():
     return wrapper
 
 
-@mock.patch('upload_rest_api.__main__.clean_mongo')
-@mock.patch('upload_rest_api.__main__.clean_disk')
-@mock.patch('upload_rest_api.__main__.clean_tus_uploads')
 @pytest.mark.parametrize("command", ("files", "mongo", "tus-uploads"))
-def test_cleanup(
-        mock_clean_tus_uploads, mock_clean_disk, mock_clean_mongo,
-        command, command_runner):
+def test_cleanup(mocker, command, command_runner):
     """Test that correct function is called from main function when
     cleanup command is used.
+
+    :param mocker: pytest-mock mocker
+    :param command: command to be run
+    :param command_runner: command runner
     """
+    mock_clean_mongo = mocker.patch('upload_rest_api.__main__.clean_mongo')
+    mock_clean_disk = mocker.patch('upload_rest_api.__main__.clean_disk')
+    mock_clean_tus_uploads \
+        = mocker.patch('upload_rest_api.__main__.clean_tus_uploads')
+
     command_runner(["cleanup", command])
 
     func_to_call = None
