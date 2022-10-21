@@ -34,7 +34,12 @@ def upload_archive(project_id):
                            upload_type='archive')
     upload.add_source(file=request.stream,
                       checksum=request.args.get('md5', None))
-    upload.validate_archive()
+    # TODO: Archive validation was removed from here, because in some
+    # cases checking conflicts seems to be too slow to be done
+    # synchronously. Validating archive type and size are probably fast
+    # enough to be done synchronously.
+    #
+    # upload.validate_archive()
     task_id = upload.enqueue_store_task()
 
     response = jsonify(

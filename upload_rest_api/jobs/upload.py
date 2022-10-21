@@ -1,6 +1,7 @@
 """Upload module background jobs."""
 import upload_rest_api.database
-from upload_rest_api.upload import continue_upload, InvalidArchiveError
+from upload_rest_api.upload import (continue_upload, UploadError)
+
 from upload_rest_api.jobs.utils import api_background_job, ClientError
 
 
@@ -22,6 +23,14 @@ def store_files(project_id, path, upload_type, identifier, task_id):
 
     if upload_type == 'archive':
         database.tasks.update_message(task_id, "Extracting archive")
+        try:
+            # TODO: Archive validation was moved here because, because
+            # in some cases checking conflicts seems to be too slow to
+            # be done synchronously. Validating archive type and size
+            # are probably fast enough to be done synchronously.
+            upload.validate_archive()
+        except UploadError as error:
+            raise ClientError(str(error)) from error
     else:
         database.tasks.update_message(
             task_id, f"Creating metadata /{upload.path}"
@@ -29,7 +38,7 @@ def store_files(project_id, path, upload_type, identifier, task_id):
 
     try:
         upload.store_files()
-    except InvalidArchiveError as error:
+    except UploadError as error:
         raise ClientError(str(error)) from error
 
     return f"{upload_type} uploaded to {upload.path}"

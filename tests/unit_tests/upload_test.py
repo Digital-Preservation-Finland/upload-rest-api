@@ -1,7 +1,6 @@
 """Unit tests for upload module."""
 import hashlib
 import pathlib
-import shutil
 
 import pytest
 
@@ -133,3 +132,89 @@ def test_checksum(checksum, verify, requests_mock, mock_get_file_checksum):
         mock_get_file_checksum.assert_not_called()
     else:
         mock_get_file_checksum.assert_called_once()
+
+
+@pytest.mark.usefixtures('app')  # Creates test_project
+@pytest.mark.parametrize(
+    ['archive', "existing_file", "conflicts"],
+    [
+        # tar archive writes directory to existing file path
+        ("tests/data/test.tar.gz",
+         'foo/test',
+         ["/foo/test"]),
+        # tar archive writes file in place of to existing directory
+        ("tests/data/test.tar.gz",
+         'foo/test/test.txt/bar',
+         ["/foo/test/test.txt"]),
+        # tar archive writes file to existing file path
+        ("tests/data/test.tar.gz",
+         'foo/test/test.txt',
+         ["/foo/test/test.txt"]),
+        # zip archive writes directory to existing file path
+        ("tests/data/test.zip",
+         'foo/test',
+         ["/foo/test/"]),
+        # zip archive writes file in place of to existing directory
+        ("tests/data/test.zip",
+         'foo/test/test.txt/bar',
+         ["/foo/test/test.txt"]),
+        # zip archive writes file to existing file path
+        ("tests/data/test.zip",
+         'foo/test/test.txt',
+         ["/foo/test/test.txt"]),
+    ]
+)
+def test_upload_archive_conflict(
+    archive, existing_file, conflicts, requests_mock
+):
+    """Test uploading archive that would overwrite files or directories.
+
+    :param archive: path to test archive
+    :param existing_file: File path that will be populated before
+                          uploading the the test archive
+    :param conflicts: List of expected file conflicts in HTTP response
+    :param test_client: Flask test client
+    :param test_auth: authentication headers
+    :param requests_mock: HTTP request mocker
+    """
+    # Mock metax
+    requests_mock.post('/rest/v2/files/', json={})
+    requests_mock.get('/rest/v2/files', json={'next': None, 'results': []})
+
+    # Upload a file to a path that will cause a conflict when the
+    # archive is uploaded
+    upload = upload_rest_api.upload.create_upload('test_project',
+                                                  existing_file,
+                                                  123,
+                                                  upload_type='file')
+    with open('tests/data/test.txt', 'rb') as source_file:
+        upload.add_source(source_file, checksum=None)
+    upload.store_files()
+
+    # Try to upload an archive that will overwrite the file that was
+    # just uploaded (or its parent directory).
+    upload = upload_rest_api.upload.create_upload('test_project',
+                                                  'foo',
+                                                  123,
+                                                  upload_type='archive')
+    with open(archive, 'rb') as source_file:
+        upload.add_source(source_file, checksum=None)
+    with pytest.raises(upload_rest_api.upload.UploadConflictError) as error:
+        upload.validate_archive()
+    assert error.value.message == 'Some files already exist'
+    assert error.value.files == conflicts
+
+
+@pytest.mark.usefixtures('app')  # Creates test_project
+def test_upload_file_as_archive():
+    """Test uploading a reqular file as an archive."""
+    upload = upload_rest_api.upload.create_upload('test_project',
+                                                  'foo',
+                                                  123,
+                                                  upload_type='archive')
+    with open('tests/data/test.txt', 'rb') as source_file:
+        upload.add_source(source_file, checksum=None)
+    with pytest.raises(upload_rest_api.upload.UploadError) as error:
+        upload.validate_archive()
+
+    assert str(error.value) == 'Uploaded file is not a supported archive'

@@ -177,65 +177,6 @@ def test_upload_archive_already_exists(
 
 
 @pytest.mark.parametrize(
-    ['archive', "existing_file", "conflicts"],
-    [
-        # tar archive writes directory to existing file path
-        ("tests/data/test.tar.gz",
-         'foo/test',
-         ["/foo/test"]),
-        # tar archive writes file in place of to existing directory
-        ("tests/data/test.tar.gz",
-         'foo/test/test.txt/bar',
-         ["/foo/test/test.txt"]),
-        # tar archive writes file to existing file path
-        ("tests/data/test.tar.gz",
-         'foo/test/test.txt',
-         ["/foo/test/test.txt"]),
-        # zip archive writes directory to existing file path
-        ("tests/data/test.zip",
-         'foo/test',
-         ["/foo/test/"]),
-        # zip archive writes file in place of to existing directory
-        ("tests/data/test.zip",
-         'foo/test/test.txt/bar',
-         ["/foo/test/test.txt"]),
-        # zip archive writes file to existing file path
-        ("tests/data/test.zip",
-         'foo/test/test.txt',
-         ["/foo/test/test.txt"]),
-    ]
-)
-def test_upload_archive_conflict(
-    archive, existing_file, conflicts, test_client, test_auth, requests_mock
-):
-    """Test uploading archive that would overwrite files or directories.
-
-    :param archive: path to test archive
-    :param existing_file: File path that will be populated before
-                          uploading the the test archive
-    :param conflicts: List of expected file conflicts in HTTP response
-    :param test_client: Flask test client
-    :param test_auth: authentication headers
-    :param requests_mock: HTTP request mocker
-    """
-    # Mock metax
-    requests_mock.post('/rest/v2/files/', json={})
-    requests_mock.get('/rest/v2/files', json={'next': None, 'results': []})
-
-    # Upload a file to a path that will cause a conflict
-    url = f'/v1/files/test_project/{existing_file}'
-    _upload_file(test_client, url, test_auth, "tests/data/test.txt")
-
-    # Try to upload an archive that will overwrite the file that was
-    # just uploaded (or its parent directory).
-    url = '/v1/archives/test_project?dir=foo'
-    response = _upload_file(test_client, url, test_auth, archive)
-    assert response.status_code == 409
-    assert response.json['error'] == 'Some files already exist'
-    assert response.json['files'] == conflicts
-
-
-@pytest.mark.parametrize(
     ('checksum', 'expected_status_code', 'expected_response'),
     [
         # The actual md5sum of tests/data/test.tar.gz
@@ -489,23 +430,6 @@ def test_upload_invalid_archive(
 
     # no files are added to mongo
     assert files.count({}) == 0
-
-
-def test_upload_file_as_archive(app, test_auth, background_job_runner):
-    """Test uploading a reqular file as an archive."""
-    test_client = app.test_client()
-
-    response = _upload_file(
-        test_client, "/v1/archives/test_project", test_auth,
-        "tests/data/test.txt"
-    )
-    if _request_accepted(response):
-        response = background_job_runner(
-            test_client, "upload", response, expect_success=False
-        )
-
-    assert response.status_code == 400
-    assert response.json["error"] == "Uploaded file is not a supported archive"
 
 
 def test_upload_large_archive(app, test_auth, mock_config):
