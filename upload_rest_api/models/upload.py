@@ -77,7 +77,8 @@ class UploadType(Enum):
 
 class Upload(Document):
     """Database entry for an upload."""
-    # The upload ID created by flask-tus-io, used to identify the upload.
+    # The identifier for this upload. Default value is an UUID, but there is no
+    # set format for the identifier.
     id = StringField(primary_key=True, required=True)
     # Relative upload path for the file
     upload_path = StringField(required=True)
