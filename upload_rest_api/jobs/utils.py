@@ -5,7 +5,7 @@ from rq import Queue
 
 from upload_rest_api.config import CONFIG
 from upload_rest_api.database import get_redis_connection
-from upload_rest_api.models import Task, TaskStatus
+from upload_rest_api import models
 
 FILES_QUEUE = "files"
 UPLOAD_QUEUE = "upload"
@@ -45,12 +45,12 @@ def api_background_job(func):
     @wraps(func)
     def wrapper(*args, **kwargs):
         task_id = kwargs["task_id"]
-        task = Task.objects.get(id=task_id)
+        task = models.Task.objects.get(id=task_id)
 
         try:
             result = func(*args, **kwargs)
         except ClientError as exception:
-            task.status = TaskStatus.ERROR
+            task.status = models.TaskStatus.ERROR
             task.message = "Task failed"
             task.errors = [
                 {
@@ -60,12 +60,12 @@ def api_background_job(func):
             ]
             task.save()
         except Exception:
-            task.status = TaskStatus.ERROR
+            task.status = models.TaskStatus.ERROR
             task.message = "Internal server error"
             task.save()
             raise
         else:
-            task.status = TaskStatus.DONE
+            task.status = models.TaskStatus.DONE
             task.message = result
             task.save()
             return result
@@ -98,7 +98,7 @@ def enqueue_background_job(task_func, queue_name, project_id, job_kwargs):
     """
     queue = get_job_queue(queue_name)
 
-    task = Task(project_id=project_id)
+    task = models.Task(project_id=project_id)
     task.message = "processing"
     task.save()
 

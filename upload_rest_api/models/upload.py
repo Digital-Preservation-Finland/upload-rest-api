@@ -12,17 +12,14 @@ import metax_access
 from archive_helpers.extract import (ExtractError, MemberNameError,
                                      MemberOverwriteError, MemberTypeError,
                                      extract)
-from mongoengine import (Document, EnumField, ReferenceField, LongField,
+from mongoengine import (Document, EnumField, LongField, ReferenceField,
                          StringField)
 
-from upload_rest_api import gen_metadata
+from upload_rest_api import gen_metadata, models
 from upload_rest_api.checksum import get_file_checksum
 from upload_rest_api.config import CONFIG
-from upload_rest_api.jobs.utils import UPLOAD_QUEUE, enqueue_background_job
-from upload_rest_api.utils import parse_relative_user_path
 from upload_rest_api.lock import ProjectLockManager
-from upload_rest_api import models
-from upload_rest_api.resource import Resource
+from upload_rest_api.utils import parse_relative_user_path
 
 
 def release_lock_on_exception(method):
@@ -167,6 +164,9 @@ class Upload(Document):
 
     @property
     def resource(self):
+        # Avoid circular import
+        from upload_rest_api.resource import Resource
+
         if not self._resource:
             self._resource = Resource(self.project, self.upload_path)
 
@@ -243,6 +243,10 @@ class Upload(Document):
         :returns: Task identifier
         """
         self.save()
+
+        # Avoid cyclic import by deferring it
+        from upload_rest_api.jobs.utils import (UPLOAD_QUEUE,
+                                                enqueue_background_job)
 
         task_id = enqueue_background_job(
             task_func="upload_rest_api.jobs.upload.store_files",
