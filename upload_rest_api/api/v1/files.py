@@ -154,6 +154,5 @@ def delete_path(project_id, fpath):
         })
         response.headers[b'Location'] = polling_url
         response.status_code = 202
-        return response
 
     return response
