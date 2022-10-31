@@ -51,19 +51,3 @@ def test_files_delete_chunks(test_mongo):
         {"_id": "/path/20098", "checksum": "foobar", "identifier": '1'},
         {"_id": "/path/20099", "checksum": "foobar", "identifier": '1'}
     ]
-
-
-def test_get_path_checksum_dict(test_mongo):
-    """Test getting files as dict of file paths and checksums."""
-    files = [
-        {"_id": "path_1",
-         "checksum": "checksum_1",
-         "identifier": "pid:urn:1"},
-        {"_id": "path_2",
-         "checksum": "checksum_2",
-         "identifier": "pid:urn:2"}
-    ]
-    test_mongo.upload.files.insert_many(files)
-
-    correct_result = {"path_1": "checksum_1", "path_2": "checksum_2"}
-    assert File.get_path_checksum_dict() == correct_result
