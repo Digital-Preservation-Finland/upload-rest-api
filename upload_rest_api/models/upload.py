@@ -78,9 +78,9 @@ class Upload(Document):
     # set format for the identifier.
     id = StringField(primary_key=True, required=True)
     # Relative upload path for the file
-    upload_path = StringField(required=True)
+    path = StringField(required=True)
     # Type of upload, either 'file' or 'archive'
-    upload_type = EnumField(UploadType)
+    type_ = EnumField(UploadType, db_field="type")
     project = ReferenceField(models.Project, required=True)
     source_checksum = StringField()
 
@@ -97,14 +97,14 @@ class Upload(Document):
 
     @classmethod
     def create(
-            cls, project_id, path, size, upload_type=UploadType.FILE,
+            cls, project_id, path, size, type_=UploadType.FILE,
             identifier=None):
         """
         Create upload database entry from the given tus resource.
 
         :param str project_id: Project identifier
         :param str path: Relative file/directory path
-        :param str upload_type: Upload type
+        :param str type_: Upload type
         """
         if not identifier:
             identifier = str(uuid.uuid4())
@@ -116,8 +116,8 @@ class Upload(Document):
         upload = cls(
             id=identifier,
             project=models.Project.objects.get(id=project_id),
-            upload_path=str(path),
-            upload_type=upload_type,
+            path=str(path),
+            type_=type_,
             size=size
         )
         # Check that project has enough quota. Update used quota
@@ -136,7 +136,7 @@ class Upload(Document):
             )
 
         dir_already_exists = (
-            upload.upload_type == UploadType.FILE
+            upload.type_ == UploadType.FILE
             and upload.storage_path.is_dir()
         )
 
@@ -168,7 +168,7 @@ class Upload(Document):
         from upload_rest_api.resource import Resource
 
         if not self._resource:
-            self._resource = Resource(self.project, self.upload_path)
+            self._resource = Resource(self.project, self.path)
 
         return self._resource
 
@@ -296,11 +296,11 @@ class Upload(Document):
         for file in files:
             extract_path = self.storage_path / file
             if extract_path.exists():
-                conflicts.append(f'{self.upload_path}/{file}')
+                conflicts.append(f'{self.path}/{file}')
         for directory in directories:
             extract_path = self.storage_path / directory
             if extract_path.is_file():
-                conflicts.append(f'{self.upload_path}/{directory}')
+                conflicts.append(f'{self.path}/{directory}')
         if conflicts:
             self._source_path.unlink()
             raise UploadConflictError('Some files already exist',
@@ -339,7 +339,7 @@ class Upload(Document):
         creates file metadata, and then moves the files to project
         directory.
         """
-        if self.upload_type == UploadType.FILE:
+        if self.type_ == UploadType.FILE:
             self._tmp_storage_path.parent.mkdir(parents=True, exist_ok=True)
             self._source_path.rename(self._tmp_storage_path)
         else:
@@ -363,7 +363,7 @@ class Upload(Document):
             try:
                 old_file = metax.client.get_project_file(
                     self.project.id,
-                    str(self.upload_path)
+                    str(self.path)
                 )
                 shutil.rmtree(self._tmp_path)
                 raise UploadConflictError(
@@ -400,7 +400,7 @@ class Upload(Document):
                 # Create file information for database
                 identifier = str(uuid.uuid4().urn)
                 file_checksum_provided = (
-                    self.upload_type == UploadType.FILE
+                    self.type_ == UploadType.FILE
                     and self.source_checksum
                 )
                 if file_checksum_provided:

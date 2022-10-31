@@ -59,7 +59,7 @@ def _upload_started(workspace, resource):
             project_id=resource.upload_metadata['project_id'],
             path=resource.upload_metadata['upload_path'],
             size=resource.upload_length,
-            upload_type=upload_type,
+            type_=upload_type,
             identifier=resource.identifier
         )
     except Exception:

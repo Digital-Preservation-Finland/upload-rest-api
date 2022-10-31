@@ -54,7 +54,7 @@ def upload_file(project_id, fpath):
 
     return jsonify(
         {
-            'file_path': str(upload.upload_path),
+            'file_path': str(upload.path),
             'status': 'created'
         }
     )

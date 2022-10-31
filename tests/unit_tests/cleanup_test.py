@@ -229,7 +229,7 @@ def test_aborted_tus_uploads(app, test_mongo, test_client, test_auth):
         = pathlib.Path(app.config["UPLOAD_PROJECTS_PATH"]) / 'test_project'
     for name in ("test_0.txt", "test_3.txt", "test_4.txt"):
         upload_path = str(project_path / name)
-        assert test_mongo.upload.uploads.find_one({'upload_path': f"/{name}"})
+        assert test_mongo.upload.uploads.find_one({'path': f"/{name}"})
         with pytest.raises(ValueError) as error:
             lock_manager.acquire('test_project', upload_path)
         assert str(error.value) == 'File lock could not be acquired'
@@ -239,7 +239,7 @@ def test_aborted_tus_uploads(app, test_mongo, test_client, test_auth):
     for name in ("test_1.txt", "test_2.txt"):
         upload_path = str(project_path / name)
         assert not test_mongo.upload.uploads.find_one(
-            {'upload_path': f"/{name}"}
+            {'path': f"/{name}"}
         )
         lock_manager.acquire('test_project', upload_path)
 

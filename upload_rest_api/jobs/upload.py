@@ -9,15 +9,12 @@ def store_files(identifier, task_id):
 
     Create metadata for uploaded files and move them to storage.
 
-    :param str project_id: project identifier
-    :param str path: upload path
-    :param str upload_type: Type of upload ("file" or "archive")
-    :param str upload_id: identifier of upload
+    :param str identifier: identifier of upload
     :param str task_id: identifier of the task
     """
     upload = Upload.objects.get(id=identifier)
 
-    if upload.upload_type == UploadType.ARCHIVE:
+    if upload.type_ == UploadType.ARCHIVE:
         message = "Extracting archive"
     else:
         message = f"Creating metadata /{upload.path}"
@@ -35,4 +32,4 @@ def store_files(identifier, task_id):
     except UploadError as error:
         raise ClientError(str(error)) from error
 
-    return f"{upload.upload_type.value} uploaded to {upload.upload_path}"
+    return f"{upload.type_.value} uploaded to {upload.path}"

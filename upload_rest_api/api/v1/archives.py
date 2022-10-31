@@ -32,7 +32,7 @@ def upload_archive(project_id):
     upload = Upload.create(
         project_id, request.args.get('dir', default='/'),
         size=request.content_length,
-        upload_type='archive'
+        type_='archive'
     )
     upload.add_source(file=request.stream,
                       checksum=request.args.get('md5', None))
@@ -46,7 +46,7 @@ def upload_archive(project_id):
 
     response = jsonify(
         {
-            "file_path": str(upload.upload_path),
+            "file_path": str(upload.path),
             "message": "Uploading archive",
             "polling_url": get_polling_url(task_id),
             "status": "pending"

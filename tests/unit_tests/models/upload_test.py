@@ -181,7 +181,7 @@ def test_upload_archive_conflict(
     # Upload a file to a path that will cause a conflict when the
     # archive is uploaded
     upload = Upload.create(
-        'test_project', existing_file, 123, upload_type='file'
+        'test_project', existing_file, 123, type_='file'
     )
     with open('tests/data/test.txt', 'rb') as source_file:
         upload.add_source(source_file, checksum=None)
@@ -190,7 +190,7 @@ def test_upload_archive_conflict(
     # Try to upload an archive that will overwrite the file that was
     # just uploaded (or its parent directory).
     upload = Upload.create(
-        'test_project', 'foo', 123, upload_type='archive'
+        'test_project', 'foo', 123, type_='archive'
     )
     with open(archive, 'rb') as source_file:
         upload.add_source(source_file, checksum=None)
@@ -204,7 +204,7 @@ def test_upload_archive_conflict(
 def test_upload_file_as_archive():
     """Test uploading a reqular file as an archive."""
     upload = Upload.create(
-        'test_project', 'foo', 123, upload_type='archive'
+        'test_project', 'foo', 123, type_='archive'
     )
     with open('tests/data/test.txt', 'rb') as source_file:
         upload.add_source(source_file, checksum=None)
