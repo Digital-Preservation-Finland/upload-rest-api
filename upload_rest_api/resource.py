@@ -95,30 +95,30 @@ class FileResource(Resource):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
-        self._db_file = None
+        self._db_file_ = None
 
     @property
-    def db_file(self):
+    def _db_file(self):
         """
         The database entry for this file.
 
         This property is lazy, meaning the database entry is not retrieved
         until this property is accessed for the first time.
         """
-        if not self._db_file:
-            self._db_file = File.objects.get(path=str(self.storage_path))
+        if not self._db_file_:
+            self._db_file_ = File.objects.get(path=str(self.storage_path))
 
-        return self._db_file
+        return self._db_file_
 
     @property
     def identifier(self):
         """Return identifier of file."""
-        return self.db_file.identifier
+        return self._db_file.identifier
 
     @property
     def checksum(self):
         """Return checksum of file."""
-        return self.db_file.checksum
+        return self._db_file.checksum
 
     @property
     def timestamp(self):
@@ -147,7 +147,7 @@ class FileResource(Resource):
                 metax_response = str(exception)
 
             # Remove checksum and identifier from mongo
-            self.db_file.delete()
+            self._db_file.delete()
             os.remove(self.storage_path)
 
             self.project.update_used_quota()
