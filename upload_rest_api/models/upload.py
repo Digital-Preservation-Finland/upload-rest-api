@@ -73,7 +73,11 @@ class UploadType(Enum):
 
 
 class Upload(Document):
-    """Database entry for an upload."""
+    """Upload to the Pre-Ingest File Storage.
+
+    The underlying database document is created at the start of an upload
+    and deleted once the upload is complete or fails.
+    """
     # The identifier for this upload. Default value is an UUID, but there is no
     # set format for the identifier.
     id = StringField(primary_key=True, required=True)
