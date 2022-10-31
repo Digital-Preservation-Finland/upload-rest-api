@@ -1,4 +1,4 @@
-"""Database models"""
+"""upload-rest-api models"""
 import logging
 
 from mongoengine import connect
