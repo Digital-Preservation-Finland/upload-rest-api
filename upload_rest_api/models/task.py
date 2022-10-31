@@ -6,7 +6,7 @@ from mongoengine import (DictField, Document, EnumField, FloatField, ListField,
 from rq.exceptions import NoSuchJobError
 from rq.job import Job
 
-from upload_rest_api.database import get_redis_connection
+from upload_rest_api.redis import get_redis_connection
 
 
 class TaskStatus(Enum):

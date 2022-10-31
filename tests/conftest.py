@@ -157,7 +157,7 @@ def mock_redis(monkeypatch):
     conn = fakeredis.FakeStrictRedis()
 
     monkeypatch.setattr(
-        "upload_rest_api.database.Redis",
+        "upload_rest_api.redis.Redis",
         lambda *args, **kwargs: conn
     )
 

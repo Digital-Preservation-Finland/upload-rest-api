@@ -1,12 +1,12 @@
 """Module for calculating checksums for files"""
+import base64
 import hashlib
 import json
 import pickle
-import base64
 
 import rehash
 
-from upload_rest_api.database import get_redis_connection
+from upload_rest_api.redis import get_redis_connection
 
 HASH_FUNCTION_ALIASES = {
     "md5": "md5",

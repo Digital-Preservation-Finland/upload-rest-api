@@ -3,9 +3,9 @@ from functools import wraps
 
 from rq import Queue
 
-from upload_rest_api.config import CONFIG
-from upload_rest_api.database import get_redis_connection
 from upload_rest_api import models
+from upload_rest_api.config import CONFIG
+from upload_rest_api.redis import get_redis_connection
 
 FILES_QUEUE = "files"
 UPLOAD_QUEUE = "upload"

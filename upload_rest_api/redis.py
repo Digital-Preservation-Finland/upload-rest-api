@@ -1,4 +1,4 @@
-"""Module for accessing user database."""
+"""Module for accessing the Redis in-memory database."""
 from redis import Redis
 
 from upload_rest_api.config import CONFIG

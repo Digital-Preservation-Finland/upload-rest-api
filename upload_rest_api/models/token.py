@@ -6,7 +6,7 @@ import uuid
 from mongoengine import (BooleanField, DateTimeField, Document, ListField,
                          StringField, ValidationError)
 
-from upload_rest_api.database import get_redis_connection
+from upload_rest_api.redis import get_redis_connection
 
 
 class TokenInvalidError(Exception):

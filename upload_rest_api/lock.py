@@ -4,9 +4,10 @@ import time
 from contextlib import contextmanager
 
 from flask import g
-from upload_rest_api.config import CONFIG
-from upload_rest_api.database import get_redis_connection
 from werkzeug.local import LocalProxy
+
+from upload_rest_api.config import CONFIG
+from upload_rest_api.redis import get_redis_connection
 
 LOCK_ACQUIRE_LUA = """
 -- Simple Redis lock script where we try to acquire a lock for file system path
