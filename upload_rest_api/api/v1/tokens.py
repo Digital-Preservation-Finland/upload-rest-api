@@ -124,12 +124,18 @@ def list_tokens():
 
     # Strip token hash from the results and rename '_id' field
     for token in tokens:
-        entry = token.to_mongo()
-        entry["identifier"] = token.id
-        del entry["_id"]
-        del entry["token_hash"]
-        if entry["expiration_date"]:
-            entry["expiration_date"] = entry["expiration_date"].isoformat()
+        entry = {
+            "identifier": token.id,
+            "name": token.name,
+            "username": token.username,
+            "projects": token.projects,
+            "admin": token.admin,
+            "session": token.session,
+            "expiration_date": token.expiration_date
+        }
+
+        if token.expiration_date:
+            entry["expiration_date"] = token.expiration_date.isoformat()
 
         token_entries.append(entry)
 
