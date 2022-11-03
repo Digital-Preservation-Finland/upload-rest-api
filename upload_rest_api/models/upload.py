@@ -413,7 +413,7 @@ class Upload(Document):
                     checksum = get_file_checksum("md5", file)
 
                 file_documents.append(
-                    models.File(
+                    models.FileEntry(
                         path=str(self.project.directory / relative_path),
                         checksum=checksum,
                         identifier=identifier
@@ -444,7 +444,7 @@ class Upload(Document):
         metax.post_metadata(metadata_dicts)
 
         # Insert information of all files to database in one go
-        models.File.objects.insert(file_documents)
+        models.FileEntry.objects.insert(file_documents)
 
         # Move files to project directory
         self._move_files_to_project_directory()

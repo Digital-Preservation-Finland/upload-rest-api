@@ -1,9 +1,9 @@
-"""Files API background jobs."""
+"""FileEntrys API background jobs."""
 import os
 import shutil
 
 import upload_rest_api.gen_metadata as md
-from upload_rest_api.models import File, Project, Task
+from upload_rest_api.models import FileEntry, Project, Task
 from upload_rest_api.jobs.utils import api_background_job
 from upload_rest_api.lock import ProjectLockManager
 
@@ -68,7 +68,7 @@ def delete_files(fpath, trash_path, trash_root, project_id, task_id):
         trash_root=trash_root,
         project_dir=project_dir
     )
-    File.objects.bulk_delete_by_paths(files_to_delete)
+    FileEntry.objects.bulk_delete_by_paths(files_to_delete)
 
     # Ensure the directory containing the "fake" project directory is
     # deleted as well.

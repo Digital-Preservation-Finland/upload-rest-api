@@ -7,7 +7,7 @@ import shutil
 import pytest
 from metax_access import DS_STATE_TECHNICAL_METADATA_GENERATED
 
-from upload_rest_api.models import File, Project
+from upload_rest_api.models import FileEntry, Project
 
 
 def _upload_file(client, url, auth, fpath):
@@ -355,7 +355,7 @@ def test_get_file(app, test_auth, test2_auth, test3_auth):
 
     fpath = os.path.join(upload_path, "test_project/test.txt")
     shutil.copy("tests/data/test.txt", fpath)
-    File(
+    FileEntry(
         path=fpath, checksum="150b62e4e7d58c70503bd5fc8a26463c",
         identifier="fake_identifier"
     ).save()
@@ -582,7 +582,7 @@ def test_delete_directory(
     for root, _, files in os.walk(project_directory / target.strip('/')):
         target_files += [pathlib.Path(root) / file_ for file_ in files]
 
-    # Files don't belong to any dataset
+    # File don't belong to any dataset
     requests_mock.post("https://metax.localdomain/rest/v2/files/datasets",
                        json={})
 

@@ -10,7 +10,7 @@ import time
 import upload_rest_api.config
 import upload_rest_api.gen_metadata as md
 from upload_rest_api.lock import ProjectLockManager
-from upload_rest_api.models import File, Task, Upload
+from upload_rest_api.models import FileEntry, Task, Upload
 
 
 def _is_expired(fpath, current_time, time_lim):
@@ -125,7 +125,7 @@ def clean_project(project_id, fpath, metax=True):
     _clean_empty_dirs(fpath)
 
     # Clean deleted files from mongo
-    File.objects.filter(path__in=deleted_files).delete()
+    FileEntry.objects.filter(path__in=deleted_files).delete()
 
     # Remove Metax entries of deleted files that are not part of any
     # datasets

@@ -6,7 +6,7 @@ import pathlib
 import click
 
 import upload_rest_api.config
-from upload_rest_api.models import Token, Project, File, User
+from upload_rest_api.models import Token, Project, FileEntry, User
 from upload_rest_api.cleanup import clean_disk, clean_mongo, clean_tus_uploads
 
 
@@ -270,10 +270,10 @@ def files_get():
 def get_file_by_path(path):
     """Show information of file in PATH."""
     try:
-        file_ = File.objects.get(path=path)
+        file_ = FileEntry.objects.get(path=path)
         _echo_json(file_)
-    except File.DoesNotExist:
-        click.echo(f"File not found in path '{path}'")
+    except FileEntry.DoesNotExist:
+        click.echo(f"FileEntry not found in path '{path}'")
 
 
 @files_get.command("identifier")
@@ -281,10 +281,10 @@ def get_file_by_path(path):
 def get_file_by_identifier(identifier):
     """Show information of file specified by IDENTIFIER."""
     try:
-        file_ = File.objects.get(identifier=identifier)
+        file_ = FileEntry.objects.get(identifier=identifier)
         _echo_json(file_)
-    except File.DoesNotExist:
-        click.echo(f"File '{identifier}' not found")
+    except FileEntry.DoesNotExist:
+        click.echo(f"FileEntry '{identifier}' not found")
 
 
 @files.command("list")
@@ -300,7 +300,7 @@ def list_files(identifiers_only, checksums_only):
         _list_checksums()
         return
 
-    files = list(File.objects)
+    files = list(FileEntry.objects)
     if not files:
         click.echo("No files found")
     else:
@@ -311,7 +311,7 @@ def _list_file_identifiers():
     """List all file identifiers."""
     identifiers = [
         file_.identifier for file_
-        in File.objects.only("identifier")
+        in FileEntry.objects.only("identifier")
     ]
     if identifiers:
         _echo_json(identifiers)
@@ -323,7 +323,7 @@ def _list_checksums():
     """List all checksums of files."""
     checksums = [
         file_.checksum for file_ in
-        File.objects.only("checksum")
+        FileEntry.objects.only("checksum")
     ]
     if checksums:
         _echo_json(checksums)

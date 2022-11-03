@@ -10,6 +10,6 @@ notes=FIXME
 # List some of the members here to reduce the number of false positives.
 # The following regex could be used instead for better accuracy in 1.7.0,
 # but the system pylint is too old for that.
-#generated-members=(User|File|Task|Token|Upload|Project).(objects|DoesNotExist)
+#generated-members=(User|FileEntry|Task|Token|Upload|Project).(objects|DoesNotExist)
 
 generated-members=objects,DoesNotExist

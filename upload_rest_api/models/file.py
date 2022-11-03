@@ -9,7 +9,7 @@ def _validate_file_path(path):
         raise ValidationError("File path cannot be relative")
 
 
-class FileQuerySet(QuerySet):
+class FileEntryQuerySet(QuerySet):
     """
     Custom query set for File documents that provides a function for
     deleting files in multiple queries to avoid hitting the MongoDB query
@@ -39,7 +39,7 @@ class FileQuerySet(QuerySet):
         return deleted_count
 
 
-class File(Document):
+class FileEntry(Document):
     """File stored in the pre-ingest file storage."""
     # Absolute file system path for the file. *NOT* the relative path
     # that is shown to the user.
@@ -54,7 +54,7 @@ class File(Document):
 
     meta = {
         "collection": "files",
-        "queryset_class": FileQuerySet,
+        "queryset_class": FileEntryQuerySet,
         # Do not auto create indexes. Otherwise, index will be created
         # on first query which can lead to slow performance until the creation
         # is finished, or a crash if the existing collection data conflicts

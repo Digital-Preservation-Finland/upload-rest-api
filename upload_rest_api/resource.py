@@ -14,7 +14,7 @@ from upload_rest_api import gen_metadata
 from upload_rest_api.config import CONFIG
 from upload_rest_api.jobs.utils import FILES_QUEUE, enqueue_background_job
 from upload_rest_api.lock import lock_manager
-from upload_rest_api.models import File, Project
+from upload_rest_api.models import FileEntry, Project
 from upload_rest_api.utils import parse_relative_user_path
 
 
@@ -106,7 +106,7 @@ class FileResource(Resource):
         until this property is accessed for the first time.
         """
         if not self._db_file_:
-            self._db_file_ = File.objects.get(path=str(self.storage_path))
+            self._db_file_ = FileEntry.objects.get(path=str(self.storage_path))
 
         return self._db_file_
 

@@ -7,8 +7,8 @@ import pytest
 from click.testing import CliRunner
 
 import upload_rest_api.__main__
-from upload_rest_api.models import (File, Project, ProjectExistsError, Token,
-                                    User, UserExistsError)
+from upload_rest_api.models import (FileEntry, Project, ProjectExistsError,
+                                    Token, User, UserExistsError)
 
 
 @pytest.fixture(scope="function")
@@ -407,7 +407,7 @@ def test_modify_project_fail(command_runner):
 
 def test_get_file_by_path(command_runner):
     """Test displaying information of file specified by path."""
-    File(
+    FileEntry(
         path="/path_1", checksum="checksum_1", identifier="pid:urn:1"
     ).save()
 
@@ -423,7 +423,7 @@ def test_get_file_by_path(command_runner):
 
 def test_get_file_by_identifier(command_runner):
     """Test displaying information of file specified by identifier."""
-    File(
+    FileEntry(
         path="/path_1", checksum="checksum_1", identifier="pid:urn:1"
     ).save()
 
@@ -439,9 +439,9 @@ def test_get_file_by_identifier(command_runner):
 
 def test_list_files(command_runner):
     """Test listing all files."""
-    File.objects.insert([
-        File(path="/path_1", identifier="pid:urn:1", checksum="checksum_1"),
-        File(path="/path_2", identifier="pid:urn:2", checksum="checksum_2")
+    FileEntry.objects.insert([
+        FileEntry(path="/path_1", identifier="pid:urn:1", checksum="checksum_1"),
+        FileEntry(path="/path_2", identifier="pid:urn:2", checksum="checksum_2")
     ])
 
     result = command_runner(["files", "list"])
@@ -458,9 +458,9 @@ def test_list_files(command_runner):
 
 def test_list_file_identifiers(command_runner):
     """Test listing all file identifiers."""
-    File.objects.insert([
-        File(path="/path_1", identifier="pid:urn:1", checksum="checksum_1"),
-        File(path="/path_2", identifier="pid:urn:2", checksum="checksum_2")
+    FileEntry.objects.insert([
+        FileEntry(path="/path_1", identifier="pid:urn:1", checksum="checksum_1"),
+        FileEntry(path="/path_2", identifier="pid:urn:2", checksum="checksum_2")
     ])
 
     result = command_runner(["files", "list", "--identifiers-only"])
@@ -470,9 +470,9 @@ def test_list_file_identifiers(command_runner):
 
 def test_list_checksums(command_runner):
     """Test listing all file checksums."""
-    File.objects.insert([
-        File(path="/path_1", identifier="pid:urn:1", checksum="checksum_1"),
-        File(path="/path_2", identifier="pid:urn:2", checksum="checksum_2")
+    FileEntry.objects.insert([
+        FileEntry(path="/path_1", identifier="pid:urn:1", checksum="checksum_1"),
+        FileEntry(path="/path_2", identifier="pid:urn:2", checksum="checksum_2")
     ])
 
     result = command_runner(["files", "list", "--checksums-only"])
@@ -485,7 +485,7 @@ def test_get_nonexistent_file_by_path(command_runner):
     found in the database.
     """
     result = command_runner(["files", "get", "path", "nonexistent"])
-    assert result.output == "File not found in path 'nonexistent'\n"
+    assert result.output == "FileEntry not found in path 'nonexistent'\n"
 
 
 def test_get_nonexistent_file_by_identifier(command_runner):
@@ -493,7 +493,7 @@ def test_get_nonexistent_file_by_identifier(command_runner):
     be found in the database.
     """
     result = command_runner(["files", "get", "identifier", "pid:urn:1"])
-    assert result.output == "File 'pid:urn:1' not found\n"
+    assert result.output == "FileEntry 'pid:urn:1' not found\n"
 
 
 def test_list_files_when_no_files(command_runner):

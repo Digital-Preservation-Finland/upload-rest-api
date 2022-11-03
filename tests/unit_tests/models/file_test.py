@@ -1,12 +1,12 @@
-from upload_rest_api.models.file import File
+from upload_rest_api.models.file import FileEntry
 
 
 def test_correct_document_structure(files_col):
     """
-    Test that saved File has the same structure as the pre-MongoEngine
+    Test that saved FileEntry has the same structure as the pre-MongoEngine
     implementation
     """
-    file = File(
+    file = FileEntry(
         path="/fake/path",
         checksum="6d48b69215369ecd27c1add71746989c",
         identifier="urn:uuid:foo_bar"
@@ -38,14 +38,14 @@ def test_files_delete_chunks(test_mongo):
             for j in range(0, 100)
         ])
 
-    assert File.objects.count() == 20100
+    assert FileEntry.objects.count() == 20100
 
     # Delete all but the last 3 files entries using `delete`
     paths_to_delete = [f"/path/{i}" for i in range(0, 20097)]
-    assert File.objects.bulk_delete_by_paths(paths_to_delete) == 20097
+    assert FileEntry.objects.bulk_delete_by_paths(paths_to_delete) == 20097
 
     # 3 files are left
-    assert File.objects.count() == 3
+    assert FileEntry.objects.count() == 3
     assert list(test_mongo.upload.files.find()) == [
         {"_id": "/path/20097", "checksum": "foobar", "identifier": '1'},
         {"_id": "/path/20098", "checksum": "foobar", "identifier": '1'},
