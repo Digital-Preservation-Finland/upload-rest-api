@@ -2,10 +2,10 @@
 
 import pytest
 
-from upload_rest_api.database import Token, User
+from upload_rest_api.models import Token, User
 
 
-def test_create_token(test_client, admin_auth, database):
+def test_create_token(test_client, admin_auth):
     """
     Create a token using the `/create` API endpoint
     """
@@ -240,8 +240,7 @@ def test_delete_token(test_client, admin_auth, database):
     assert response.json["deleted"]
 
     # Token was really deleted
-    with pytest.raises(Token.DoesNotExist):
-        Token.get_by_token(token)
+    assert Token.get_by_token(token) is None
 
 
 def test_delete_token_permission_denied(

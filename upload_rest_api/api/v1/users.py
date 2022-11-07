@@ -2,7 +2,7 @@
 from flask import Blueprint, abort, jsonify, request
 
 from upload_rest_api.authentication import current_user
-from upload_rest_api.database import Project, User
+from upload_rest_api.models import Project, User
 
 USERS_API_V1 = Blueprint("users_v1", __name__, url_prefix="/v1/users")
 

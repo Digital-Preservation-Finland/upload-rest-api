@@ -8,8 +8,9 @@ import datetime
 
 import dateutil.parser
 from flask import Blueprint, abort, jsonify, request
+
 from upload_rest_api.authentication import current_user
-from upload_rest_api.database import User, Token
+from upload_rest_api.models import Token, User
 
 TOKEN_API_V1 = Blueprint("tokens_v1", __name__, url_prefix="/v1/tokens")
 
@@ -116,7 +117,9 @@ def list_tokens():
     if not current_user.is_allowed_to_list_tokens(username):
         abort(403, "User does not have permission to list tokens")
 
-    tokens = list(Token.objects.filter(username=username))
+    # Retrieve all tokens except for session tokens, which are not meant
+    # to be visible for the user
+    tokens = list(Token.objects.filter(username=username, session=False))
     token_entries = []
 
     # Strip token hash from the results and rename '_id' field

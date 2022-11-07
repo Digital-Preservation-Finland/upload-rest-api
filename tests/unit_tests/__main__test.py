@@ -7,8 +7,8 @@ import pytest
 from click.testing import CliRunner
 
 import upload_rest_api.__main__
-from upload_rest_api.database import (DBFile, Project, ProjectExistsError, Token,
-                                      User, UserExistsError)
+from upload_rest_api.models import (File, Project, ProjectExistsError, Token,
+                                    User, UserExistsError)
 
 
 @pytest.fixture(scope="function")
@@ -408,7 +408,7 @@ def test_modify_project_fail(command_runner):
 
 def test_get_file_by_path(command_runner, database):
     """Test displaying information of file specified by path."""
-    DBFile(
+    File(
         path="/path_1", checksum="checksum_1", identifier="pid:urn:1"
     ).save()
 
@@ -424,7 +424,7 @@ def test_get_file_by_path(command_runner, database):
 
 def test_get_file_by_identifier(command_runner, database):
     """Test displaying information of file specified by identifier."""
-    DBFile(
+    File(
         path="/path_1", checksum="checksum_1", identifier="pid:urn:1"
     ).save()
 
@@ -440,9 +440,9 @@ def test_get_file_by_identifier(command_runner, database):
 
 def test_list_files(database, command_runner):
     """Test listing all files."""
-    DBFile.objects.insert([
-        DBFile(path="/path_1", identifier="pid:urn:1", checksum="checksum_1"),
-        DBFile(path="/path_2", identifier="pid:urn:2", checksum="checksum_2")
+    File.objects.insert([
+        File(path="/path_1", identifier="pid:urn:1", checksum="checksum_1"),
+        File(path="/path_2", identifier="pid:urn:2", checksum="checksum_2")
     ])
 
     result = command_runner(["files", "list"])
@@ -459,9 +459,9 @@ def test_list_files(database, command_runner):
 
 def test_list_file_identifiers(database, command_runner):
     """Test listing all file identifiers."""
-    DBFile.objects.insert([
-        DBFile(path="/path_1", identifier="pid:urn:1", checksum="checksum_1"),
-        DBFile(path="/path_2", identifier="pid:urn:2", checksum="checksum_2")
+    File.objects.insert([
+        File(path="/path_1", identifier="pid:urn:1", checksum="checksum_1"),
+        File(path="/path_2", identifier="pid:urn:2", checksum="checksum_2")
     ])
 
     result = command_runner(["files", "list", "--identifiers-only"])
@@ -471,9 +471,9 @@ def test_list_file_identifiers(database, command_runner):
 
 def test_list_checksums(database, command_runner):
     """Test listing all file checksums."""
-    DBFile.objects.insert([
-        DBFile(path="/path_1", identifier="pid:urn:1", checksum="checksum_1"),
-        DBFile(path="/path_2", identifier="pid:urn:2", checksum="checksum_2")
+    File.objects.insert([
+        File(path="/path_1", identifier="pid:urn:1", checksum="checksum_1"),
+        File(path="/path_2", identifier="pid:urn:2", checksum="checksum_2")
     ])
 
     result = command_runner(["files", "list", "--checksums-only"])

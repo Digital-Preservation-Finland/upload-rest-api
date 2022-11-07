@@ -6,9 +6,8 @@ from flask import Blueprint, abort
 from upload_rest_api.authentication import current_user
 from upload_rest_api.checksum import (HASH_FUNCTION_ALIASES,
                                       calculate_incr_checksum)
-from upload_rest_api.database import DBUpload
 from upload_rest_api.lock import lock_manager
-from upload_rest_api.upload import Upload, continue_upload, create_upload
+from upload_rest_api.models import Upload
 
 FILES_TUS_API_V1 = Blueprint(
     "files_tus_v1", __name__, url_prefix="/v1/files_tus"
@@ -32,17 +31,15 @@ def _release_lock(workspace):
     """Release file storage lock."""
     resource = workspace.get_resource()
     try:
-        upload = DBUpload.objects.get(id=resource.identifier)
-        lock_manager.release(upload.project, upload.upload_path)
-    except DBUpload.DoesNotExist:
+        upload = Upload.objects.get(id=resource.identifier)
+        lock_manager.release(upload.project.id, upload.storage_path)
+    except Upload.DoesNotExist:
         return
 
 
 def _delete_workspace(workspace):
-    """Delete workspace and remove the corresponding database entry."""
-    resource = workspace.get_resource()
+    """Delete the workspace."""
     workspace.remove()
-    DBUpload.objects.filter(id=resource.identifier).delete()
 
 
 def _upload_started(workspace, resource):
@@ -58,19 +55,12 @@ def _upload_started(workspace, resource):
         ):
             abort(403)
 
-        upload = create_upload(
-            project=resource.upload_metadata['project_id'],
+        Upload.create(
+            project_id=resource.upload_metadata['project_id'],
             path=resource.upload_metadata['upload_path'],
             size=resource.upload_length,
             upload_type=upload_type,
             identifier=resource.identifier
-        )
-
-        # Quota is sufficient, create a new Upload entry
-        DBUpload.create(
-            project_id=resource.upload_metadata['project_id'],
-            upload_path=str(upload.storage_path),
-            resource=resource
         )
     except Exception:
         # Remove the workspace to prevent filling up disk space with
@@ -83,14 +73,14 @@ def _upload_started(workspace, resource):
 def _store_files(workspace, resource, upload_type):
     """Start the extraction job for an uploaded archive."""
     project_id = resource.upload_metadata["project_id"]
-    fpath = resource.upload_metadata["upload_path"]
     checksum = calculate_incr_checksum(algorithm='md5',
                                        path=resource.upload_file_path)
 
     try:
-        upload = continue_upload(project_id, fpath,
-                                 upload_type=upload_type,
-                                 identifier=resource.identifier)
+        upload = Upload.objects.get(
+            id=resource.identifier,
+            project=project_id
+        )
         upload.add_source(resource.upload_file_path, checksum, verify=False)
 
     finally:
@@ -106,7 +96,6 @@ def _store_files(workspace, resource, upload_type):
         #
         # upload.validate_archive()
         upload.enqueue_store_task()
-
     else:
         upload.store_files()
 

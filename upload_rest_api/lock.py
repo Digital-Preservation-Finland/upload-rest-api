@@ -89,7 +89,7 @@ class ProjectLockManager:
         )
 
     @contextmanager
-    def lock(self, project, path, timeout=None, ttl=None):
+    def lock(self, project_id, path, timeout=None, ttl=None):
         """
         Context manager to acquire and release a lock
         """
@@ -99,13 +99,13 @@ class ProjectLockManager:
         if timeout is None:
             timeout = self.default_lock_timeout
 
-        self.acquire(project, path, timeout=timeout, ttl=ttl)
+        self.acquire(project_id, path, timeout=timeout, ttl=ttl)
         try:
             yield
         finally:
-            self.release(project, path)
+            self.release(project_id, path)
 
-    def acquire(self, project, path, timeout=None, ttl=None):
+    def acquire(self, project_id, path, timeout=None, ttl=None):
         """
         Try to acquire the lock for a path in the given project.
 
@@ -127,7 +127,7 @@ class ProjectLockManager:
         while time.time() < deadline:
             result = bool(
                 self.lua_acquire(
-                    keys=[f"upload-rest-api:locks:{project}"],
+                    keys=[f"upload-rest-api:locks:{project_id}"],
                     args=[path, time.time(), ttl],
                     client=self.redis
                 )
@@ -140,7 +140,7 @@ class ProjectLockManager:
 
         raise LockAlreadyTaken("File lock could not be acquired")
 
-    def release(self, project, path):
+    def release(self, project_id, path):
         """
         Release the lock for a path in the given project
         """
@@ -151,7 +151,11 @@ class ProjectLockManager:
                 "Path to release has to be an absolute project path"
             )
 
-        if not bool(self.redis.hdel(f"upload-rest-api:locks:{project}", path)):
+        lock_deleted = bool(
+            self.redis.hdel(f"upload-rest-api:locks:{project_id}", path)
+        )
+
+        if not lock_deleted:
             raise ValueError("Lock was already released")
 
 

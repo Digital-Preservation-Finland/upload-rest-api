@@ -22,9 +22,9 @@ from upload_rest_api.api.v1.tokens import TOKEN_API_V1
 from upload_rest_api.api.v1.users import USERS_API_V1
 from upload_rest_api.config import get_config
 from upload_rest_api.lock import LockAlreadyTaken
-from upload_rest_api.resource import InvalidPathError
-from upload_rest_api.upload import (InsufficientQuotaError,
-                                    UploadConflictError, UploadError)
+from upload_rest_api.models.upload import (InsufficientQuotaError,
+                                           UploadConflictError, UploadError)
+from upload_rest_api.utils import InvalidPathError
 
 try:
     # Newer Werkzeug

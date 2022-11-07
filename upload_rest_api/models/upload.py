@@ -1,24 +1,27 @@
-"""Module for handling the file uploads."""
-from datetime import datetime, timezone
 import os
 import shutil
-import pathlib
 import tarfile
 import uuid
 import zipfile
+from datetime import datetime, timezone
+from enum import Enum
+from pathlib import Path, PurePath
 
+import magic
+import metax_access
 from archive_helpers.extract import (ExtractError, MemberNameError,
                                      MemberOverwriteError, MemberTypeError,
                                      extract)
-import magic
-import metax_access
+from mongoengine import (Document, EnumField, ReferenceField, LongField,
+                         StringField)
 
-from upload_rest_api.config import CONFIG
 from upload_rest_api import gen_metadata
 from upload_rest_api.checksum import get_file_checksum
-from upload_rest_api.database import DBFile, Project
+from upload_rest_api.config import CONFIG
 from upload_rest_api.jobs.utils import UPLOAD_QUEUE, enqueue_background_job
+from upload_rest_api.utils import parse_relative_user_path
 from upload_rest_api.lock import ProjectLockManager
+from upload_rest_api import models
 from upload_rest_api.resource import Resource
 
 
@@ -67,109 +70,106 @@ class InsufficientQuotaError(UploadError):
     """Exception raised when upload would exceed remaining quota."""
 
 
-def create_upload(project, path, size, upload_type='file', identifier=None):
-    """Create new upload.
-
-    :param project: Project identifier
-    :param path: Upload path
-    :param size: Size of upload
-    :param upload_type: Type of upload: 'file' or 'archive'
-    :param identifier: Identifier of upload
-    """
-    upload = Upload(project, path, upload_type=upload_type,
-                    identifier=identifier)
-    upload.create(size)
-    return upload
+class UploadType(Enum):
+    FILE = "file"
+    ARCHIVE = "archive"
 
 
-def continue_upload(project, path, upload_type, identifier):
-    """Continue previously created upload.
+class Upload(Document):
+    """Database entry for an upload."""
+    # The upload ID created by flask-tus-io, used to identify the upload.
+    id = StringField(primary_key=True, required=True)
+    # Relative upload path for the file
+    upload_path = StringField(required=True)
+    # Type of upload, either 'file' or 'archive'
+    upload_type = EnumField(UploadType)
+    project = ReferenceField(models.Project, required=True)
+    source_checksum = StringField()
 
-    :param project: Project identifier
-    :param path: Upload path
-    :param upload_type: Type of upload: 'file' or 'archive'
-    :param identifier: Identifier of upload
-    """
-    upload = Upload(project, path, upload_type=upload_type,
-                    identifier=identifier)
-    return upload
+    # Size of the file to upload in bytes
+    size = LongField(required=True)
 
+    meta = {
+        "collection": "uploads"
+    }
 
-class Upload:
-    """Class for handling uploads."""
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self._resource = None
 
-    def __init__(self, project_id, path, upload_type="file", identifier=None):
-        """Initialize upload.
-
-        :param project_id: Project identifier
-        :param path: Upload path
-        :param upload_type: Type of upload: 'file' or 'archive'
-        :param identifier: Identifier of upload
+    @classmethod
+    def create(
+            cls, project_id, path, size, upload_type=UploadType.FILE,
+            identifier=None):
         """
-        project = Project.objects.get(id=project_id)
-        self._resource = Resource(project, path)
-        self.type = upload_type
-        self.source_checksum = None
-        self.identifier = identifier
+        Create upload database entry from the given tus resource.
 
-    def create(self, size):
-        """Create new upload.
-
-        Check that project has enough quota, check for conflicts and
-        lock the filestorage.
-
-        :param size: Size of upload
+        :param str project_id: Project identifier
+        :param str path: Relative file/directory path
+        :param str upload_type: Upload type
         """
-        if not self.identifier:
-            self.identifier = str(uuid.uuid4())
+        if not identifier:
+            identifier = str(uuid.uuid4())
         if size > CONFIG["MAX_CONTENT_LENGTH"]:
             raise InsufficientQuotaError("Max single file size exceeded")
 
+        path = PurePath("/") / parse_relative_user_path(path.strip("/"))
+
+        upload = cls(
+            id=identifier,
+            project=models.Project.objects.get(id=project_id),
+            upload_path=str(path),
+            upload_type=upload_type,
+            size=size
+        )
         # Check that project has enough quota. Update used quota
         # first, since multiple users might be using the same
         # project
-        self.project.update_used_quota()
+        upload.project.update_used_quota()
 
-        if self.project.remaining_quota - size < 0:
+        if upload.project.remaining_quota - size < 0:
             raise InsufficientQuotaError("Quota exceeded")
 
         # Check for conflicts
-        if self.storage_path.is_file():
+        if upload.storage_path.is_file():
             raise UploadConflictError(
-                f"File '{self.path}' already exists", [str(self.path)]
+                f"File '{upload.resource.path}' already exists",
+                [str(upload.resource.path)]
             )
 
-        if self.type == "file" and self.storage_path.is_dir():
+        if upload.upload_type == UploadType.FILE and upload.storage_path.is_dir():
             raise UploadConflictError(
-                f"Directory '{self.path}' already exists", [str(self.path)]
+                f"Directory '{upload.resource.path}' already exists",
+                [str(upload.resource.path)]
             )
 
         # Lock the storage path
         lock_manager = ProjectLockManager()
-        lock_manager.acquire(self.project.id, self.storage_path)
+        lock_manager.acquire(upload.project.id, upload.storage_path)
 
         # Create temporary path
-        self._tmp_path.mkdir(exist_ok=True, parents=True)
+        upload._tmp_path.mkdir(exist_ok=True, parents=True)
 
-    @property
-    def project(self):
-        """Project of upload."""
-        return self._resource.project
+        upload.save(force_insert=True)
 
-    @property
-    def path(self):
-        """Upload path."""
-        return self._resource.path
+        return upload
 
     @property
     def storage_path(self):
-        """Path where resource will be stored."""
-        return self._resource.storage_path
+        """Absolute path to the file on disk"""
+        return self.resource.storage_path
+
+    @property
+    def resource(self):
+        if not self._resource:
+            self._resource = Resource(self.project, self.upload_path)
+
+        return self._resource
 
     @property
     def _tmp_path(self):
         """Temporary path for upload."""
-        return pathlib.Path(CONFIG["UPLOAD_TMP_PATH"]) / self.identifier
+        return Path(CONFIG["UPLOAD_TMP_PATH"]) / self.id
 
     @property
     def _tmp_project_directory(self):
@@ -188,11 +188,6 @@ class Upload:
         """
         return self._tmp_project_directory \
             / self.storage_path.relative_to(self.project.directory)
-
-    @property
-    def project_directory(self):
-        """Path to project directory."""
-        return Project.get_project_directory(self.project.id)
 
     @property
     def _source_path(self):
@@ -222,7 +217,7 @@ class Upload:
                     source_file.write(chunk)
         else:
             # 'file' is path to a file. Move it to source path.
-            pathlib.Path(file).rename(self._source_path)
+            Path(file).rename(self._source_path)
 
         # Verify integrity of uploaded file if checksum was provided
         if checksum:
@@ -241,15 +236,14 @@ class Upload:
 
         :returns: Task identifier
         """
+        self.save()
+
         task_id = enqueue_background_job(
             task_func="upload_rest_api.jobs.upload.store_files",
             queue_name=UPLOAD_QUEUE,
             project_id=self.project.id,
             job_kwargs={
-                "project_id": self.project.id,
-                "path": str(self.path),
-                "upload_type": self.type,
-                "identifier": self.identifier
+                "identifier": self.id
             }
         )
 
@@ -292,11 +286,11 @@ class Upload:
         for file in files:
             extract_path = self.storage_path / file
             if extract_path.exists():
-                conflicts.append(f'{self.path}/{file}')
+                conflicts.append(f'{self.upload_path}/{file}')
         for directory in directories:
             extract_path = self.storage_path / directory
             if extract_path.is_file():
-                conflicts.append(f'{self.path}/{directory}')
+                conflicts.append(f'{self.upload_path}/{directory}')
         if conflicts:
             self._source_path.unlink()
             raise UploadConflictError('Some files already exist',
@@ -335,7 +329,7 @@ class Upload:
         creates file metadata, and then moves the files to project
         directory.
         """
-        if self.type == 'file':
+        if self.upload_type == UploadType.FILE:
             self._tmp_storage_path.parent.mkdir(parents=True, exist_ok=True)
             self._source_path.rename(self._tmp_storage_path)
         else:
@@ -349,7 +343,7 @@ class Upload:
         for dirpath, _, files in os.walk(self._tmp_project_directory):
             for fname in files:
                 new_files.append(
-                    pathlib.Path(dirpath, fname).relative_to(
+                    Path(dirpath, fname).relative_to(
                         self._tmp_project_directory
                     )
                 )
@@ -359,7 +353,7 @@ class Upload:
             try:
                 old_file = metax.client.get_project_file(
                     self.project.id,
-                    str(self.path)
+                    str(self.upload_path)
                 )
                 shutil.rmtree(self._tmp_path)
                 raise UploadConflictError(
@@ -390,19 +384,19 @@ class Upload:
         file_documents = []  # Basic file information to database
         for dirpath, _, files in os.walk(self._tmp_project_directory):
             for fname in files:
-                file = pathlib.Path(dirpath, fname)
+                file = Path(dirpath, fname)
                 relative_path = file.relative_to(self._tmp_project_directory)
 
                 # Create file information for database
                 identifier = str(uuid.uuid4().urn)
-                if self.type == 'file' and self.source_checksum:
+                if self.upload_type == UploadType.FILE and self.source_checksum:
                     checksum = self.source_checksum
                 else:
                     checksum = get_file_checksum("md5", file)
 
                 file_documents.append(
-                    DBFile(
-                        path=str(self.project_directory / relative_path),
+                    models.File(
+                        path=str(self.project.directory / relative_path),
                         checksum=checksum,
                         identifier=identifier
                     )
@@ -432,7 +426,7 @@ class Upload:
         metax.post_metadata(metadata_dicts)
 
         # Insert information of all files to database in one go
-        DBFile.objects.insert(file_documents)
+        models.File.objects.insert(file_documents)
 
         # Move files to project directory
         self._move_files_to_project_directory()
@@ -441,7 +435,9 @@ class Upload:
         # empty directories, it must be removed recursively.
         shutil.rmtree(self._tmp_path)
 
-        # Update quota
+        # Update quota. Delete the upload first so that this upload
+        # is not counted in the quota twice.
+        self.delete()
         self.project.update_used_quota()
 
         # Release file storage lock
@@ -453,7 +449,7 @@ class Upload:
         for dirpath, _, files in os.walk(self._tmp_project_directory):
             for fname in files:
                 _file = os.path.join(dirpath, fname)
-                relative_path = pathlib.Path(_file).relative_to(
+                relative_path = Path(_file).relative_to(
                     self._tmp_project_directory
                 )
                 source_path = self._tmp_project_directory / relative_path

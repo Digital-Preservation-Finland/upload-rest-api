@@ -4,7 +4,8 @@ import pathlib
 
 import pytest
 
-import upload_rest_api.upload
+from upload_rest_api.models.upload import (Upload, UploadConflictError,
+                                           UploadError)
 
 
 @pytest.mark.usefixtures('app')
@@ -27,7 +28,7 @@ def test_store_file(
     # source path
     test_file = pathlib.Path(file_path)
     project = 'test_project'
-    upload = upload_rest_api.upload.create_upload(project, 'foo/bar', 123)
+    upload = Upload.create(project, 'foo/bar', 123)
     with open(test_file, 'rb') as file:
         upload.add_source(file, None, False)
 
@@ -56,9 +57,7 @@ def test_store_file(
 def test_file_metadata_conflict(mock_config, requests_mock):
     """Test uploading a file that already has metadata in Metax."""
     # Create an incomplete upload with a text file copied to source path
-    upload = upload_rest_api.upload.create_upload('test_project',
-                                                  'path/file1',
-                                                  123)
+    upload = Upload.create('test_project', 'path/file1', 123)
     with open('tests/data/test.txt', 'rb') as file:
         upload.add_source(file, None, False)
 
@@ -80,7 +79,7 @@ def test_file_metadata_conflict(mock_config, requests_mock):
     )
 
     # Try to create metadata. Metadata creation should fail.
-    with pytest.raises(upload_rest_api.upload.UploadConflictError) as error:
+    with pytest.raises(UploadConflictError) as error:
         upload.store_files()
     assert error.value.message == ('Metadata could not be created because the'
                                    ' file already has metadata')
@@ -112,9 +111,7 @@ def test_checksum(checksum, verify, requests_mock, mock_get_file_checksum):
 
     # Add source file to upload. Checksum should be computed only if
     # a predefined checksum was provided and it must be verified.
-    upload = upload_rest_api.upload.create_upload('test_project',
-                                                  'path/file1',
-                                                  123)
+    upload = Upload.create('test_project', 'path/file1', 123)
     with open('tests/data/test.txt', 'rb') as source_file:
         upload.add_source(source_file, checksum=checksum, verify=verify)
 
@@ -183,23 +180,21 @@ def test_upload_archive_conflict(
 
     # Upload a file to a path that will cause a conflict when the
     # archive is uploaded
-    upload = upload_rest_api.upload.create_upload('test_project',
-                                                  existing_file,
-                                                  123,
-                                                  upload_type='file')
+    upload = Upload.create(
+        'test_project', existing_file, 123, upload_type='file'
+    )
     with open('tests/data/test.txt', 'rb') as source_file:
         upload.add_source(source_file, checksum=None)
     upload.store_files()
 
     # Try to upload an archive that will overwrite the file that was
     # just uploaded (or its parent directory).
-    upload = upload_rest_api.upload.create_upload('test_project',
-                                                  'foo',
-                                                  123,
-                                                  upload_type='archive')
+    upload = Upload.create(
+        'test_project', 'foo', 123, upload_type='archive'
+    )
     with open(archive, 'rb') as source_file:
         upload.add_source(source_file, checksum=None)
-    with pytest.raises(upload_rest_api.upload.UploadConflictError) as error:
+    with pytest.raises(UploadConflictError) as error:
         upload.validate_archive()
     assert error.value.message == 'Some files already exist'
     assert error.value.files == conflicts
@@ -208,13 +203,12 @@ def test_upload_archive_conflict(
 @pytest.mark.usefixtures('app')  # Creates test_project
 def test_upload_file_as_archive():
     """Test uploading a reqular file as an archive."""
-    upload = upload_rest_api.upload.create_upload('test_project',
-                                                  'foo',
-                                                  123,
-                                                  upload_type='archive')
+    upload = Upload.create(
+        'test_project', 'foo', 123, upload_type='archive'
+    )
     with open('tests/data/test.txt', 'rb') as source_file:
         upload.add_source(source_file, checksum=None)
-    with pytest.raises(upload_rest_api.upload.UploadError) as error:
+    with pytest.raises(UploadError) as error:
         upload.validate_archive()
 
     assert str(error.value) == 'Uploaded file is not a supported archive'

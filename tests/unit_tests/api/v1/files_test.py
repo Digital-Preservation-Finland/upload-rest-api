@@ -7,7 +7,7 @@ import shutil
 import pytest
 from metax_access import DS_STATE_TECHNICAL_METADATA_GENERATED
 
-from upload_rest_api.database import DBFile, Project
+from upload_rest_api.models import File, Project
 
 
 def _upload_file(client, url, auth, fpath):
@@ -355,7 +355,7 @@ def test_get_file(app, test_auth, test2_auth, test3_auth):
 
     fpath = os.path.join(upload_path, "test_project/test.txt")
     shutil.copy("tests/data/test.txt", fpath)
-    DBFile(
+    File(
         path=fpath, checksum="150b62e4e7d58c70503bd5fc8a26463c",
         identifier="fake_identifier"
     ).save()

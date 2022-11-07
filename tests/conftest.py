@@ -14,9 +14,9 @@ from mongoengine import connect, disconnect
 from rq import SimpleWorker
 
 import upload_rest_api.app as app_module
-from upload_rest_api.database import Project, User, Token
 from upload_rest_api.jobs.utils import get_job_queue
 from upload_rest_api.lock import ProjectLockManager
+from upload_rest_api.models import Project, Token, User
 
 # Prefer modules from source directory rather than from site-python
 sys.path.insert(
@@ -89,7 +89,7 @@ def patch_hashing_iters(monkeypatch):
     """Run tests with only 2000 hashing iters to avoid CPU
     bottlenecking.
     """
-    monkeypatch.setattr("upload_rest_api.database.ITERATIONS", 2000)
+    monkeypatch.setattr("upload_rest_api.models.user.ITERATIONS", 2000)
 
 
 @pytest.yield_fixture(autouse=True, scope="session")
@@ -156,18 +156,10 @@ def mock_redis(monkeypatch):
     """Patch job queue to use a mock Redis."""
     conn = fakeredis.FakeStrictRedis()
 
-    locations = [
-        "upload_rest_api.checksum",
-        "upload_rest_api.database",
-        "upload_rest_api.lock",
-        "upload_rest_api.jobs.utils"
-    ]
-
-    for location in locations:
-        monkeypatch.setattr(
-            f"{location}.get_redis_connection",
-            lambda: conn
-        )
+    monkeypatch.setattr(
+        "upload_rest_api.database.Redis",
+        lambda *args, **kwargs: conn
+    )
 
     yield conn
 
@@ -332,6 +324,21 @@ def project(database):
 
 
 @pytest.fixture(scope="function")
+def tokens_col(test_mongo):
+    return test_mongo.upload.tokens
+
+
+@pytest.fixture(scope="function")
+def projects_col(test_mongo):
+    return test_mongo.upload.projects
+
+
+@pytest.fixture(scope="function")
+def users_col(test_mongo):
+    return test_mongo.upload.users
+
+
+@pytest.fixture(scope="function")
 def files_col(test_mongo):
     """Initialize and return Files instance with db connection through
     Mongobox.
@@ -344,11 +351,7 @@ def tasks_col(test_mongo):
     """Initialize and return Tasks instance with db connection through
     Mongobox.
     """
-    tasks_col = db.Database().tasks
-    tasks_col.tasks = test_mongo.upload.tasks
-    tasks_col.task_messages = test_mongo.upload.task_messages
-
-    return tasks_col
+    return test_mongo.upload.tasks
 
 
 @pytest.fixture(scope="function")
@@ -446,5 +449,7 @@ def mock_get_file_checksum(monkeypatch):
     The mocked get_file_checksum function will always return "foo".
     """
     mock = unittest.mock.Mock(side_effect=lambda x, y: 'foo')
-    monkeypatch.setattr('upload_rest_api.upload.get_file_checksum', mock)
+    monkeypatch.setattr(
+        'upload_rest_api.models.upload.get_file_checksum', mock
+    )
     return mock

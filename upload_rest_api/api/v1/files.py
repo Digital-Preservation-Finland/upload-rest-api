@@ -12,10 +12,9 @@ from flask import Blueprint, abort, jsonify, request
 import upload_rest_api.gen_metadata as md
 from upload_rest_api.api.v1.tasks import get_polling_url
 from upload_rest_api.authentication import current_user
-from upload_rest_api.database import Project
 from upload_rest_api.jobs.utils import FILES_QUEUE
 from upload_rest_api.resource import get_resource
-from upload_rest_api.upload import Upload, create_upload
+from upload_rest_api.models import Upload, Project
 
 FILES_API_V1 = Blueprint("files_v1", __name__, url_prefix="/v1/files")
 
@@ -52,13 +51,13 @@ def upload_file(project_id, fpath):
             "Missing Content-Length header"
         )
 
-    upload = create_upload(project_id, fpath, request.content_length)
+    upload = Upload.create(project_id, fpath, request.content_length)
     upload.add_source(request.stream, request.args.get('md5', None))
     upload.store_files()
 
     return jsonify(
         {
-            'file_path': str(upload.path),
+            'file_path': str(upload.upload_path),
             'status': 'created'
         }
     )

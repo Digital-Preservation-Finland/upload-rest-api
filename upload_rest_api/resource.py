@@ -1,10 +1,10 @@
 """Resource class."""
 
-from datetime import datetime, timezone
 import os
 import pathlib
 import secrets
 import shutil
+from datetime import datetime, timezone
 
 from metax_access import (DS_STATE_ACCEPTED_TO_DIGITAL_PRESERVATION,
                           DS_STATE_REJECTED_IN_DIGITAL_PRESERVATION_SERVICE)
@@ -12,8 +12,9 @@ from metax_access import (DS_STATE_ACCEPTED_TO_DIGITAL_PRESERVATION,
 from upload_rest_api import gen_metadata
 from upload_rest_api.config import CONFIG
 from upload_rest_api.jobs.utils import FILES_QUEUE, enqueue_background_job
+from upload_rest_api.utils import parse_relative_user_path
 from upload_rest_api.lock import lock_manager
-from upload_rest_api.database import Project, DBFile
+from upload_rest_api.models import File, Project
 
 
 class HasPendingDatasetError(Exception):
@@ -21,13 +22,6 @@ class HasPendingDatasetError(Exception):
 
     Raised if operation fails because resource is part of dataset that
     is being preserved.
-    """
-
-
-class InvalidPathError(Exception):
-    """Invalid path error.
-
-    Raised if path of the resource is invalid.
     """
 
 
@@ -41,9 +35,9 @@ def get_resource(project_id, path):
 
     resource = Resource(project, path)
     if resource.storage_path.is_file():
-        return File(project, path)
+        return FileResource(project, path)
     if resource.storage_path.is_dir():
-        return Directory(project, path)
+        return DirectoryResource(project, path)
     if not resource.storage_path.exists():
         raise FileNotFoundError('Resource does not exist')
 
@@ -62,12 +56,7 @@ class Resource():
         path = str(path)  # Allow pathlib.Path objects or strings
 
         # Raise InvalidPathError on attempted path escape
-        try:
-            relative_path = pathlib.Path(
-                '/root', path.strip('/')
-            ).resolve().relative_to('/root')
-        except ValueError as error:
-            raise InvalidPathError('Invalid path') from error
+        relative_path = parse_relative_user_path(path.strip("/"))
 
         self.path = pathlib.Path('/') / relative_path
         self.project = project
@@ -100,8 +89,8 @@ class Resource():
         )
 
 
-class File(Resource):
-    """File class."""
+class FileResource(Resource):
+    """FileResource class."""
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
@@ -116,7 +105,7 @@ class File(Resource):
         until this property is accessed for the first time.
         """
         if not self._db_file:
-            self._db_file = DBFile.objects.get(path=str(self.storage_path))
+            self._db_file = File.objects.get(path=str(self.storage_path))
 
         return self._db_file
 
@@ -165,7 +154,7 @@ class File(Resource):
             return metax_response
 
 
-class Directory(Resource):
+class DirectoryResource(Resource):
     """Directory class."""
 
     @property
@@ -187,14 +176,14 @@ class Directory(Resource):
         # Instead, we should preload any database entries that already exist
         # in a bulk query and attach them to the instances here
         return [
-            File(self.project, self.path / entry.name)
+            FileResource(self.project, self.path / entry.name)
             for entry in self._get_entries() if entry.is_file()
         ]
 
     def get_directories(self):
         """List of directories in directory."""
         return [
-            Directory(self.project, self.path / entry.name)
+            DirectoryResource(self.project, self.path / entry.name)
             for entry in self._get_entries() if entry.is_dir()
         ]
 

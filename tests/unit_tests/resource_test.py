@@ -1,7 +1,8 @@
 """Unit tests for resource module."""
 import pytest
 
-from upload_rest_api.resource import Resource, InvalidPathError
+from upload_rest_api.resource import Resource
+from upload_rest_api.utils import InvalidPathError
 
 
 @pytest.mark.parametrize(

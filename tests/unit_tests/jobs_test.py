@@ -2,7 +2,7 @@
 import pytest
 from rq import SimpleWorker
 
-from upload_rest_api.database import Task, TaskStatus
+from upload_rest_api.models import Task, TaskStatus
 from upload_rest_api.jobs.utils import (api_background_job,
                                         enqueue_background_job, get_job_queue)
 

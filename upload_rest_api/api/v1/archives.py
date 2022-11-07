@@ -5,7 +5,7 @@ Functionality for uploading and extracting an archive.
 from flask import Blueprint, jsonify, request
 import werkzeug
 
-from upload_rest_api.upload import create_upload
+from upload_rest_api.models import Upload
 from upload_rest_api.api.v1.tasks import get_polling_url
 
 ARCHIVES_API_V1 = Blueprint("archives_v1", __name__, url_prefix="/v1/archives")
@@ -29,9 +29,11 @@ def upload_archive(project_id):
             "Missing Content-Length header"
         )
 
-    upload = create_upload(project_id, request.args.get('dir', default='/'),
-                           size=request.content_length,
-                           upload_type='archive')
+    upload = Upload.create(
+        project_id, request.args.get('dir', default='/'),
+        size=request.content_length,
+        upload_type='archive'
+    )
     upload.add_source(file=request.stream,
                       checksum=request.args.get('md5', None))
     # TODO: Archive validation was removed from here, because in some
@@ -44,7 +46,7 @@ def upload_archive(project_id):
 
     response = jsonify(
         {
-            "file_path": str(upload.path),
+            "file_path": str(upload.upload_path),
             "message": "Uploading archive",
             "polling_url": get_polling_url(task_id),
             "status": "pending"

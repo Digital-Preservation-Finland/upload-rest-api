@@ -5,8 +5,7 @@ from flask import abort, g, request
 from werkzeug.local import LocalProxy
 
 from upload_rest_api.config import CONFIG
-from upload_rest_api.database import (Token, TokenInvalidError, User,
-                                      hash_passwd)
+from upload_rest_api.models import Token, TokenInvalidError, User, hash_passwd
 
 
 class CurrentUser:

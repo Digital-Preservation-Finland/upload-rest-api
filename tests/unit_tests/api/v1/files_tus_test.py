@@ -6,7 +6,7 @@ from io import BytesIO
 import pytest
 from flask_tus_io.resource import encode_tus_meta
 
-from upload_rest_api.database import Project
+from upload_rest_api.models import Project
 from upload_rest_api.jobs.utils import get_job_queue
 
 
