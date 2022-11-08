@@ -22,7 +22,7 @@ from upload_rest_api.lock import ProjectLockManager
 from upload_rest_api.utils import parse_relative_user_path
 
 
-def release_lock_on_exception(method):
+def _release_lock_on_exception(method):
     """Add file storage lock release functionality to method.
 
     Returns a decorated method of Upload object. The decorated method
@@ -204,7 +204,7 @@ class Upload(Document):
         """Path to the source file/archive."""
         return self._tmp_path / "source"
 
-    @release_lock_on_exception
+    @_release_lock_on_exception
     def add_source(self, file, checksum, verify=True):
         """Save file to source path and verify checksum.
 
@@ -240,7 +240,7 @@ class Upload(Document):
                     'checksum.'
                 )
 
-    @release_lock_on_exception
+    @_release_lock_on_exception
     def enqueue_store_task(self):
         """Enqueue store task for upload.
 
@@ -263,7 +263,7 @@ class Upload(Document):
 
         return task_id
 
-    @release_lock_on_exception
+    @_release_lock_on_exception
     def validate_archive(self):
         """Validate archive.
 
@@ -335,7 +335,7 @@ class Upload(Document):
         # Remove archive
         self._source_path.unlink()
 
-    @release_lock_on_exception
+    @_release_lock_on_exception
     def store_files(self):
         """Store files.
 
