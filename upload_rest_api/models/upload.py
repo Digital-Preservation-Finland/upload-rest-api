@@ -13,13 +13,13 @@ from archive_helpers.extract import (ExtractError, MemberNameError,
                                      MemberOverwriteError, MemberTypeError,
                                      extract)
 from mongoengine import (Document, EnumField, LongField, ReferenceField,
-                         StringField)
+                         StringField, ValidationError)
 
 from upload_rest_api import gen_metadata, models
 from upload_rest_api.checksum import get_file_checksum
 from upload_rest_api.config import CONFIG
 from upload_rest_api.lock import ProjectLockManager
-from upload_rest_api.utils import parse_relative_user_path
+from upload_rest_api.security import InvalidPathError, parse_relative_user_path
 
 
 def _release_lock_on_exception(method):
@@ -72,6 +72,15 @@ class UploadType(Enum):
     ARCHIVE = "archive"
 
 
+def _validate_upload_path(path):
+    """Validate that the file path does not perform path escape
+    """
+    try:
+        parse_relative_user_path(path.strip("/"))
+    except InvalidPathError as exc:
+        raise ValidationError("Path is invalid") from exc
+
+
 class Upload(Document):
     """Upload to the Pre-Ingest File Storage.
 
@@ -82,7 +91,7 @@ class Upload(Document):
     # set format for the identifier.
     id = StringField(primary_key=True, required=True)
     # Relative upload path for the file
-    path = StringField(required=True)
+    path = StringField(required=True, validation=_validate_upload_path)
     # Type of upload, either 'file' or 'archive'
     type_ = EnumField(UploadType, db_field="type")
     project = ReferenceField(models.Project, required=True)

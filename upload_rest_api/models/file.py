@@ -1,3 +1,5 @@
+from upload_rest_api.security import parse_user_path, InvalidPathError
+
 from mongoengine import Document, QuerySet, StringField, ValidationError
 
 
@@ -7,6 +9,11 @@ def _validate_file_path(path):
         raise ValidationError("File path cannot be empty")
     if not path.startswith("/"):
         raise ValidationError("File path cannot be relative")
+
+    try:
+        parse_user_path(path)
+    except InvalidPathError:
+        raise ValidationError("Path is invalid")
 
 
 class FileEntryQuerySet(QuerySet):

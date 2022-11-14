@@ -2,7 +2,7 @@
 import pytest
 
 from upload_rest_api.resource import Resource
-from upload_rest_api.utils import InvalidPathError
+from upload_rest_api.security import InvalidPathError
 
 
 @pytest.mark.parametrize(

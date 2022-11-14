@@ -5,7 +5,7 @@ from mongoengine import Document, LongField, NotUniqueError, StringField
 
 from upload_rest_api import models
 from upload_rest_api.config import CONFIG
-from upload_rest_api.utils import parse_user_path
+from upload_rest_api.security import parse_user_path
 
 
 def _get_dir_size(fpath):

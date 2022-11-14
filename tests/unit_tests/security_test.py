@@ -1,8 +1,9 @@
 """Unit tests for utility functions."""
 import pytest
 
-from upload_rest_api.utils import (InvalidPathError, parse_relative_user_path,
-                                   parse_user_path)
+from upload_rest_api.security import (InvalidPathError,
+                                      parse_relative_user_path,
+                                      parse_user_path)
 
 
 @pytest.mark.parametrize(
