@@ -61,7 +61,7 @@ class Project(Document):
     def update_used_quota(self):
         """Update used quota of the project."""
         stored_size = _get_dir_size(self.directory)
-        allocated_size = self.get_allocated_quota()
+        allocated_size = self._get_allocated_quota()
         self.used_quota = stored_size + allocated_size
         self.save()
 
@@ -137,5 +137,5 @@ class Project(Document):
 
         return path_string
 
-    def get_allocated_quota(self):
+    def _get_allocated_quota(self):
         return models.Upload.objects.filter(project=self.id).sum("size")
