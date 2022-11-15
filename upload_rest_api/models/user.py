@@ -4,7 +4,7 @@ import string
 
 from bson.binary import Binary
 from mongoengine import (BinaryField, Document, ListField, NotUniqueError,
-                         StringField)
+                         StringField, ValidationError)
 
 from upload_rest_api import models
 
@@ -47,6 +47,25 @@ def hash_passwd(password, salt):
     return Binary(digest)
 
 
+def _validate_projects(projects):
+    if len(projects) == 0:
+        # Nothing to check
+        return
+
+    projects = set(projects)
+    existing_projects = set(
+        project.id for project in
+        models.Project.objects.filter(id__in=projects).only("id")
+    )
+
+    missing_projects = projects - existing_projects
+
+    if missing_projects:
+        raise ValidationError(
+            f"Projects don't exist: {','.join(missing_projects)}"
+        )
+
+
 class UserExistsError(Exception):
     """Exception for trying to create a user, which already exists."""
 
@@ -60,7 +79,7 @@ class User(Document):
     digest = BinaryField(required=False, null=True, default=None)
 
     # Projects this user has access to
-    projects = ListField(StringField())
+    projects = ListField(StringField(), validation=_validate_projects)
 
     meta = {"collection": "users"}
 

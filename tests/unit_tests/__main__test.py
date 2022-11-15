@@ -102,6 +102,7 @@ def test_cleanup_tokens(command_runner):
 @pytest.mark.usefixtures('test_mongo')
 def test_list_users(command_runner):
     """Test listing all users."""
+    Project(id="test_project").save()
     User.create(username="test1", projects=["test_project"])
     User.create(username="test2", projects=["test_project"])
 
@@ -119,6 +120,7 @@ def test_list_users_when_no_users(command_runner):
 
 def test_get_user(command_runner):
     """Test displaying information of one user."""
+    Project(id="test_project").save()
     User.create(username="test1", projects=["test_project"])
 
     result = command_runner(["users", "get", "test1"])
@@ -195,6 +197,7 @@ def test_create_existing_user(command_runner):
     """Test that creating a user that already exists raises
     UserExistsError.
     """
+    Project(id="test_project").save()
     User.create(username="test", projects=["test_project"])
     with pytest.raises(UserExistsError):
         command_runner(["users", "create", "test"])
@@ -202,6 +205,7 @@ def test_create_existing_user(command_runner):
 
 def test_delete_user(test_mongo, command_runner):
     """Test deletion of an existing user."""
+    Project(id="test_project").save()
     User.create(username="test", projects=["test_project"])
     command_runner(["users", "delete", "test"])
 
@@ -249,6 +253,7 @@ def test_modify_user_fail(command_runner):
 @pytest.mark.usefixtures('test_mongo')
 def test_grant_user_projects(command_runner):
     """Test granting the user access to projects."""
+    Project(id="test_project").save()
     User.create(username="test", projects=["test_project"])
 
     Project.create("test_project_2", 2000)
@@ -273,6 +278,7 @@ def test_grant_user_projects(command_runner):
 @pytest.mark.usefixtures('test_mongo')
 def test_grant_user_projects_nonexistent_project(command_runner):
     """Test granting the user access to project that does not exist."""
+    Project(id="test_project").save()
     User.create("test", projects=["test_project"])
 
     with pytest.raises(Project.DoesNotExist) as exc:
@@ -299,6 +305,7 @@ def test_grant_user_projects_nonexistent_user(monkeypatch, command_runner):
 @pytest.mark.usefixtures('test_mongo')
 def test_revoke_user_projects(command_runner):
     """Test revoking the user access to projects."""
+    Project(id="test_project").save()
     User.create(username="test", projects=["test_project"])
 
     result = command_runner([

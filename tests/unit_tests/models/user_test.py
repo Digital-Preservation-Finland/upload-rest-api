@@ -3,7 +3,9 @@ import binascii
 import re
 
 import pytest
+from mongoengine import ValidationError
 
+from upload_rest_api.models.project import Project
 from upload_rest_api.models.user import User, get_random_string, hash_passwd
 
 
@@ -12,6 +14,8 @@ def test_correct_document_structure(users_col):
     Test that saved User has the same structure as the pre-MongoEngine
     implementation
     """
+    Project(id="test_project").save()
+    Project(id="test_project_2").save()
     user = User(
         username="test_user",
         salt="salty",
@@ -31,6 +35,21 @@ def test_correct_document_structure(users_col):
     }
 
 
+def test_nonexistent_projects():
+    """
+    Test that User rejects projects that don't exist
+    """
+    Project(id="project_a").save()
+    Project(id="project_b").save()
+
+    with pytest.raises(ValidationError) as exc:
+        User.create(
+            "test_user", projects=["project_a", "project_b", "project_c"]
+        )
+
+    assert "Projects don't exist: project_c" in str(exc.value)
+
+
 @pytest.mark.parametrize('projects', [None,
                                       [],
                                       ['test_project'],
@@ -40,6 +59,10 @@ def test_create_user(projects):
 
     :param projects: List of user projects
     """
+    if projects:
+        for project in projects:
+            Project(id=project).save()
+
     user = User.create("test_user", projects=projects)
 
     data = user.to_mongo()
