@@ -183,11 +183,6 @@ class Token(Document):
         return super().delete()
 
     @classmethod
-    def find(cls, username):
-        """Find all user-created tokens belonging to an user."""
-        return cls.objects.filter(username=username, session=False)
-
-    @classmethod
     def clean_session_tokens(cls):
         """Remove expired session tokens."""
         now = datetime.datetime.now(datetime.timezone.utc)
