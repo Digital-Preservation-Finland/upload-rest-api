@@ -10,7 +10,7 @@ import time
 import upload_rest_api.config
 import upload_rest_api.gen_metadata as md
 from upload_rest_api.lock import ProjectLockManager
-from upload_rest_api.models import FileEntry, Task, Upload
+from upload_rest_api.models import FileEntry, Task, Upload, UploadEntry
 
 
 def _is_expired(fpath, current_time, time_lim):
@@ -180,17 +180,25 @@ def clean_tus_uploads():
 
     resource_ids_on_disk = {path.name for path in tus_spool_dir.iterdir()}
     resource_ids_on_mongo = {
-        str(entry["_id"]) for entry in Upload.objects.only("id").as_pymongo()
+        str(entry["_id"]) for entry
+        in UploadEntry.objects.only("id").as_pymongo()
     }
 
     resource_ids_to_delete = list(resource_ids_on_mongo - resource_ids_on_disk)
 
     lock_manager = ProjectLockManager()
 
-    uploads_to_delete = Upload.objects.filter(id__in=resource_ids_to_delete)
+    uploads_to_delete = UploadEntry.objects.filter(
+        id__in=resource_ids_to_delete
+    )
+    # Create Upload instances manually. Retrieving them one-by-one using
+    # `Upload.get` results in multiple unnecessary queries.
+    uploads_to_delete = [
+        Upload(db_upload=db_upload) for db_upload in uploads_to_delete
+    ]
     for upload in uploads_to_delete:
         lock_manager.release(upload.project.id, upload.storage_path)
     deleted_count = \
-        Upload.objects.filter(id__in=resource_ids_to_delete).delete()
+        UploadEntry.objects.filter(id__in=resource_ids_to_delete).delete()
 
     return deleted_count

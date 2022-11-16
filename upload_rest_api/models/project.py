@@ -138,4 +138,4 @@ class Project(Document):
         return path_string
 
     def _get_allocated_quota(self):
-        return models.Upload.objects.filter(project=self.id).sum("size")
+        return models.UploadEntry.objects.filter(project=self.id).sum("size")

@@ -81,8 +81,8 @@ def _validate_upload_path(path):
         raise ValidationError("Path is invalid") from exc
 
 
-class Upload(Document):
-    """Upload to the Pre-Ingest File Storage.
+class UploadEntry(Document):
+    """Document of an active upload in the MongoDB database
 
     The underlying database document is created at the start of an upload
     and deleted once the upload is complete or fails.
@@ -104,16 +104,81 @@ class Upload(Document):
         "collection": "uploads"
     }
 
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
+
+class Upload:
+    def __init__(self, db_upload):
+        self._db_upload = db_upload
         self._resource = None
+
+    # Read-only properties for database fields
+    id = property(lambda x: x._db_upload.id)
+    path = property(lambda x: x._db_upload.path)
+    type_ = property(lambda x: x._db_upload.type_)
+    project = property(lambda x: x._db_upload.project)
+    source_checksum = property(lambda x: x._db_upload.source_checksum)
+    size = property(lambda x: x._db_upload.size)
+
+    DoesNotExist = UploadEntry.DoesNotExist
+
+    @property
+    def resource(self):
+        if not self._resource:
+            self._resource = models.Resource(self.project, self.path)
+
+        return self._resource
+
+    @classmethod
+    def get(cls, **kwargs):
+        """
+        Retrieve an existing upload
+
+        :param kwargs: Keyword arguments used to retrieve the upload
+
+        :returns: Upload instance
+        """
+        return cls(
+            db_upload=UploadEntry.objects.get(**kwargs)
+        )
+
+    @property
+    def storage_path(self):
+        """Absolute path to the file on disk"""
+        return self.resource.storage_path
+
+    @property
+    def _tmp_path(self):
+        """Temporary path for upload."""
+        return Path(CONFIG["UPLOAD_TMP_PATH"]) / self.id
+
+    @property
+    def _tmp_project_directory(self):
+        """Path to temporary project directory.
+
+        The extracted files are stored here until they can be moved
+        to project directory.
+        """
+        return self._tmp_path / "tmp_storage"
+
+    @property
+    def _tmp_storage_path(self):
+        """Temporary storage path of resource.
+
+        The storage path of resource in temporary project directory.
+        """
+        return self._tmp_project_directory \
+            / self.storage_path.relative_to(self.project.directory)
+
+    @property
+    def _source_path(self):
+        """Path to the source file/archive."""
+        return self._tmp_path / "source"
 
     @classmethod
     def create(
             cls, project_id, path, size, type_=UploadType.FILE,
             identifier=None):
         """
-        Create upload database entry from the given tus resource.
+        Create upload from the given tus resource.
 
         :param str project_id: Project identifier
         :param str path: Relative file/directory path
@@ -126,13 +191,15 @@ class Upload(Document):
 
         path = PurePath("/") / parse_relative_user_path(path.strip("/"))
 
-        upload = cls(
+        db_upload = UploadEntry(
             id=identifier,
             project=models.Project.objects.get(id=project_id),
             path=str(path),
             type_=type_,
             size=size
         )
+        upload = cls(db_upload=db_upload)
+
         # Check that project has enough quota. Update used quota
         # first, since multiple users might be using the same
         # project
@@ -166,49 +233,9 @@ class Upload(Document):
         # Create temporary path
         upload._tmp_path.mkdir(exist_ok=True, parents=True)
 
-        upload.save(force_insert=True)
+        db_upload.save(force_insert=True)
 
         return upload
-
-    @property
-    def storage_path(self):
-        """Absolute path to the file on disk"""
-        return self.resource.storage_path
-
-    @property
-    def resource(self):
-        if not self._resource:
-            self._resource = models.Resource(self.project, self.path)
-
-        return self._resource
-
-    @property
-    def _tmp_path(self):
-        """Temporary path for upload."""
-        return Path(CONFIG["UPLOAD_TMP_PATH"]) / self.id
-
-    @property
-    def _tmp_project_directory(self):
-        """Path to temporary project directory.
-
-        The extracted files are stored here until they can be moved
-        to project directory.
-        """
-        return self._tmp_path / "tmp_storage"
-
-    @property
-    def _tmp_storage_path(self):
-        """Temporary storage path of resource.
-
-        The storage path of resource in temporary project directory.
-        """
-        return self._tmp_project_directory \
-            / self.storage_path.relative_to(self.project.directory)
-
-    @property
-    def _source_path(self):
-        """Path to the source file/archive."""
-        return self._tmp_path / "source"
 
     @_release_lock_on_exception
     def add_source(self, file, checksum, verify=True):
@@ -237,7 +264,7 @@ class Upload(Document):
 
         # Verify integrity of uploaded file if checksum was provided
         if checksum:
-            self.source_checksum = checksum
+            self._db_upload.source_checksum = checksum
             if verify and self.source_checksum \
                     != get_file_checksum("md5", self._source_path):
                 self._source_path.unlink()
@@ -252,7 +279,7 @@ class Upload(Document):
 
         :returns: Task identifier
         """
-        self.save()
+        self._db_upload.save()
 
         # Avoid cyclic import by deferring it
         from upload_rest_api.jobs.utils import (UPLOAD_QUEUE,
@@ -461,7 +488,7 @@ class Upload(Document):
 
         # Update quota. Delete the upload first so that this upload
         # is not counted in the quota twice.
-        self.delete()
+        self._db_upload.delete()
         self.project.update_used_quota()
 
         # Release file storage lock

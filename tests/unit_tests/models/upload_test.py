@@ -5,7 +5,7 @@ import pathlib
 import pytest
 
 from upload_rest_api.models.upload import (Upload, UploadConflictError,
-                                           UploadError)
+                                           UploadEntry, UploadError)
 
 
 @pytest.mark.usefixtures('app')

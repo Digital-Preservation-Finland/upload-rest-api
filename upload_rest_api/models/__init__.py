@@ -11,8 +11,8 @@ from upload_rest_api.models.task import Task, TaskStatus
 from upload_rest_api.models.token import Token, TokenInvalidError
 from upload_rest_api.models.upload import (InsufficientQuotaError,
                                            InvalidArchiveError, Upload,
-                                           UploadConflictError, UploadError,
-                                           UploadType)
+                                           UploadConflictError, UploadEntry,
+                                           UploadError, UploadType)
 from upload_rest_api.models.user import User, UserExistsError, hash_passwd
 
 try:

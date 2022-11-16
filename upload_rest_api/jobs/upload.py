@@ -12,7 +12,7 @@ def store_files(identifier, task_id):
     :param str identifier: identifier of upload
     :param str task_id: identifier of the task
     """
-    upload = Upload.objects.get(id=identifier)
+    upload = Upload.get(id=identifier)
 
     if upload.type_ == UploadType.ARCHIVE:
         message = "Extracting archive"

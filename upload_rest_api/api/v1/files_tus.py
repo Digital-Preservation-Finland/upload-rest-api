@@ -31,7 +31,7 @@ def _release_lock(workspace):
     """Release file storage lock."""
     resource = workspace.get_resource()
     try:
-        upload = Upload.objects.get(id=resource.identifier)
+        upload = Upload.get(id=resource.identifier)
         lock_manager.release(upload.project.id, upload.storage_path)
     except Upload.DoesNotExist:
         return
@@ -77,7 +77,7 @@ def _store_files(workspace, resource, upload_type):
                                        path=resource.upload_file_path)
 
     try:
-        upload = Upload.objects.get(
+        upload = Upload.get(
             id=resource.identifier,
             project=project_id
         )
