@@ -1,7 +1,7 @@
 """Unit tests for resource module."""
 import pytest
 
-from upload_rest_api.resource import Resource
+from upload_rest_api.models.resource import Resource
 from upload_rest_api.security import InvalidPathError
 
 

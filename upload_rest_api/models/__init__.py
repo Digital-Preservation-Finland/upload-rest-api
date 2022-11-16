@@ -6,6 +6,7 @@ from mongoengine import connect
 from upload_rest_api.config import CONFIG
 from upload_rest_api.models.file import FileEntry
 from upload_rest_api.models.project import Project, ProjectExistsError
+from upload_rest_api.models.resource import Resource
 from upload_rest_api.models.task import Task, TaskStatus
 from upload_rest_api.models.token import Token, TokenInvalidError
 from upload_rest_api.models.upload import (InsufficientQuotaError,

@@ -10,8 +10,8 @@ from flask import Blueprint, abort, jsonify, request
 
 from upload_rest_api.api.v1.tasks import get_polling_url
 from upload_rest_api.authentication import current_user
-from upload_rest_api.resource import get_resource
-from upload_rest_api.models import Upload, Project
+from upload_rest_api.models import Project, Upload
+from upload_rest_api.models.resource import get_resource
 
 FILES_API_V1 = Blueprint("files_v1", __name__, url_prefix="/v1/files")
 

@@ -62,6 +62,7 @@ class Resource():
         self.path = pathlib.Path('/') / relative_path
         self.project = project
         self._datasets = None
+        # TODO: Do not create one Metax client session per resource.
         self.metax = gen_metadata.MetaxClient()
 
     @property

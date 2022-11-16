@@ -177,11 +177,8 @@ class Upload(Document):
 
     @property
     def resource(self):
-        # Avoid circular import
-        from upload_rest_api.resource import Resource
-
         if not self._resource:
-            self._resource = Resource(self.project, self.path)
+            self._resource = models.Resource(self.project, self.path)
 
         return self._resource
 

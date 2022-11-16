@@ -5,8 +5,8 @@ storage files.
 """
 from flask import Blueprint, abort
 
-from upload_rest_api.resource import get_resource
 from upload_rest_api.authentication import current_user
+from upload_rest_api.models.resource import get_resource
 
 DATASETS_API_V1 = Blueprint("datasets_v1", __name__, url_prefix="/v1/datasets")
 
