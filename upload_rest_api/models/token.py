@@ -4,7 +4,7 @@ import secrets
 import uuid
 
 from mongoengine import (BooleanField, DateTimeField, Document, ListField,
-                         StringField, ValidationError)
+                         QuerySet, StringField, ValidationError)
 
 from upload_rest_api.redis import get_redis_connection
 
@@ -32,8 +32,21 @@ def _validate_uuid(value):
         raise ValidationError("Value is not a valid UUID")
 
 
-class Token(Document):
-    """Authentication token for the pre-ingest file storage."""
+class TokenEntryQuerySet(QuerySet):
+    """
+    Custom query set implementing bulk operations for tokens
+    """
+    def clean_session_tokens(self):
+        """Remove expired session tokens."""
+        now = datetime.datetime.now(datetime.timezone.utc)
+
+        return self.filter(
+            session=True, expiration_date__lte=now, expiration_date__ne=None
+        ).delete()
+
+
+class TokenEntry(Document):
+    """Database entry for the Pre-Ingest File Storage authentication token"""
     # Identifier for the token.
     # UUIDField could be used here as it is more compact. However,
     # previous implementation used a normal string instead,
@@ -61,7 +74,10 @@ class Token(Document):
     # user intereaction.
     session = BooleanField(default=False)
 
-    meta = {"collection": "tokens"}
+    meta = {
+        "collection": "tokens",
+        "queryset_class": TokenEntryQuerySet
+    }
 
     @classmethod
     def create(
@@ -114,6 +130,22 @@ class Token(Document):
 
         return data
 
+    @property
+    def is_valid(self):
+        """
+        Token's validity. Valid tokens either have no expiration date, or the
+        expiration date hasn't been exceeded yet.
+
+        :returns: Whether the token is valid
+        """
+        if not self.expiration_date:
+            # No expiration date, meaning token is automatically valid
+            return True
+
+        now = datetime.datetime.now(datetime.timezone.utc)
+
+        return self.expiration_date > now
+
     def _cache_token_to_redis(self):
         """
         Cache given token data to Redis.
@@ -129,13 +161,7 @@ class Token(Document):
 
     @classmethod
     def get_by_token(cls, token):
-        """Get the token from the database using the token itself.
-
-        .. note::
-
-            This does not validate the token. Use `get_and_validate` instead
-            if that is required.
-        """
+        """Get the token from the database using the token itself."""
         token_hash = hashlib.sha256(token.encode("utf-8")).hexdigest()
 
         redis = get_redis_connection()
@@ -145,32 +171,10 @@ class Token(Document):
             token_ = cls.from_json(result)
         else:
             # Token not in Redis cache, use MongoDB instead
-            try:
-                token_ = cls.objects.get(token_hash=token_hash)
-                token_._cache_token_to_redis()
-            except Token.DoesNotExist:
-                return None
+            token_ = cls.objects.get(token_hash=token_hash)
+            token_._cache_token_to_redis()
 
         return token_
-
-    @classmethod
-    def get_and_validate(cls, token):
-        """Get the token from the database and validate it.
-
-        :raises TokenInvalidError: Token is invalid
-        """
-        result = cls.get_by_token(token=token)
-
-        if not result.expiration_date:
-            # No expiration date, meaning token is automatically valid
-            return result
-
-        now = datetime.datetime.now(datetime.timezone.utc)
-
-        if result.expiration_date < now:
-            raise TokenInvalidError("Token has expired")
-
-        return result
 
     def delete(self):
         """Delete the given token.
@@ -182,11 +186,116 @@ class Token(Document):
 
         return super().delete()
 
-    @classmethod
-    def clean_session_tokens(cls):
-        """Remove expired session tokens."""
-        now = datetime.datetime.now(datetime.timezone.utc)
 
-        return cls.objects.filter(
-            session=True, expiration_date__lte=now, expiration_date__ne=None
-        ).delete()
+class Token:
+    """
+    Authentication token for Pre-Ingest File Storage
+    """
+    def __init__(self, db_token):
+        self._db_token = db_token
+
+    # Read-only properties for database fields
+    id = property(lambda x: x._db_token.id)
+    name = property(lambda x: x._db_token.name)
+    username = property(lambda x: x._db_token.username)
+    projects = property(lambda x: tuple(x._db_token.projects))
+    token_hash = property(lambda x: x._db_token.token_hash)
+    expiration_date = property(lambda x: x._db_token.expiration_date)
+    admin = property(lambda x: x._db_token.admin)
+    session = property(lambda x: x._db_token.session)
+
+    DoesNotExist = TokenEntry.DoesNotExist
+
+    @classmethod
+    def create(
+            cls, name, username, projects, expiration_date=None,
+            admin=False, session=False):
+        """Create one token and return the token data as dict,
+        including the token itself.
+
+        Only the SHA256 hash will be stored in the database, meaning the
+        plain-text token cannot be retrieved again later.
+
+        :param str name: User-provided name for the token
+        :param str username: Username the token is intended for
+        :param list projects: List of projects that the token will grant access
+                              to
+        :param expiration_date: Optional expiration date as datetime.datetime
+                                instance
+        :param bool admin: Whether the token has admin privileges.
+                           This means the token can be used for creating,
+                           listing and removing tokens, among other things.
+        :param bool session: Whether the token is a temporary session token.
+                             Session tokens are automatically cleaned up
+                             periodically without user interaction.
+
+        :returns: Token fields as a dict, including the `token` field that
+                  contains the plain-text token
+        """
+        # Token contains 256 bits of randomness per Python doc recommendation
+        token = f"fddps-{secrets.token_urlsafe(32)}"
+
+        token_hash = hashlib.sha256(token.encode("utf-8")).hexdigest()
+        new_token = TokenEntry(
+            id=str(uuid.uuid4()),
+            name=name,
+            username=username,
+            projects=projects,
+            token_hash=token_hash,
+            expiration_date=expiration_date,
+            session=session,
+            admin=admin
+        )
+        new_token.save()
+
+        # Include the token in the initial creation request.
+        # Only the SHA256 hash will be stored in the database.
+        data = {
+            "_id": new_token.id,
+            "name": name,
+            "username": username,
+            "projects": projects,
+            "expiration_date": expiration_date,
+            "session": session,
+            "admin": admin,
+            "token": token
+        }
+
+        return data
+
+    @classmethod
+    def get(cls, **kwargs):
+        """
+        Retrieve an existing token
+
+        :param kwargs: Field arguments used to retrieve the upload
+
+        :returns: Token instance
+        """
+        return cls(
+            db_token=TokenEntry.objects.get(**kwargs)
+        )
+
+    @classmethod
+    def get_by_token(cls, token, validate=True):
+        """
+        Retrieve an existing token and optionally validate it.
+
+        :param str token: Plain-text token
+        :param bool validate: Whether to validate the token
+
+        :raises TokenInvalidError: Token was validated and found to be invalid
+        :raises Token.DoesNotExist: Token does not exist
+
+        :returns: Token instance
+        """
+        token_ = TokenEntry.get_by_token(token)
+
+        if validate and not token_.is_valid:
+            raise TokenInvalidError("Token has expired")
+
+        return token_
+
+    def delete(self):
+        """Delete the token."""
+        self._db_token.delete()

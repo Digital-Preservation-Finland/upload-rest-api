@@ -2,11 +2,11 @@
 import datetime
 
 
-from upload_rest_api.models.token import Token
+from upload_rest_api.models.token import TokenEntry
 
 
 def test_correct_document_structure(tokens_col):
-    token = Token(
+    token = TokenEntry(
         id="urn:uuid:b58cc800-b3a6-46e5-8869-b8a30273b23c",
         name="Test token",
         username="test_user",

@@ -8,7 +8,7 @@ from click.testing import CliRunner
 
 import upload_rest_api.__main__
 from upload_rest_api.models import (FileEntry, Project, ProjectExistsError,
-                                    Token, User, UserExistsError)
+                                    Token, TokenEntry, User, UserExistsError)
 
 
 @pytest.fixture(scope="function")
@@ -94,8 +94,8 @@ def test_cleanup_tokens(command_runner):
     result = command_runner(["cleanup", "tokens"])
     assert result.output == "Cleaned 2 expired token(s)\n"
 
-    assert Token.objects.count() == 1
-    token = Token.objects.first()
+    assert TokenEntry.objects.count() == 1
+    token = TokenEntry.objects.first()
     assert token["name"] == "Token 3"
 
 

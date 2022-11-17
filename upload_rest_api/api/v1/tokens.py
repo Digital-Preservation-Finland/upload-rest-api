@@ -10,7 +10,7 @@ import dateutil.parser
 from flask import Blueprint, abort, jsonify, request
 
 from upload_rest_api.authentication import current_user
-from upload_rest_api.models import Token, User
+from upload_rest_api.models import Token, TokenEntry, User
 
 TOKEN_API_V1 = Blueprint("tokens_v1", __name__, url_prefix="/v1/tokens")
 
@@ -119,7 +119,7 @@ def list_tokens():
 
     # Retrieve all tokens except for session tokens, which are not meant
     # to be visible for the user
-    tokens = list(Token.objects.filter(username=username, session=False))
+    tokens = list(TokenEntry.objects.filter(username=username, session=False))
     token_entries = []
 
     # Strip token hash from the results and rename '_id' field
@@ -165,7 +165,7 @@ def delete_token():
         abort(400, "'token_id' not provided")
 
     try:
-        Token.objects.get(id=token_id).delete()
+        Token.get(id=token_id).delete()
         return jsonify({"deleted": True})
     except Token.DoesNotExist:
         abort(404, "Token not found")

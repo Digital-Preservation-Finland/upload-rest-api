@@ -113,7 +113,7 @@ def _auth_user_by_token():
 
     # Check if it's a token in the database
     try:
-        data = Token.get_and_validate(token=token)
+        data = Token.get_by_token(token=token, validate=True)
         g.current_user = CurrentUser(
             username=data.username,
             projects=data.projects,

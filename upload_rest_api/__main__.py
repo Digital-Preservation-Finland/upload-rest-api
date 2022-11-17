@@ -6,8 +6,8 @@ import pathlib
 import click
 
 import upload_rest_api.config
-from upload_rest_api.models import Token, Project, FileEntry, User
 from upload_rest_api.cleanup import clean_disk, clean_mongo, clean_tus_uploads
+from upload_rest_api.models import FileEntry, Project, TokenEntry, User
 
 
 def _echo_json(data):
@@ -56,7 +56,7 @@ def cleanup():
 @cleanup.command("tokens")
 def cleanup_tokens():
     """Clean expired session tokens from the database."""
-    deleted_count = Token.clean_session_tokens()
+    deleted_count = TokenEntry.objects.clean_session_tokens()
     click.echo(f"Cleaned {deleted_count} expired token(s)")
 
 
