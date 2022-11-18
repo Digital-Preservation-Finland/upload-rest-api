@@ -47,8 +47,10 @@ def delete_files(fpath, trash_path, trash_root, project_id, task_id):
     """
     # Remove metadata from Metax
     metax_client = md.MetaxClient()
-    project_dir = Project.get_project_directory(project_id)
-    ret_path = Project.get_return_path(project_id, fpath)
+
+    project = Project.get(id=project_id)
+    project_dir = project.directory
+    ret_path = project.get_return_path(fpath)
 
     Task.objects.filter(id=task_id).update(
         message=f"Deleting files and metadata: {ret_path}"
@@ -75,7 +77,6 @@ def delete_files(fpath, trash_path, trash_root, project_id, task_id):
     shutil.rmtree(trash_root.parent)
 
     # Update used_quota
-    project = Project.objects.get(id=project_id)
     project.update_used_quota()
 
     # Release the lock we've held from the time this background job was

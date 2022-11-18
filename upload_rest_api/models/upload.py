@@ -92,9 +92,9 @@ class UploadEntry(Document):
     id = StringField(primary_key=True, required=True)
     # Relative upload path for the file
     path = StringField(required=True, validation=_validate_upload_path)
-    # Type of upload, either 'file' or 'archive'
+
     type_ = EnumField(UploadType, db_field="type")
-    project = ReferenceField(models.Project, required=True)
+    project = ReferenceField(models.ProjectEntry, required=True)
     source_checksum = StringField()
 
     # Size of the file to upload in bytes
@@ -114,9 +114,9 @@ class Upload:
     id = property(lambda x: x._db_upload.id)
     path = property(lambda x: x._db_upload.path)
     type_ = property(lambda x: x._db_upload.type_)
-    project = property(lambda x: x._db_upload.project)
     source_checksum = property(lambda x: x._db_upload.source_checksum)
     size = property(lambda x: x._db_upload.size)
+    project = property(lambda x: models.Project(x._db_upload.project))
 
     DoesNotExist = UploadEntry.DoesNotExist
 
@@ -193,7 +193,7 @@ class Upload:
 
         db_upload = UploadEntry(
             id=identifier,
-            project=models.Project.objects.get(id=project_id),
+            project=models.ProjectEntry.objects.get(id=project_id),
             path=str(path),
             type_=type_,
             size=size
@@ -349,9 +349,9 @@ class Upload:
             self._source_path.unlink()
             raise InsufficientQuotaError("Quota exceeded")
 
-        # Update used quota
-        self.project.used_quota += extracted_size
-        self.project.save()
+        # Update used quota to account for the total size of the archive
+        # contents.
+        self.project.increase_used_quota(extracted_size)
 
     def _extract_archive(self):
         """Extract archive to temporary project directory."""

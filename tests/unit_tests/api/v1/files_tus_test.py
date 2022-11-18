@@ -6,8 +6,8 @@ from io import BytesIO
 import pytest
 from flask_tus_io.resource import encode_tus_meta
 
-from upload_rest_api.models import Project
 from upload_rest_api.jobs.utils import get_job_queue
+from upload_rest_api.models import Project, ProjectEntry
 
 
 def _do_tus_upload(
@@ -370,7 +370,7 @@ def test_upload_file_exceed_quota(test_client, test_auth, requests_mock):
     requests_mock.post('/rest/v2/files/', json={})
     requests_mock.get('/rest/v2/files', json={'results': [], 'next': None})
 
-    project = Project.objects.get(id="test_project")
+    project = ProjectEntry.objects.get(id="test_project")
     project.quota = 15
     project.save()
 
@@ -417,7 +417,7 @@ def test_upload_file_parallel_upload_exceed_quota(
     # Mock metax
     requests_mock.post('/rest/v2/files/', json={})
     requests_mock.get('/rest/v2/files', json={'results': [], 'next': None})
-    Project.objects.filter(id="test_project").update_one(set__quota=2999)
+    ProjectEntry.objects.filter(id="test_project").update_one(set__quota=2999)
 
     data = b'0' * 1000
     upload_length = len(data)
@@ -479,7 +479,7 @@ def test_mixed_parallel_upload_exceed_quota(
     requests_mock.post('/rest/v2/files/', json={})
     requests_mock.get('/rest/v2/files', json={'results': [], 'next': None})
 
-    project = Project.objects.get(id="test_project")
+    project = ProjectEntry.objects.get(id="test_project")
     project.quota = 2000
     project.save()
 

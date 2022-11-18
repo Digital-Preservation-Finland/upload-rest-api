@@ -7,7 +7,7 @@ import shutil
 import pytest
 from metax_access import DS_STATE_TECHNICAL_METADATA_GENERATED
 
-from upload_rest_api.models import FileEntry, Project
+from upload_rest_api.models import FileEntry, ProjectEntry
 
 
 def _upload_file(client, url, auth, fpath):
@@ -146,7 +146,7 @@ def test_user_quota(app, test_auth):
     test_client = app.test_client()
     upload_path = app.config.get("UPLOAD_PROJECTS_PATH")
 
-    project = Project.objects.get(id="test_project")
+    project = ProjectEntry.objects.get(id="test_project")
     project.quota = 200
     project.used_quota = 0
     project.save()
@@ -187,7 +187,7 @@ def test_used_quota(app, test_auth, requests_mock):
         test_auth, "tests/data/test.txt"
     )
 
-    project = Project.objects.get(id="test_project")
+    project = ProjectEntry.objects.get(id="test_project")
     assert project.used_quota == 62
 
     # Delete one of the files
@@ -195,7 +195,7 @@ def test_used_quota(app, test_auth, requests_mock):
         "/v1/files/test_project/test1",
         headers=test_auth
     )
-    project = Project.objects.get(id="test_project")
+    project = ProjectEntry.objects.get(id="test_project")
     assert project.used_quota == 31
 
 

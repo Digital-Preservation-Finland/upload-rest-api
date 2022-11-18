@@ -20,7 +20,7 @@ def _get_dir_tree(project):
     """Return with dir tree from project directory."""
     file_dict = {}
     for dirpath, _, files in os.walk(project.directory):
-        path = Project.get_return_path(project.id, dirpath)
+        path = project.get_return_path(dirpath)
         file_dict[path] = files
 
     if "/." in file_dict:

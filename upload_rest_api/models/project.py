@@ -19,11 +19,83 @@ def _get_dir_size(fpath):
     return size
 
 
+def get_project_directory(project_id):
+    """Get the file system path to the project."""
+    return parse_user_path(CONFIG["UPLOAD_PROJECTS_PATH"], project_id)
+
+
+def get_trash_root(project_id, trash_id):
+    """
+    Get the file system path to a project specific temporary trash
+    directory used for deletion.
+    """
+    return parse_user_path(
+        Path(CONFIG["UPLOAD_TRASH_PATH"]), trash_id, project_id
+    )
+
+
+def get_trash_path(project_id, trash_id, file_path):
+    """
+    Get the file system path to a temporary trash directory
+    for a project file/directory used for deletion.
+    """
+    return parse_user_path(
+        get_trash_root(project_id=project_id, trash_id=trash_id),
+        file_path
+    )
+
+
+def get_upload_path(project_id, file_path):
+    """Get upload path for file.
+
+    :param project_id: project identifier
+    :param file_path: file path relative to project directory of user
+    :returns: full path of file
+    """
+    if file_path == "*":
+        # '*' is shorthand for the base directory.
+        # This is used to maintain compatibility with Werkzeug's
+        # 'secure_filename' function that would sanitize it into an empty
+        # string.
+        file_path = ""
+
+    project_dir = get_project_directory(project_id)
+    upload_path = (project_dir / file_path).resolve()
+
+    return parse_user_path(project_dir, upload_path)
+
+
+def get_return_path(project_id, fpath):
+    """Get path relative to project directory.
+
+    Splice project path from fpath and return the path shown to the user
+    and POSTed to Metax.
+
+    :param project_id: project identifier
+    :param fpath: full path
+    :returns: string presentation of relative path
+    """
+    if fpath == "*":
+        # '*' is shorthand for the base directory.
+        # This is used to maintain compatibility with Werkzeug's
+        # 'secure_filename' function that would sanitize it into an empty
+        # string
+        fpath = ""
+
+    path = Path(fpath).relative_to(
+        get_project_directory(project_id)
+    )
+
+    path_string = f"/{path}" if path != Path('.') else '/'
+
+    return path_string
+
+
 class ProjectExistsError(Exception):
     """Exception for trying to create a project which already exists."""
 
 
-class Project(Document):
+class ProjectEntry(Document):
     """Database entry for a project"""
     id = StringField(primary_key=True)
 
@@ -32,14 +104,95 @@ class Project(Document):
 
     meta = {"collection": "projects"}
 
+    @property
+    def directory(self):
+        """
+        Project directory containing the files currently in the pre-ingest
+        file storage
+        """
+        return get_project_directory(self.id)
+
+    @property
+    def remaining_quota(self):
+        """Remaining quota as bytes"""
+        return self.quota - self.used_quota
+
+    def get_trash_root(self, trash_id):
+        """
+        Get the file system path to a project specific temporary trash
+        directory used for deletion.
+
+        :param str trash_id: Trash identifier
+
+        :returns: Path instance of the trash root
+        """
+        return get_trash_root(self.id, trash_id)
+
+    def get_trash_path(self, trash_id, file_path):
+        """
+        Get the file system path to a temporary trash directory
+        for a project file/directory used for deletion.
+
+        :param str trash_id: Trash identifier
+        :param file_path: Relative path used for deletion
+
+        :rtype: pathlib.Path
+        :returns: Trash path
+        """
+        return get_trash_path(self.id, trash_id, file_path)
+
+    def get_upload_path(self, file_path):
+        """Get upload path for file.
+
+        :param file_path: file path relative to project directory of user
+        :returns: full path of file
+        """
+        return get_upload_path(self.id, file_path)
+
+    def get_return_path(self, fpath):
+        """Get path relative to project directory.
+
+        Splice project path from fpath and return the path shown to the user
+        and POSTed to Metax.
+
+        :param fpath: full path
+        :returns: string presentation of relative path
+        """
+        return get_return_path(self.id, fpath)
+
+    def _get_allocated_quota(self):
+        return models.UploadEntry.objects.filter(project=self.id).sum("size")
+
+
+class Project:
+    """
+    Pre-ingest file storage project.
+
+    Each project has its own directory on the file system, as well as an entry
+    on the database to track quota.
+    """
+    def __init__(self, db_project):
+        self._db_project = db_project
+
+    # Read-only properties for database fields
+    id = property(lambda x: x._db_project.id)
+    quota = property(lambda x: x._db_project.quota)
+    used_quota = property(lambda x: x._db_project.used_quota)
+
+    directory = property(lambda x: x._db_project.directory)
+    remaining_quota = property(lambda x: x._db_project.remaining_quota)
+
+    DoesNotExist = ProjectEntry.DoesNotExist
+
     @classmethod
     def create(cls, identifier, quota=5 * 1024**3):
-        """Create project and prepare the file storage directory.
-        """
-        project = cls(id=identifier, quota=int(quota))
+        """Create project and prepare the file storage directory."""
+        project = cls(
+            db_project=ProjectEntry(id=identifier, quota=int(quota))
+        )
 
         try:
-            project.save(force_insert=True)
+            project._db_project.save(force_insert=True)
         except NotUniqueError as exc:
             raise ProjectExistsError(
                 f"Project '{identifier}' already exists"
@@ -49,93 +202,95 @@ class Project(Document):
 
         return project
 
-    @property
-    def directory(self):
-        return self.get_project_directory(self.id)
-
-    @property
-    def remaining_quota(self):
-        """Remaining quota as bytes"""
-        return self.quota - self.used_quota
-
-    def update_used_quota(self):
-        """Update used quota of the project."""
-        stored_size = _get_dir_size(self.directory)
-        allocated_size = self._get_allocated_quota()
-        self.used_quota = stored_size + allocated_size
-        self.save()
-
     @classmethod
-    def get_project_directory(cls, project_id):
-        """Get the file system path to the project."""
-        return parse_user_path(CONFIG["UPLOAD_PROJECTS_PATH"], project_id)
+    def get(cls, **kwargs):
+        """
+        Retrieve an existing project
 
-    @classmethod
-    def get_trash_root(cls, project_id, trash_id):
+        :param kwargs: Keyword arguments used to retrieve the project
+
+        :returns: Project instance
+        """
+        return cls(
+            db_project=ProjectEntry.objects.get(**kwargs)
+        )
+
+    def delete(self):
+        """
+        Delete the project
+        """
+        self._db_project.delete()
+
+    def to_mongo(self):
+        """
+        Return the database entry as a dict with MongoDB data types
+        """
+        return self._db_project.to_mongo()
+
+    # TODO: These are essentially proxies for ProjectEntry getters.
+    # Any way to add them here without having to duplicate the function
+    # signature and docstring?
+    def get_trash_root(self, trash_id):
         """
         Get the file system path to a project specific temporary trash
         directory used for deletion.
-        """
-        return parse_user_path(
-            Path(CONFIG["UPLOAD_TRASH_PATH"]), trash_id, project_id
-        )
 
-    @classmethod
-    def get_trash_path(cls, project_id, trash_id, file_path):
+        :param str trash_id: Trash identifier
+
+        :returns: Path instance of the trash root
+        """
+        return self._db_project.get_trash_root(trash_id)
+
+    def get_trash_path(self, trash_id, file_path):
         """
         Get the file system path to a temporary trash directory
         for a project file/directory used for deletion.
-        """
-        return parse_user_path(
-            cls.get_trash_root(project_id=project_id, trash_id=trash_id),
-            file_path
-        )
 
-    @classmethod
-    def get_upload_path(cls, project_id, file_path):
+        :param str trash_id: Trash identifier
+        :param file_path: Relative path used for deletion
+
+        :rtype: pathlib.Path
+        :returns: Trash path
+        """
+        return self._db_project.get_trash_path(trash_id, file_path)
+
+    def get_upload_path(self, file_path):
         """Get upload path for file.
 
-        :param project_id: project identifier
         :param file_path: file path relative to project directory of user
         :returns: full path of file
         """
-        if file_path == "*":
-            # '*' is shorthand for the base directory.
-            # This is used to maintain compatibility with Werkzeug's
-            # 'secure_filename' function that would sanitize it into an empty
-            # string.
-            file_path = ""
+        return self._db_project.get_upload_path(file_path)
 
-        project_dir = cls.get_project_directory(project_id)
-        upload_path = (project_dir / file_path).resolve()
-
-        return parse_user_path(project_dir, upload_path)
-
-    @classmethod
-    def get_return_path(cls, project_id, fpath):
+    def get_return_path(self, fpath):
         """Get path relative to project directory.
 
         Splice project path from fpath and return the path shown to the user
         and POSTed to Metax.
 
-        :param project_id: project identifier
         :param fpath: full path
         :returns: string presentation of relative path
         """
-        if fpath == "*":
-            # '*' is shorthand for the base directory.
-            # This is used to maintain compatibility with Werkzeug's
-            # 'secure_filename' function that would sanitize it into an empty
-            # string
-            fpath = ""
+        return self._db_project.get_return_path(fpath)
 
-        path = Path(fpath).relative_to(
-            cls.get_project_directory(project_id)
-        )
+    def set_quota(self, quota):
+        """Set the quota for the project"""
+        self._db_project.quota = quota
+        self._db_project.save()
 
-        path_string = f"/{path}" if path != Path('.') else '/'
+    def update_used_quota(self):
+        """Update used quota of the project."""
+        stored_size = _get_dir_size(self.directory)
+        allocated_size = self._db_project._get_allocated_quota()
+        self._db_project.used_quota = stored_size + allocated_size
+        self._db_project.save()
 
-        return path_string
+    def increase_used_quota(self, quota):
+        """Increase the used quota for this project.
 
-    def _get_allocated_quota(self):
-        return models.UploadEntry.objects.filter(project=self.id).sum("size")
+        This is done when an archive extraction is started, and is necessary
+        because we cannot know the final size of the extracted contents
+        in advance.
+        """
+        self._db_project.used_quota += quota
+        self._db_project.save()

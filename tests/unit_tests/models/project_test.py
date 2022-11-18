@@ -1,6 +1,6 @@
 from pathlib import Path
 
-from upload_rest_api.models.project import Project, _get_dir_size
+from upload_rest_api.models.project import Project, ProjectEntry, _get_dir_size
 
 
 def test_correct_document_structure(projects_col):
@@ -8,7 +8,7 @@ def test_correct_document_structure(projects_col):
     Test that saved Project has the same structure as the pre-MongoEngine
     implementation
     """
-    project = Project(
+    project = ProjectEntry(
         id="test_project",
         used_quota=0,
         quota=1234

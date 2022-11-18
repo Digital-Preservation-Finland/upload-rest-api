@@ -2,7 +2,7 @@
 from flask import Blueprint, abort, jsonify, request
 
 from upload_rest_api.authentication import current_user
-from upload_rest_api.models import Project, User
+from upload_rest_api.models import ProjectEntry, User
 
 USERS_API_V1 = Blueprint("users_v1", __name__, url_prefix="/v1/users")
 
@@ -30,7 +30,7 @@ def list_user_projects():
         # to the current session
         projects = current_user.projects
 
-    projects = list(Project.objects.filter(id__in=projects))
+    projects = list(ProjectEntry.objects.filter(id__in=projects))
 
     result = {"projects": []}
 

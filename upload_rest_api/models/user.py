@@ -55,7 +55,7 @@ def _validate_projects(projects):
     projects = set(projects)
     existing_projects = set(
         project.id for project in
-        models.Project.objects.filter(id__in=projects).only("id")
+        models.ProjectEntry.objects.filter(id__in=projects).only("id")
     )
 
     missing_projects = projects - existing_projects
@@ -127,9 +127,9 @@ class User(Document):
 
     def grant_project(self, project):
         """Grant user access to the given project."""
-        project = models.Project.objects.get(id=project)
+        project = models.Project.get(id=project)
 
-        if project not in self.projects:
+        if project.id not in self.projects:
             self.projects.append(project.id)
 
         self.save()

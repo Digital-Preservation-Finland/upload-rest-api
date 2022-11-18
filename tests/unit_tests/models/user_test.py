@@ -5,7 +5,7 @@ import re
 import pytest
 from mongoengine import ValidationError
 
-from upload_rest_api.models.project import Project
+from upload_rest_api.models.project import ProjectEntry
 from upload_rest_api.models.user import User, get_random_string, hash_passwd
 
 
@@ -14,8 +14,8 @@ def test_correct_document_structure(users_col):
     Test that saved User has the same structure as the pre-MongoEngine
     implementation
     """
-    Project(id="test_project").save()
-    Project(id="test_project_2").save()
+    ProjectEntry(id="test_project").save()
+    ProjectEntry(id="test_project_2").save()
     user = User(
         username="test_user",
         salt="salty",
@@ -39,8 +39,8 @@ def test_nonexistent_projects():
     """
     Test that User rejects projects that don't exist
     """
-    Project(id="project_a").save()
-    Project(id="project_b").save()
+    ProjectEntry(id="project_a").save()
+    ProjectEntry(id="project_b").save()
 
     with pytest.raises(ValidationError) as exc:
         User.create(
@@ -61,7 +61,7 @@ def test_create_user(projects):
     """
     if projects:
         for project in projects:
-            Project(id=project).save()
+            ProjectEntry(id=project).save()
 
     user = User.create("test_user", projects=projects)
 

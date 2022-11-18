@@ -7,7 +7,8 @@ import click
 
 import upload_rest_api.config
 from upload_rest_api.cleanup import clean_disk, clean_mongo, clean_tus_uploads
-from upload_rest_api.models import FileEntry, Project, TokenEntry, User
+from upload_rest_api.models import (FileEntry, Project, ProjectEntry,
+                                    TokenEntry, User)
 
 
 def _echo_json(data):
@@ -211,15 +212,14 @@ def create_project(project, quota):
 def modify_project(project, quota):
     """Modify an existing PROJECT."""
     try:
-        project_ = Project.objects.get(id=project)
+        project_ = Project.get(id=project)
     except Project.DoesNotExist:
         click.echo(f"Project '{project}' does not exist.")
         return
 
     if quota is not None:
-        project_.quota = quota
+        project_.set_quota(quota)
 
-    project_.save()
     _echo_json(project_)
 
 
@@ -227,14 +227,14 @@ def modify_project(project, quota):
 @click.argument("project")
 def delete_project(project):
     """Delete PROJECT."""
-    Project.objects.get(id=project).delete()
+    Project.get(id=project).delete()
     click.echo(f"Project '{project}' was deleted")
 
 
 @projects.command("list")
 def list_projects():
     """List all projects."""
-    projects = list(Project.objects)
+    projects = list(ProjectEntry.objects)
     if projects:
         for project in projects:
             click.echo(project.id)
@@ -247,8 +247,8 @@ def list_projects():
 def get_project(project):
     """Show information of PROJECT."""
     try:
-        project_entry = Project.objects.get(id=project)
-        _echo_json(project_entry)
+        project = Project.get(id=project)
+        _echo_json(project)
     except Project.DoesNotExist:
         click.echo(f"Project '{project}' not found")
 

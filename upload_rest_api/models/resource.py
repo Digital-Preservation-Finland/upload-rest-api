@@ -32,7 +32,7 @@ def get_resource(project_id, path):
     :param project: The project that owns the resource.
     :param path: Path of the resource.
     """
-    project = Project.objects.get(id=project_id)
+    project = Project.get(id=project_id)
 
     resource = Resource(project, path)
     if resource.storage_path.is_file():
@@ -225,14 +225,9 @@ class DirectoryResource(Resource):
         # 4. Delete the temporary directory
         trash_id = secrets.token_hex(8)
 
-        trash_root = Project.get_trash_root(
-            project_id=self.project.id,
-            trash_id=trash_id
-        )
-        trash_path = Project.get_trash_path(
-            project_id=self.project.id,
-            trash_id=trash_id,
-            file_path=self.path.relative_to('/')
+        trash_root = self.project.get_trash_root(trash_id)
+        trash_path = self.project.get_trash_path(
+            trash_id, file_path=self.path.relative_to("/")
         )
         # Acquire a lock *and* keep it alive even after this HTTP
         # request. It will be released by the 'delete_files' background

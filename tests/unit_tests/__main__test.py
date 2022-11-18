@@ -7,8 +7,9 @@ import pytest
 from click.testing import CliRunner
 
 import upload_rest_api.__main__
-from upload_rest_api.models import (FileEntry, Project, ProjectExistsError,
-                                    Token, TokenEntry, User, UserExistsError)
+from upload_rest_api.models import (FileEntry, Project, ProjectEntry,
+                                    ProjectExistsError, Token, TokenEntry,
+                                    User, UserExistsError)
 
 
 @pytest.fixture(scope="function")
@@ -102,7 +103,7 @@ def test_cleanup_tokens(command_runner):
 @pytest.mark.usefixtures('test_mongo')
 def test_list_users(command_runner):
     """Test listing all users."""
-    Project(id="test_project").save()
+    Project.create(identifier="test_project")
     User.create(username="test1", projects=["test_project"])
     User.create(username="test2", projects=["test_project"])
 
@@ -120,7 +121,7 @@ def test_list_users_when_no_users(command_runner):
 
 def test_get_user(command_runner):
     """Test displaying information of one user."""
-    Project(id="test_project").save()
+    Project.create(identifier="test_project")
     User.create(username="test1", projects=["test_project"])
 
     result = command_runner(["users", "get", "test1"])
@@ -143,9 +144,9 @@ def test_get_nonexistent_user(command_runner):
 @pytest.mark.usefixtures('test_mongo')
 def test_list_projects(command_runner):
     """Test listing all projects."""
-    Project.create(identifier="test_project_o", quota=0)
-    Project.create(identifier="test_project_q", quota=0)
-    Project.create(identifier="test_project_r", quota=0)
+    Project.create(identifier="test_project_o")
+    Project.create(identifier="test_project_q")
+    Project.create(identifier="test_project_r")
 
     result = command_runner(["projects", "list"])
 
@@ -197,7 +198,7 @@ def test_create_existing_user(command_runner):
     """Test that creating a user that already exists raises
     UserExistsError.
     """
-    Project(id="test_project").save()
+    Project.create(identifier="test_project")
     User.create(username="test", projects=["test_project"])
     with pytest.raises(UserExistsError):
         command_runner(["users", "create", "test"])
@@ -205,7 +206,7 @@ def test_create_existing_user(command_runner):
 
 def test_delete_user(test_mongo, command_runner):
     """Test deletion of an existing user."""
-    Project(id="test_project").save()
+    Project.create(identifier="test_project")
     User.create(username="test", projects=["test_project"])
     command_runner(["users", "delete", "test"])
 
@@ -253,11 +254,11 @@ def test_modify_user_fail(command_runner):
 @pytest.mark.usefixtures('test_mongo')
 def test_grant_user_projects(command_runner):
     """Test granting the user access to projects."""
-    Project(id="test_project").save()
+    Project.create(identifier="test_project")
     User.create(username="test", projects=["test_project"])
 
-    Project.create("test_project_2", 2000)
-    Project.create("test_project_3", 2000)
+    Project.create("test_project_2")
+    Project.create("test_project_3")
 
     result = command_runner([
         "users", "project-rights", "grant", "test", "test_project_2",
@@ -278,7 +279,7 @@ def test_grant_user_projects(command_runner):
 @pytest.mark.usefixtures('test_mongo')
 def test_grant_user_projects_nonexistent_project(command_runner):
     """Test granting the user access to project that does not exist."""
-    Project(id="test_project").save()
+    Project.create(identifier="test_project")
     User.create("test", projects=["test_project"])
 
     with pytest.raises(Project.DoesNotExist) as exc:
@@ -286,7 +287,7 @@ def test_grant_user_projects_nonexistent_project(command_runner):
             "users", "project-rights", "grant", "test", "test_project_2"
         ])
 
-    assert str(exc.value) == "Project matching query does not exist."
+    assert str(exc.value) == "ProjectEntry matching query does not exist."
 
 
 @pytest.mark.usefixtures('test_mongo')
@@ -305,7 +306,7 @@ def test_grant_user_projects_nonexistent_user(monkeypatch, command_runner):
 @pytest.mark.usefixtures('test_mongo')
 def test_revoke_user_projects(command_runner):
     """Test revoking the user access to projects."""
-    Project(id="test_project").save()
+    Project.create(identifier="test_project")
     User.create(username="test", projects=["test_project"])
 
     result = command_runner([
@@ -326,9 +327,9 @@ def test_create_project(command_runner, quota):
     """Test creating a new project."""
     command_runner(["projects", "create", "test_project", "--quota", quota])
 
-    project = Project.objects.get(id="test_project")
-    assert project["quota"] == quota
-    assert project["used_quota"] == 0
+    project = Project.get(id="test_project")
+    assert project.quota == quota
+    assert project.used_quota == 0
 
 
 def test_create_project_with_negative_quota(command_runner):
@@ -368,7 +369,7 @@ def test_delete_project(command_runner):
     command_runner(["projects", "delete", "test_project"])
 
     with pytest.raises(Project.DoesNotExist):
-        Project.objects.get(id="test_project")
+        Project.get(id="test_project")
 
 
 @pytest.mark.parametrize("quota", [0, 1])
@@ -382,8 +383,8 @@ def test_modify_project(command_runner, quota):
     ])
 
     # Assert that quota has actually changed
-    project = Project.objects.get(id="test_project")
-    assert project["quota"] == quota
+    project = Project.get(id="test_project")
+    assert project.quota == quota
 
     # Assert that output tells the new quota
     data = json.loads(result.output)

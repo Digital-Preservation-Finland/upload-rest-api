@@ -309,8 +309,7 @@ def user(test_mongo):
 def project():
     """Initialize and return a project dict
     """
-    project = Project(id="test_project")
-    project.save()
+    project = Project.create(identifier="test_project")
     return project
 
 
