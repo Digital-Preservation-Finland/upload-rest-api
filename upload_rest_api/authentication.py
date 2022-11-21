@@ -140,7 +140,7 @@ def _auth_user_by_password():
     password = auth.password
 
     try:
-        user = User.objects.get(username=username)
+        user = User.get(username=username)
     except User.DoesNotExist:
         # Calculate digest even if user does not exist to avoid
         # leaking information about which users exist

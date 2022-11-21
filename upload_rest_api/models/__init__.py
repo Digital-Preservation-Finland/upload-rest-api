@@ -14,7 +14,8 @@ from upload_rest_api.models.upload import (InsufficientQuotaError,
                                            InvalidArchiveError, Upload,
                                            UploadConflictError, UploadEntry,
                                            UploadError, UploadType)
-from upload_rest_api.models.user import User, UserExistsError, hash_passwd
+from upload_rest_api.models.user import (User, UserEntry, UserExistsError,
+                                         hash_passwd)
 
 try:
     connect(

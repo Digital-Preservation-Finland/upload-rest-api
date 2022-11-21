@@ -151,9 +151,9 @@ def test_create_session_token_new_user_created(test_client, admin_auth):
     assert response.json["token"]
 
     # User should be created without any default projects
-    user = User.objects.get(username="acme_org/user")
+    user = User.get(username="acme_org/user")
     assert user.username == "acme_org/user"
-    assert user.projects == []
+    assert user.projects == ()
 
 
 def test_list_tokens(test_client, admin_auth, test_mongo):

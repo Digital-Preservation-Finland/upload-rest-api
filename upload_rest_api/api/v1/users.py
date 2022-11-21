@@ -24,7 +24,7 @@ def list_user_projects():
         if not current_user.is_allowed_to_list_projects(username):
             abort(403, "User does not have permission to list projects")
 
-        projects = User.objects.get(username=username).projects
+        projects = User.get(username=username).projects
     else:
         # If 'username' is not provided, retrieve projects accessible
         # to the current session

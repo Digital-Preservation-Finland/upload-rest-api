@@ -70,8 +70,8 @@ class UserExistsError(Exception):
     """Exception for trying to create a user, which already exists."""
 
 
-class User(Document):
-    """Database collection for users"""
+class UserEntry(Document):
+    """User database model"""
     username = StringField(primary_key=True, required=True)
 
     # Salt and digest if password authentication is enabled for this user.
@@ -82,6 +82,20 @@ class User(Document):
     projects = ListField(StringField(), validation=_validate_projects)
 
     meta = {"collection": "users"}
+
+
+class User:
+    """Pre-ingest file storage user"""
+    def __init__(self, db_user):
+        self._db_user = db_user
+
+    # Read-only properties for database fields
+    username = property(lambda x: x._db_user.username)
+    salt = property(lambda x: x._db_user.salt)
+    digest = property(lambda x: x._db_user.digest)
+    projects = property(lambda x: tuple(x._db_user.projects))
+
+    DoesNotExist = UserEntry.DoesNotExist
 
     @classmethod
     def create(cls, username, projects=None, password=None):
@@ -94,34 +108,47 @@ class User(Document):
         :param password: Password of the created user
         :returns: The password
         """
-        new_user = cls(username=username)
+        db_user = UserEntry(username=username)
         if projects is None:
             projects = []
 
-        new_user.projects = projects
+        db_user.projects = projects
 
         if password is not None:
             passwd = password
         else:
             passwd = get_random_string(PASSWD_LEN)
 
-        new_user.salt = get_random_string(SALT_LEN)
-        new_user.digest = hash_passwd(passwd, new_user.salt)
+        db_user.salt = get_random_string(SALT_LEN)
+        db_user.digest = hash_passwd(passwd, db_user.salt)
 
         try:
-            new_user.save(force_insert=True)
+            db_user.save(force_insert=True)
         except NotUniqueError as exc:
             raise UserExistsError(
                 f"User '{username}' already exists"
             ) from exc
-        return new_user
+        return cls(db_user=db_user)
 
-    def change_password(self):
-        """Change user password."""
+    @classmethod
+    def get(cls, *args, **kwargs):
+        """
+        Retrieve an existing user
+
+        :param kwargs: Field arguments used to retrieve the user
+
+        :returns: User instance
+        """
+        return User(
+            db_user=UserEntry.objects.get(**kwargs)
+        )
+
+    def generate_password(self):
+        """Generate new user password."""
         passwd = get_random_string(PASSWD_LEN)
-        self.salt = get_random_string(SALT_LEN)
-        self.digest = hash_passwd(passwd, self.salt)
-        self.save()
+        self._db_user.salt = get_random_string(SALT_LEN)
+        self._db_user.digest = hash_passwd(passwd, self.salt)
+        self._db_user.save()
 
         return passwd
 
@@ -130,11 +157,14 @@ class User(Document):
         project = models.Project.get(id=project)
 
         if project.id not in self.projects:
-            self.projects.append(project.id)
+            self._db_user.projects.append(project.id)
 
-        self.save()
+        self._db_user.save()
 
     def revoke_project(self, project):
         """Revoke user access to the given project."""
-        self.projects.remove(project)
-        self.save()
+        self._db_user.projects.remove(project)
+        self._db_user.save()
+
+    def delete(self):
+        self._db_user.delete()

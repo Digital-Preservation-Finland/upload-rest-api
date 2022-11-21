@@ -6,7 +6,8 @@ import pytest
 from mongoengine import ValidationError
 
 from upload_rest_api.models.project import ProjectEntry
-from upload_rest_api.models.user import User, get_random_string, hash_passwd
+from upload_rest_api.models.user import (User, UserEntry, get_random_string,
+                                         hash_passwd)
 
 
 def test_correct_document_structure(users_col):
@@ -16,7 +17,7 @@ def test_correct_document_structure(users_col):
     """
     ProjectEntry(id="test_project").save()
     ProjectEntry(id="test_project_2").save()
-    user = User(
+    user = UserEntry(
         username="test_user",
         salt="salty",
         # Digest is a binary field
@@ -50,10 +51,15 @@ def test_nonexistent_projects():
     assert "Projects don't exist: project_c" in str(exc.value)
 
 
-@pytest.mark.parametrize('projects', [None,
-                                      [],
-                                      ['test_project'],
-                                      ['project1', 'project2']])
+@pytest.mark.parametrize(
+    'projects',
+    [
+        None,
+        (),
+        ('test_project',),
+        ('project1', 'project2')
+    ]
+)
 def test_create_user(projects):
     """Test creation of new user.
 
@@ -65,7 +71,7 @@ def test_create_user(projects):
 
     user = User.create("test_user", projects=projects)
 
-    data = user.to_mongo()
+    data = UserEntry.objects.get(username="test_user").to_mongo()
     assert data["_id"] == "test_user"
 
     assert len(user.salt) == 20
@@ -74,7 +80,7 @@ def test_create_user(projects):
     if projects:
         assert user.projects == projects
     else:
-        assert user.projects == []
+        assert len(user.projects) == 0
 
 
 def test_get_random_string():

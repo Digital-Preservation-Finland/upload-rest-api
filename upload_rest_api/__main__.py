@@ -8,7 +8,7 @@ import click
 import upload_rest_api.config
 from upload_rest_api.cleanup import clean_disk, clean_mongo, clean_tus_uploads
 from upload_rest_api.models import (FileEntry, Project, ProjectEntry,
-                                    TokenEntry, User)
+                                    TokenEntry, User, UserEntry)
 
 
 def _echo_json(data):
@@ -96,7 +96,8 @@ def users():
 @click.argument("username")
 def create_user(username):
     """Create a new user with specified USERNAME."""
-    passwd = User.create(username)
+    user = User.create(username)
+    passwd = user.generate_password()
     click.echo(f"{username}:{passwd}")
 
 
@@ -110,7 +111,7 @@ def project_rights():
 @click.argument("projects", nargs=-1)
 def grant_user_projects(username, projects):
     """Grant USERNAME access to PROJECTS."""
-    user = User.objects.get(username=username)
+    user = User.get(username=username)
     for project in projects:
         user.grant_project(project)
     click.echo(
@@ -124,7 +125,7 @@ def grant_user_projects(username, projects):
 @click.argument("projects", nargs=-1)
 def revoke_user_projects(username, projects):
     """Revoke USERNAME access to PROJECTS."""
-    user = User.objects.get(username=username)
+    user = User.get(username=username)
     for project in projects:
         user.revoke_project(project)
     click.echo(
@@ -137,7 +138,7 @@ def revoke_user_projects(username, projects):
 @click.argument("username")
 def delete_user(username):
     """Delete an existing user with specified USERNAME."""
-    User.objects.get(username=username).delete()
+    User.get(username=username).delete()
     click.echo(f"Deleted user '{username}'")
 
 
@@ -147,12 +148,12 @@ def delete_user(username):
               help="Generate new password.")
 def modify_user(username, generate_password):
     """Modify an existing user with specified USERNAME."""
-    user = User.objects.get(username=username)
+    user = User.get(username=username)
     if generate_password:
-        passwd = user.change_password()
+        passwd = user.generate_password()
 
     response = {
-        "_id": user.id,
+        "_id": user.username,
         "projects": user.projects
     }
     if generate_password:
@@ -166,13 +167,13 @@ def modify_user(username, generate_password):
 def get_user(username):
     """Show information of USERNAME."""
     try:
-        user = User.objects.get(username=username)
+        user = User.get(username=username)
     except User.DoesNotExist:
         click.echo(f"User '{username}' not found")
         return
 
     response = {
-        "_id": user.id,
+        "_id": user.username,
         "projects": user.projects
     }
     _echo_json(response)
@@ -181,7 +182,7 @@ def get_user(username):
 @users.command("list")
 def list_users():
     """List all users."""
-    users = list(User.objects.only("username"))
+    users = list(UserEntry.objects.only("username"))
     if users:
         for user in users:
             click.echo(user.username)

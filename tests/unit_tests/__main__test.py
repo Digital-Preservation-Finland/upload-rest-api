@@ -9,7 +9,7 @@ from click.testing import CliRunner
 import upload_rest_api.__main__
 from upload_rest_api.models import (FileEntry, Project, ProjectEntry,
                                     ProjectExistsError, Token, TokenEntry,
-                                    User, UserExistsError)
+                                    User, UserEntry, UserExistsError)
 
 
 @pytest.fixture(scope="function")
@@ -225,16 +225,16 @@ def test_modify_user(command_runner):
     """Test generating a new password for a user."""
     old_password = User.create("test")
 
-    user = User.objects.get(username="test")
-    old_salt = user["salt"]
-    old_digest = user["digest"]
+    user = User.get(username="test")
+    old_salt = user.salt
+    old_digest = user.digest
 
     response = command_runner([
         "users", "modify", "test", "--generate-password"
     ])
 
     # Assert that password has actually changed
-    user = User.objects.get(username="test")
+    user = User.get(username="test")
     assert user.salt != old_salt
     assert user.digest != old_digest
 
@@ -265,11 +265,11 @@ def test_grant_user_projects(command_runner):
         "test_project_3"
     ])
 
-    user = User.objects.get(username="test")
+    user = User.get(username="test")
 
-    assert user.projects == [
+    assert user.projects == (
         "test_project", "test_project_2", "test_project_3"
-    ]
+    )
     assert result.output == (
         "Granted user 'test' access to project(s): "
         "test_project_2, test_project_3\n"
@@ -300,7 +300,7 @@ def test_grant_user_projects_nonexistent_user(monkeypatch, command_runner):
             "users", "project-rights", "grant", "fake_user", "test_project"
         ])
 
-    assert str(exc.value) == "User matching query does not exist."
+    assert str(exc.value) == "UserEntry matching query does not exist."
 
 
 @pytest.mark.usefixtures('test_mongo')
@@ -313,9 +313,9 @@ def test_revoke_user_projects(command_runner):
         "users", "project-rights", "revoke", "test", "test_project"
     ])
 
-    user = User.objects.get(username="test")
+    user = User.get(username="test")
 
-    assert user.projects == []
+    assert user.projects == ()
     assert result.output == (
         "Revoked user 'test' access to project(s): test_project\n"
     )

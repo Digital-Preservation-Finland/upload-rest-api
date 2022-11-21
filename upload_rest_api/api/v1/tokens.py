@@ -82,7 +82,7 @@ def create_session_token():
         datetime.datetime.now(tz=datetime.timezone.utc) + SESSION_TOKEN_PERIOD
 
     try:
-        user = User.objects.get(username=username)
+        user = User.get(username=username)
     except User.DoesNotExist:
         # Create the user automatically if one doesn't exist.
         # Since fddps-frontend tries to create a session token immediately
@@ -91,7 +91,6 @@ def create_session_token():
         # Administrator can later create and/or grant any needed projects;
         # by default the user cannot do anything.
         user = User.create(username)
-        user.save()
 
     result = Token.create(
         name=f"{username} session token",
