@@ -1,6 +1,6 @@
 """Upload module background jobs."""
 from upload_rest_api.jobs.utils import ClientError, api_background_job
-from upload_rest_api.models import Task, Upload, UploadError, UploadType
+from upload_rest_api.models import Upload, UploadError, UploadType
 
 
 @api_background_job
