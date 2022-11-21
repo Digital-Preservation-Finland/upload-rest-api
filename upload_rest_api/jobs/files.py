@@ -32,7 +32,7 @@ def _get_files_to_delete(trash_path, trash_root, project_dir):
 
 
 @api_background_job
-def delete_files(fpath, trash_path, trash_root, project_id, task_id):
+def delete_files(fpath, trash_path, trash_root, project_id, task):
     """Delete files and metadata denoted by fpath directory under temporary
     directory. The whole directory is recursively removed after Metax metadata
     is removed.
@@ -43,7 +43,7 @@ def delete_files(fpath, trash_path, trash_root, project_id, task_id):
                                     corresponding to
                                     `<spool_path>/<trash_id>/<project_id>`
     :param str project: project identifier
-    :param str task_id: mongo dentifier of the task
+    :param str task: Task instance
     """
     # Remove metadata from Metax
     metax_client = md.MetaxClient()
@@ -52,7 +52,7 @@ def delete_files(fpath, trash_path, trash_root, project_id, task_id):
     project_dir = project.directory
     ret_path = project.get_return_path(fpath)
 
-    Task.objects.filter(id=task_id).update(
+    task.set_fields(
         message=f"Deleting files and metadata: {ret_path}"
     )
 

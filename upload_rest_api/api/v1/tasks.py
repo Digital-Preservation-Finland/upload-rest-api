@@ -36,7 +36,7 @@ def task_status(task_id):
     in GET. Further queries will return 404.
     """
     try:
-        task = Task.objects.get(id=task_id)
+        task = Task.get(id=task_id)
     except Task.DoesNotExist:
         return _create_gone_response()
 
@@ -60,7 +60,7 @@ def task_delete(task_id):
     Further queries will return 404.
     """
     try:
-        task = Task.objects.get(id=task_id)
+        task = Task.get(id=task_id)
     except Task.DoesNotExist:
         return _create_gone_response()
 

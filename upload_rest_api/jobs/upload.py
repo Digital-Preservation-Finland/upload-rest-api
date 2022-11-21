@@ -4,13 +4,13 @@ from upload_rest_api.models import Task, Upload, UploadError, UploadType
 
 
 @api_background_job
-def store_files(identifier, task_id):
+def store_files(identifier, task):
     """Store files.
 
     Create metadata for uploaded files and move them to storage.
 
     :param str identifier: identifier of upload
-    :param str task_id: identifier of the task
+    :param str task: Task instance
     """
     upload = Upload.get(id=identifier)
 
@@ -19,7 +19,7 @@ def store_files(identifier, task_id):
     else:
         message = f"Creating metadata /{upload.path}"
 
-    Task.objects.filter(id=task_id).update_one(message=message)
+    task.set_fields(message=message)
 
     try:
         # TODO: Archive validation was moved here because, because

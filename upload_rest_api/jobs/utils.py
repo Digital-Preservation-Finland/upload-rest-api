@@ -45,29 +45,36 @@ def api_background_job(func):
     @wraps(func)
     def wrapper(*args, **kwargs):
         task_id = kwargs["task_id"]
-        task = models.Task.objects.get(id=task_id)
+        task = models.Task.get(id=task_id)
+
+        # Retrieve the Task instance and attach it to the job.
+        kwargs["task"] = task
+        del kwargs["task_id"]
 
         try:
             result = func(*args, **kwargs)
         except ClientError as exception:
-            task.status = models.TaskStatus.ERROR
-            task.message = "Task failed"
-            task.errors = [
-                {
-                    "message": exception.message,
-                    "files": exception.files
-                }
-            ]
-            task.save()
+            task.set_fields(
+                status=models.TaskStatus.ERROR,
+                message="Task failed",
+                errors=[
+                    {
+                        "message": exception.message,
+                        "files": exception.files
+                    }
+                ]
+            )
         except Exception:
-            task.status = models.TaskStatus.ERROR
-            task.message = "Internal server error"
-            task.save()
+            task.set_fields(
+                status=models.TaskStatus.ERROR,
+                message="Internal server error"
+            )
             raise
         else:
-            task.status = models.TaskStatus.DONE
-            task.message = result
-            task.save()
+            task.set_fields(
+                status=models.TaskStatus.DONE,
+                message=result
+            )
             return result
 
     return wrapper
@@ -98,9 +105,10 @@ def enqueue_background_job(task_func, queue_name, project_id, job_kwargs):
     """
     queue = get_job_queue(queue_name)
 
-    task = models.Task(project_id=project_id)
-    task.message = "processing"
-    task.save()
+    task = models.Task.create(
+        project_id=project_id,
+        message="processing"
+    )
 
     task_id = task.id
 

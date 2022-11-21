@@ -2,19 +2,19 @@
 import pytest
 from rq import SimpleWorker
 
-from upload_rest_api.models import Task, TaskStatus
 from upload_rest_api.jobs.utils import (api_background_job,
                                         enqueue_background_job, get_job_queue)
+from upload_rest_api.models import Task, TaskEntry, TaskStatus
 
 
 @api_background_job
-def successful_task(task_id, value):
+def successful_task(task, value):
     """Fake background job executed by RQ."""
-    return f"Task ID = {task_id}, value = {value}"
+    return f"Task ID = {task.id}, value = {value}"
 
 
 @api_background_job
-def failing_task(task_id):
+def failing_task(task):
     """Fake failing background job executed by RQ."""
     raise ValueError("Couldn't reticulate splines")
 
@@ -33,7 +33,7 @@ def test_enqueue_background_job_successful(mock_redis):
 
     # Ensure the job is enqueued and MongoDB entry exists
     pending_jobs = list(
-        Task.objects.filter(
+        TaskEntry.objects.filter(
             project_id="test_project", status=TaskStatus.PENDING
         )
     )
@@ -72,7 +72,7 @@ def test_enqueue_background_job_failing(mock_redis):
 
     # Ensure the job is enqueued and MongoDB entry exists
     pending_jobs = list(
-        Task.objects.filter(
+        TaskEntry.objects.filter(
             project_id="test_project", status=TaskStatus.PENDING
         )
     )
@@ -97,7 +97,9 @@ def test_enqueue_background_job_failing(mock_redis):
     assert rq_job.is_failed
 
     failed_jobs = list(
-        Task.objects.filter(project_id="test_project", status=TaskStatus.ERROR)
+        TaskEntry.objects.filter(
+            project_id="test_project", status=TaskStatus.ERROR
+        )
     )
     assert len(failed_jobs) == 1
 
@@ -130,14 +132,15 @@ def test_enqueue_background_job_failing_out_of_sync(mock_redis):
 
     # Update the status in MongoDB to appear in-progress, while in RQ
     # it has already failed
-    task = Task.objects.get(id=job_id)
-    task.message = "processing"
-    task.status = TaskStatus.PENDING
-    task.save()
+    task = Task.get(id=job_id)
+    task.set_fields(
+        message="processing",
+        status=TaskStatus.PENDING
+    )
 
     # Retrieve the task from MongoDB; it should be automatically updated
     # to match the status in RQ
-    task = Task.objects.get(id=job_id)
+    task = Task.get(id=job_id)
 
     assert task.message == "Internal server error"
     assert task.status == TaskStatus.ERROR

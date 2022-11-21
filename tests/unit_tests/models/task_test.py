@@ -1,7 +1,7 @@
 """Unit tests for Task database class"""
 from bson import ObjectId
 
-from upload_rest_api.models.task import Task, TaskStatus
+from upload_rest_api.models.task import Task, TaskEntry, TaskStatus
 
 
 def test_correct_document_structure(tasks_col):
@@ -9,7 +9,7 @@ def test_correct_document_structure(tasks_col):
     Test that saved Task has the same document structure as the pre-MongoEngine
     implementation
     """
-    task = Task(
+    task = TaskEntry(
         id="6346ab9b60faf26069e92a80",
         project_id="test_project",
         timestamp=12345678.0,
@@ -38,4 +38,3 @@ def test_correct_document_structure(tasks_col):
             }
         ]
     }
-

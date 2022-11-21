@@ -10,7 +10,7 @@ import time
 import upload_rest_api.config
 import upload_rest_api.gen_metadata as md
 from upload_rest_api.lock import ProjectLockManager
-from upload_rest_api.models import FileEntry, Task, Upload, UploadEntry
+from upload_rest_api.models import FileEntry, TaskEntry, Upload, UploadEntry
 
 
 def _is_expired(fpath, current_time, time_lim):
@@ -161,7 +161,7 @@ def clean_mongo():
     time_lim = conf["CLEANUP_TIMELIM"]
 
     current_time = time.time()
-    for task in Task.objects:
+    for task in TaskEntry.objects:
         if current_time - task.timestamp > time_lim:
             task.delete()
 

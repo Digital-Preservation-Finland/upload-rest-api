@@ -34,23 +34,23 @@ def test_reverse_proxy_polling_url(app, mock_redis, test_auth):
 
 
 @jobs.api_background_job
-def _modify_task_info(task_id):
+def _modify_task_info(task):
     """Modify task info in database."""
-    task = Task.objects.get(id=task_id)
-    task.message = "foo"
-    task.status = TaskStatus.DONE
-    task.save()
+    task.set_fields(
+        message="foo",
+        status=TaskStatus.DONE
+    )
     return "baz"
 
 
 @jobs.api_background_job
-def _raise_general_exception(task_id):
+def _raise_general_exception(task):
     """Raise general exception."""
     raise Exception('Something failed')
 
 
 @jobs.api_background_job
-def _raise_client_error(task_id):
+def _raise_client_error(task):
     """Raise ClientError."""
     raise jobs.ClientError('Client made mistake.')
 
