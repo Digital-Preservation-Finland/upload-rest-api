@@ -287,6 +287,7 @@ class Upload:
 
         task_id = enqueue_background_job(
             task_func="upload_rest_api.jobs.upload.store_files",
+            task_id=self.id,
             queue_name=UPLOAD_QUEUE,
             project_id=self.project.id,
             job_kwargs={

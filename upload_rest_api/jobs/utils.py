@@ -93,7 +93,8 @@ def get_job_queue(queue_name):
     return BackgroundJobQueue(queue_name, connection=redis)
 
 
-def enqueue_background_job(task_func, queue_name, project_id, job_kwargs):
+def enqueue_background_job(
+        task_func, queue_name, project_id, job_kwargs, task_id=None):
     """Create a task ID and enqueue a RQ job.
 
     :param str task_func: Python function to run as a string to import
@@ -102,13 +103,20 @@ def enqueue_background_job(task_func, queue_name, project_id, job_kwargs):
     :param str project_id: Project identifier
     :param dict job_kwargs: Keyword arguments to pass to the background
                             task
+    :param str task_id: Optional identifier for the task. Will be generated
+                        automatically if not provided.
     """
     queue = get_job_queue(queue_name)
 
-    task = models.Task.create(
-        project_id=project_id,
-        message="processing"
-    )
+    task_fields = {
+        "project_id": project_id,
+        "message": "processing"
+    }
+
+    if task_id:
+        task_fields["identifier"] = task_id
+
+    task = models.Task.create(**task_fields)
 
     task_id = task.id
 

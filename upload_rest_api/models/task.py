@@ -1,13 +1,13 @@
 import time
 from enum import Enum
 
+from bson import ObjectId
 from mongoengine import (DictField, Document, EnumField, FloatField, ListField,
                          QuerySet, StringField)
 from rq.exceptions import NoSuchJobError
 from rq.job import Job
 
 from upload_rest_api.redis import get_redis_connection
-
 
 MISSING = object()
 
@@ -50,6 +50,9 @@ class TaskQuerySet(QuerySet):
 
 class TaskEntry(Document):
     """Database entry for a background task."""
+    id = StringField(
+        primary_key=True, required=False, default=lambda: str(ObjectId())
+    )
     project_id = StringField(
         # The underlying field name is 'project' for backwards compatibility
         db_field="project",
@@ -87,19 +90,26 @@ class Task:
     DoesNotExist = TaskEntry.DoesNotExist
 
     @classmethod
-    def create(cls, project_id, message):
+    def create(cls, project_id, message, identifier=None):
         """
         Create a new background task database entry
 
         :param str project_id: Project identifier
         :param str message: Initial status message
+        :pram str identifier: Optional task identifier. Identifier will be
+                              created automatically if not provided.
 
         :returns: Task instance
         """
-        db_task = TaskEntry(
-            project_id=project_id,
-            message=message
-        )
+        task_fields = {
+            "project_id": project_id,
+            "message": message
+        }
+
+        if identifier:
+            task_fields["id"] = identifier
+
+        db_task = TaskEntry(**task_fields)
         db_task.save()
         task = cls(db_task=db_task)
 

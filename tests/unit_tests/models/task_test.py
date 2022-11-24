@@ -27,7 +27,7 @@ def test_correct_document_structure(tasks_col):
     assert len(docs) == 1
 
     assert docs[0] == {
-        "_id": ObjectId("6346ab9b60faf26069e92a80"),
+        "_id": "6346ab9b60faf26069e92a80",
         "project": "test_project",
         "timestamp": 12345678.0,
         "status": "pending",
