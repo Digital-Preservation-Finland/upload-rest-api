@@ -90,12 +90,6 @@ def _store_files(workspace, resource, upload_type):
         _delete_workspace(workspace)
 
     if upload_type == 'archive':
-        # TODO: Archive validation was removed from here, because in
-        # some cases checking conflicts seems to be too slow to be done
-        # synchronously. Validating archive type and size are probably
-        # fast enough to be done synchronously.
-        #
-        # upload.validate_archive()
         upload.enqueue_store_task()
     else:
         upload.store_files()

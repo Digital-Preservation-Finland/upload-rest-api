@@ -195,7 +195,7 @@ def test_upload_archive_conflict(
     with open(archive, 'rb') as source_file:
         upload.add_source(source_file, checksum=None)
     with pytest.raises(UploadConflictError) as error:
-        upload.validate_archive()
+        upload.store_files()
     assert str(error.value) == 'Some files already exist'
     assert error.value.files == conflicts
 
@@ -209,6 +209,6 @@ def test_upload_file_as_archive():
     with open('tests/data/test.txt', 'rb') as source_file:
         upload.add_source(source_file, checksum=None)
     with pytest.raises(UploadError) as error:
-        upload.validate_archive()
+        upload.store_files()
 
     assert str(error.value) == 'Uploaded file is not a supported archive'

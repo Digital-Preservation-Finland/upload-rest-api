@@ -30,7 +30,6 @@ def test_upload_conflict_error(mocker, exception, errors):
     # Create an upload. Mock Upload class to fail during archive
     # extraction.
     upload = models.Upload.create('test_project', '/test', 1, 'archive')
-    mocker.patch.object(models.Upload, 'validate_archive')
     mocker.patch.object(models.Upload, '_extract_archive',
                         side_effect=exception)
 

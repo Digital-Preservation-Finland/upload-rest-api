@@ -22,12 +22,6 @@ def store_files(identifier, task):
     task.set_fields(message=message)
 
     try:
-        # TODO: Archive validation was moved here because, because
-        # in some cases checking conflicts seems to be too slow to
-        # be done synchronously. Validating archive type and size
-        # are probably fast enough to be done synchronously.
-        upload.validate_archive()
-
         upload.store_files()
     except UploadError as error:
         raise ClientError(str(error), error.files) from error

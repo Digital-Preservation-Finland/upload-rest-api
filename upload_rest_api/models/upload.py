@@ -305,13 +305,8 @@ class Upload:
 
         return task_id
 
-    @_release_lock_on_exception
-    def validate_archive(self):
-        """Validate archive.
-
-        Check that archive is supported format, the project has
-        enough quota, and archive does not overwrite existing files.
-        """
+    def _extract_archive(self):
+        """Extract archive to temporary project directory."""
         # Ensure that arhive is supported format
         if not (zipfile.is_zipfile(self._source_path)
                 or tarfile.is_tarfile(self._source_path)):
@@ -320,6 +315,8 @@ class Upload:
                 "Uploaded file is not a supported archive"
             )
 
+        # Read the content of the archive, and compute the total size of
+        # files.
         if tarfile.is_tarfile(self._source_path):
             with tarfile.open(self._source_path) as archive:
                 extracted_size = sum(member.size for member in archive)
@@ -362,8 +359,6 @@ class Upload:
         # contents.
         self.project.increase_used_quota(extracted_size)
 
-    def _extract_archive(self):
-        """Extract archive to temporary project directory."""
         # Extract files to temporary project directory
         self._tmp_storage_path.parent.mkdir(parents=True, exist_ok=True)
         try:
