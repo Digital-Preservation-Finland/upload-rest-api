@@ -39,7 +39,7 @@ def upload_conflict(error):
     The error should contain list of conflicting files.
     """
     response = jsonify({'code': 409,
-                        'error': error.message,
+                        'error': str(error),
                         'files': error.files})
     response.status_code = 409
 

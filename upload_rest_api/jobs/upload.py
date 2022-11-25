@@ -30,6 +30,6 @@ def store_files(identifier, task):
 
         upload.store_files()
     except UploadError as error:
-        raise ClientError(str(error)) from error
+        raise ClientError(str(error), error.files) from error
 
     return f"{upload.type_.value} uploaded to {upload.path}"

@@ -31,7 +31,6 @@ class ClientError(Exception):
     def __init__(self, message, files=None):
         """Init ClientError."""
         super().__init__(message)
-        self.message = message
         self.files = files
 
 
@@ -59,7 +58,7 @@ def api_background_job(func):
                 message="Task failed",
                 errors=[
                     {
-                        "message": exception.message,
+                        "message": str(exception),
                         "files": exception.files
                     }
                 ]

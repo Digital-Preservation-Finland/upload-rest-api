@@ -45,19 +45,18 @@ def _release_lock_on_exception(method):
 class UploadError(Exception):
     """Exception raised when upload fails."""
 
-
-class UploadConflictError(UploadError):
-    """Exception raised when upload would overwrite existing files."""
-
-    def __init__(self, message, files):
+    def __init__(self, message, files=None):
         """Initialize exception.
 
         :param message: Error message
-        :param files: List of conflicting files.
+        :param files: Optional ist of files that caused the error.
         """
-        super().__init__()
-        self.message = message
+        super().__init__(message)
         self.files = files
+
+
+class UploadConflictError(UploadError):
+    """Exception raised when upload would overwrite existing files."""
 
 
 class InvalidArchiveError(UploadError):

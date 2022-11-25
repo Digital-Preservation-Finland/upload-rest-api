@@ -1,4 +1,4 @@
-"""Unit tests for background jobs."""
+"""Unit tests for background job utils."""
 import pytest
 from rq import SimpleWorker
 
@@ -25,7 +25,7 @@ def test_enqueue_background_job_successful(mock_redis):
     and ensure it can be executed properly.
     """
     job_id = enqueue_background_job(
-        task_func="tests.unit_tests.jobs_test.successful_task",
+        task_func="tests.unit_tests.jobs.utils_test.successful_task",
         queue_name="upload",
         project_id="test_project",
         job_kwargs={"value": "spam"}
@@ -64,7 +64,7 @@ def test_enqueue_background_job_failing(mock_redis):
     and ensure it is handled properly if it raises an exception.
     """
     job_id = enqueue_background_job(
-        task_func="tests.unit_tests.jobs_test.failing_task",
+        task_func="tests.unit_tests.jobs.utils_test.failing_task",
         queue_name="upload",
         project_id="test_project",
         job_kwargs={}
@@ -113,7 +113,7 @@ def test_enqueue_background_job_failing_out_of_sync(mock_redis):
     but not MongoDB.
     """
     job_id = enqueue_background_job(
-        task_func="tests.unit_tests.jobs_test.failing_task",
+        task_func="tests.unit_tests.jobs.utils_test.failing_task",
         queue_name="upload",
         project_id="test_project",
         job_kwargs={}

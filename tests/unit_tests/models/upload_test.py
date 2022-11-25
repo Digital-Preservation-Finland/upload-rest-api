@@ -5,7 +5,7 @@ import pathlib
 import pytest
 
 from upload_rest_api.models.upload import (Upload, UploadConflictError,
-                                           UploadEntry, UploadError)
+                                           UploadError)
 
 
 @pytest.mark.usefixtures('app')
@@ -81,8 +81,8 @@ def test_file_metadata_conflict(mock_config, requests_mock):
     # Try to create metadata. Metadata creation should fail.
     with pytest.raises(UploadConflictError) as error:
         upload.store_files()
-    assert error.value.message == ('Metadata could not be created because the'
-                                   ' file already has metadata')
+    assert str(error.value) == ('Metadata could not be created because the'
+                                ' file already has metadata')
     assert error.value.files == ['/path/file1']
 
     # Nothing should have been posted to Metax
@@ -196,7 +196,7 @@ def test_upload_archive_conflict(
         upload.add_source(source_file, checksum=None)
     with pytest.raises(UploadConflictError) as error:
         upload.validate_archive()
-    assert error.value.message == 'Some files already exist'
+    assert str(error.value) == 'Some files already exist'
     assert error.value.files == conflicts
 
 
