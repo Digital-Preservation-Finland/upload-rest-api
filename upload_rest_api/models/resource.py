@@ -12,7 +12,7 @@ from metax_access import (DS_STATE_ACCEPTED_TO_DIGITAL_PRESERVATION,
 
 from upload_rest_api import gen_metadata
 from upload_rest_api.config import CONFIG
-from upload_rest_api.jobs.utils import FILES_QUEUE, enqueue_background_job
+from upload_rest_api import jobs
 from upload_rest_api.lock import lock_manager
 from upload_rest_api.models import FileEntry, Project
 from upload_rest_api.security import parse_relative_user_path
@@ -250,9 +250,9 @@ class DirectoryResource(Resource):
                 self.project.directory.mkdir(exist_ok=True)
 
             # Remove all file metadata of files under fpath from Metax
-            task_id = enqueue_background_job(
+            task_id = jobs.enqueue_background_job(
                 task_func="upload_rest_api.jobs.files.delete_files",
-                queue_name=FILES_QUEUE,
+                queue_name=jobs.FILES_QUEUE,
                 project_id=self.project.id,
                 job_kwargs={
                     "fpath": self.storage_path,
