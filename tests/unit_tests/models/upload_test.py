@@ -30,10 +30,10 @@ def test_store_file(
     project = 'test_project'
     upload = Upload.create(project, 'foo/bar', 123)
     with open(test_file, 'rb') as file:
-        upload.add_source(file, None, False)
+        upload.add_source(file, None)
 
     # Create metadata
-    upload.store_files()
+    upload.store_files(verify_source=False)
 
     # Check the metadata that was posted to Metax
     metadata = metax_files_api.last_request.json()[0]
@@ -59,7 +59,7 @@ def test_file_metadata_conflict(mock_config, requests_mock):
     # Create an incomplete upload with a text file copied to source path
     upload = Upload.create('test_project', 'path/file1', 123)
     with open('tests/data/test.txt', 'rb') as file:
-        upload.add_source(file, None, False)
+        upload.add_source(file, None)
 
     # Mock metax.
     metax_files_api = requests_mock.post('/rest/v2/files/', json={})
@@ -80,7 +80,7 @@ def test_file_metadata_conflict(mock_config, requests_mock):
 
     # Try to create metadata. Metadata creation should fail.
     with pytest.raises(UploadConflictError) as error:
-        upload.store_files()
+        upload.store_files(verify_source=False)
     assert str(error.value) == ('Metadata could not be created because the'
                                 ' file already has metadata')
     assert error.value.files == ['/path/file1']
@@ -97,38 +97,43 @@ def test_file_metadata_conflict(mock_config, requests_mock):
 @pytest.mark.parametrize(
     ['checksum', 'verify'],
     (
-        [None, True],
         ['foo', True],
+        ['foo', False],
         [None, False],
-        ['foo', False]
+        ['wrong-checksum', False]
     )
 )
 def test_checksum(checksum, verify, requests_mock, mock_get_file_checksum):
     """Test that checksum is not computed needlessly."""
     # Mock metax.
-    metax_files_api = requests_mock.post('/rest/v2/files/', json={})
+    requests_mock.post('/rest/v2/files/', json={})
     requests_mock.get('/rest/v2/files', json={'results': []})
 
-    # Add source file to upload. Checksum should be computed only if
-    # a predefined checksum was provided and it must be verified.
+    # Upload a file. Checksum should be computed only if it must be
+    # verified.
     upload = Upload.create('test_project', 'path/file1', 123)
     with open('tests/data/test.txt', 'rb') as source_file:
-        upload.add_source(source_file, checksum=checksum, verify=verify)
+        upload.add_source(source_file, checksum=checksum)
+    upload.store_files(verify_source=verify)
 
-    if checksum and verify:
+    if verify or not checksum:
         mock_get_file_checksum.assert_called_once()
     else:
         mock_get_file_checksum.assert_not_called()
 
-    # Generate metadata for file. Checksum should not be computed even
-    # during metadata generation, if predefined checksum was provided.
-    upload.store_files()
-    assert metax_files_api.last_request.json()[0]['checksum']['value'] == 'foo'
 
-    if checksum and not verify:
-        mock_get_file_checksum.assert_not_called()
-    else:
-        mock_get_file_checksum.assert_called_once()
+@pytest.mark.usefixtures('app')
+def test_invalid_checksum():
+    """Test that upload fails if invalid source checksum is provided."""
+    upload = Upload.create('test_project', 'path/file1', 123)
+    with open('tests/data/test.txt', 'rb') as source_file:
+        upload.add_source(source_file, checksum='wrong-checksum')
+
+    with pytest.raises(
+        UploadError,
+        match='Checksum of uploaded file does not match provided checksum.'
+    ):
+        upload.store_files(verify_source=True)
 
 
 @pytest.mark.usefixtures('app')  # Creates test_project
@@ -185,7 +190,7 @@ def test_upload_archive_conflict(
     )
     with open('tests/data/test.txt', 'rb') as source_file:
         upload.add_source(source_file, checksum=None)
-    upload.store_files()
+    upload.store_files(verify_source=False)
 
     # Try to upload an archive that will overwrite the file that was
     # just uploaded (or its parent directory).
@@ -195,7 +200,7 @@ def test_upload_archive_conflict(
     with open(archive, 'rb') as source_file:
         upload.add_source(source_file, checksum=None)
     with pytest.raises(UploadConflictError) as error:
-        upload.store_files()
+        upload.store_files(verify_source=False)
     assert str(error.value) == 'Some files already exist'
     assert error.value.files == conflicts
 
@@ -209,6 +214,6 @@ def test_upload_file_as_archive():
     with open('tests/data/test.txt', 'rb') as source_file:
         upload.add_source(source_file, checksum=None)
     with pytest.raises(UploadError) as error:
-        upload.store_files()
+        upload.store_files(verify_source=False)
 
     assert str(error.value) == 'Uploaded file is not a supported archive'

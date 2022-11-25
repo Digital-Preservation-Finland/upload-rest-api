@@ -82,17 +82,20 @@ def _store_files(workspace, resource, upload_type):
             id=resource.identifier,
             project=project_id
         )
-        upload.add_source(resource.upload_file_path, checksum, verify=False)
+        upload.add_source(resource.upload_file_path, checksum)
 
     finally:
         # Delete the tus-specific workspace regardless of the
         # outcome.
         _delete_workspace(workspace)
 
+    # Enqueue background job for storing archive, or store single file
+    # right away. Source file verification can be skipped, because
+    # it has already been verified during the upload.
     if upload_type == 'archive':
-        upload.enqueue_store_task()
+        upload.enqueue_store_task(verify_source=False)
     else:
-        upload.store_files()
+        upload.store_files(verify_source=False)
 
 
 def _get_checksum_tuple(checksum):

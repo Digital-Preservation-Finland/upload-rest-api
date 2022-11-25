@@ -246,16 +246,11 @@ class Upload:
         return upload
 
     @_release_lock_on_exception
-    def add_source(self, file, checksum, verify=True):
-        """Save file to source path and verify checksum.
-
-        Save file to source path. If checksum is provided, MD5 sum of
-        file is compared to provided MD5 sum. Raises error if checksums
-        do not match.
+    def add_source(self, file, checksum):
+        """Save file to source path.
 
         :param file: File stream or path to file
         :param checksum: MD5 checksum of file, or ``None`` if unknown
-        :param verify: Verify integrity of file
         :returns: ``None``
         """
         if 'read' in dir(file):
@@ -270,19 +265,10 @@ class Upload:
             # 'file' is path to a file. Move it to source path.
             Path(file).rename(self._source_path)
 
-        # Verify integrity of uploaded file if checksum was provided
-        if checksum:
-            self._db_upload.source_checksum = checksum
-            if verify and self.source_checksum \
-                    != get_file_checksum("md5", self._source_path):
-                self._source_path.unlink()
-                raise UploadError(
-                    'Checksum of uploaded file does not match provided '
-                    'checksum.'
-                )
+        self._db_upload.source_checksum = checksum
 
     @_release_lock_on_exception
-    def enqueue_store_task(self):
+    def enqueue_store_task(self, verify_source):
         """Enqueue store task for upload.
 
         :returns: Task identifier
@@ -299,7 +285,8 @@ class Upload:
             queue_name=UPLOAD_QUEUE,
             project_id=self.project.id,
             job_kwargs={
-                "identifier": self.id
+                "identifier": self.id,
+                "verify_source": verify_source
             }
         )
 
@@ -373,13 +360,25 @@ class Upload:
         self._source_path.unlink()
 
     @_release_lock_on_exception
-    def store_files(self):
+    def store_files(self, verify_source):
         """Store files.
 
         Moves/extracts source files to temporary project directory,
         creates file metadata, and then moves the files to project
         directory.
+
+        :param verify_source: verify integrity of source file
         """
+        # Verify integrity of source file if checksum was provided
+        if verify_source \
+                and self.source_checksum \
+                != get_file_checksum("md5", self._source_path):
+            self._source_path.unlink()
+            raise UploadError(
+                'Checksum of uploaded file does not match provided '
+                'checksum.'
+            )
+
         if self.type_ == UploadType.FILE:
             self._tmp_storage_path.parent.mkdir(parents=True, exist_ok=True)
             self._source_path.rename(self._tmp_storage_path)

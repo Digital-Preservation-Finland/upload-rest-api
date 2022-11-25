@@ -34,9 +34,9 @@ def upload_archive(project_id):
         size=request.content_length,
         type_='archive'
     )
-    upload.add_source(file=request.stream,
-                      checksum=request.args.get('md5', None))
-    task_id = upload.enqueue_store_task()
+    checksum = request.args.get("md5", None)
+    upload.add_source(file=request.stream, checksum=checksum)
+    task_id = upload.enqueue_store_task(verify_source=bool(checksum))
 
     response = jsonify(
         {

@@ -38,7 +38,7 @@ def test_upload_conflict_error(mocker, exception, errors):
         project_id='test_project',
         message="processing"
     )
-    store_files(upload.id, task_id=task.id)
+    store_files(upload.id, verify_source=False, task_id=task.id)
 
     # Check that correct error is found in task database
     task = task.get(task.id)

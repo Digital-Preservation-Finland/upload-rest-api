@@ -4,7 +4,7 @@ from upload_rest_api.models import Upload, UploadError, UploadType
 
 
 @api_background_job
-def store_files(identifier, task):
+def store_files(identifier, verify_source, task):
     """Store files.
 
     Create metadata for uploaded files and move them to storage.
@@ -22,7 +22,7 @@ def store_files(identifier, task):
     task.set_fields(message=message)
 
     try:
-        upload.store_files()
+        upload.store_files(verify_source)
     except UploadError as error:
         raise ClientError(str(error), error.files) from error
 
