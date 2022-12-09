@@ -1,3 +1,4 @@
+"""Upload model."""
 import os
 import shutil
 import tarfile
@@ -16,9 +17,11 @@ from mongoengine import (BooleanField, DateTimeField, Document, EnumField,
                          LongField, ReferenceField, StringField,
                          ValidationError)
 
+
 from upload_rest_api import gen_metadata, models
 from upload_rest_api.checksum import get_file_checksum
 from upload_rest_api.config import CONFIG
+from upload_rest_api.jobs.utils import (UPLOAD_QUEUE, enqueue_background_job)
 from upload_rest_api.lock import ProjectLockManager
 from upload_rest_api.security import InvalidPathError, parse_relative_user_path
 
@@ -68,6 +71,7 @@ class InsufficientQuotaError(UploadError):
 
 
 class UploadType(Enum):
+    """Upload type."""
     FILE = "file"
     ARCHIVE = "archive"
 
@@ -84,11 +88,11 @@ def _validate_upload_path(path):
 class UploadEntry(Document):
     """Document of an active upload in the MongoDB database
 
-    The underlying database document is created at the start of an upload
-    and deleted once the upload is complete or fails.
+    The underlying database document is created at the start of an
+    upload and deleted once the upload is complete or fails.
     """
-    # The identifier for this upload. Default value is an UUID, but there is no
-    # set format for the identifier.
+    # The identifier for this upload. Default value is an UUID, but
+    # there is no set format for the identifier.
     id = StringField(primary_key=True, required=True)
     # Relative upload path for the file
     path = StringField(required=True, validation=_validate_upload_path)
@@ -110,6 +114,7 @@ class UploadEntry(Document):
 
 
 class Upload:
+    """Class for handling uploads."""
     def __init__(self, db_upload):
         self._db_upload = db_upload
         self._resource = None
@@ -128,6 +133,7 @@ class Upload:
 
     @property
     def resource(self):
+        """The file or directory to be uploaded."""
         if not self._resource:
             self._resource = models.Resource(self.project, self.path)
 
@@ -274,10 +280,6 @@ class Upload:
         :returns: Task identifier
         """
         self._db_upload.save()
-
-        # Avoid cyclic import by deferring it
-        from upload_rest_api.jobs.utils import (UPLOAD_QUEUE,
-                                                enqueue_background_job)
 
         task_id = enqueue_background_job(
             task_func="upload_rest_api.jobs.upload.store_files",
