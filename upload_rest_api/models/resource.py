@@ -13,7 +13,7 @@ from metax_access import (DS_STATE_ACCEPTED_TO_DIGITAL_PRESERVATION,
 from upload_rest_api import gen_metadata
 from upload_rest_api.config import CONFIG
 from upload_rest_api import jobs
-from upload_rest_api.lock import lock_manager
+from upload_rest_api.lock import ProjectLockManager
 from upload_rest_api.models import FileEntry, Project
 from upload_rest_api.security import parse_relative_user_path
 
@@ -136,6 +136,7 @@ class FileResource(Resource):
 
         root_upload_path = CONFIG.get("UPLOAD_PROJECTS_PATH")
 
+        lock_manager = ProjectLockManager()
         with lock_manager.lock(self.project.id, self.storage_path):
             # Remove metadata from Metax
             try:
@@ -175,6 +176,7 @@ class DirectoryResource(Resource):
         relative_path = parse_relative_user_path(path.strip("/"))
         abs_path = project.directory / relative_path
 
+        lock_manager = ProjectLockManager()
         with lock_manager.lock(project.id, abs_path):
             abs_path.mkdir(parents=True)
 
@@ -248,6 +250,7 @@ class DirectoryResource(Resource):
         # Acquire a lock *and* keep it alive even after this HTTP
         # request. It will be released by the 'delete_files' background
         # job once it finishes.
+        lock_manager = ProjectLockManager()
         lock_manager.acquire(self.project.id, self.storage_path)
 
         try:
