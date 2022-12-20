@@ -172,6 +172,12 @@ class MetaxClient:
 
         If force parameter is True metadata is deleted if the file
         belongs to a dataset not accepted to preservation.
+
+        :param project: Project identifier
+        :param fpath: Absolute file path
+        :param root_upload_path: Root of the projects directory
+        :param bool force: Whether to force deletion of a file belonging to a
+                           pending dataset not yet in preservation
         """
         self.dataset_cache.clear()
         files_dict = self.client.get_files_dict(project)
@@ -356,9 +362,6 @@ class MetaxClient:
                          .get(path=str(upload_path))
                          .identifier
             )
-            if not file_identifier:
-                return []
-
             file_identifiers.append(file_identifier)
         elif upload_path.is_dir():
             file_identifiers = [
@@ -366,7 +369,8 @@ class MetaxClient:
                 for file_ in FileEntry.objects.in_dir(upload_path)
                 if "identifier" in file_
             ]
-        else:
+
+        if not file_identifiers:
             return []
 
         # Retrieve file -> dataset(s) associations

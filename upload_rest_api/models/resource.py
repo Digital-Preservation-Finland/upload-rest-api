@@ -74,8 +74,7 @@ class Resource():
         """List all datasets in which the resource has been added."""
         if self._datasets is None:
             self._datasets \
-                = self.metax.get_file_datasets(self.project.id,
-                                               self.storage_path)
+                = self.metax.get_file_datasets(self.project.id, self.path)
         return self._datasets
 
     def has_pending_dataset(self):

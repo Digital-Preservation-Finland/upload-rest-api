@@ -52,6 +52,15 @@ def get_upload_path(project_id, file_path):
     :param file_path: file path relative to project directory of user
     :returns: full path of file
     """
+    projects_dir = CONFIG["UPLOAD_PROJECTS_PATH"]
+    file_path = str(file_path)
+
+    # Perform a sanity check and check that the provided path appears relative.
+    if file_path.startswith(str(projects_dir)):
+        raise ValueError(f"Path {file_path} is absolute, not relative")
+
+    project_dir = get_project_directory(project_id)
+
     if file_path == "*":
         # '*' is shorthand for the base directory.
         # This is used to maintain compatibility with Werkzeug's
@@ -59,8 +68,7 @@ def get_upload_path(project_id, file_path):
         # string.
         file_path = ""
 
-    project_dir = get_project_directory(project_id)
-    upload_path = (project_dir / file_path).resolve()
+    upload_path = (project_dir / file_path.strip("/")).resolve()
 
     return parse_user_path(project_dir, upload_path)
 
@@ -75,6 +83,13 @@ def get_return_path(project_id, fpath):
     :param fpath: full path
     :returns: string presentation of relative path
     """
+    projects_dir = CONFIG["UPLOAD_PROJECTS_PATH"]
+    fpath = str(fpath)
+
+    # Perform a sanity check and check that the provided path appears absolute.
+    if not fpath.startswith(str(projects_dir)):
+        raise ValueError(f"Path {fpath} is relative, not absolute")
+
     if fpath == "*":
         # '*' is shorthand for the base directory.
         # This is used to maintain compatibility with Werkzeug's
