@@ -159,6 +159,27 @@ class FileResource(Resource):
 class DirectoryResource(Resource):
     """Directory class."""
 
+    @classmethod
+    def create(cls, project_id, path):
+        """
+        Create a new directory for a project
+
+        :param project_id: Project identifier
+        :param path: Relative path for the project
+
+        :returns: DirectoryResource instance
+        """
+        project = Project.get(id=project_id)
+
+        # Raise InvalidPathError on attempted path escape
+        relative_path = parse_relative_user_path(path.strip("/"))
+        abs_path = project.directory / relative_path
+
+        with lock_manager.lock(project.id, abs_path):
+            abs_path.mkdir(parents=True)
+
+        return cls(project=project, path=path)
+
     @property
     def identifier(self):
         """Return identifier of directory."""
@@ -167,12 +188,7 @@ class DirectoryResource(Resource):
                 self.project.id, self.path
             )['identifier']
         except DirectoryNotAvailableError:
-            # The root directory is the first directory that's retrieved,
-            # and it might not exist in Metax yet.
-            if str(self.path) == "/":
-                return None
-
-            raise
+            return None
 
     def _get_entries(self):
         return list(os.scandir(self.storage_path))

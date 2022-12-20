@@ -12,3 +12,4 @@ junit.xml
 .tox
 .coverage
 .cache
+.eggs

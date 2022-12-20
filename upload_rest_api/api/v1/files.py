@@ -48,6 +48,7 @@ def upload_file(project_id, fpath):
             "Missing Content-Length header"
         )
 
+    # Upload file
     upload = Upload.create(project_id, fpath, request.content_length)
     upload.add_source(request.stream, request.args.get('md5', None))
     upload.store_files()

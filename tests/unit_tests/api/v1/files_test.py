@@ -3,6 +3,7 @@ import json
 import os
 import pathlib
 import shutil
+from pathlib import Path
 
 import pytest
 from metax_access import DS_STATE_TECHNICAL_METADATA_GENERATED

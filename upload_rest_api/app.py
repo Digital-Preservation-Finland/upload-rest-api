@@ -9,6 +9,7 @@ import upload_rest_api.authentication as auth
 from upload_rest_api.api.v1 import files_tus
 from upload_rest_api.api.v1.archives import ARCHIVES_API_V1
 from upload_rest_api.api.v1.datasets import DATASETS_API_V1
+from upload_rest_api.api.v1.directories import DIRECTORIES_API_V1
 from upload_rest_api.api.v1.errorhandlers import (http_error_400,
                                                   http_error_404,
                                                   http_error_500,
@@ -83,6 +84,7 @@ def create_app():
 
     # Register all blueprints
     app.register_blueprint(DATASETS_API_V1)
+    app.register_blueprint(DIRECTORIES_API_V1)
     app.register_blueprint(FILES_API_V1)
     app.register_blueprint(ARCHIVES_API_V1)
     app.register_blueprint(TASK_STATUS_API_V1)
