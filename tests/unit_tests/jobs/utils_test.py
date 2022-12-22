@@ -164,3 +164,19 @@ def test_enqueue_background_job_custom_timeout(mock_config, monkeypatch):
     job = upload_queue.fetch_job(job_id)
 
     assert job.timeout == 2222
+
+
+def test_background_job_queue(mock_redis):
+    """Test that RQ Worker can read jobs from BackgroundJobQueue.
+
+    The RQ workers can be started using rq command line tool, for
+    example::
+
+        rq worker --queue-class "upload_rest_api.jobs.BackgroundJobQueue"
+
+    This test simply ensures that RQ can import BackgroundJobQueue class
+    from upload_rest_api.jobs module.
+    """
+    SimpleWorker(['foo'],
+                 queue_class="upload_rest_api.jobs.BackgroundJobQueue",
+                 connection=mock_redis)
