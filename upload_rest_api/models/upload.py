@@ -5,7 +5,6 @@ import tarfile
 import uuid
 import zipfile
 from datetime import datetime, timezone
-from enum import Enum
 from pathlib import Path, PurePath
 
 import magic
@@ -13,17 +12,17 @@ import metax_access
 from archive_helpers.extract import (ExtractError, MemberNameError,
                                      MemberOverwriteError, MemberTypeError,
                                      extract)
-from mongoengine import (BooleanField, DateTimeField, Document, EnumField,
-                         LongField, ReferenceField, StringField,
-                         ValidationError)
 
-
-from upload_rest_api import gen_metadata, models
+from upload_rest_api import gen_metadata
+from upload_rest_api.models.project import ProjectEntry, Project
+from upload_rest_api.models.file_entry import FileEntry
+from upload_rest_api.models.resource import Resource
+from upload_rest_api.models.upload_entry import (UploadType, UploadEntry)
 from upload_rest_api.checksum import get_file_checksum
 from upload_rest_api.config import CONFIG
 from upload_rest_api.jobs.utils import (UPLOAD_QUEUE, enqueue_background_job)
 from upload_rest_api.lock import ProjectLockManager
-from upload_rest_api.security import InvalidPathError, parse_relative_user_path
+from upload_rest_api.security import parse_relative_user_path
 
 
 def _release_lock_on_exception(method):
@@ -70,49 +69,6 @@ class InsufficientQuotaError(UploadError):
     """Exception raised when upload would exceed remaining quota."""
 
 
-class UploadType(Enum):
-    """Upload type."""
-    FILE = "file"
-    ARCHIVE = "archive"
-
-
-def _validate_upload_path(path):
-    """Validate that the file path does not perform path escape
-    """
-    try:
-        parse_relative_user_path(path.strip("/"))
-    except InvalidPathError as exc:
-        raise ValidationError("Path is invalid") from exc
-
-
-class UploadEntry(Document):
-    """Document of an active upload in the MongoDB database
-
-    The underlying database document is created at the start of an
-    upload and deleted once the upload is complete or fails.
-    """
-    # The identifier for this upload. Default value is an UUID, but
-    # there is no set format for the identifier.
-    id = StringField(primary_key=True, required=True)
-    # Relative upload path for the file
-    path = StringField(required=True, validation=_validate_upload_path)
-
-    type_ = EnumField(UploadType, db_field="type")
-    project = ReferenceField(models.ProjectEntry, required=True)
-    source_checksum = StringField()
-
-    is_tus_upload = BooleanField(default=False)
-
-    started_at = DateTimeField(default=lambda: datetime.now(timezone.utc))
-
-    # Size of the file to upload in bytes
-    size = LongField(required=True)
-
-    meta = {
-        "collection": "uploads"
-    }
-
-
 class Upload:
     """Class for handling uploads."""
     def __init__(self, db_upload):
@@ -127,7 +83,7 @@ class Upload:
     size = property(lambda x: x._db_upload.size)
     is_tus_upload = property(lambda x: x._db_upload.is_tus_upload)
     started_at = property(lambda x: x._db_upload.started_at)
-    project = property(lambda x: models.Project(x._db_upload.project))
+    project = property(lambda x: Project(x._db_upload.project))
 
     DoesNotExist = UploadEntry.DoesNotExist
 
@@ -135,7 +91,7 @@ class Upload:
     def resource(self):
         """The file or directory to be uploaded."""
         if not self._resource:
-            self._resource = models.Resource(self.project, self.path)
+            self._resource = Resource(self.project, self.path)
 
         return self._resource
 
@@ -205,7 +161,7 @@ class Upload:
 
         db_upload = UploadEntry(
             id=identifier,
-            project=models.ProjectEntry.objects.get(id=project_id),
+            project=ProjectEntry.objects.get(id=project_id),
             path=str(path),
             type_=type_,
             size=size
@@ -451,7 +407,7 @@ class Upload:
                     checksum = get_file_checksum("md5", file)
 
                 file_documents.append(
-                    models.FileEntry(
+                    FileEntry(
                         path=str(self.project.directory / relative_path),
                         checksum=checksum,
                         identifier=identifier
@@ -482,7 +438,7 @@ class Upload:
         metax.post_metadata(metadata_dicts)
 
         # Insert information of all files to database in one go
-        models.FileEntry.objects.insert(file_documents)
+        FileEntry.objects.insert(file_documents)
 
         # Move files to project directory
         self._move_files_to_project_directory()

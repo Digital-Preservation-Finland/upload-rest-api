@@ -1,4 +1,4 @@
-from upload_rest_api.models.file import FileEntry
+from upload_rest_api.models.file_entry import FileEntry
 
 
 def test_correct_document_structure(files_col):

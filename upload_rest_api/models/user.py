@@ -1,12 +1,13 @@
+"""User model."""
 import hashlib
 import random
 import string
 
 from bson.binary import Binary
-from mongoengine import (BinaryField, Document, ListField, NotUniqueError,
-                         StringField, ValidationError)
+from mongoengine import NotUniqueError, ValidationError
 
-from upload_rest_api import models
+from upload_rest_api.models.project import ProjectEntry, Project
+from upload_rest_api.models.user_entry import UserEntry
 
 # Password vars
 PASSWD_LEN = 20
@@ -55,7 +56,7 @@ def _validate_projects(projects):
     projects = set(projects)
     existing_projects = set(
         project.id for project in
-        models.ProjectEntry.objects.filter(id__in=projects).only("id")
+        ProjectEntry.objects.filter(id__in=projects).only("id")
     )
 
     missing_projects = projects - existing_projects
@@ -68,20 +69,6 @@ def _validate_projects(projects):
 
 class UserExistsError(Exception):
     """Exception for trying to create a user, which already exists."""
-
-
-class UserEntry(Document):
-    """User database model"""
-    username = StringField(primary_key=True, required=True)
-
-    # Salt and digest if password authentication is enabled for this user.
-    salt = StringField(required=False, null=True, default=None)
-    digest = BinaryField(required=False, null=True, default=None)
-
-    # Projects this user has access to
-    projects = ListField(StringField(), validation=_validate_projects)
-
-    meta = {"collection": "users"}
 
 
 class User:
@@ -154,7 +141,7 @@ class User:
 
     def grant_project(self, project):
         """Grant user access to the given project."""
-        project = models.Project.get(id=project)
+        project = Project.get(id=project)
 
         if project.id not in self.projects:
             self._db_user.projects.append(project.id)

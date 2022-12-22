@@ -8,8 +8,10 @@ import click
 import upload_rest_api.config
 from upload_rest_api.cleanup import (clean_disk, clean_mongo,
                                      clean_other_uploads, clean_tus_uploads)
-from upload_rest_api.models import (FileEntry, Project, ProjectEntry,
-                                    TokenEntry, User, UserEntry)
+from upload_rest_api.models.file_entry import FileEntry
+from upload_rest_api.models.project import Project, ProjectEntry
+from upload_rest_api.models.token import TokenEntry
+from upload_rest_api.models.user import User, UserEntry
 
 
 def _echo_json(data):

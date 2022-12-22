@@ -7,9 +7,10 @@ import pytest
 from click.testing import CliRunner
 
 import upload_rest_api.__main__
-from upload_rest_api.models import (FileEntry, Project, ProjectEntry,
-                                    ProjectExistsError, Token, TokenEntry,
-                                    User, UserEntry, UserExistsError)
+from upload_rest_api.models.file_entry import FileEntry
+from upload_rest_api.models.project import Project, ProjectExistsError
+from upload_rest_api.models.token import Token, TokenEntry
+from upload_rest_api.models.user import  User, UserEntry, UserExistsError
 
 
 @pytest.fixture(scope="function")

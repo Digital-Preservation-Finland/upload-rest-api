@@ -5,7 +5,7 @@ Functionality for uploading and extracting an archive.
 from flask import Blueprint, jsonify, request
 import werkzeug
 
-from upload_rest_api.models import Upload
+from upload_rest_api.models.upload import Upload
 from upload_rest_api.api.v1.tasks import get_polling_url
 
 ARCHIVES_API_V1 = Blueprint("archives_v1", __name__, url_prefix="/v1/archives")

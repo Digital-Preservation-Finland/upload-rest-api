@@ -1,30 +1,19 @@
 """upload-rest-api models"""
-# flake8: noqa
 import logging
 
 from mongoengine import connect
 
 from upload_rest_api.config import CONFIG
-from upload_rest_api.models.file import FileEntry
-from upload_rest_api.models.project import (Project, ProjectEntry,
-                                            ProjectExistsError)
+from upload_rest_api.models.project import Project
 from upload_rest_api.models.resource import Resource
-from upload_rest_api.models.task import Task, TaskEntry, TaskStatus
-from upload_rest_api.models.token import Token, TokenEntry, TokenInvalidError
-from upload_rest_api.models.upload import (InsufficientQuotaError,
-                                           InvalidArchiveError, Upload,
-                                           UploadConflictError, UploadEntry,
-                                           UploadError, UploadType)
-from upload_rest_api.models.user import (User, UserEntry, UserExistsError,
-                                         hash_passwd)
+from upload_rest_api.models.task import Task
+from upload_rest_api.models.token import Token
+from upload_rest_api.models.upload import Upload
+from upload_rest_api.models.user import User
+from upload_rest_api.models.file_entry import FileEntry
 
-__all__ = (
-    "FileEntry", "Project", "ProjectEntry", "ProjectExistsError", "Resource",
-    "Task", "TaskEntry", "TaskStatus", "Token", "TokenEntry",
-    "TokenInvalidError", "InsufficientQuotaError", "InvalidArchiveError",
-    "Upload", "UploadConflictError", "UploadEntry", "UploadError",
-    "UploadType", "User", "UserEntry", "UserExistsError"
-)
+__all__ = ("Project", "Resource", "Task", "Token", "Upload", "User",
+           "FileEntry")
 
 try:
     connect(

@@ -3,7 +3,7 @@ from urllib.parse import urlparse, urlunparse
 
 from flask import Blueprint, jsonify, request, url_for
 
-from upload_rest_api.models import Task, TaskStatus
+from upload_rest_api.models.task import Task, TaskStatus
 
 TASK_STATUS_API_V1 = Blueprint("tasks_v1", __name__,
                                url_prefix="/v1/tasks")

@@ -2,7 +2,8 @@
 
 import pytest
 
-from upload_rest_api.models import Token, TokenEntry, User
+from upload_rest_api.models.token import Token, TokenEntry
+from upload_rest_api.models.user import User
 
 
 def test_create_token(test_client, admin_auth):

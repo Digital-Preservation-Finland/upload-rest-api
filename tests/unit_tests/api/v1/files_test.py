@@ -8,7 +8,8 @@ from pathlib import Path
 import pytest
 from metax_access import DS_STATE_TECHNICAL_METADATA_GENERATED
 
-from upload_rest_api.models import FileEntry, ProjectEntry
+from upload_rest_api.models.file_entry import FileEntry
+from upload_rest_api.models.project import ProjectEntry
 
 
 def _upload_file(client, url, auth, fpath):

@@ -3,7 +3,7 @@ from functools import wraps
 
 from rq import Queue
 
-from upload_rest_api import models
+from upload_rest_api.models.task import Task, TaskStatus
 from upload_rest_api.config import CONFIG
 from upload_rest_api.redis import get_redis_connection
 
@@ -44,7 +44,7 @@ def api_background_job(func):
     @wraps(func)
     def wrapper(*args, **kwargs):
         task_id = kwargs["task_id"]
-        task = models.Task.get(id=task_id)
+        task = Task.get(id=task_id)
 
         # Retrieve the Task instance and attach it to the job.
         kwargs["task"] = task
@@ -54,7 +54,7 @@ def api_background_job(func):
             result = func(*args, **kwargs)
         except ClientError as exception:
             task.set_fields(
-                status=models.TaskStatus.ERROR,
+                status=TaskStatus.ERROR,
                 message="Task failed",
                 errors=[
                     {
@@ -63,15 +63,16 @@ def api_background_job(func):
                     }
                 ]
             )
+            return str(exception)
         except Exception:
             task.set_fields(
-                status=models.TaskStatus.ERROR,
+                status=TaskStatus.ERROR,
                 message="Internal server error"
             )
             raise
         else:
             task.set_fields(
-                status=models.TaskStatus.DONE,
+                status=TaskStatus.DONE,
                 message=result
             )
             return result
@@ -97,13 +98,13 @@ def enqueue_background_job(
     """Create a task ID and enqueue a RQ job.
 
     :param str task_func: Python function to run as a string to import
-                          eg. "upload_rest_api.jobs.upload.extract_archive"
+                          eg. "upload_rest_api.jobs.upload.store_files"
     :param str queue_name: Queue used to run the job
     :param str project_id: Project identifier
     :param dict job_kwargs: Keyword arguments to pass to the background
                             task
-    :param str task_id: Optional identifier for the task. Will be generated
-                        automatically if not provided.
+    :param str task_id: Optional identifier for the task. Will be
+                        generated automatically if not provided.
     """
     queue = get_job_queue(queue_name)
 
@@ -115,7 +116,7 @@ def enqueue_background_job(
     if task_id:
         task_fields["identifier"] = task_id
 
-    task = models.Task.create(**task_fields)
+    task = Task.create(**task_fields)
 
     task_id = task.id
 

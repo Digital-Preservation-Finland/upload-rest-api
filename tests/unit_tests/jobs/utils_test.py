@@ -4,7 +4,7 @@ from rq import SimpleWorker
 
 from upload_rest_api.jobs.utils import (api_background_job,
                                         enqueue_background_job, get_job_queue)
-from upload_rest_api.models import Task, TaskEntry, TaskStatus
+from upload_rest_api.models.task import Task, TaskEntry, TaskStatus
 
 
 @api_background_job

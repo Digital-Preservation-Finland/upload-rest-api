@@ -6,8 +6,8 @@ from metax_access import (DS_STATE_ACCEPTED_TO_DIGITAL_PRESERVATION,
                           DS_STATE_IN_DIGITAL_PRESERVATION, Metax)
 
 from upload_rest_api.config import CONFIG
-from upload_rest_api.models import FileEntry
-from upload_rest_api.models.project import get_upload_path
+from upload_rest_api.models.file_entry import FileEntry
+from upload_rest_api.models.project import Project
 
 LANGUAGE_IDENTIFIERS = {
     "http://lexvo.org/id/iso639-3/eng": "en",
@@ -352,7 +352,7 @@ class MetaxClient:
         :param str path: Relative project path
         :raises ValueError: If file or directory does not exist
         """
-        upload_path = get_upload_path(project, path)
+        upload_path = Project.get(id=project).get_upload_path(path)
 
         file_identifiers = []
 

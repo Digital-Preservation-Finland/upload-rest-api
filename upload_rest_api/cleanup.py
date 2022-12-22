@@ -12,7 +12,9 @@ import time
 import upload_rest_api.config
 import upload_rest_api.gen_metadata as md
 from upload_rest_api.lock import ProjectLockManager
-from upload_rest_api.models import FileEntry, TaskEntry, Upload, UploadEntry
+from upload_rest_api.models.file_entry import FileEntry
+from upload_rest_api.models.task import TaskEntry
+from upload_rest_api.models.upload import Upload, UploadEntry
 
 # This is the time-to-live for upload database entries *in addition* to the
 # upload lock TTL. This ensures that longer uploads are given time to complete

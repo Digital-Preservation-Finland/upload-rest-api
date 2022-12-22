@@ -14,7 +14,8 @@ from upload_rest_api import gen_metadata
 from upload_rest_api.config import CONFIG
 from upload_rest_api import jobs
 from upload_rest_api.lock import ProjectLockManager
-from upload_rest_api.models import FileEntry, Project
+from upload_rest_api.models.file_entry import FileEntry
+from upload_rest_api.models.project import Project
 from upload_rest_api.security import parse_relative_user_path
 
 

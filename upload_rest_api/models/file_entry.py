@@ -1,3 +1,4 @@
+"""FileEntry class."""
 from upload_rest_api.security import parse_user_path, InvalidPathError
 
 from mongoengine import Document, QuerySet, StringField, ValidationError

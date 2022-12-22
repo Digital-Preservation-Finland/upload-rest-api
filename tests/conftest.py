@@ -16,7 +16,9 @@ from rq import SimpleWorker
 import upload_rest_api.app as app_module
 from upload_rest_api.jobs.utils import get_job_queue
 from upload_rest_api.lock import ProjectLockManager
-from upload_rest_api.models import Project, Token, User
+from upload_rest_api.models.project import Project
+from upload_rest_api.models.token import Token
+from upload_rest_api.models.user import User
 
 # Prefer modules from source directory rather than from site-python
 sys.path.insert(

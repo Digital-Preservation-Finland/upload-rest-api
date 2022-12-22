@@ -3,7 +3,8 @@ import base64
 import datetime
 
 import pytest
-from upload_rest_api.models import User, Token
+from upload_rest_api.models.user import User
+from upload_rest_api.models.token import Token
 
 
 @pytest.mark.parametrize(

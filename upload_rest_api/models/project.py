@@ -1,9 +1,10 @@
 import os
 from pathlib import Path
 
-from mongoengine import Document, LongField, NotUniqueError, StringField
+from mongoengine import NotUniqueError
 
-from upload_rest_api import models
+from upload_rest_api.models.project_entry import ProjectEntry
+from upload_rest_api.models.upload_entry import UploadEntry
 from upload_rest_api.config import CONFIG
 from upload_rest_api.security import parse_user_path
 
@@ -19,164 +20,8 @@ def _get_dir_size(fpath):
     return size
 
 
-def get_project_directory(project_id):
-    """Get the file system path to the project."""
-    return parse_user_path(CONFIG["UPLOAD_PROJECTS_PATH"], project_id)
-
-
-def get_trash_root(project_id, trash_id):
-    """
-    Get the file system path to a project specific temporary trash
-    directory used for deletion.
-    """
-    return parse_user_path(
-        Path(CONFIG["UPLOAD_TRASH_PATH"]), trash_id, project_id
-    )
-
-
-def get_trash_path(project_id, trash_id, file_path):
-    """
-    Get the file system path to a temporary trash directory
-    for a project file/directory used for deletion.
-    """
-    return parse_user_path(
-        get_trash_root(project_id=project_id, trash_id=trash_id),
-        file_path
-    )
-
-
-def get_upload_path(project_id, file_path):
-    """Get upload path for file.
-
-    :param project_id: project identifier
-    :param file_path: file path relative to project directory of user
-    :returns: full path of file
-    """
-    projects_dir = CONFIG["UPLOAD_PROJECTS_PATH"]
-    file_path = str(file_path)
-
-    # Perform a sanity check and check that the provided path appears relative.
-    if file_path.startswith(str(projects_dir)):
-        raise ValueError(f"Path {file_path} is absolute, not relative")
-
-    project_dir = get_project_directory(project_id)
-
-    if file_path == "*":
-        # '*' is shorthand for the base directory.
-        # This is used to maintain compatibility with Werkzeug's
-        # 'secure_filename' function that would sanitize it into an empty
-        # string.
-        file_path = ""
-
-    upload_path = (project_dir / file_path.strip("/")).resolve()
-
-    return parse_user_path(project_dir, upload_path)
-
-
-def get_return_path(project_id, fpath):
-    """Get path relative to project directory.
-
-    Splice project path from fpath and return the path shown to the user
-    and POSTed to Metax.
-
-    :param project_id: project identifier
-    :param fpath: full path
-    :returns: string presentation of relative path
-    """
-    projects_dir = CONFIG["UPLOAD_PROJECTS_PATH"]
-    fpath = str(fpath)
-
-    # Perform a sanity check and check that the provided path appears absolute.
-    if not fpath.startswith(str(projects_dir)):
-        raise ValueError(f"Path {fpath} is relative, not absolute")
-
-    if fpath == "*":
-        # '*' is shorthand for the base directory.
-        # This is used to maintain compatibility with Werkzeug's
-        # 'secure_filename' function that would sanitize it into an empty
-        # string
-        fpath = ""
-
-    path = Path(fpath).relative_to(
-        get_project_directory(project_id)
-    )
-
-    path_string = f"/{path}" if path != Path('.') else '/'
-
-    return path_string
-
-
 class ProjectExistsError(Exception):
     """Exception for trying to create a project which already exists."""
-
-
-class ProjectEntry(Document):
-    """Database entry for a project"""
-    id = StringField(primary_key=True)
-
-    used_quota = LongField(default=0)
-    quota = LongField(default=0)
-
-    meta = {"collection": "projects"}
-
-    @property
-    def directory(self):
-        """
-        Project directory containing the files currently in the pre-ingest
-        file storage
-        """
-        return get_project_directory(self.id)
-
-    @property
-    def remaining_quota(self):
-        """Remaining quota as bytes"""
-        return self.quota - self.used_quota
-
-    def get_trash_root(self, trash_id):
-        """
-        Get the file system path to a project specific temporary trash
-        directory used for deletion.
-
-        :param str trash_id: Trash identifier
-
-        :returns: Path instance of the trash root
-        """
-        return get_trash_root(self.id, trash_id)
-
-    def get_trash_path(self, trash_id, file_path):
-        """
-        Get the file system path to a temporary trash directory
-        for a project file/directory used for deletion.
-
-        :param str trash_id: Trash identifier
-        :param file_path: Relative path used for deletion
-
-        :rtype: pathlib.Path
-        :returns: Trash path
-        """
-        return get_trash_path(self.id, trash_id, file_path)
-
-    def get_upload_path(self, file_path):
-        """Get upload path for file.
-
-        :param file_path: file path relative to project directory of user
-        :returns: full path of file
-        """
-        return get_upload_path(self.id, file_path)
-
-    def get_return_path(self, fpath):
-        """Get path relative to project directory.
-
-        Splice project path from fpath and return the path shown to the user
-        and POSTed to Metax.
-
-        :param fpath: full path
-        :returns: string presentation of relative path
-        """
-        return get_return_path(self.id, fpath)
-
-    def _get_allocated_quota(self):
-        return models.UploadEntry.objects.filter(project=self.id).sum("size")
 
 
 class Project:
@@ -194,7 +39,6 @@ class Project:
     quota = property(lambda x: x._db_project.quota)
     used_quota = property(lambda x: x._db_project.used_quota)
 
-    directory = property(lambda x: x._db_project.directory)
     remaining_quota = property(lambda x: x._db_project.remaining_quota)
 
     DoesNotExist = ProjectEntry.DoesNotExist
@@ -236,15 +80,17 @@ class Project:
         """
         self._db_project.delete()
 
+    @property
+    def directory(self):
+        """Get the file system path to the project."""
+        return parse_user_path(CONFIG["UPLOAD_PROJECTS_PATH"], self.id)
+
     def to_mongo(self):
         """
         Return the database entry as a dict with MongoDB data types
         """
         return self._db_project.to_mongo()
 
-    # TODO: These are essentially proxies for ProjectEntry getters.
-    # Any way to add them here without having to duplicate the function
-    # signature and docstring?
     def get_trash_root(self, trash_id):
         """
         Get the file system path to a project specific temporary trash
@@ -254,7 +100,9 @@ class Project:
 
         :returns: Path instance of the trash root
         """
-        return self._db_project.get_trash_root(trash_id)
+        return parse_user_path(
+            Path(CONFIG["UPLOAD_TRASH_PATH"]), trash_id, self.id
+        )
 
     def get_trash_path(self, trash_id, file_path):
         """
@@ -267,7 +115,9 @@ class Project:
         :rtype: pathlib.Path
         :returns: Trash path
         """
-        return self._db_project.get_trash_path(trash_id, file_path)
+        return parse_user_path(
+            self.get_trash_root(trash_id=trash_id), file_path
+        )
 
     def get_upload_path(self, file_path):
         """Get upload path for file.
@@ -275,7 +125,16 @@ class Project:
         :param file_path: file path relative to project directory of user
         :returns: full path of file
         """
-        return self._db_project.get_upload_path(file_path)
+        if file_path == "*":
+            # '*' is shorthand for the base directory.
+            # This is used to maintain compatibility with Werkzeug's
+            # 'secure_filename' function that would sanitize it into an
+            # empty string.
+            file_path = ""
+
+        upload_path = (self.directory / file_path).resolve()
+
+        return parse_user_path(self.directory, upload_path)
 
     def get_return_path(self, fpath):
         """Get path relative to project directory.
@@ -286,7 +145,18 @@ class Project:
         :param fpath: full path
         :returns: string presentation of relative path
         """
-        return self._db_project.get_return_path(fpath)
+        if fpath == "*":
+            # '*' is shorthand for the base directory.
+            # This is used to maintain compatibility with Werkzeug's
+            # 'secure_filename' function that would sanitize it into an
+            # empty string
+            fpath = ""
+
+        path = Path(fpath).relative_to(self.directory)
+
+        path_string = f"/{path}" if path != Path('.') else '/'
+
+        return path_string
 
     def set_quota(self, quota):
         """Set the quota for the project"""
@@ -296,7 +166,8 @@ class Project:
     def update_used_quota(self):
         """Update used quota of the project."""
         stored_size = _get_dir_size(self.directory)
-        allocated_size = self._db_project._get_allocated_quota()
+        allocated_size \
+            = UploadEntry.objects.filter(project=self.id).sum("size")
         self._db_project.used_quota = stored_size + allocated_size
         self._db_project.save()
 

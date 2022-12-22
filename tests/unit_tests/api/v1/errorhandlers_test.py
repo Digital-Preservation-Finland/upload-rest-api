@@ -3,8 +3,9 @@ import pytest
 import werkzeug.exceptions
 
 from upload_rest_api.lock import LockAlreadyTaken
-from upload_rest_api.models import (InsufficientQuotaError,
-                                    UploadConflictError, UploadError)
+from upload_rest_api.models.upload import (InsufficientQuotaError,
+                                           UploadConflictError,
+                                           UploadError)
 
 
 @pytest.mark.parametrize(

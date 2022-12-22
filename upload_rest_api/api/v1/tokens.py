@@ -10,7 +10,8 @@ import dateutil.parser
 from flask import Blueprint, abort, jsonify, request
 
 from upload_rest_api.authentication import current_user
-from upload_rest_api.models import Token, TokenEntry, User
+from upload_rest_api.models.token import Token, TokenEntry
+from upload_rest_api.models.user import User
 
 TOKEN_API_V1 = Blueprint("tokens_v1", __name__, url_prefix="/v1/tokens")
 

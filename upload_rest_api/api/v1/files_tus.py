@@ -7,7 +7,7 @@ from upload_rest_api.authentication import current_user
 from upload_rest_api.checksum import (HASH_FUNCTION_ALIASES,
                                       calculate_incr_checksum)
 from upload_rest_api.lock import lock_manager
-from upload_rest_api.models import Upload
+from upload_rest_api.models.upload import Upload
 
 FILES_TUS_API_V1 = Blueprint(
     "files_tus_v1", __name__, url_prefix="/v1/files_tus"

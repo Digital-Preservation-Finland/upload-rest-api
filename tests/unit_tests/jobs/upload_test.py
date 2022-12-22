@@ -1,6 +1,9 @@
 """Tests for upload jobs."""
 import pytest
-from upload_rest_api import models
+from upload_rest_api.models.upload import (Upload,
+                                           UploadError,
+                                           UploadConflictError)
+from upload_rest_api.models.task import Task
 from upload_rest_api.jobs.upload import store_files
 
 
@@ -8,11 +11,11 @@ from upload_rest_api.jobs.upload import store_files
     'exception,errors',
     [
         (
-            models.upload.UploadError('Invalid archive'),
+            UploadError('Invalid archive'),
             [{'message': 'Invalid archive', 'files': None}]
         ),
         (
-            models.upload.UploadConflictError('file1 exists', ['file1']),
+            UploadConflictError('file1 exists', ['file1']),
             [{'message': 'file1 exists', 'files': ['file1']}]
         )
     ]
@@ -29,15 +32,11 @@ def test_upload_conflict_error(mocker, exception, errors):
     """
     # Create an upload. Mock Upload class to fail during archive
     # extraction.
-    upload = models.Upload.create('test_project', '/test', 1, 'archive')
-    mocker.patch.object(models.Upload, '_extract_archive',
-                        side_effect=exception)
+    upload = Upload.create('test_project', '/test', 1, 'archive')
+    mocker.patch.object(Upload, '_extract_archive', side_effect=exception)
 
     # Run store_files job for upload
-    task = models.Task.create(
-        project_id='test_project',
-        message="processing"
-    )
+    task = Task.create(project_id='test_project', message="processing")
     store_files(upload.id, verify_source=False, task_id=task.id)
 
     # Check that correct error is found in task database
