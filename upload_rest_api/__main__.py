@@ -9,9 +9,9 @@ import upload_rest_api.config
 from upload_rest_api.cleanup import (clean_disk, clean_mongo,
                                      clean_other_uploads, clean_tus_uploads)
 from upload_rest_api.models.file_entry import FileEntry
-from upload_rest_api.models.project import Project, ProjectEntry
-from upload_rest_api.models.token import TokenEntry
-from upload_rest_api.models.user import User, UserEntry
+from upload_rest_api.models.project import Project
+from upload_rest_api.models.token import Token
+from upload_rest_api.models.user import User
 
 
 def _echo_json(data):
@@ -60,7 +60,7 @@ def cleanup():
 @cleanup.command("tokens")
 def cleanup_tokens():
     """Clean expired session tokens from the database."""
-    deleted_count = TokenEntry.objects.clean_session_tokens()
+    deleted_count = Token.clean_session_tokens()
     click.echo(f"Cleaned {deleted_count} expired token(s)")
 
 
@@ -164,7 +164,7 @@ def modify_user(username, generate_password):
 
     response = {
         "_id": user.username,
-        "projects": user.projects
+        "projects": [project.id for project in user.projects]
     }
     if generate_password:
         response["password"] = passwd
@@ -184,7 +184,7 @@ def get_user(username):
 
     response = {
         "_id": user.username,
-        "projects": user.projects
+        "projects": [project.id for project in user.projects]
     }
     _echo_json(response)
 
@@ -192,7 +192,7 @@ def get_user(username):
 @users.command("list")
 def list_users():
     """List all users."""
-    users = list(UserEntry.objects.only("username"))
+    users = User.list_all()
     if users:
         for user in users:
             click.echo(user.username)
@@ -213,7 +213,10 @@ def projects():
 def create_project(project, quota):
     """Create a new PROJECT."""
     project = Project.create(identifier=project, quota=quota)
-    _echo_json(project)
+    _echo_json({'identifier': project.id,
+                'quota': project.quota,
+                'used_quota': project.used_quota,
+                'remaining_quota': project.remaining_quota})
 
 
 @projects.command("modify")
@@ -231,7 +234,10 @@ def modify_project(project, quota):
     if quota is not None:
         project_.set_quota(quota)
 
-    _echo_json(project_)
+    _echo_json({'identifier': project_.id,
+                'quota': project_.quota,
+                'used_quota': project_.used_quota,
+                'remaining_quota': project_.remaining_quota})
 
 
 @projects.command("delete")
@@ -245,9 +251,9 @@ def delete_project(project):
 @projects.command("list")
 def list_projects():
     """List all projects."""
-    projects = list(ProjectEntry.objects)
-    if projects:
-        for project in projects:
+    projects_ = Project.list_all()
+    if projects_:
+        for project in projects_:
             click.echo(project.id)
     else:
         click.echo("No projects found")
@@ -259,7 +265,10 @@ def get_project(project):
     """Show information of PROJECT."""
     try:
         project = Project.get(id=project)
-        _echo_json(project)
+        _echo_json({'identifier': project.id,
+                    'quota': project.quota,
+                    'used_quota': project.used_quota,
+                    'remaining_quota': project.remaining_quota})
     except Project.DoesNotExist:
         click.echo(f"Project '{project}' not found")
 

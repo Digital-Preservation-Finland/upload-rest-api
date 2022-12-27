@@ -10,8 +10,7 @@ import dateutil.parser
 from flask import Blueprint, abort, jsonify, request
 
 from upload_rest_api.authentication import current_user
-from upload_rest_api.models.token import Token, TokenEntry
-from upload_rest_api.models.user import User
+from upload_rest_api.models import Token, User
 
 TOKEN_API_V1 = Blueprint("tokens_v1", __name__, url_prefix="/v1/tokens")
 
@@ -96,7 +95,7 @@ def create_session_token():
     result = Token.create(
         name=f"{username} session token",
         username=username,
-        projects=user.projects,
+        projects=[project.id for project in user.projects],
         session=True,
         expiration_date=expiration_date
     )
@@ -119,7 +118,7 @@ def list_tokens():
 
     # Retrieve all tokens except for session tokens, which are not meant
     # to be visible for the user
-    tokens = list(TokenEntry.objects.filter(username=username, session=False))
+    tokens = Token.list(username)
     token_entries = []
 
     # Strip token hash from the results and rename '_id' field

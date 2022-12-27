@@ -155,7 +155,7 @@ def _auth_user_by_password():
     if result:
         g.current_user = CurrentUser(
             username=user.username,
-            projects=user.projects,
+            projects=[project.id for project in user.projects],
             admin=False
         )
 

@@ -2,7 +2,7 @@
 
 import pytest
 
-from upload_rest_api.models.token import Token, TokenEntry
+from upload_rest_api.models.token import Token
 from upload_rest_api.models.user import User
 
 
@@ -154,7 +154,7 @@ def test_create_session_token_new_user_created(test_client, admin_auth):
     # User should be created without any default projects
     user = User.get(username="acme_org/user")
     assert user.username == "acme_org/user"
-    assert user.projects == ()
+    assert user.projects == []
 
 
 def test_list_tokens(test_client, admin_auth, test_mongo):
@@ -248,7 +248,7 @@ def test_delete_token_permission_denied(test_client, user_token_auth):
     """
     Try deleting a token using an user token
     """
-    token_id = TokenEntry.objects.get(username="test").id
+    token_id = Token.get(username="test").id
     response = test_client.delete(
         "/v1/tokens/",
         data={
@@ -268,7 +268,7 @@ def test_delete_token_username_not_provided(test_client, admin_auth):
     """
     Try deleting a token without providing an username
     """
-    token_id = TokenEntry.objects.get(username="test").id
+    token_id = Token.get(username="test").id
     response = test_client.delete(
         "/v1/tokens/",
         data={

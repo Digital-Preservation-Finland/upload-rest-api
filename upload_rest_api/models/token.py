@@ -1,4 +1,6 @@
 """Token model."""
+
+import datetime
 import hashlib
 import secrets
 import uuid
@@ -90,6 +92,20 @@ class Token:
         return data
 
     @classmethod
+    def list(cls, username):
+        """List existing tokens of user.
+
+        :param username: Name of the user
+
+        :returns: List of user tokens
+        """
+        return [
+            Token(db_token=entry)
+            for entry in
+            TokenEntry.objects.filter(username=username, session=False)
+        ]
+
+    @classmethod
     def get(cls, **kwargs):
         """
         Retrieve an existing token
@@ -125,3 +141,12 @@ class Token:
     def delete(self):
         """Delete the token."""
         self._db_token.delete()
+
+    @classmethod
+    def clean_session_tokens(cls):
+        """Remove expired session tokens."""
+        now = datetime.datetime.now(datetime.timezone.utc)
+
+        return TokenEntry.objects.filter(
+            session=True, expiration_date__lte=now, expiration_date__ne=None
+        ).delete()

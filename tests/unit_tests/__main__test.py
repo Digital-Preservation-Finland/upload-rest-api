@@ -173,9 +173,10 @@ def test_get_project(command_runner):
 
     data = json.loads(result.output)
     assert data == {
-        "_id": "test_project_a",
+        "identifier": "test_project_a",
         "used_quota": 0,
-        "quota": 1248
+        "quota": 1248,
+        "remaining_quota": 1248,
     }
 
     # Project not found
@@ -269,8 +270,8 @@ def test_grant_user_projects(command_runner):
 
     user = User.get(username="test")
 
-    assert user.projects == (
-        "test_project", "test_project_2", "test_project_3"
+    assert set(project.id for project in user.projects) == set(
+        ["test_project", "test_project_2", "test_project_3"]
     )
     assert result.output == (
         "Granted user 'test' access to project(s): "
@@ -317,7 +318,7 @@ def test_revoke_user_projects(command_runner):
 
     user = User.get(username="test")
 
-    assert user.projects == ()
+    assert user.projects == []
     assert result.output == (
         "Revoked user 'test' access to project(s): test_project\n"
     )

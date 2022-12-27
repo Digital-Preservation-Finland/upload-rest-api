@@ -25,10 +25,6 @@ def _validate_projects(projects):
         )
 
 
-class UserExistsError(Exception):
-    """Exception for trying to create a user, which already exists."""
-
-
 class UserEntry(Document):
     """User database model"""
     username = StringField(primary_key=True, required=True)

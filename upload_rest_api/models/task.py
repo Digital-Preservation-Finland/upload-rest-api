@@ -1,8 +1,12 @@
 """Task model."""
+import time
+
+from rq.exceptions import NoSuchJobError
+from rq.job import Job
+
 from upload_rest_api.models.task_entry import TaskEntry, TaskStatus
+from upload_rest_api.redis import get_redis_connection
 
-
-__all__ = ('Task', 'TaskStatus')
 
 MISSING = object()
 
@@ -51,14 +55,35 @@ class Task:
     @classmethod
     def get(cls, *args, **kwargs):
         """
-        Retrieve an existing task
+        Retrieve an existing task.
+
+        Retrieves task information from database. Also checks the state
+        of related job in RQ and synchronizes the states for both if
+        necessary.
 
         :param kwargs: Field arguments used to retrieve the task
 
         :returns: Task instance
         """
+
+        task_entry = TaskEntry.objects.get(**kwargs)
+
+        task_id = str(task_entry.id)
+
+        try:
+            job = Job.fetch(task_id, connection=get_redis_connection())
+        except NoSuchJobError:
+            job = None
+
+        # If the job has failed, update the status accordingly before
+        # returning it to the user.
+        if job and job.is_failed and task_entry.status is not TaskStatus.ERROR:
+            task_entry.status = TaskStatus.ERROR
+            task_entry.message = "Internal server error"
+            task_entry.save()
+
         return Task(
-            db_task=TaskEntry.objects.get(**kwargs)
+            db_task=task_entry
         )
 
     def set_fields(self, status=MISSING, message=MISSING, errors=MISSING):
@@ -85,3 +110,16 @@ class Task:
     def delete(self):
         """Delete the task."""
         self._db_task.delete()
+
+    @classmethod
+    def clean_old_tasks(cls, age):
+        """Delete old tasks.
+
+        Delete tasks that are older than specified age.
+
+        :param age: Age of task (seconds)
+        """
+        current_time = time.time()
+        for task in TaskEntry.objects:
+            if current_time - task.timestamp > age:
+                task.delete()

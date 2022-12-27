@@ -74,6 +74,15 @@ class Project:
             db_project=ProjectEntry.objects.get(**kwargs)
         )
 
+    @classmethod
+    def list_all(cls):
+        """
+        List all existing projects.
+
+        :returns: list of Project instances
+        """
+        return [cls(entry) for entry in ProjectEntry.objects]
+
     def delete(self):
         """
         Delete the project
@@ -84,12 +93,6 @@ class Project:
     def directory(self):
         """Get the file system path to the project."""
         return parse_user_path(CONFIG["UPLOAD_PROJECTS_PATH"], self.id)
-
-    def to_mongo(self):
-        """
-        Return the database entry as a dict with MongoDB data types
-        """
-        return self._db_project.to_mongo()
 
     def get_trash_root(self, trash_id):
         """

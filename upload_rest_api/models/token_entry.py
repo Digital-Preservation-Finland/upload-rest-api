@@ -1,11 +1,10 @@
 """TokenEntry class."""
 import datetime
 import hashlib
-import secrets
 import uuid
 
 from mongoengine import (BooleanField, DateTimeField, Document, ListField,
-                         QuerySet, StringField, ValidationError)
+                         StringField, ValidationError)
 
 from upload_rest_api.redis import get_redis_connection
 
@@ -24,19 +23,6 @@ def _validate_uuid(value):
         uuid.UUID(value)
     except ValueError:
         raise ValidationError("Value is not a valid UUID")
-
-
-class TokenEntryQuerySet(QuerySet):
-    """
-    Custom query set implementing bulk operations for tokens
-    """
-    def clean_session_tokens(self):
-        """Remove expired session tokens."""
-        now = datetime.datetime.now(datetime.timezone.utc)
-
-        return self.filter(
-            session=True, expiration_date__lte=now, expiration_date__ne=None
-        ).delete()
 
 
 class TokenEntry(Document):
@@ -69,60 +55,8 @@ class TokenEntry(Document):
     session = BooleanField(default=False)
 
     meta = {
-        "collection": "tokens",
-        "queryset_class": TokenEntryQuerySet
+        "collection": "tokens"
     }
-
-    @classmethod
-    def create(
-            cls, name, username, projects, expiration_date=None,
-            admin=False, session=False):
-        """Create one token.
-
-        :param str name: User-provided name for the token
-        :param str username: Username the token is intended for
-        :param list projects: List of projects that the token will grant access
-                              to
-        :param expiration_date: Optional expiration date as datetime.datetime
-                                instance
-        :param bool admin: Whether the token has admin privileges.
-                           This means the token can be used for creating,
-                           listing and removing tokens, among other things.
-        :param bool session: Whether the token is a temporary session token.
-                             Session tokens are automatically cleaned up
-                             periodically without user interaction.
-        """
-        # Token contains 256 bits of randomness per Python doc recommendation
-        token = f"fddps-{secrets.token_urlsafe(32)}"
-
-        token_hash = hashlib.sha256(token.encode("utf-8")).hexdigest()
-        new_token = cls(
-            id=str(uuid.uuid4()),
-            name=name,
-            username=username,
-            projects=projects,
-            token_hash=token_hash,
-            expiration_date=expiration_date,
-            session=session,
-            admin=admin
-        )
-        new_token.save()
-        new_token._cache_token_to_redis()
-
-        # Include the token in the initial creation request.
-        # Only the SHA256 hash will be stored in the database.
-        data = {
-            "_id": new_token.id,
-            "name": name,
-            "username": username,
-            "projects": projects,
-            "expiration_date": expiration_date,
-            "session": session,
-            "admin": admin,
-            "token": token
-        }
-
-        return data
 
     @property
     def is_valid(self):

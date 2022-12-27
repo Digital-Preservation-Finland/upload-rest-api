@@ -4,13 +4,7 @@ from enum import Enum
 
 from bson import ObjectId
 from mongoengine import (DictField, Document, EnumField, FloatField, ListField,
-                         QuerySet, StringField)
-from rq.exceptions import NoSuchJobError
-from rq.job import Job
-
-from upload_rest_api.redis import get_redis_connection
-
-MISSING = object()
+                         StringField)
 
 
 class TaskStatus(Enum):
@@ -18,35 +12,6 @@ class TaskStatus(Enum):
     PENDING = "pending"
     ERROR = "error"
     DONE = "done"
-
-
-class TaskQuerySet(QuerySet):
-    """
-    Custom query set for Task documents that takes care of automatically
-    synchronizing the state between the tasks on RQ and MongoDB.
-    """
-    def get(self, *args, **kwargs):
-        """
-        Custom getter that also checks the RQ at the same time and synchronizes
-        the state for both if necessary
-        """
-        task = super().get(*args, **kwargs)
-
-        task_id = str(task.id)
-
-        try:
-            job = Job.fetch(task_id, connection=get_redis_connection())
-        except NoSuchJobError:
-            return task
-
-        # If the job has failed, update the status accordingly before
-        # returning it to the user.
-        if job.is_failed and task.status is not TaskStatus.ERROR:
-            task.status = TaskStatus.ERROR
-            task.message = "Internal server error"
-            task.save()
-
-        return task
 
 
 class TaskEntry(Document):
@@ -71,5 +36,4 @@ class TaskEntry(Document):
 
     meta = {
         "collection": "tasks",
-        "queryset_class": TaskQuerySet
     }

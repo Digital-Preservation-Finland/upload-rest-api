@@ -4,7 +4,7 @@ import random
 import string
 
 from bson.binary import Binary
-from mongoengine import NotUniqueError, ValidationError
+from mongoengine import NotUniqueError
 
 from upload_rest_api.models.project import ProjectEntry, Project
 from upload_rest_api.models.user_entry import UserEntry
@@ -48,25 +48,6 @@ def hash_passwd(password, salt):
     return Binary(digest)
 
 
-def _validate_projects(projects):
-    if len(projects) == 0:
-        # Nothing to check
-        return
-
-    projects = set(projects)
-    existing_projects = set(
-        project.id for project in
-        ProjectEntry.objects.filter(id__in=projects).only("id")
-    )
-
-    missing_projects = projects - existing_projects
-
-    if missing_projects:
-        raise ValidationError(
-            f"Projects don't exist: {','.join(missing_projects)}"
-        )
-
-
 class UserExistsError(Exception):
     """Exception for trying to create a user, which already exists."""
 
@@ -80,7 +61,6 @@ class User:
     username = property(lambda x: x._db_user.username)
     salt = property(lambda x: x._db_user.salt)
     digest = property(lambda x: x._db_user.digest)
-    projects = property(lambda x: tuple(x._db_user.projects))
 
     DoesNotExist = UserEntry.DoesNotExist
 
@@ -130,6 +110,14 @@ class User:
             db_user=UserEntry.objects.get(**kwargs)
         )
 
+    @classmethod
+    def list_all(cls):
+        """List all existing users.
+
+        :returns: List of user instances
+        """
+        return [cls(entry) for entry in UserEntry.objects]
+
     def generate_password(self):
         """Generate new user password."""
         passwd = get_random_string(PASSWD_LEN)
@@ -138,6 +126,11 @@ class User:
         self._db_user.save()
 
         return passwd
+
+    @property
+    def projects(self):
+        """List projects of the user."""
+        return list(ProjectEntry.objects.filter(id__in=self._db_user.projects))
 
     def grant_project(self, project):
         """Grant user access to the given project."""

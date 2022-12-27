@@ -13,7 +13,7 @@ import upload_rest_api.config
 import upload_rest_api.gen_metadata as md
 from upload_rest_api.lock import ProjectLockManager
 from upload_rest_api.models.file_entry import FileEntry
-from upload_rest_api.models.task import TaskEntry
+from upload_rest_api.models.task import Task
 from upload_rest_api.models.upload import Upload, UploadEntry
 
 # This is the time-to-live for upload database entries *in addition* to the
@@ -168,11 +168,7 @@ def clean_mongo():
     """
     conf = upload_rest_api.config.CONFIG
     time_lim = conf["CLEANUP_TIMELIM"]
-
-    current_time = time.time()
-    for task in TaskEntry.objects:
-        if current_time - task.timestamp > time_lim:
-            task.delete()
+    Task.clean_old_tasks(time_lim)
 
 
 def clean_tus_uploads():

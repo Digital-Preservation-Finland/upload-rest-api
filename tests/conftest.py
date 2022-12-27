@@ -396,7 +396,7 @@ def user_token_auth(test_client, test_mongo):
     token_data = Token.create(
         name="User test token",
         username="test",
-        projects=["test_project", "project"],
+        projects=["project", "test_project"],
         expiration_date=None,
         admin=False
     )
