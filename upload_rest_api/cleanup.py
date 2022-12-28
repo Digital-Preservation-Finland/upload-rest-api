@@ -1,7 +1,6 @@
-"""Script for cleaning all the files from UPLOAD_DIR that haven't
-been accessed within given time frame. This script can be set to run
-periodically using cron.
-"""
+"""Functions for cleaning old data."""
+# TODO: Probably almost all functionality in this module should be
+# implemented in models
 import datetime
 import errno
 import logging
@@ -53,20 +52,6 @@ def _clean_empty_dirs(fpath):
                 raise
 
 
-def _get_projects():
-    """Return a list of all projects with files uploaded."""
-    conf = upload_rest_api.config.CONFIG
-    upload_path = conf["UPLOAD_PROJECTS_PATH"]
-    dirs = []
-
-    for _dir in os.listdir(upload_path):
-        dirpath = os.path.join(upload_path, _dir)
-        if os.path.isdir(dirpath):
-            dirs.append(_dir)
-
-    return dirs
-
-
 def _clean_file(_file, upload_path, fpaths, file_dict=None, metax_client=None):
     """Remove file fpath from disk and add it to a list of files to be
     removed from if metax_client is provided and file is not associated
@@ -89,7 +74,7 @@ def _clean_file(_file, upload_path, fpaths, file_dict=None, metax_client=None):
 
 
 # pylint: disable=too-many-locals
-def clean_project(project_id, fpath, metax=True):
+def _clean_project(project_id, fpath, metax=True):
     """Remove all files of a given project that haven't been accessed
     within time_lim seconds. If the removed file has a Metax file entry
     and metax_client is provided, remove the Metax file entry as well.
@@ -156,7 +141,7 @@ def clean_disk(metax=True):
     projects = os.listdir(upload_path)
     for project in projects:
         fpath = os.path.join(upload_path, project)
-        deleted_count += clean_project(project, fpath, metax)
+        deleted_count += _clean_project(project, fpath, metax)
 
     return deleted_count
 

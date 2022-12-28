@@ -155,8 +155,8 @@ def test_expired_tasks(test_mongo, mock_config):
     assert tasks.count() == 0
 
 
-def test_clean_project(mock_config, requests_mock, test_mongo):
-    """Test cleaning project."""
+def test_clean_disk(mock_config, requests_mock, test_mongo):
+    """Test cleaning disk."""
     project = 'foo'
     project_path = pathlib.Path(mock_config['UPLOAD_PROJECTS_PATH']) / project
 
@@ -177,8 +177,8 @@ def test_clean_project(mock_config, requests_mock, test_mongo):
         {"_id": str(testfile), "identifier": "urn:uuid:1", "checksum": "foo"}
     )
 
-    # Clean project and check that the old file has been removed
-    clean.clean_project(project, project_path, metax=True)
+    # Clean disk and check that the old file has been removed
+    clean.clean_disk(metax=True)
     assert not testfile.is_file()
 
     # Check that file have been removed from mongo
