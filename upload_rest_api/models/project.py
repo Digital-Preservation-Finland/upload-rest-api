@@ -1,5 +1,4 @@
 import os
-from pathlib import Path
 
 from mongoengine import NotUniqueError
 
@@ -93,73 +92,6 @@ class Project:
     def directory(self):
         """Get the file system path to the project."""
         return parse_user_path(CONFIG["UPLOAD_PROJECTS_PATH"], self.id)
-
-    def get_trash_root(self, trash_id):
-        """
-        Get the file system path to a project specific temporary trash
-        directory used for deletion.
-
-        :param str trash_id: Trash identifier
-
-        :returns: Path instance of the trash root
-        """
-        return parse_user_path(
-            Path(CONFIG["UPLOAD_TRASH_PATH"]), trash_id, self.id
-        )
-
-    def get_trash_path(self, trash_id, file_path):
-        """
-        Get the file system path to a temporary trash directory
-        for a project file/directory used for deletion.
-
-        :param str trash_id: Trash identifier
-        :param file_path: Relative path used for deletion
-
-        :rtype: pathlib.Path
-        :returns: Trash path
-        """
-        return parse_user_path(
-            self.get_trash_root(trash_id=trash_id), file_path
-        )
-
-    def get_upload_path(self, file_path):
-        """Get upload path for file.
-
-        :param file_path: file path relative to project directory of user
-        :returns: full path of file
-        """
-        if file_path == "*":
-            # '*' is shorthand for the base directory.
-            # This is used to maintain compatibility with Werkzeug's
-            # 'secure_filename' function that would sanitize it into an
-            # empty string.
-            file_path = ""
-
-        upload_path = (self.directory / file_path).resolve()
-
-        return parse_user_path(self.directory, upload_path)
-
-    def get_return_path(self, fpath):
-        """Get path relative to project directory.
-
-        Splice project path from fpath and return the path shown to the user
-        and POSTed to Metax.
-
-        :param fpath: full path
-        :returns: string presentation of relative path
-        """
-        if fpath == "*":
-            # '*' is shorthand for the base directory.
-            # This is used to maintain compatibility with Werkzeug's
-            # 'secure_filename' function that would sanitize it into an
-            # empty string
-            fpath = ""
-
-        path = Path(fpath).relative_to(self.directory)
-
-        path_string = f"/{path}" if path != Path('.') else '/'
-
-        return path_string
 
     def set_quota(self, quota):
         """Set the quota for the project"""

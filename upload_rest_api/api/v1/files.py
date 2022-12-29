@@ -4,6 +4,7 @@ Functionality for uploading, querying and deleting files from the
 server.
 """
 import os
+from pathlib import Path
 
 import werkzeug
 from flask import Blueprint, abort, jsonify, request
@@ -20,8 +21,9 @@ def _get_dir_tree(project):
     """Return with dir tree from project directory."""
     file_dict = {}
     for dirpath, _, files in os.walk(project.directory):
-        path = project.get_return_path(dirpath)
-        file_dict[path] = files
+
+        path = Path(dirpath).relative_to(project.directory)
+        file_dict[f'/{path}'] = files
 
     if "/." in file_dict:
         file_dict["/"] = file_dict.pop("/.")
@@ -142,7 +144,7 @@ def delete_path(project_id, fpath):
 
     elif resource.storage_path.is_dir():
         try:
-            task_id = resource.delete()
+            task_id = resource.enqueue_delete_task()
         except FileNotFoundError:
             # Trying to delete empty project directory
             abort(404, "No files found")

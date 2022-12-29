@@ -2,18 +2,15 @@
 # TODO: Probably almost all functionality in this module should be
 # implemented in models
 import datetime
-import errno
 import logging
-import os
 import pathlib
-import time
 
 import upload_rest_api.config
-import upload_rest_api.gen_metadata as md
 from upload_rest_api.lock import ProjectLockManager
-from upload_rest_api.models.file_entry import FileEntry
+from upload_rest_api.models.project import Project
 from upload_rest_api.models.task import Task
 from upload_rest_api.models.upload import Upload, UploadEntry
+from upload_rest_api.models.resource import get_resource
 
 # This is the time-to-live for upload database entries *in addition* to the
 # upload lock TTL. This ensures that longer uploads are given time to complete
@@ -21,127 +18,16 @@ from upload_rest_api.models.upload import Upload, UploadEntry
 NON_TUS_UPLOAD_TTL = datetime.timedelta(days=2)
 
 
-def _is_expired(fpath, current_time, time_lim):
-    """Check last file access and calculate whether the file is
-    considered expired or not.
-
-    :param fpath: Path to the file
-    :param current_time: Current Unix time
-    :param time_lim: Time limit in seconds
-
-    :returns: True is expired else False
-    """
-    last_access = os.stat(fpath).st_atime
-
-    return current_time - last_access > time_lim
-
-
-def _clean_empty_dirs(fpath):
-    """Remove all directories, which have no files anymore."""
-    for dirpath, _, _ in os.walk(fpath, topdown=False):
-        # Do not remove UPLOAD_FOLDER itself
-        if dirpath == fpath:
-            break
-
-        # Try removing the directory
-        try:
-            os.rmdir(dirpath)
-        except OSError as err:
-            # Raise all errors except [Errno 39] Directory not empty
-            if err.errno != errno.ENOTEMPTY:
-                raise
-
-
-def _clean_file(_file, upload_path, fpaths, file_dict=None, metax_client=None):
-    """Remove file fpath from disk and add it to a list of files to be
-    removed from if metax_client is provided and file is not associated
-    with any datasets.
-
-    :param fpath: Path to where the file is stored in disk
-    :param upload_path: Base path used for uploading the files
-    :param fpaths: List files to be removed from Metax are appended
-
-    :returns: None
-    """
-    if metax_client is not None and file_dict is not None:
-        metax_path = md.get_metax_path(pathlib.Path(_file), upload_path)
-
-        if not metax_client.file_has_dataset(metax_path, file_dict):
-            fpaths.append(metax_path)
-            os.remove(_file)
-    else:
-        os.remove(_file)
-
-
-# pylint: disable=too-many-locals
-def _clean_project(project_id, fpath, metax=True):
-    """Remove all files of a given project that haven't been accessed
-    within time_lim seconds. If the removed file has a Metax file entry
-    and metax_client is provided, remove the Metax file entry as well.
-
-    :param project_id: Project identifier used to search files from Metax
-    :param fpath: Path to the dir to cleanup
-    :param metax: Boolean. if True metadata is removed also from Metax
-
-    :returns: Number of deleted files
-    """
-    conf = upload_rest_api.config.CONFIG
-    time_lim = conf["CLEANUP_TIMELIM"]
-    upload_path = conf["UPLOAD_PROJECTS_PATH"]
-
-    current_time = time.time()
-    metax_client = None
-    file_dict = None
-    fpaths = []
-    deleted_files = []
-
-    if metax:
-        metax_client = md.MetaxClient(
-            url=conf["METAX_URL"],
-            user=conf["METAX_USER"],
-            password=conf["METAX_PASSWORD"],
-            verify=conf["METAX_SSL_VERIFICATION"]
-        )
-        file_dict = metax_client.get_files_dict(project_id)
-
-    # Remove all old files
-    for dirpath, _, files in os.walk(fpath):
-        for fname in files:
-            _file = os.path.join(dirpath, fname)
-            if _is_expired(_file, current_time, time_lim):
-                _clean_file(
-                    _file, upload_path, fpaths,
-                    file_dict, metax_client
-                )
-                deleted_files.append(_file)
-
-    # Remove all empty dirs
-    _clean_empty_dirs(fpath)
-
-    # Clean deleted files from mongo
-    FileEntry.objects.filter(path__in=deleted_files).delete()
-
-    # Remove Metax entries of deleted files that are not part of any
-    # datasets
-    if metax:
-        metax_client.delete_metadata(project_id, fpaths)
-
-    return len(deleted_files)
-
-
-def clean_disk(metax=True):
-    """Clean all project in upload_path.
+def clean_disk():
+    """Delete all expired files.
 
     :returns: Count of deleted files
     """
-    conf = upload_rest_api.config.CONFIG
-    upload_path = conf["UPLOAD_PROJECTS_PATH"]
     deleted_count = 0
 
-    projects = os.listdir(upload_path)
-    for project in projects:
-        fpath = os.path.join(upload_path, project)
-        deleted_count += _clean_project(project, fpath, metax)
+    for project in Project.list_all():
+        project_directory = get_resource(project.id, '/')
+        deleted_count += project_directory.delete_expired_files()
 
     return deleted_count
 

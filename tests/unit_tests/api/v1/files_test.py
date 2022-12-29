@@ -1,15 +1,15 @@
 """Tests for ``upload_rest_api.api.v1.files`` module."""
-import json
 import os
 import pathlib
 import shutil
-from pathlib import Path
 
 import pytest
-from metax_access import DS_STATE_TECHNICAL_METADATA_GENERATED
+from metax_access import (DS_STATE_TECHNICAL_METADATA_GENERATED,
+                          DS_STATE_IN_DIGITAL_PRESERVATION)
 
 from upload_rest_api.models.file_entry import FileEntry
 from upload_rest_api.models.project import ProjectEntry
+from upload_rest_api.lock import ProjectLockManager, LockAlreadyTaken
 
 
 def _upload_file(client, url, auth, fpath):
@@ -176,6 +176,7 @@ def test_used_quota(app, test_auth, requests_mock):
         "https://metax.localdomain/rest/v2/files/datasets?keys=files",
         json=[]
     )
+    requests_mock.delete("/rest/v2/files", json={})
 
     test_client = app.test_client()
 
@@ -392,49 +393,46 @@ def test_get_file(app, test_auth, test2_auth, test3_auth):
 )
 def test_delete_file(app, test_auth, requests_mock, test_mongo, name):
     """Test DELETE for single file."""
-    response = {
-        "next": None,
-        "results": [
-            {
-                "id": "foo",
-                "identifier": "foo",
-                "file_path": f"/{name}",
-                "file_storage": {
-                    "identifier": "urn:nbn:fi:att:file-storage-pas"
-                }
-            }
-        ]
-    }
     # Mock Metax
-    requests_mock.get("https://metax.localdomain/rest/v2/files?limit=10000&"
-                      "project_identifier=test_project",
-                      json=response)
+    requests_mock.get("/rest/v2/files", json={'next': None, 'results': []})
+    requests_mock.post("/rest/v2/files/", json={})
+    requests_mock.post("/rest/v2/files/datasets", json={})
+    delete_files_api = requests_mock.delete("/rest/v2/files", json={})
 
-    requests_mock.post("https://metax.localdomain/rest/v2/files/datasets",
-                       json={})
-
-    requests_mock.delete("https://metax.localdomain/rest/v2/files/foo",
-                         json='/test.txt')
-
+    # Upload a file
     test_client = app.test_client()
-    upload_path = app.config.get("UPLOAD_PROJECTS_PATH")
-    fpath = os.path.join(upload_path, "test_project", name)
-
-    shutil.copy("tests/data/test.txt", fpath)
-    test_mongo.upload.files.insert_one({"_id": fpath, "checksum": "foo"})
+    response = _upload_file(
+        test_client, f"/v1/files/test_project/{name}",
+        test_auth, "tests/data/test.txt"
+    )
+    assert response.status_code == 200
+    assert response.json['status'] == 'created'
 
     # DELETE file that exists
     response = test_client.delete(
         f"/v1/files/test_project/{name}",
         headers=test_auth
     )
-
     assert response.status_code == 200
     assert response.json["metax"] == {'deleted_files_count': 1}
+
+    # Check that file was removed from filesystem
+    fpath = os.path.join(app.config.get("UPLOAD_PROJECTS_PATH"),
+                         "test_project", name)
     assert not os.path.isfile(fpath)
+
+    # Check that file was removed from database
     assert test_mongo.upload.files.count({}) == 0
 
-    # DELETE file that does not exist
+    # Check that file was removed from Metax
+    assert delete_files_api.called_once
+    request_json = delete_files_api.last_request.json()
+    assert isinstance(request_json, list)
+    assert len(request_json) == 1
+    assert request_json[0].startswith('urn:uuid:')
+
+    # Try to DELETE file that does not exist. Request should fail with
+    # 404 "Not found" error.
     response = test_client.delete(
         f"/v1/files/test_project/{name}",
         headers=test_auth
@@ -530,121 +528,87 @@ def test_get_files(app, test_auth, path, expected_data, requests_mock):
 @pytest.mark.parametrize(
     'target,files_to_delete',
     [
-        ('/test', ['/test/test.txt']),
-        ('/', ['/test.txt', '/test/test.txt']),
-        ('', ['/test.txt', '/test/test.txt'])
+        ('/test', ['test/test.txt']),
+        ('/', ['test.txt', 'test/test.txt']),
+        ('', ['test.txt', 'test/test.txt'])
     ]
 )
 def test_delete_directory(
     app, test_auth, requests_mock, test_mongo, background_job_runner,
-    upload_tmpdir, target, files_to_delete
+    target, files_to_delete
 ):
-    """Test deleting a directory."""
-    # Mock metax. First, there is no file metadata available.
-    requests_mock.post('/rest/v2/files/', json={})
-    requests_mock.get('/rest/v2/files', json={"results": [], "next": None})
+    """Test deleting a directory.
 
-    # Create test data
-    test_client = app.test_client()
-
-    response = _upload_file(test_client,
-                            '/v1/files/test_project/test.txt',
-                            test_auth,
-                            'tests/data/test.txt')
-
-    response = _upload_file(test_client,
-                            '/v1/files/test_project/test/test.txt',
-                            test_auth,
-                            'tests/data/test.txt')
-
-    # After creating the test data, each file has metadata in Metax.
-    requests_mock.get(
-        "https://metax.localdomain/rest/v2/files?limit=10000&"
-        "project_identifier=test_project",
-        json={
-            'results': [
-                {
-                    "id": f"id-{file_}",
-                    "identifier": f"identifier-{file_}",
-                    "file_path": file_,
-                    "file_storage": {
-                        "identifier": "urn:nbn:fi:att:file-storage-pas"
-                    }
-                }
-                for file_ in files_to_delete
-            ],
-            'next': None
-        }
-    )
-
-    # Find the target files
+    :param target: Directory that will be deleted
+    :param files_to_delete: Files that should be deleted when the
+                            directory is deleted
+    """
     project_directory \
         = pathlib.Path(app.config.get("UPLOAD_PROJECTS_PATH")) / 'test_project'
-    target_files = []
-    for root, _, files in os.walk(project_directory / target.strip('/')):
-        target_files += [pathlib.Path(root) / file_ for file_ in files]
 
-    # File don't belong to any dataset
-    requests_mock.post("https://metax.localdomain/rest/v2/files/datasets",
-                       json={})
+    # Mock metax.
+    requests_mock.post('/rest/v2/files/', json={})
+    requests_mock.get('/rest/v2/files', json={"results": [], "next": None})
+    requests_mock.post("/rest/v2/files/datasets", json={})
+    delete_files_api = requests_mock.delete("/rest/v2/files", json={})
 
-    requests_mock.delete("https://metax.localdomain/rest/v2/files",
-                         json=[str(file_) for file_ in target_files])
+    # Create test files
+    test_client = app.test_client()
+    all_files = ['test.txt', 'test/test.txt']
+    all_file_identifiers = {}
+    for file in all_files:
+        response = _upload_file(test_client,
+                                f'/v1/files/test_project/{file}',
+                                test_auth,
+                                'tests/data/test.txt')
+        assert response.status_code == 200
+        all_file_identifiers[file] = test_client.get(
+            f'/v1/files/test_project/{file}', headers=test_auth
+        ).json['identifier']
 
-    # Delete a directory
+    # Delete a directory. Deletion taks should be created and directory
+    # should be locked
     response = test_client.delete(
         f"/v1/files/test_project{target}", headers=test_auth
     )
-
-    # The directory to delete has been moved to a temporary location to
-    # perform the actual file and metadata deletion.
-    assert not (project_directory / 'test').exists()
-
-    trash_dir = upload_tmpdir / "trash"
-    trash_files = list(trash_dir.glob("*/test_project/**/*.txt"))
-    assert len(trash_files) == len(files_to_delete)
-    for file_path in files_to_delete:
-        assert any(
-            True for path in trash_files if str(path).endswith(file_path)
+    assert response.status_code == 202
+    assert response.json['message'] == 'Deleting metadata'
+    assert response.json['status'] == 'pending'
+    with pytest.raises(LockAlreadyTaken):
+        ProjectLockManager().acquire(
+            'test_project', project_directory / target.strip('/')
         )
 
-    if _request_accepted(response):
-        response = background_job_runner(test_client, "files", response)
+    # Check that tasks API return correct message after directory has
+    # been deleted
+    response = background_job_runner(test_client, "files", response)
     assert response.status_code == 200
     assert response.json["message"] \
         == f'Deleted files and metadata: /{target.strip("/")}'
 
-    # The temporary directory has been deleted
-    assert trash_dir.exists()
-    assert len(list(trash_dir.iterdir())) == 0
-
     # The files in target directory should be deleted. Other files
     # should still exist.
-    for file_ in [project_directory / 'test.txt',
-                  project_directory / 'test' / 'test.txt']:
-        if file_ in target_files:
-            assert not file_.exists()
-            assert not test_mongo.upload.files.find_one({"_id": str(file_)})
+    for file in all_files:
+        storage_path = project_directory / file
+        if file in files_to_delete:
+            assert not storage_path.exists()
+            assert not test_mongo.upload.files.find_one(
+                {"_id": str(storage_path)}
+            )
         else:
-            assert file_.exists()
-            assert test_mongo.upload.files.find_one({"_id": str(file_)})
+            assert storage_path.exists()
+            assert test_mongo.upload.files.find_one({"_id": str(storage_path)})
 
     # The target directory and subdirectories should be deleted. Project
     # directory should still exist.
     assert not (project_directory / 'test').exists()
     assert project_directory.exists()
 
-    # Files should have been deleted from Metax
-    delete_request = next(
-        request for request in requests_mock.request_history
-        if request.method == "DELETE"
-        and request.url.endswith("/rest/v2/files")
-    )
-    deleted_identifiers = delete_request.json()
-
-    # All named files were deleted
-    for file_ in files_to_delete:
-        assert f"identifier-{file_}" in deleted_identifiers
+    # Expected files should have been deleted from Metax
+    assert delete_files_api.called_once
+    deleted_identifiers = delete_files_api.request_history[0].json()
+    assert set(all_file_identifiers[file] for file in files_to_delete) \
+        == set(deleted_identifiers)
 
 
 def test_delete_empty_project(app, test_auth, requests_mock):
@@ -663,94 +627,140 @@ def test_delete_empty_project(app, test_auth, requests_mock):
     assert response.json['error'] == "No files found"
 
 
-def test_delete_file_in_dataset(
-        test_auth, test_client, requests_mock, test_mongo, upload_tmpdir):
-    """Test DELETE for a file that belongs to a pending dataset.
+@pytest.mark.parametrize(
+    'path_to_delete',
+    [
+        '/testdir/test.txt',  # only the file
+        '/testdir',  # parent directory of the file
+        '/',  # project root directory
+    ]
+)
+def test_delete_file_in_dataset(test_auth, test_client, requests_mock,
+                                path_to_delete):
+    """Test deleting a file that belongs to a pending dataset.
 
     The deletion should fail.
+
+    :param path_to_delete: The path to be deleted.
     """
-    requests_mock.get(
-        "https://metax.localdomain/rest/v2/files"
-        "?file_path=/test.txt&project_identifier=test_project",
-        json={
-            "next": None,
-            "previous": None,
-            "results": []
-        }
-    )
+    # Mock Metax
+    requests_mock.get("/rest/v2/files", json={"next": None, "results": []})
+    requests_mock.post("/rest/v2/files/", json={})
 
-    requests_mock.post(
-        "https://metax.localdomain/rest/v2/files/",
-        additional_matcher=(
-            lambda req: json.loads(req.body)[0]["file_path"] == "/test.txt"
-        ),
-        json={
-            "success": [
-                {
-                    "object": {
-                        "identifier": "test_file",
-                        "file_path": "/test.txt",
-                        "parent_directory": {"identifier": "parent_dir"},
-                        "checksum": {"value": ""}
-                    }
-                }
-            ],
-            "failed": []
-        }
-    )
-
+    # Upload a file
     _upload_file(
         test_client,
-        '/v1/files/test_project/test.txt',
+        '/v1/files/test_project/testdir/test.txt',
         test_auth,
         'tests/data/test.txt'
     )
+    file_id = test_client.get(
+        '/v1/files/test_project/testdir/test.txt', headers=test_auth
+    ).json['identifier']
 
-    # Set the identifier directly instead of mocking the Metax process
-    test_mongo.upload.files.update_one(
-        {"_id": str(upload_tmpdir / "projects" / "test_project" / "test.txt")},
-        {"$set": {"identifier": "test_file"}}
-    )
-
-    requests_mock.post(
-        "https://metax.localdomain/rest/v2/files/datasets",
-        additional_matcher=lambda req: json.loads(req.body) == ["test_file"],
-        json={
-            "test_file": ["test_dataset"]
-        }
-    )
+    # Create a dataset "test_dataset", and add the uploaded file to it
     requests_mock.post(
         "https://metax.localdomain/rest/datasets/list",
-        additional_matcher=(
-            lambda req: json.loads(req.body) == ["test_dataset"]
-        ),
+        additional_matcher=(lambda req: req.json() == ["test_dataset"]),
         json={
-            "next": None,
-            "previous": None,
             "count": 1,
             "results": [
                 {
                     "identifier": "test_dataset",
-                    "research_dataset": {
-                        "title": {"en": "Dataset"},
-                        "language": [
-                            {"identifier": "http://lexvo.org/id/iso639-3/eng"}
-                        ]
-                    },
+                    "research_dataset": {"title": {"en": "Dataset"}},
                     "preservation_state":
                         DS_STATE_TECHNICAL_METADATA_GENERATED
                 }
             ]
         }
     )
-
-    response = test_client.delete(
-        "/v1/files/test_project/test.txt", headers=test_auth
+    requests_mock.post(
+        "https://metax.localdomain/rest/v2/files/datasets",
+        additional_matcher=lambda req: req.json() == [file_id],
+        json={file_id: ["test_dataset"]}
     )
 
+    # Try to delete the file (or some parent directory of the file)
+    response = test_client.delete(
+        f"/v1/files/test_project{path_to_delete}", headers=test_auth
+    )
     assert response.status_code == 400
     assert response.json["error"] == \
         "File/directory is used in a pending dataset and cannot be deleted"
+
+
+@pytest.mark.parametrize(
+    'path_to_delete',
+    [
+        '/testdir/test.txt',  # only the file
+        '/testdir',  # parent directory of the file
+        '/',  # project root directory
+    ]
+)
+def test_delete_preserved_file(test_auth, test_client, requests_mock,
+                               background_job_runner, path_to_delete):
+    """Test deleting a file that belongs to a preserved dataset.
+
+    The file should be deleted, but the metadata should not be deleted
+    from Metax (see TPASPKT-749).
+
+    :param path_to_delete: The path to be deleted.
+    """
+    # Mock Metax
+    requests_mock.get("/rest/v2/files", json={"next": None, "results": []})
+    requests_mock.post("/rest/v2/files/", json={})
+    delete_file_metadata_api = requests_mock.delete("/rest/v2/files", json={})
+
+    # Upload a file
+    _upload_file(
+        test_client,
+        '/v1/files/test_project/testdir/test.txt',
+        test_auth,
+        'tests/data/test.txt'
+    )
+    file_id = test_client.get(
+        '/v1/files/test_project/testdir/test.txt', headers=test_auth
+    ).json['identifier']
+
+    # Create a dataset "test_dataset", and add the uploaded file to it
+    requests_mock.post(
+        "https://metax.localdomain/rest/datasets/list",
+        additional_matcher=lambda req: req.json() == ["test_dataset"],
+        json={
+            "count": 1,
+            "results": [
+                {
+                    "identifier": "test_dataset",
+                    "research_dataset": {"title": {"en": "Dataset"}},
+                    "preservation_state": DS_STATE_IN_DIGITAL_PRESERVATION
+                }
+            ]
+        }
+    )
+    requests_mock.post(
+        "https://metax.localdomain/rest/v2/files/datasets",
+        additional_matcher=lambda req: req.json() == [file_id],
+        json={file_id: ["test_dataset"]}
+    )
+
+    # Delete the file (or some parent directory of the file)
+    response = test_client.delete(
+        f"/v1/files/test_project{path_to_delete}", headers=test_auth
+    )
+    if response.status_code == 202:
+        # Directory deletion task queued. Run the background task.
+        response = background_job_runner(test_client, "files", response)
+        assert response.json['status'] == 'done'
+        assert response.json["message"] \
+            == f"Deleted files and metadata: {path_to_delete}"
+    elif response.status_code == 200:
+        # Single file deleted
+        assert response.json["file_path"] == path_to_delete
+        assert response.json["message"] == "deleted"
+    else:
+        raise ValueError('Wrong status code')
+
+    assert not delete_file_metadata_api.called
 
 
 @pytest.mark.parametrize(

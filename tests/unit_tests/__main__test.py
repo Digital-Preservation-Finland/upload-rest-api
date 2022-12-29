@@ -1,7 +1,6 @@
 """Tests for ``upload_rest_api.__main__`` module."""
 import datetime
 import json
-from unittest import mock
 
 import pytest
 from click.testing import CliRunner
@@ -10,7 +9,7 @@ import upload_rest_api.__main__
 from upload_rest_api.models.file_entry import FileEntry
 from upload_rest_api.models.project import Project, ProjectExistsError
 from upload_rest_api.models.token import Token, TokenEntry
-from upload_rest_api.models.user import  User, UserEntry, UserExistsError
+from upload_rest_api.models.user import User, UserExistsError
 
 
 @pytest.fixture(scope="function")
@@ -416,79 +415,94 @@ def test_modify_project_fail(command_runner):
     assert result.output == "Project 'test_project' does not exist.\n"
 
 
+@pytest.mark.usefixtures('app')  # Initialize database
 def test_get_file_by_path(command_runner):
     """Test displaying information of file specified by path."""
+    project = Project.get(id='test_project')
     FileEntry(
-        path="/path_1", checksum="checksum_1", identifier="pid:urn:1"
+        path=str(project.directory / "path_1"),
+        checksum="checksum_1",
+        identifier="pid:urn:1"
     ).save()
+    (project.directory / 'path_1').write_text('foo')
 
-    result = command_runner(["files", "get", "path", "/path_1"])
+    result = command_runner(["files", "get", "path",
+                             str(project.directory / "path_1")])
     result_data = json.loads(result.output)
     correct_result = {
-        "_id": "/path_1",
+        "identifier": "pid:urn:1",
+        "project": "test_project",
+        "path": "/path_1",
         "checksum": "checksum_1",
-        "identifier": "pid:urn:1"
     }
     assert result_data == correct_result
 
 
+@pytest.mark.usefixtures('app')  # Initialize database
 def test_get_file_by_identifier(command_runner):
     """Test displaying information of file specified by identifier."""
+    project = Project.get(id='test_project')
     FileEntry(
-        path="/path_1", checksum="checksum_1", identifier="pid:urn:1"
+        path=str(project.directory / "path_1"),
+        checksum="checksum_1",
+        identifier="pid:urn:1"
     ).save()
+    (project.directory / 'path_1').write_text('foo')
 
     result = command_runner(["files", "get", "identifier", "pid:urn:1"])
     result_data = json.loads(result.output)
     correct_result = {
-        "_id": "/path_1",
+        "identifier": "pid:urn:1",
+        "project": "test_project",
+        "path": "/path_1",
         "checksum": "checksum_1",
-        "identifier": "pid:urn:1"
     }
     assert result_data == correct_result
 
 
-def test_list_files(command_runner):
-    """Test listing all files."""
-    FileEntry.objects.insert([
-        FileEntry(path="/path_1", identifier="pid:urn:1", checksum="checksum_1"),
-        FileEntry(path="/path_2", identifier="pid:urn:2", checksum="checksum_2")
-    ])
-
-    result = command_runner(["files", "list"])
-    result_data = json.loads(result.output)
-    assert result_data == [
-        {"_id": "/path_1",
-         "identifier": "pid:urn:1",
-         "checksum": "checksum_1"},
-        {"_id": "/path_2",
-         "identifier": "pid:urn:2",
-         "checksum": "checksum_2"}
+@pytest.mark.usefixtures('app')  # initialize database
+@pytest.mark.parametrize(
+    'command,result_data',
+    [
+        (
+            ["files", "list"],
+            [
+                {"identifier": "pid:urn:1",
+                 "project": "test_project",
+                 "path": "/path_1",
+                 "checksum": "checksum_1"},
+                {"identifier": "pid:urn:2",
+                 "project": "test_project",
+                 "path": "/path_2",
+                 "checksum": "checksum_2"},
+            ]
+        ),
+        (
+            ["files", "list", "--checksums-only"],
+            ["checksum_1", "checksum_2"]
+        ),
+        (
+            ["files", "list", "--identifiers-only"],
+            ["pid:urn:1", "pid:urn:2"]
+        )
     ]
-
-
-def test_list_file_identifiers(command_runner):
-    """Test listing all file identifiers."""
+)
+def test_list_files(command_runner, command, result_data):
+    """Test listing files."""
+    project = Project.get(id='test_project')
     FileEntry.objects.insert([
-        FileEntry(path="/path_1", identifier="pid:urn:1", checksum="checksum_1"),
-        FileEntry(path="/path_2", identifier="pid:urn:2", checksum="checksum_2")
+        FileEntry(path=str(project.directory / "path_1"),
+                  identifier="pid:urn:1",
+                  checksum="checksum_1"),
+        FileEntry(path=str(project.directory / "path_2"),
+                  identifier="pid:urn:2",
+                  checksum="checksum_2")
     ])
+    (project.directory / 'path_1').write_text('foo')
+    (project.directory / 'path_2').write_text('bar')
 
-    result = command_runner(["files", "list", "--identifiers-only"])
-    result_data = json.loads(result.output)
-    assert result_data == ["pid:urn:1", "pid:urn:2"]
-
-
-def test_list_checksums(command_runner):
-    """Test listing all file checksums."""
-    FileEntry.objects.insert([
-        FileEntry(path="/path_1", identifier="pid:urn:1", checksum="checksum_1"),
-        FileEntry(path="/path_2", identifier="pid:urn:2", checksum="checksum_2")
-    ])
-
-    result = command_runner(["files", "list", "--checksums-only"])
-    result_data = json.loads(result.output)
-    assert result_data == ["checksum_1", "checksum_2"]
+    result = command_runner(command)
+    assert json.loads(result.output) == result_data
 
 
 def test_get_nonexistent_file_by_path(command_runner):
@@ -496,7 +510,7 @@ def test_get_nonexistent_file_by_path(command_runner):
     found in the database.
     """
     result = command_runner(["files", "get", "path", "nonexistent"])
-    assert result.output == "FileEntry not found in path 'nonexistent'\n"
+    assert result.output == "File not found in path 'nonexistent'\n"
 
 
 def test_get_nonexistent_file_by_identifier(command_runner):
@@ -504,7 +518,7 @@ def test_get_nonexistent_file_by_identifier(command_runner):
     be found in the database.
     """
     result = command_runner(["files", "get", "identifier", "pid:urn:1"])
-    assert result.output == "FileEntry 'pid:urn:1' not found\n"
+    assert result.output == "File 'pid:urn:1' not found\n"
 
 
 def test_list_files_when_no_files(command_runner):
@@ -513,13 +527,13 @@ def test_list_files_when_no_files(command_runner):
     assert result.output == "No files found\n"
 
 
-def test_list_file_identifiers_when_no_identifiers(command_runner):
-    """Test listing all file identifiers when there are no identifers."""
+def test_list_file_identifiers_when_no_files(command_runner):
+    """Test listing all file identifiers when there are no files."""
     result = command_runner(["files", "list", "--identifiers-only"])
-    assert result.output == "No identifiers found\n"
+    assert result.output == "No files found\n"
 
 
-def test_list_checksums_when_no_checksums(command_runner):
-    """Test listing all file checksums when there are no checksums."""
+def test_list_checksums_when_no_files(command_runner):
+    """Test listing all file checksums when there are no files."""
     result = command_runner(["files", "list", "--checksums-only"])
-    assert result.output == "No checksums found\n"
+    assert result.output == "No files found\n"

@@ -13,7 +13,7 @@ from archive_helpers.extract import (ExtractError, MemberNameError,
                                      MemberOverwriteError, MemberTypeError,
                                      extract)
 
-from upload_rest_api import gen_metadata
+from upload_rest_api.metax import metax_client
 from upload_rest_api.models.project import ProjectEntry, Project
 from upload_rest_api.models.file_entry import FileEntry
 from upload_rest_api.models.resource import Resource
@@ -328,6 +328,8 @@ class Upload:
         :param verify_source: verify integrity of source file
         """
         # Verify integrity of source file if checksum was provided
+        # TODO: Can source file verfication be removed from this
+        # function when TPASPKT-952 is done?
         if verify_source \
                 and self.source_checksum \
                 != get_file_checksum("md5", self._source_path):
@@ -346,7 +348,6 @@ class Upload:
         # Refuse to store files if Metax has conflicting files. See
         # https://jira.ci.csc.fi/browse/TPASPKT-749 for more
         # information.
-        metax = gen_metadata.MetaxClient()
         new_files = []
         for dirpath, _, files in os.walk(self._tmp_project_directory):
             for fname in files:
@@ -359,7 +360,7 @@ class Upload:
             # Creating metadata for only one file, so it is probably
             # more efficient to retrieve information about single file
             try:
-                old_file = metax.client.get_project_file(
+                old_file = metax_client.get_project_file(
                     self.project.id,
                     str(self.path)
                 )
@@ -376,7 +377,7 @@ class Upload:
             # Retrieve list of all files as one request to avoid sending
             # too many requests to Metax.
             conflicts = []  # Uploaded files that already exist in Metax
-            old_files = metax.get_files_dict(self.project.id).keys()
+            old_files = metax_client.get_files_dict(self.project.id).keys()
             for file in new_files:
                 if f"/{file}" in old_files:
                     conflicts.append(str(file))
@@ -435,7 +436,7 @@ class Upload:
                 })
 
         # Post all metadata to Metax in one go
-        metax.post_metadata(metadata_dicts)
+        _post_metadata(metadata_dicts)
 
         # Insert information of all files to database in one go
         FileEntry.objects.insert(file_documents)
@@ -505,3 +506,85 @@ def _get_mimetype(fpath):
         magic_.close()
 
     return mimetype
+
+
+def _strip_metax_response(metax_response):
+    """Collect only the necessary fields from the metax response."""
+    response = {"success": [], "failed": []}
+
+    if "failed" in metax_response:
+        response["failed"] = metax_response["failed"]
+
+    if "success" in metax_response and metax_response["success"]:
+        for file_md in metax_response["success"]:
+            identifier = file_md["object"]["identifier"]
+            file_path = file_md["object"]["file_path"]
+            parent_dir = file_md["object"]["parent_directory"]["identifier"]
+            checksum = file_md["object"]["checksum"]["value"]
+
+            metadata = {
+                "object": {
+                    "identifier": identifier,
+                    "file_path": file_path,
+                    "parent_directory": {"identifier": parent_dir},
+                    "checksum": {"value": checksum}
+                }
+            }
+
+            response["success"].append(metadata)
+
+    return response
+
+
+def _post_metadata(metadata_dicts):
+    """Post multiple file metadata dictionaries to Metax.
+
+    :param metadata_dicts: List of file metadata dictionaries
+    :returns: Stripped HTTP response returned by Metax.
+              Success list contains succesfully generated file
+              metadata in format:
+              [
+                  {
+                      "object": {
+                          "identifier": identifier,
+                          "file_path": file_path,
+                          "checksum": {"value": checksum},
+                          "parent_directory": {
+                              "identifier": identifier
+                          }
+                      }
+                  },
+                  .
+                  .
+                  .
+              ]
+    """
+    metadata = []
+    responses = []
+
+    # Post file metadata to Metax, 5000 files at time. Larger amount
+    # would cause performance issues.
+    i = 0
+    for metadata_dict in metadata_dicts:
+        metadata.append(metadata_dict)
+
+        i += 1
+        if i % 5000 == 0:
+            response = metax_client.post_file(metadata)
+            responses.append(_strip_metax_response(response))
+            metadata = []
+
+    # POST remaining metadata
+    if metadata:
+        response = metax_client.post_file(metadata)
+        responses.append(_strip_metax_response(response))
+
+    # Merge all responses into one response
+    response = {"success": [], "failed": []}
+    for metax_response in responses:
+        if "success" in metax_response:
+            response["success"].extend(metax_response["success"])
+        if "failed" in metax_response:
+            response["failed"].extend(metax_response["failed"])
+
+    return response

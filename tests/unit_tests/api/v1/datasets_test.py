@@ -1,5 +1,4 @@
 """Tests for ``upload_rest_api.api.v1.datasets`` module."""
-import json
 from pathlib import Path
 
 import pytest
@@ -87,8 +86,7 @@ def test_get_file_datasets_directory(
     requests_mock.post(
         "https://metax.localdomain/rest/v2/files/datasets?keys=files",
         additional_matcher=(
-            lambda req: json.loads(req.body)
-            == ["urn:uuid:test1", "urn:uuid:test2"]
+            lambda req: set(req.json()) == {"urn:uuid:test1", "urn:uuid:test2"}
         ),
         json={
             "urn:uuid:test1": ["urn:uuid:dataset1", "urn:uuid:dataset3"]
@@ -98,8 +96,8 @@ def test_get_file_datasets_directory(
         "https://metax.localdomain/rest/datasets/list?offset=0&limit=1000000"
         "&fields=identifier%2Cpreservation_state%2Cresearch_dataset",
         additional_matcher=(
-            lambda req: list(sorted(json.loads(req.body)))
-            == ["urn:uuid:dataset1", "urn:uuid:dataset3"]
+            lambda req: set(req.json()) == {"urn:uuid:dataset1",
+                                            "urn:uuid:dataset3"}
         ),
         json={
             "count": 2, "next": None, "previous": None,

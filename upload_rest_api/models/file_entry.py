@@ -1,7 +1,7 @@
 """FileEntry class."""
-from upload_rest_api.security import parse_user_path, InvalidPathError
+from mongoengine import Document, StringField, ValidationError
 
-from mongoengine import Document, QuerySet, StringField, ValidationError
+from upload_rest_api.security import parse_user_path, InvalidPathError
 
 
 def _validate_file_path(path):
@@ -15,36 +15,6 @@ def _validate_file_path(path):
         parse_user_path(path)
     except InvalidPathError:
         raise ValidationError("Path is invalid")
-
-
-class FileEntryQuerySet(QuerySet):
-    """
-    Custom query set for File documents that provides a function for
-    deleting files in multiple queries to avoid hitting the MongoDB query
-    size limit
-    """
-    def in_dir(self, path):
-        """Filter query to only include files in given directory."""
-        return self.filter(path__startswith=f"{path}/")
-
-    def bulk_delete_by_paths(self, paths):
-        """Delete multiple documents identified by file paths.
-
-        The deletion is performed using multiple queries to avoid hitting
-        the maximum query size limit.
-
-        :param paths: List of paths to be removed
-        """
-        file_path_chunks = iter(
-            paths[i:i+10000] for i in range(0, len(paths), 10000)
-        )
-
-        deleted_count = sum(
-            self.filter(path__in=file_path_chunk).delete()
-            for file_path_chunk in file_path_chunks
-        )
-
-        return deleted_count
 
 
 class FileEntry(Document):
@@ -62,7 +32,6 @@ class FileEntry(Document):
 
     meta = {
         "collection": "files",
-        "queryset_class": FileEntryQuerySet,
         # Do not auto create indexes. Otherwise, index will be created
         # on first query which can lead to slow performance until the creation
         # is finished, or a crash if the existing collection data conflicts

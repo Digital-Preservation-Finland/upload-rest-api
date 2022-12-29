@@ -8,7 +8,7 @@ import click
 import upload_rest_api.config
 from upload_rest_api.cleanup import (clean_disk, clean_mongo,
                                      clean_other_uploads, clean_tus_uploads)
-from upload_rest_api.models.file_entry import FileEntry
+from upload_rest_api.models.resource import FileResource, get_resource
 from upload_rest_api.models.project import Project
 from upload_rest_api.models.token import Token
 from upload_rest_api.models.user import User
@@ -290,10 +290,17 @@ def files_get():
 def get_file_by_path(path):
     """Show information of file in PATH."""
     try:
-        file_ = FileEntry.objects.get(path=path)
-        _echo_json(file_)
-    except FileEntry.DoesNotExist:
-        click.echo(f"FileEntry not found in path '{path}'")
+        file = FileResource.get(path=path)
+        _echo_json(
+            {
+                'identifier': file.identifier,
+                'project': file.project.id,
+                'path': str(file.path),
+                'checksum': file.checksum
+            }
+        )
+    except FileNotFoundError:
+        click.echo(f"File not found in path '{path}'")
 
 
 @files_get.command("identifier")
@@ -301,10 +308,17 @@ def get_file_by_path(path):
 def get_file_by_identifier(identifier):
     """Show information of file specified by IDENTIFIER."""
     try:
-        file_ = FileEntry.objects.get(identifier=identifier)
-        _echo_json(file_)
-    except FileEntry.DoesNotExist:
-        click.echo(f"FileEntry '{identifier}' not found")
+        file = FileResource.get(identifier=identifier)
+        _echo_json(
+            {
+                'identifier': file.identifier,
+                'project': file.project.id,
+                'path': str(file.path),
+                'checksum': file.checksum
+            }
+        )
+    except FileNotFoundError:
+        click.echo(f"File '{identifier}' not found")
 
 
 @files.command("list")
@@ -312,43 +326,31 @@ def get_file_by_identifier(identifier):
 @click.option("--checksums-only", is_flag=True)
 def list_files(identifiers_only, checksums_only):
     """List all files."""
-    if identifiers_only:
-        _list_file_identifiers()
-        return
+    all_files = []
+    for project in Project.list_all():
+        all_files += get_resource(project.id, '/').get_all_files()
 
-    if checksums_only:
-        _list_checksums()
-        return
-
-    files = list(FileEntry.objects)
-    if not files:
+    if not all_files:
         click.echo("No files found")
     else:
-        _echo_json(files)
+        if identifiers_only:
+            result = [file.identifier for file in all_files]
 
+        elif checksums_only:
+            result = [file.checksum for file in all_files]
 
-def _list_file_identifiers():
-    """List all file identifiers."""
-    identifiers = [
-        file_.identifier for file_
-        in FileEntry.objects.only("identifier")
-    ]
-    if identifiers:
-        _echo_json(identifiers)
-    else:
-        click.echo("No identifiers found")
-
-
-def _list_checksums():
-    """List all checksums of files."""
-    checksums = [
-        file_.checksum for file_ in
-        FileEntry.objects.only("checksum")
-    ]
-    if checksums:
-        _echo_json(checksums)
-    else:
-        click.echo("No checksums found")
+        else:
+            result = []
+            for file in all_files:
+                result.append(
+                    {
+                        'identifier': file.identifier,
+                        'project': file.project.id,
+                        'path': str(file.path),
+                        'checksum': file.checksum
+                    }
+                )
+        _echo_json(result)
 
 
 if __name__ == '__main__':
