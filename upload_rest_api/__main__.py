@@ -8,7 +8,7 @@ import click
 import upload_rest_api.config
 from upload_rest_api.cleanup import (clean_disk, clean_mongo,
                                      clean_other_uploads, clean_tus_uploads)
-from upload_rest_api.models.resource import FileResource, get_resource
+from upload_rest_api.models.resource import File, get_resource
 from upload_rest_api.models.project import Project
 from upload_rest_api.models.token import Token
 from upload_rest_api.models.user import User
@@ -290,7 +290,7 @@ def files_get():
 def get_file_by_path(path):
     """Show information of file in PATH."""
     try:
-        file = FileResource.get(path=path)
+        file = File.get(path=path)
         _echo_json(
             {
                 'identifier': file.identifier,
@@ -308,7 +308,7 @@ def get_file_by_path(path):
 def get_file_by_identifier(identifier):
     """Show information of file specified by IDENTIFIER."""
     try:
-        file = FileResource.get(identifier=identifier)
+        file = File.get(identifier=identifier)
         _echo_json(
             {
                 'identifier': file.identifier,

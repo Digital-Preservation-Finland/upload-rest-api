@@ -1,7 +1,7 @@
-"""Resource model background jobs."""
+"""Directory model background jobs."""
 from upload_rest_api.jobs.utils import api_background_job
 from upload_rest_api.lock import ProjectLockManager
-from upload_rest_api.models.resource import DirectoryResource
+from upload_rest_api.models.resource import Directory
 from upload_rest_api.models.project import Project
 
 
@@ -17,7 +17,7 @@ def delete_directory(project_id, path, task):
         message=f"Deleting files and metadata: {path}"
     )
     project = Project.get(id=project_id)
-    directory = DirectoryResource(project, path)
+    directory = Directory(project, path)
     directory.delete()
 
     # Release the lock we've held from the time this background job was

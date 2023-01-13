@@ -5,7 +5,7 @@ Functionality for creating directories.
 from flask import Blueprint, abort, jsonify
 
 from upload_rest_api.authentication import current_user
-from upload_rest_api.models.resource import DirectoryResource
+from upload_rest_api.models.resource import Directory
 
 
 DIRECTORIES_API_V1 = Blueprint(
@@ -22,9 +22,7 @@ def create_directory(project_id, dir_path):
         abort(403, "No permission to access this project")
 
     try:
-        resource = DirectoryResource.create(
-            project_id=project_id, path=dir_path
-        )
+        resource = Directory.create(project_id=project_id, path=dir_path)
     except FileExistsError:
         abort(409, "Directory already exists")
 

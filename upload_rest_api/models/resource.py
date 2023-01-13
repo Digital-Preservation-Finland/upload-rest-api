@@ -1,4 +1,4 @@
-"""Resource class."""
+"""File and Directory models."""
 
 import os
 import pathlib
@@ -63,9 +63,9 @@ def get_resource(project_id, path):
 
     resource = Resource(project, path)
     if resource.storage_path.is_file():
-        return FileResource(project, path)
+        return File(project, path)
     if resource.storage_path.is_dir():
-        return DirectoryResource(project, path)
+        return Directory(project, path)
     if not resource.storage_path.exists():
         raise FileNotFoundError('Resource does not exist')
 
@@ -115,8 +115,8 @@ class Resource():
         return self._get_file_group().has_pending_dataset()
 
 
-class FileResource(Resource):
-    """FileResource class."""
+class File(Resource):
+    """File class."""
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
@@ -129,7 +129,7 @@ class FileResource(Resource):
 
         :param kwargs: Keyword arguments used to retrieve the project
 
-        :returns: FileResource instance
+        :returns: File instance
         """
         try:
             entry = FileEntry.objects.get(**kwargs)
@@ -206,7 +206,7 @@ class FileResource(Resource):
             return {'deleted_files_count': 1}
 
 
-class DirectoryResource(Resource):
+class Directory(Resource):
     """Directory class."""
 
     @classmethod
@@ -217,7 +217,7 @@ class DirectoryResource(Resource):
         :param project_id: Project identifier
         :param path: Relative path for the project
 
-        :returns: DirectoryResource instance
+        :returns: Directory instance
         """
         project = Project.get(id=project_id)
 
@@ -253,14 +253,14 @@ class DirectoryResource(Resource):
         # Instead, we should preload any database entries that already exist
         # in a bulk query and attach them to the instances here
         return [
-            FileResource(self.project, self.path / entry.name)
+            File(self.project, self.path / entry.name)
             for entry in self._get_entries() if entry.is_file()
         ]
 
     def get_directories(self):
         """List of directories in directory."""
         return [
-            DirectoryResource(self.project, self.path / entry.name)
+            Directory(self.project, self.path / entry.name)
             for entry in self._get_entries() if entry.is_dir()
         ]
 
