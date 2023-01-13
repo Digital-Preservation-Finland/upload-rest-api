@@ -16,7 +16,6 @@ from upload_rest_api import jobs
 from upload_rest_api.lock import ProjectLockManager
 from upload_rest_api.models.file_entry import FileEntry
 from upload_rest_api.models.project import Project
-from upload_rest_api.security import parse_relative_user_path
 
 
 LANGUAGE_IDENTIFIERS = {
@@ -31,6 +30,13 @@ class HasPendingDatasetError(Exception):
 
     Raised if operation fails because resource is part of dataset that
     is being preserved.
+    """
+
+
+class InvalidPathError(Exception):
+    """Invalid path error.
+
+    Raised if path of the resource is invalid.
     """
 
 
@@ -84,7 +90,12 @@ class Resource():
         path = str(path)  # Allow pathlib.Path objects or strings
 
         # Raise InvalidPathError on attempted path escape
-        relative_path = parse_relative_user_path(path.strip("/"))
+        try:
+            relative_path = pathlib.Path(
+                '/root', path.strip('/')
+            ).resolve().relative_to('/root')
+        except ValueError as error:
+            raise InvalidPathError('Invalid path') from error
 
         self.path = pathlib.Path('/') / relative_path
         self.project = project
@@ -219,17 +230,11 @@ class Directory(Resource):
 
         :returns: Directory instance
         """
-        project = Project.get(id=project_id)
-
-        # Raise InvalidPathError on attempted path escape
-        relative_path = parse_relative_user_path(path.strip("/"))
-        abs_path = project.directory / relative_path
-
+        directory = cls(project=Project.get(id=project_id), path=path)
         lock_manager = ProjectLockManager()
-        with lock_manager.lock(project.id, abs_path):
-            abs_path.mkdir(parents=True)
-
-        return cls(project=project, path=path)
+        with lock_manager.lock(directory.project.id, directory.storage_path):
+            directory.storage_path.mkdir(parents=True)
+        return cls(project=project_id, path=path)
 
     @property
     def identifier(self):

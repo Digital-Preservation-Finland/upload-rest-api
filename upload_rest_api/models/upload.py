@@ -5,7 +5,7 @@ import tarfile
 import uuid
 import zipfile
 from datetime import datetime, timezone
-from pathlib import Path, PurePath
+from pathlib import Path
 
 import magic
 import metax_access
@@ -22,7 +22,6 @@ from upload_rest_api.checksum import get_file_checksum
 from upload_rest_api.config import CONFIG
 from upload_rest_api.jobs.utils import (UPLOAD_QUEUE, enqueue_background_job)
 from upload_rest_api.lock import ProjectLockManager
-from upload_rest_api.security import parse_relative_user_path
 
 
 def _release_lock_on_exception(method):
@@ -152,17 +151,18 @@ class Upload:
         :param str path: Relative file/directory path
         :param str type_: Upload type
         """
+        # TODO: Could the resource be provided as argument? The resource
+        # would contain project_id, path and type_.
+        resource = Resource(Project.get(id=project_id), path)
         if not identifier:
             identifier = str(uuid.uuid4())
         if size > CONFIG["MAX_CONTENT_LENGTH"]:
             raise InsufficientQuotaError("Max single file size exceeded")
 
-        path = PurePath("/") / parse_relative_user_path(path.strip("/"))
-
         db_upload = UploadEntry(
             id=identifier,
-            project=ProjectEntry.objects.get(id=project_id),
-            path=str(path),
+            project=ProjectEntry.objects.get(id=resource.project.id),
+            path=str(resource.path),
             type_=type_,
             size=size
         )

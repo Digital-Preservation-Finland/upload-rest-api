@@ -1,11 +1,11 @@
 import os
+import pathlib
 
 from mongoengine import NotUniqueError
 
 from upload_rest_api.models.project_entry import ProjectEntry
 from upload_rest_api.models.upload_entry import UploadEntry
 from upload_rest_api.config import CONFIG
-from upload_rest_api.security import parse_user_path
 
 
 def _get_dir_size(fpath):
@@ -49,6 +49,10 @@ class Project:
             db_project=ProjectEntry(id=identifier, quota=int(quota))
         )
 
+        if project.directory.parents[0] \
+                != pathlib.Path(CONFIG["UPLOAD_PROJECTS_PATH"]):
+            raise ValueError('Invalid project identifier')
+
         try:
             project._db_project.save(force_insert=True)
         except NotUniqueError as exc:
@@ -91,7 +95,7 @@ class Project:
     @property
     def directory(self):
         """Get the file system path to the project."""
-        return parse_user_path(CONFIG["UPLOAD_PROJECTS_PATH"], self.id)
+        return pathlib.Path(CONFIG["UPLOAD_PROJECTS_PATH"], self.id)
 
     def set_quota(self, quota):
         """Set the quota for the project"""

@@ -25,7 +25,7 @@ from upload_rest_api.config import get_config
 from upload_rest_api.lock import LockAlreadyTaken
 from upload_rest_api.models.upload import (InsufficientQuotaError,
                                            UploadConflictError, UploadError)
-from upload_rest_api.security import InvalidPathError
+from upload_rest_api.models.resource import InvalidPathError
 
 try:
     # Newer Werkzeug
