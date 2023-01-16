@@ -384,32 +384,25 @@ class FileGroup():
         else:
             # TODO: Maybe the Metax client should handle paging?
             count = 0
-            total_count = 0
-            result = metax_client.get_datasets_by_ids(
-                list(all_dataset_ids),
-                fields=["identifier", "preservation_state",
-                        "research_dataset"]
-            )
+            offset = 0
             self._datasets = {}
-
             while True:
-                total_count = result["count"]
+                result = metax_client.get_datasets_by_ids(
+                    list(all_dataset_ids),
+                    fields=["identifier", "preservation_state",
+                            "research_dataset"],
+                    offset=offset
+                )
 
                 for dataset in result["results"]:
                     self._datasets[dataset['identifier']] \
                         = _dataset_to_result(dataset)
                     count += 1
 
-                if count >= total_count:
+                if count >= result["count"]:
                     break
 
-                # We haven't retrieved all datasets yet
-                result = metax_client.get_datasets_by_ids(
-                    list(all_dataset_ids),
-                    fields=["identifier", "preservation_state",
-                            "research_dataset"],
-                    offset=count
-                )
+                offset += 1
 
     def get_datasets(self):
         """List of all files of the group."""
