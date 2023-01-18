@@ -2,7 +2,9 @@
 been accessed within given time frame. This script can be set to run
 periodically using cron.
 """
+import datetime
 import errno
+import logging
 import os
 import pathlib
 import time
@@ -11,6 +13,11 @@ import upload_rest_api.config
 import upload_rest_api.gen_metadata as md
 from upload_rest_api.lock import ProjectLockManager
 from upload_rest_api.models import FileEntry, TaskEntry, Upload, UploadEntry
+
+# This is the time-to-live for upload database entries *in addition* to the
+# upload lock TTL. This ensures that longer uploads are given time to complete
+# even if they might exceed the lock lifetime.
+NON_TUS_UPLOAD_TTL = datetime.timedelta(days=2)
 
 
 def _is_expired(fpath, current_time, time_lim):
@@ -167,13 +174,12 @@ def clean_mongo():
 
 
 def clean_tus_uploads():
-    """Clean aborted tus uploads from the MongoDB database.
+    """
+    Clean aborted tus uploads
 
-    Aborted tus uploads are uploads that no longer have a corresponding
+    Aborted tus uploads are cleared once they no longer have a corresponding
     tus workspace on disk. This is because they have been cleaned after
-    remaining inactive for 4 hours. The corresponding upload entry on MongoDB
-    has to be deleted as well; otherwise the user will be unable to upload
-    a file into the same directory.
+    remaining inactive for 4 hours by a background service.
     """
     conf = upload_rest_api.config.CONFIG
     tus_spool_dir = pathlib.Path(conf["TUS_API_SPOOL_PATH"])
@@ -181,7 +187,8 @@ def clean_tus_uploads():
     resource_ids_on_disk = {path.name for path in tus_spool_dir.iterdir()}
     resource_ids_on_mongo = {
         str(entry["_id"]) for entry
-        in UploadEntry.objects.only("id").as_pymongo()
+        in UploadEntry.objects.filter(is_tus_upload=True)
+                      .only("id").as_pymongo()
     }
 
     resource_ids_to_delete = list(resource_ids_on_mongo - resource_ids_on_disk)
@@ -197,8 +204,44 @@ def clean_tus_uploads():
         Upload(db_upload=db_upload) for db_upload in uploads_to_delete
     ]
     for upload in uploads_to_delete:
-        lock_manager.release(upload.project.id, upload.storage_path)
+        try:
+            lock_manager.release(upload.project.id, upload.storage_path)
+        except ValueError:
+            # Cleanup should happen before the lock expires.
+            # If the lock still exists, the cleanup was probably delayed for
+            # some reason.
+            logging.warning(
+                "Lock for %s/%s has already expired, ignoring. "
+                "Was the cleanup delayed for some reason?",
+                upload.project.id, upload.storage_path
+            )
+
     deleted_count = \
         UploadEntry.objects.filter(id__in=resource_ids_to_delete).delete()
+
+    return deleted_count
+
+
+def clean_other_uploads():
+    """Clean likely aborted uploads from the MongoDB database.
+
+    Uploads older than 2 days after expired locks are deleted from the
+    database, as it's likely the upload has crashed at that point.
+    """
+    lock_manager = ProjectLockManager()
+
+    # The cutoff is the default lock TTL with additional two days to ensure
+    # uploads exceeding the TTL have plenty of time to succeed.
+    cutoff = (
+        datetime.datetime.now(datetime.timezone.utc)
+        - datetime.timedelta(seconds=lock_manager.default_lock_ttl)
+        - NON_TUS_UPLOAD_TTL
+    )
+
+    # We don't need to deal with locks here, as they have expired at this
+    # point.
+    deleted_count = UploadEntry.objects.filter(
+        is_tus_upload=False, started_at__lte=cutoff
+    ).delete()
 
     return deleted_count

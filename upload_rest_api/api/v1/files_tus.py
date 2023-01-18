@@ -60,7 +60,8 @@ def _upload_started(workspace, resource):
             path=resource.upload_metadata['upload_path'],
             size=resource.upload_length,
             type_=upload_type,
-            identifier=resource.identifier
+            identifier=resource.identifier,
+            is_tus_upload=True
         )
     except Exception:
         # Remove the workspace to prevent filling up disk space with

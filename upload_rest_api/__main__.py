@@ -6,7 +6,8 @@ import pathlib
 import click
 
 import upload_rest_api.config
-from upload_rest_api.cleanup import clean_disk, clean_mongo, clean_tus_uploads
+from upload_rest_api.cleanup import (clean_disk, clean_mongo,
+                                     clean_other_uploads, clean_tus_uploads)
 from upload_rest_api.models import (FileEntry, Project, ProjectEntry,
                                     TokenEntry, User, UserEntry)
 
@@ -79,11 +80,18 @@ def cleanup_mongo():
     )
 
 
-@cleanup.command("tus-uploads")
-def cleanup_tus_uploads():
-    """Clean old tus uploads without tus workspace directories."""
+@cleanup.command("uploads")
+def cleanup_uploads():
+    """
+    Clean old and expired uploads.
+    """
+    click.echo("Cleaning aborted tus uploads...")
     deleted_count = clean_tus_uploads()
     click.echo(f"Cleaned {deleted_count} aborted tus upload(s)")
+
+    click.echo("Cleaning old uploads...")
+    deleted_count = clean_other_uploads()
+    click.echo(f"Cleaned {deleted_count} old upload(s)")
 
 
 @cli.group()

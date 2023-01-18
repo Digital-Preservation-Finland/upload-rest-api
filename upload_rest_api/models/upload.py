@@ -12,8 +12,9 @@ import metax_access
 from archive_helpers.extract import (ExtractError, MemberNameError,
                                      MemberOverwriteError, MemberTypeError,
                                      extract)
-from mongoengine import (Document, EnumField, LongField, ReferenceField,
-                         StringField, ValidationError)
+from mongoengine import (BooleanField, DateTimeField, Document, EnumField,
+                         LongField, ReferenceField, StringField,
+                         ValidationError)
 
 from upload_rest_api import gen_metadata, models
 from upload_rest_api.checksum import get_file_checksum
@@ -97,6 +98,10 @@ class UploadEntry(Document):
     project = ReferenceField(models.ProjectEntry, required=True)
     source_checksum = StringField()
 
+    is_tus_upload = BooleanField(default=False)
+
+    started_at = DateTimeField(default=lambda: datetime.now(timezone.utc))
+
     # Size of the file to upload in bytes
     size = LongField(required=True)
 
@@ -116,6 +121,8 @@ class Upload:
     type_ = property(lambda x: x._db_upload.type_)
     source_checksum = property(lambda x: x._db_upload.source_checksum)
     size = property(lambda x: x._db_upload.size)
+    is_tus_upload = property(lambda x: x._db_upload.is_tus_upload)
+    started_at = property(lambda x: x._db_upload.started_at)
     project = property(lambda x: models.Project(x._db_upload.project))
 
     DoesNotExist = UploadEntry.DoesNotExist
@@ -176,7 +183,7 @@ class Upload:
     @classmethod
     def create(
             cls, project_id, path, size, type_=UploadType.FILE,
-            identifier=None):
+            identifier=None, is_tus_upload=None):
         """
         Create upload from the given tus resource.
 
@@ -198,6 +205,8 @@ class Upload:
             type_=type_,
             size=size
         )
+        if is_tus_upload is not None:
+            db_upload.is_tus_upload = is_tus_upload
         upload = cls(db_upload=db_upload)
 
         # Check that project has enough quota. Update used quota

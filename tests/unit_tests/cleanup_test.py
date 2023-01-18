@@ -4,11 +4,14 @@ import pathlib
 import shutil
 import time
 
+from datetime import datetime, timezone, timedelta
+
 import pytest
 from flask_tus_io.resource import encode_tus_meta
 
 import upload_rest_api.cleanup as clean
 from upload_rest_api.lock import ProjectLockManager
+from upload_rest_api.models.upload import UploadEntry
 
 
 def test_no_expired_files(mock_config):
@@ -218,6 +221,7 @@ def test_aborted_tus_uploads(app, test_mongo, test_client, test_auth):
             shutil.rmtree(path)
 
     # Run the cleanup. 'test_1.txt' and 'test_2.txt' will be cleaned.
+    assert clean.clean_other_uploads() == 0
     deleted_count = clean.clean_tus_uploads()
     assert deleted_count == 2
     assert test_mongo.upload.uploads.count() == 3
@@ -229,9 +233,11 @@ def test_aborted_tus_uploads(app, test_mongo, test_client, test_auth):
         = pathlib.Path(app.config["UPLOAD_PROJECTS_PATH"]) / 'test_project'
     for name in ("test_0.txt", "test_3.txt", "test_4.txt"):
         upload_path = str(project_path / name)
-        assert test_mongo.upload.uploads.find_one({'path': f"/{name}"})
+        assert test_mongo.upload.uploads.find_one({
+            'path': f"/{name}", "is_tus_upload": True
+        })
         with pytest.raises(ValueError) as error:
-            lock_manager.acquire('test_project', upload_path)
+            lock_manager.acquire('test_project', upload_path, timeout=0.1)
         assert str(error.value) == 'File lock could not be acquired'
 
     # Aborted uploads should not be found in database, and upload paths
@@ -241,13 +247,59 @@ def test_aborted_tus_uploads(app, test_mongo, test_client, test_auth):
         assert not test_mongo.upload.uploads.find_one(
             {'path': f"/{name}"}
         )
-        lock_manager.acquire('test_project', upload_path)
+        lock_manager.acquire('test_project', upload_path, timeout=0.1)
 
     # Nothing is cleaned on second run
-    deleted_count = clean.clean_tus_uploads()
-    assert deleted_count == 0
+    assert clean.clean_other_uploads() == 0
+    assert clean.clean_tus_uploads() == 0
 
     # Release the file storage locks
     for i in range(0, 5):
         upload_path = str(project_path / f"test_{i}.txt")
         lock_manager.release('test_project', upload_path)
+
+
+@pytest.mark.usefixtures("app")
+def test_cleanup_only_tus_uploads():
+    """
+    Test that non-tus uploads are not cleaned
+    """
+    # Create a fake pending upload manually to fake an unlikely scenario in
+    # which the entry was not deleted upon crashing.
+    UploadEntry(
+        id="upload1", path="/fake/path", project="test_project", size=1
+    ).save()
+    UploadEntry(
+        id="upload2", path="/fake/path2", project="test_project", size=2
+    ).save()
+    UploadEntry(
+        id="upload3", path="/fake/path3", project="test_project", size=3,
+        is_tus_upload=True
+    ).save()
+
+    # Only tus upload will be deleted
+    assert clean.clean_tus_uploads() == 1
+    assert clean.clean_other_uploads() == 0
+
+    assert UploadEntry.objects.filter(path="/fake/path").count() == 1
+    assert UploadEntry.objects.filter(path="/fake/path2").count() == 1
+    assert UploadEntry.objects.filter(path="/fake/path3").count() == 0
+
+
+@pytest.mark.usefixtures("app")
+def test_cleanup_other_uploads(mock_config, monkeypatch):
+    for i in range(0, 52):
+        UploadEntry(
+            id=f"upload{i}", path=f"/fake/path{i}", project="test_project",
+            size=1, started_at=datetime.now(timezone.utc) - timedelta(hours=i)
+        ).save()
+
+    # Set the lock TTL to 1 hour
+    mock_config["UPLOAD_LOCK_TTL"] = 60 * 60
+
+    # Uploads older than 48 hours will be deleted
+    assert clean.clean_tus_uploads() == 0
+    assert clean.clean_other_uploads() == 3
+
+    assert UploadEntry.objects.filter(path="/fake/path0").count() == 1
+    assert UploadEntry.objects.filter(path="/fake/path49").count() == 0
