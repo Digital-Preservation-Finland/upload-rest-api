@@ -10,7 +10,7 @@ from metax_access import (DS_STATE_ACCEPTED_TO_DIGITAL_PRESERVATION,
                           DS_STATE_REJECTED_IN_DIGITAL_PRESERVATION_SERVICE,
                           DirectoryNotAvailableError)
 
-from upload_rest_api.metax import metax_client
+from upload_rest_api.metax import get_metax_client
 from upload_rest_api.config import CONFIG
 from upload_rest_api import jobs
 from upload_rest_api.lock import ProjectLockManager
@@ -239,6 +239,7 @@ class Directory(Resource):
     @property
     def identifier(self):
         """Return identifier of directory."""
+        metax_client = get_metax_client()
         try:
             return metax_client.get_project_directory(self.project.id,
                                                       self.path)['identifier']
@@ -368,6 +369,7 @@ class FileGroup():
 
     def _retrieve_all_dataset_metadata(self):
         """Retrieve dataset metadata from Metax."""
+        metax_client = get_metax_client()
 
         # Retrieve file -> dataset(s) associations
         file_identifiers \
@@ -481,6 +483,7 @@ class FileGroup():
         # preservation state of every dataset (which would be very
         # inefficient), as we can just remove metadata of all files that
         # are not inlcuded in any dataset.
+        metax_client = get_metax_client()
         file2datasets = metax_client.get_file2dataset_dict(identifiers)
         files_without_datasets = [
             identifier for identifier in identifiers if not file2datasets

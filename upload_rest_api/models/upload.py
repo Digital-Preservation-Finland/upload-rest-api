@@ -13,7 +13,7 @@ from archive_helpers.extract import (ExtractError, MemberNameError,
                                      MemberOverwriteError, MemberTypeError,
                                      extract)
 
-from upload_rest_api.metax import metax_client
+from upload_rest_api.metax import get_metax_client
 from upload_rest_api.models.project import ProjectEntry, Project
 from upload_rest_api.models.file_entry import FileEntry
 from upload_rest_api.models.resource import Resource
@@ -356,6 +356,7 @@ class Upload:
                         self._tmp_project_directory
                     )
                 )
+        metax_client = get_metax_client()
         if len(new_files) == 1:
             # Creating metadata for only one file, so it is probably
             # more efficient to retrieve information about single file
@@ -559,6 +560,7 @@ def _post_metadata(metadata_dicts):
                   .
               ]
     """
+    metax_client = get_metax_client()
     metadata = []
     responses = []
 
