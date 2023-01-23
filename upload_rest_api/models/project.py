@@ -79,12 +79,11 @@ class Project:
 
     @classmethod
     def list_all(cls):
-        """
-        List all existing projects.
+        """List all existing projects.
 
-        :returns: list of Project instances
+        :returns: generator of all Project instances
         """
-        return [cls(entry) for entry in ProjectEntry.objects]
+        return (cls(entry) for entry in ProjectEntry.objects)
 
     def delete(self):
         """

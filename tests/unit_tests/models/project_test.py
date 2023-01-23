@@ -76,5 +76,5 @@ def test_creating_project_with_invalid_identifier(mock_config, identifier):
         Project.create(identifier)
 
     # No projects or project directories should exist
-    assert len(Project.list_all()) == 0
+    assert not next(Project.list_all(), None)
     assert not os.listdir(mock_config["UPLOAD_PROJECTS_PATH"])

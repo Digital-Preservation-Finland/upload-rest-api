@@ -106,17 +106,15 @@ class User:
 
         :returns: User instance
         """
-        return User(
-            db_user=UserEntry.objects.get(**kwargs)
-        )
+        return User(db_user=UserEntry.objects.get(**kwargs))
 
     @classmethod
     def list_all(cls):
         """List all existing users.
 
-        :returns: List of user instances
+        :returns: generator of all User instances
         """
-        return [cls(entry) for entry in UserEntry.objects]
+        return (cls(entry) for entry in UserEntry.objects)
 
     def generate_password(self):
         """Generate new user password."""

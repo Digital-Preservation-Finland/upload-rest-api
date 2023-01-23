@@ -97,13 +97,13 @@ class Token:
 
         :param username: Name of the user
 
-        :returns: List of user tokens
+        :returns: generator of all tokens of user
         """
-        return [
+        return (
             Token(db_token=entry)
             for entry in
             TokenEntry.objects.filter(username=username, session=False)
-        ]
+        )
 
     @classmethod
     def get(cls, **kwargs):

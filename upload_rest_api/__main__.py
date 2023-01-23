@@ -192,7 +192,7 @@ def get_user(username):
 @users.command("list")
 def list_users():
     """List all users."""
-    users = User.list_all()
+    users = [user for user in User.list_all()]
     if users:
         for user in users:
             click.echo(user.username)
@@ -251,7 +251,7 @@ def delete_project(project):
 @projects.command("list")
 def list_projects():
     """List all projects."""
-    projects_ = Project.list_all()
+    projects_ = [project for project in Project.list_all()]
     if projects_:
         for project in projects_:
             click.echo(project.id)
