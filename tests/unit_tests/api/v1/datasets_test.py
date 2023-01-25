@@ -121,13 +121,13 @@ def test_get_file_datasets_directory(
     assert dataset_b["languages"] == ["en"]
 
 
-def test_no_rights(user2_token_auth, test_client):
+def test_no_rights(test_auth2, test_client):
     """
     Test that attempting to access dataset details without permission
     results in a 403 Forbidden response
     """
     response = test_client.get(
-        "/v1/datasets/test_project/test_file", headers=user2_token_auth
+        "/v1/datasets/test_project/test_file", headers=test_auth2
     )
 
     assert response.status_code == 403

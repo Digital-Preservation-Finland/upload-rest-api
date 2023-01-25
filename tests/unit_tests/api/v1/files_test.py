@@ -32,19 +32,6 @@ def _request_accepted(response):
     return response.status_code == 202
 
 
-def test_index(app, test_auth):
-    """Test the application index page."""
-    response = app.test_client().get("/", headers=test_auth)
-    assert response.status_code == 404
-    assert response.json['error'] == 'Page not found'
-
-
-def test_incorrect_authentication(app, wrong_auth):
-    """Test index page with incorrect authentication credentials."""
-    response = app.test_client().get("/", headers=wrong_auth)
-    assert response.status_code == 401
-
-
 @pytest.mark.parametrize(
     "path",
     [
@@ -351,7 +338,7 @@ def test_file_integrity_validation(app, test_auth, checksum,
         assert response.json[key] == expected_response[key]
 
 
-def test_get_file(app, test_auth, test2_auth, test3_auth):
+def test_get_file(app, test_auth, test_auth2):
     """Test GET for single file."""
     test_client = app.test_client()
     upload_path = app.config.get("UPLOAD_PROJECTS_PATH")
@@ -369,20 +356,13 @@ def test_get_file(app, test_auth, test2_auth, test3_auth):
     )
 
     assert response.status_code == 200
-
     assert response.json["file_path"] == "/test.txt"
     assert response.json["md5"] == "150b62e4e7d58c70503bd5fc8a26463c"
     assert response.json["identifier"] == "fake_identifier"
 
-    # GET file with user test2, which is in the same project
+    # GET file with user that is not in "test_project"
     response = test_client.get(
-        "/v1/files/test_project/test.txt", headers=test2_auth
-    )
-    assert response.status_code == 200
-
-    # GET file with user test3, which is not in the same project
-    response = test_client.get(
-        "/v1/files/test_project/test.txt", headers=test3_auth
+        "/v1/files/test_project/test.txt", headers=test_auth2
     )
     assert response.status_code == 403
     assert response.json['error'] == 'No permission to access this project'
@@ -771,11 +751,11 @@ def test_delete_preserved_file(test_auth, test_client, requests_mock,
         ("DELETE", "/v1/files/test_project/fake_file"),
     )
 )
-def test_no_rights(user2_token_auth, test_client, method, url):
+def test_no_rights(test_auth2, test_client, method, url):
     """
     Test that attempting to access a project without permission results
     in a 403 Forbidden response
     """
-    response = test_client.open(url, method=method, headers=user2_token_auth)
+    response = test_client.open(url, method=method, headers=test_auth2)
 
     assert response.status_code == 403

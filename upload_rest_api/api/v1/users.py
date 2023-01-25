@@ -28,8 +28,6 @@ def list_user_projects():
     else:
         # If 'username' is not provided, retrieve projects accessible
         # to the current session
-        # TODO: The project list is different if user is
-        # authenticated by token instead of password. Why?
         projects = [Project.get(id=project_id)
                     for project_id in current_user.projects]
 

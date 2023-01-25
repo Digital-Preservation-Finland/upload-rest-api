@@ -3,8 +3,8 @@ import base64
 import datetime
 
 import pytest
-from upload_rest_api.models.user import User
 from upload_rest_api.models.token import Token
+from upload_rest_api.models.user import User
 
 
 @pytest.mark.parametrize(
@@ -23,18 +23,13 @@ def test_auth_user_by_password(test_client, user, password, result):
     :param password: password of user
     :param bool result: Excepted result of authentication
     """
-    # Create one test user to database
-    User.create(
-        "test_user", projects=["test_project"], password="test_password"
-    )
+    # Create user
+    User.create('test_user', projects=None, password='test_password')
 
     auth_hash \
         = base64.urlsafe_b64encode(f"{user}:{password}".encode()).decode()
-    auth_header = f"Basic {auth_hash}"
-
-    # pylint: disable=protected-access
     response = test_client.get(
-        "/v1/", headers={"Authorization": auth_header}
+        "/", headers={"Authorization": f"Basic {auth_hash}"}
     )
     if result:
         # Authentication passes, and 404 is returned

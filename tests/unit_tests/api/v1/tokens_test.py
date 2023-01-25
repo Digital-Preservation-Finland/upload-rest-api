@@ -35,7 +35,7 @@ def test_create_token(test_client, admin_auth):
     assert not token_data.session
 
 
-def test_create_token_permission_denied(test_client, user_token_auth):
+def test_create_token_permission_denied(test_client, test_auth):
     """
     Try creating a token using an user token which doesn't have the necessary
     permissions
@@ -47,7 +47,7 @@ def test_create_token_permission_denied(test_client, user_token_auth):
             "username": "sso_test_user",
             "projects": ""
         },
-        headers=user_token_auth
+        headers=test_auth
     )
 
     # User tokens are not allowed to create new tokens
@@ -104,9 +104,13 @@ def test_create_session_token(test_client, admin_auth):
     """
     Create a token using the `/create_session` API endpoint
     """
+    # Create user
+    User.create("test_user", projects=["test_project"])
+
+    # Create session token for user
     response = test_client.post(
         "/v1/tokens/create_session",
-        data={"username": "test"},
+        data={"username": "test_user"},
         headers=admin_auth
     )
 
@@ -117,8 +121,8 @@ def test_create_session_token(test_client, admin_auth):
     # Token has correct permissions
     token_data = Token.get_by_token(token)
 
-    assert token_data.name == "test session token"
-    assert token_data.username == "test"
+    assert token_data.name == "test_user session token"
+    assert token_data.username == "test_user"
     assert token_data.projects == ["test_project"]
     assert token_data.expiration_date
     assert token_data.session
@@ -194,7 +198,7 @@ def test_list_tokens(test_client, admin_auth, test_mongo):
     assert data["tokens"][4]["name"] == "Test token 4"
 
 
-def test_list_tokens_permission_denied(test_client, user_token_auth):
+def test_list_tokens_permission_denied(test_client, test_auth):
     """
     Try listing tokens using an user token, which is not allowed
     """
@@ -203,7 +207,7 @@ def test_list_tokens_permission_denied(test_client, user_token_auth):
         query_string={
             "username": "sso_test_user"
         },
-        headers=user_token_auth
+        headers=test_auth
     )
 
     assert response.status_code == 403
@@ -244,18 +248,18 @@ def test_delete_token(test_client, admin_auth):
         Token.get_by_token(token)
 
 
-def test_delete_token_permission_denied(test_client, user_token_auth):
+def test_delete_token_permission_denied(test_client, test_auth):
     """
     Try deleting a token using an user token
     """
-    token_id = Token.get(username="test").id
+    token_id = Token.get(username="test_user").id
     response = test_client.delete(
         "/v1/tokens/",
         data={
             "username": "test_user",
             "token_id": token_id
         },
-        headers=user_token_auth
+        headers=test_auth
     )
 
     assert response.status_code == 403
@@ -263,12 +267,12 @@ def test_delete_token_permission_denied(test_client, user_token_auth):
         "User does not have permission to delete tokens"
 
 
-@pytest.mark.usefixtures("user_token_auth")
+@pytest.mark.usefixtures("test_auth")
 def test_delete_token_username_not_provided(test_client, admin_auth):
     """
     Try deleting a token without providing an username
     """
-    token_id = Token.get(username="test").id
+    token_id = Token.get(username="test_user").id
     response = test_client.delete(
         "/v1/tokens/",
         data={

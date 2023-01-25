@@ -1,43 +1,38 @@
-"""Unit tests for user API"""
+"""Unit tests for user API."""
+from base64 import b64encode
+
+from upload_rest_api.models.token import Token
+from upload_rest_api.models.user import User
 
 
-def test_get_user_projects_by_token(test_client, user_token_auth, test_mongo):
+def test_get_user_projects_by_token(test_client):
+    """Test retrieving a list of projects using a token.
+
+    The list should contain projects that the user can access according
+    to the token.
     """
-    Test retrieving a list of projects when authenticated using a token
-    """
-    response = test_client.get(
-        "/v1/users/projects",
-        headers=user_token_auth
+    # Create a user
+    User.create(username="test_user",
+                projects=["test_project2"],
+                password="test_password")
+
+    # Create a token
+    token_data = Token.create(
+        name="User test token",
+        username="test_user",
+        projects=["test_project"],
+        expiration_date=None,
+        admin=False
     )
 
-    # User token provides access to both 'project' and 'test_project'
-    assert response.status_code == 200
-    assert response.json == {
-        "projects": [
-            {
-                "identifier": "project",
-                "used_quota": 0,
-                "quota": 12345678
-            },
-            {
-                "identifier": "test_project",
-                "used_quota": 0,
-                "quota": 1000000
-            },
-        ]
-    }
-
-
-def test_get_user_projects_by_password(test_client, test_auth):
-    """
-    Test retrieving a list of projects when authenticated using HTTP Basic Auth
-    """
+    auth_headers = {"Authorization": f"Bearer {token_data['token']}"}
     response = test_client.get(
         "/v1/users/projects",
-        headers=test_auth
+        headers=auth_headers
     )
 
-    # 'test' user provides access to only 'test_project'
+    # User token provides access to projects defined by token, but not
+    # to projects defined in user database.
     assert response.status_code == 200
     assert response.json == {
         "projects": [
@@ -50,14 +45,53 @@ def test_get_user_projects_by_password(test_client, test_auth):
     }
 
 
+def test_get_user_projects_by_password(test_client):
+    """Test retrieving a list of projects using HTTP Basic Auth.
+
+    The list should contain projects that the user can access according
+    to the database.
+    """
+    # Create a user
+    User.create(username="test_user",
+                projects=["test_project", "test_project2"],
+                password="test_password")
+
+    auth_headers = {
+        "Authorization": "Basic %s"
+        % b64encode(b"test_user:test_password").decode("utf-8")
+    }
+    response = test_client.get("/v1/users/projects", headers=auth_headers)
+
+    assert response.status_code == 200
+    assert response.json == {
+        "projects": [
+            {
+                "identifier": "test_project",
+                "used_quota": 0,
+                "quota": 1000000
+            },
+            {
+                "identifier": "test_project2",
+                "used_quota": 0,
+                "quota": 12345678
+            }
+        ]
+    }
+
+
 def test_get_user_projects_by_username_admin(test_client, admin_auth):
     """
     Test retrieving a list of projects for a specific user when
     authenticated as an admin
     """
+    # Create a user
+    User.create(username="test_user",
+                projects=["test_project"],
+                password="test_password")
+
     response = test_client.get(
         "/v1/users/projects",
-        query_string={"username": "test"},
+        query_string={"username": "test_user"},
         headers=admin_auth
     )
 
@@ -74,13 +108,20 @@ def test_get_user_projects_by_username_admin(test_client, admin_auth):
 
 
 def test_get_user_projects_by_username_user(test_client, test_auth):
-    """Try retrieving list of projects for a different user and ensure
-    that the user is unable to do so.
+    """Try retrieving list of projects for user defined by query string.
+
+    The list should contain projects that user can access according to
+    the database. Users are not allowed to list projects of other users.
     """
+    # Create a user
+    User.create(username="test_user",
+                projects=["test_project2"],
+                password="test_password")
+
     # User can retrieve their own projects
     response = test_client.get(
         "/v1/users/projects",
-        query_string={"username": "test"},
+        query_string={"username": "test_user"},
         headers=test_auth
     )
 
@@ -88,9 +129,9 @@ def test_get_user_projects_by_username_user(test_client, test_auth):
     assert response.json == {
         "projects": [
             {
-                "identifier": "test_project",
+                "identifier": "test_project2",
                 "used_quota": 0,
-                "quota": 1000000
+                "quota": 12345678
             }
         ]
     }
@@ -98,7 +139,7 @@ def test_get_user_projects_by_username_user(test_client, test_auth):
     # User can't retrieve other users' projects
     response = test_client.get(
         "/v1/users/projects",
-        query_string={"username": "test_2"},
+        query_string={"username": "test_user2"},
         headers=test_auth
     )
 

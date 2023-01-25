@@ -3,7 +3,6 @@ import os
 import pprint
 import sys
 import unittest.mock
-from base64 import b64encode
 from pathlib import Path
 from runpy import run_path
 
@@ -235,29 +234,6 @@ def background_job_runner(test_auth):
     return wrapper
 
 
-def init_db(test_mongo):
-    """Initialize user db."""
-    test_mongo.drop_database("upload")
-
-    Project.create(identifier="test_project", quota=1000000)
-    Project.create(identifier="project", quota=12345678)
-
-    # test user
-    User.create(
-        username="test", projects=["test_project"], password="test"
-    )
-
-    # test2 user with same project
-    User.create(
-        username="test2", projects=["test_project"], password="test"
-    )
-
-    # test3 user with different project
-    User.create(
-        username="test3", projects=["project"], password="test"
-    )
-
-
 @pytest.yield_fixture(scope="function")
 def app(test_mongo, mock_config, monkeypatch):
     """Create temporary upload directory and app, which uses it.
@@ -273,11 +249,14 @@ def app(test_mongo, mock_config, monkeypatch):
         `upload_rest_api.config.CONFIG`.
         """
         app.config.from_pyfile("../include/etc/upload_rest_api.conf")
-
     monkeypatch.setattr(app_module, "configure_app", _mock_configure_app)
 
     flask_app = app_module.create_app()
-    init_db(test_mongo)
+
+    # Initialize database.
+    test_mongo.drop_database("upload")
+    Project.create(identifier="test_project", quota=1000000)
+    Project.create(identifier="test_project2", quota=12345678)
 
     monkeypatch.setattr("pymongo.MongoClient", lambda *args: test_mongo)
 
@@ -357,71 +336,37 @@ def lock_manager(mock_config):
 
 
 @pytest.fixture(scope="function")
-def test_auth():
-    """Return correct credentials header."""
-    return {
-        "Authorization": "Basic %s" % b64encode(b"test:test").decode("utf-8")
-    }
+# pylint: disable=unused-argument
+# usefixtures not supported in fixture functions
+def test_auth(test_client, test_mongo):
+    """Returns credentials header for "test_user"."""
+    token_data = Token.create(
+        name="User test token",
+        username="test_user",
+        projects=["test_project"],
+        expiration_date=None,
+        admin=False
+    )
+    token = token_data["token"]
 
-
-@pytest.fixture(scope="function")
-def test2_auth():
-    """Return correct credentials header."""
-    return {
-        "Authorization": "Basic %s" % b64encode(b"test2:test").decode("utf-8")
-    }
-
-
-@pytest.fixture(scope="function")
-def test3_auth():
-    """Return correct credentials header."""
-    return {
-        "Authorization": "Basic %s" % b64encode(b"test3:test").decode("utf-8")
-    }
-
-
-@pytest.fixture(scope="function")
-def wrong_auth():
-    """Return incorrect credential header."""
-    return {
-        "Authorization": "Basic %s" % b64encode(b"admin:admin").decode("utf-8")
-    }
+    return {"Authorization": f"Bearer {token}"}
 
 
 @pytest.fixture(scope="function")
 # pylint: disable=unused-argument
 # usefixtures not supported in fixture functions
-def user_token_auth(test_client, test_mongo):
-    """Returns credentials header containing an user token"""
+def test_auth2(test_client, test_mongo):
+    """Returns credentials header for "test_user2"."""
     token_data = Token.create(
         name="User test token",
-        username="test",
-        projects=["project", "test_project"],
+        username="test_user2",
+        projects=["test_project2"],
         expiration_date=None,
         admin=False
     )
     token = token_data["token"]
 
-    return {
-        "Authorization": f"Bearer {token}"
-    }
-
-
-@pytest.fixture(scope="function")
-def user2_token_auth(test_client, test_mongo):
-    """Return credentials headers for a secondary user token"""
-    token_data = Token.create(
-        name="User 2 test token",
-        username="test2",
-        projects=["test_project_2"],
-        expiration_date=None,
-        admin=False
-    )
-    token = token_data["token"]
-
-    return {
-        "Authorization": f"Bearer {token}"
-    }
+    return {"Authorization": f"Bearer {token}"}
 
 
 @pytest.fixture(scope="function")

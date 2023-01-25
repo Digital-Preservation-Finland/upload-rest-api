@@ -39,13 +39,13 @@ def test_create_existing_directory(app, test_auth, test_client):
     }
 
 
-def test_no_rights(user2_token_auth, test_client):
+def test_no_rights(test_auth2, test_client):
     """
     Test that attempting to access a project without permission results
     in a 403 Forbidden response
     """
     response = test_client.post(
-        "/v1/directories/test_project/foo/bar", headers=user2_token_auth
+        "/v1/directories/test_project/foo/bar", headers=test_auth2
     )
 
     assert response.status_code == 403
