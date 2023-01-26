@@ -2,9 +2,10 @@
 
 Functionality for uploading and extracting an archive.
 """
-from flask import Blueprint, jsonify, request
+from flask import Blueprint, jsonify, request, abort
 import werkzeug
 
+from upload_rest_api.authentication import current_user
 from upload_rest_api.models.upload import Upload
 from upload_rest_api.api.v1.tasks import get_polling_url
 
@@ -19,6 +20,9 @@ def upload_archive(project_id):
 
     :returns: HTTP Response
     """
+    if not current_user.is_allowed_to_access_project(project_id):
+        abort(403, "No permission to access this project")
+
     if request.content_type not in ('application/octet-stream', None):
         raise werkzeug.exceptions.UnsupportedMediaType(
             f"Unsupported Content-Type: {request.content_type}"

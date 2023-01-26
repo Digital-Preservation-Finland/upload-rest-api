@@ -416,3 +416,15 @@ def test_upload_blank_tar(app, test_auth, background_job_runner):
     assert response.json["errors"][0]["message"] == (
         "Blank tar archives are not supported."
     )
+
+
+def test_no_rights(test_auth2, test_client):
+    """
+    Test that attempting to access a project without permission results
+    in a 403 Forbidden response
+    """
+    response = _upload_file(test_client,
+                            "/v1/archives/test_project",
+                            test_auth2,
+                            "tests/data/test.tar.gz")
+    assert response.status_code == 403
