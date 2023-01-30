@@ -1,5 +1,6 @@
 """File and Directory models."""
 
+import abc
 import os
 import pathlib
 import shutil
@@ -62,29 +63,26 @@ def _dataset_to_result(dataset):
 def get_resource(project_id, path):
     """Get existing file or directory.
 
-    :param project: The project that owns the resource.
+    :param project_id: The identifier of project that owns the resource.
     :param path: Path of the resource.
     """
-    project = Project.get(id=project_id)
-
-    resource = Resource(project, path)
-    if resource.storage_path.is_file():
-        return File(project, path)
-    if resource.storage_path.is_dir():
-        return Directory(project, path)
-    if not resource.storage_path.exists():
+    resource = File(project_id, path)
+    if not resource.exists:
+        resource = Directory(project_id, path)
+    if not resource.exists:
         raise FileNotFoundError('Resource does not exist')
 
-    raise Exception('Resource is not file or directory')
+    return resource
 
 
-class Resource():
+class Resource(abc.ABC):
     """Resource class."""
 
-    def __init__(self, project, path):
+    def __init__(self, project_id, path):
         """Initialize resource.
 
-        :param Project project: The project that owns the resource.
+        :param str project_id: The identifier of project that owns the
+                               resource.
         :param path: Path of the resource.
         """
         path = str(path)  # Allow pathlib.Path objects or strings
@@ -98,7 +96,7 @@ class Resource():
             raise InvalidPathError('Invalid path') from error
 
         self.path = pathlib.Path('/') / relative_path
-        self.project = project
+        self.project = Project.get(id=project_id)
         self._datasets = None
 
     @property
@@ -106,10 +104,14 @@ class Resource():
         """Absolute path of resource."""
         return self.project.directory / self.path.relative_to('/')
 
+    @property
+    @abc.abstractmethod
+    def exists(self):
+        """Returns True if resource already exists."""
+
+    @abc.abstractmethod
     def _get_file_group(self):
-        """Empty file group."""
-        # TODO: This dummy method could probably be removed
-        return FileGroup([])
+        """Get file group of resource."""
 
     def get_datasets(self):
         """List all datasets in which the resource has been added."""
@@ -132,6 +134,10 @@ class File(Resource):
         super().__init__(*args, **kwargs)
 
         self._db_file_ = None
+
+    @property
+    def exists(self):
+        return self.storage_path.is_file()
 
     @classmethod
     def get(cls, **kwargs):
@@ -156,7 +162,7 @@ class File(Resource):
 
         project = Project.get(id=project_id)
         path = pathlib.Path(entry.path).relative_to(project.directory)
-        return cls(project, path)
+        return cls(project.id, path)
 
     def _get_file_group(self):
         """File group that that contains only this file."""
@@ -220,6 +226,10 @@ class File(Resource):
 class Directory(Resource):
     """Directory class."""
 
+    @property
+    def exists(self):
+        return self.storage_path.is_dir()
+
     @classmethod
     def create(cls, project_id, path):
         """
@@ -230,11 +240,11 @@ class Directory(Resource):
 
         :returns: Directory instance
         """
-        directory = cls(project=Project.get(id=project_id), path=path)
+        directory = cls(project_id=project_id, path=path)
         lock_manager = ProjectLockManager()
         with lock_manager.lock(directory.project.id, directory.storage_path):
             directory.storage_path.mkdir(parents=True)
-        return cls(project=project_id, path=path)
+        return directory
 
     @property
     def identifier(self):
@@ -259,14 +269,14 @@ class Directory(Resource):
         # Instead, we should preload any database entries that already exist
         # in a bulk query and attach them to the instances here
         return [
-            File(self.project, self.path / entry.name)
+            File(self.project.id, self.path / entry.name)
             for entry in self._get_entries() if entry.is_file()
         ]
 
     def get_directories(self):
         """List of directories in directory."""
         return [
-            Directory(self.project, self.path / entry.name)
+            Directory(self.project.id, self.path / entry.name)
             for entry in self._get_entries() if entry.is_dir()
         ]
 

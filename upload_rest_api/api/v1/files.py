@@ -12,7 +12,7 @@ from flask import Blueprint, abort, jsonify, request
 from upload_rest_api.api.v1.tasks import get_polling_url
 from upload_rest_api.authentication import current_user
 from upload_rest_api.models.upload import Upload
-from upload_rest_api.models.resource import get_resource
+from upload_rest_api.models.resource import get_resource, File
 
 FILES_API_V1 = Blueprint("files_v1", __name__, url_prefix="/v1/files")
 
@@ -51,7 +51,8 @@ def upload_file(project_id, fpath):
         )
 
     # Upload file
-    upload = Upload.create(project_id, fpath, request.content_length)
+    file = File(project_id, fpath)
+    upload = Upload.create(file, request.content_length)
     checksum = request.args.get('md5', None)
     upload.add_source(request.stream, checksum)
     upload.store_files(verify_source=bool(checksum))

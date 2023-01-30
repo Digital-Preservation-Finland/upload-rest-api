@@ -16,7 +16,7 @@ from archive_helpers.extract import (ExtractError, MemberNameError,
 from upload_rest_api.metax import get_metax_client
 from upload_rest_api.models.project import ProjectEntry, Project
 from upload_rest_api.models.file_entry import FileEntry
-from upload_rest_api.models.resource import Resource
+from upload_rest_api.models.resource import File, Directory
 from upload_rest_api.models.upload_entry import (UploadType, UploadEntry)
 from upload_rest_api.checksum import get_file_checksum
 from upload_rest_api.config import CONFIG
@@ -90,7 +90,12 @@ class Upload:
     def resource(self):
         """The file or directory to be uploaded."""
         if not self._resource:
-            self._resource = Resource(self.project, self.path)
+            if self.type_ == UploadType.ARCHIVE:
+                self._resource = Directory(self.project.id, self.path)
+            elif self.type_ == UploadType.FILE:
+                self._resource = File(self.project.id, self.path)
+            else:
+                raise ValueError("Invalid upload type""")
 
         return self._resource
 
@@ -141,23 +146,25 @@ class Upload:
         return self._tmp_path / "source"
 
     @classmethod
-    def create(
-            cls, project_id, path, size, type_=UploadType.FILE,
-            identifier=None, is_tus_upload=None):
-        """
-        Create upload from the given tus resource.
+    def create(cls, resource, size, identifier=None, is_tus_upload=None):
+        """Create new upload.
 
-        :param str project_id: Project identifier
-        :param str path: Relative file/directory path
-        :param str type_: Upload type
+        :param Resource resource: Target resource
+        :param int size: Size of upload
+        :param str identifier: Optional upload identifier
+        :param bool is_tus_upload: Upload is TUS-upload
         """
-        # TODO: Could the resource be provided as argument? The resource
-        # would contain project_id, path and type_.
-        resource = Resource(Project.get(id=project_id), path)
         if not identifier:
             identifier = str(uuid.uuid4())
         if size > CONFIG["MAX_CONTENT_LENGTH"]:
             raise InsufficientQuotaError("Max single file size exceeded")
+
+        if isinstance(resource, Directory):
+            type_ = UploadType.ARCHIVE
+        elif isinstance(resource, File):
+            type_ = UploadType.FILE
+        else:
+            raise ValueError('Invalid upload type')
 
         db_upload = UploadEntry(
             id=identifier,

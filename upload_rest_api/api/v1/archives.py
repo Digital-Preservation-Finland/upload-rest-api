@@ -7,6 +7,7 @@ import werkzeug
 
 from upload_rest_api.authentication import current_user
 from upload_rest_api.models.upload import Upload
+from upload_rest_api.models.resource import Directory
 from upload_rest_api.api.v1.tasks import get_polling_url
 
 ARCHIVES_API_V1 = Blueprint("archives_v1", __name__, url_prefix="/v1/archives")
@@ -33,11 +34,8 @@ def upload_archive(project_id):
             "Missing Content-Length header"
         )
 
-    upload = Upload.create(
-        project_id, request.args.get('dir', default='/'),
-        size=request.content_length,
-        type_='archive'
-    )
+    directory = Directory(project_id, request.args.get('dir', default='/'))
+    upload = Upload.create(directory, size=request.content_length)
     checksum = request.args.get("md5", None)
     upload.add_source(file=request.stream, checksum=checksum)
     task_id = upload.enqueue_store_task(verify_source=bool(checksum))

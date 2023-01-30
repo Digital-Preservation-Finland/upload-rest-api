@@ -3,11 +3,12 @@ import io
 
 import pytest
 
-from upload_rest_api.models.resource import (Resource, InvalidPathError,
+from upload_rest_api.models.resource import (File, InvalidPathError,
                                              get_resource)
 from upload_rest_api.models.upload import Upload
 
 
+@pytest.mark.usefixtures('app')  # Initialize database
 @pytest.mark.parametrize(
     "path,result",
     [
@@ -33,10 +34,10 @@ def test_parse_relative_user_path(path, result):
     paths raise an exception.
     """
     if result is not None:
-        assert str(Resource('test_project', path).path) == result
+        assert str(File('test_project', path).path) == result
     else:
         with pytest.raises(InvalidPathError):
-            Resource('test_project', path)
+            File('test_project', path)
 
 
 @pytest.mark.usefixtures('app')  # Initialize db
@@ -47,7 +48,7 @@ def test_get_many_datasets(requests_mock):
     requests_mock.post('/rest/v2/files/', json={})
 
     # Upload a file to directory /testdir
-    upload = Upload.create('test_project', 'testdir/testfile', 123)
+    upload = Upload.create(File('test_project', 'testdir/testfile'), 123)
     with io.BytesIO(b'foo') as textfile:
         upload.add_source(file=textfile, checksum=None)
     upload.store_files(verify_source=False)

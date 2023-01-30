@@ -1,9 +1,10 @@
 """Tests for upload jobs."""
 import pytest
+from upload_rest_api.models.resource import Directory
+from upload_rest_api.models.task import Task
 from upload_rest_api.models.upload import (Upload,
                                            UploadError,
                                            UploadConflictError)
-from upload_rest_api.models.task import Task
 from upload_rest_api.jobs.upload import store_files
 
 
@@ -32,7 +33,7 @@ def test_upload_conflict_error(mocker, exception, errors):
     """
     # Create an upload. Mock Upload class to fail during archive
     # extraction.
-    upload = Upload.create('test_project', '/test', 1, 'archive')
+    upload = Upload.create(Directory('test_project', '/test'), 1)
     mocker.patch.object(Upload, '_extract_archive', side_effect=exception)
 
     # Run store_files job for upload

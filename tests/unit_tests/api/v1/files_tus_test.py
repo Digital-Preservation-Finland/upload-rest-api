@@ -7,7 +7,7 @@ import pytest
 from flask_tus_io.resource import encode_tus_meta
 
 from upload_rest_api.jobs.utils import get_job_queue
-from upload_rest_api.models.project import Project, ProjectEntry
+from upload_rest_api.models.project import ProjectEntry
 
 
 def _do_tus_upload(

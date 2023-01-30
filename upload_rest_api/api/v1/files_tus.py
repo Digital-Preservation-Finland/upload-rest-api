@@ -7,6 +7,7 @@ from upload_rest_api.authentication import current_user
 from upload_rest_api.checksum import (HASH_FUNCTION_ALIASES,
                                       calculate_incr_checksum)
 from upload_rest_api.lock import lock_manager
+from upload_rest_api.models.resource import File, Directory
 from upload_rest_api.models.upload import Upload
 
 FILES_TUS_API_V1 = Blueprint(
@@ -47,7 +48,11 @@ def _upload_started(workspace, resource):
     try:
         upload_type = resource.upload_metadata["type"]
 
-        if upload_type not in ("file", "archive"):
+        if upload_type == 'file':
+            target_class = File
+        elif upload_type == 'archive':
+            target_class = Directory
+        else:
             abort(400, f"Unknown upload type '{upload_type}'")
 
         if not current_user.is_allowed_to_access_project(
@@ -55,14 +60,14 @@ def _upload_started(workspace, resource):
         ):
             abort(403)
 
-        Upload.create(
-            project_id=resource.upload_metadata['project_id'],
-            path=resource.upload_metadata['upload_path'],
-            size=resource.upload_length,
-            type_=upload_type,
-            identifier=resource.identifier,
-            is_tus_upload=True
+        target = target_class(
+            resource.upload_metadata['project_id'],
+            resource.upload_metadata['upload_path']
         )
+        Upload.create(target,
+                      size=resource.upload_length,
+                      identifier=resource.identifier,
+                      is_tus_upload=True)
     except Exception:
         # Remove the workspace to prevent filling up disk space with
         # bogus requests

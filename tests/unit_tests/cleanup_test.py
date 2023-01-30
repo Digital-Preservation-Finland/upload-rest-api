@@ -348,14 +348,16 @@ def test_cleanup_only_tus_uploads():
     # Create a fake pending upload manually to fake an unlikely scenario in
     # which the entry was not deleted upon crashing.
     UploadEntry(
-        id="upload1", path="/fake/path", project="test_project", size=1
+        id="upload1", path="/fake/path", project="test_project", size=1,
+        type_="file"
     ).save()
     UploadEntry(
-        id="upload2", path="/fake/path2", project="test_project", size=2
+        id="upload2", path="/fake/path2", project="test_project", size=2,
+        type_="file"
     ).save()
     UploadEntry(
         id="upload3", path="/fake/path3", project="test_project", size=3,
-        is_tus_upload=True
+        type_="file", is_tus_upload=True
     ).save()
 
     # Only tus upload will be deleted
