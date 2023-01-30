@@ -92,20 +92,6 @@ class Token:
         return data
 
     @classmethod
-    def list(cls, username):
-        """List existing tokens of user.
-
-        :param username: Name of the user
-
-        :returns: generator of all tokens of user
-        """
-        return (
-            Token(db_token=entry)
-            for entry in
-            TokenEntry.objects.filter(username=username, session=False)
-        )
-
-    @classmethod
     def get(cls, **kwargs):
         """
         Retrieve an existing token

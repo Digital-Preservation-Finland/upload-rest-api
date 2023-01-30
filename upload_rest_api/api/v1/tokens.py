@@ -118,7 +118,7 @@ def list_tokens():
 
     # Retrieve all tokens except for session tokens, which are not meant
     # to be visible for the user
-    tokens = Token.list(username)
+    tokens = User.get(username=username).tokens
     token_entries = []
 
     # Strip token hash from the results and rename '_id' field

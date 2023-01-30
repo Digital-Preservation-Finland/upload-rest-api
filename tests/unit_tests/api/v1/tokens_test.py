@@ -166,6 +166,8 @@ def test_list_tokens(test_client, admin_auth, test_mongo):
     Create multiple tokens and ensure they're included in the token
     listing
     """
+    User.create('sso_test_user')
+
     for i in range(0, 5):
         test_client.post(
             "/v1/tokens/create",

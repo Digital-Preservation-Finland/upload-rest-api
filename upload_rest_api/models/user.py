@@ -8,6 +8,8 @@ from mongoengine import NotUniqueError
 
 from upload_rest_api.models.project import ProjectEntry, Project
 from upload_rest_api.models.user_entry import UserEntry
+from upload_rest_api.models.token import Token, TokenEntry
+
 
 # Password vars
 PASSWD_LEN = 20
@@ -129,6 +131,15 @@ class User:
     def projects(self):
         """List projects of the user."""
         return list(ProjectEntry.objects.filter(id__in=self._db_user.projects))
+
+    @property
+    def tokens(self):
+        """List existing API tokens of user."""
+        return (
+            Token(db_token=entry)
+            for entry in
+            TokenEntry.objects.filter(username=self.username, session=False)
+        )
 
     def grant_project(self, project):
         """Grant user access to the given project."""
