@@ -362,10 +362,10 @@ class Directory(Resource):
             if expired_files:
                 FileGroup(expired_files).delete()
 
-            return len(expired_files)
-
         # Update used_quota
         self.project.update_used_quota()
+
+        return len(expired_files)
 
 
 class FileGroup():

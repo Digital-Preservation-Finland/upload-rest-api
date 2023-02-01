@@ -11,6 +11,7 @@ from flask_tus_io.resource import encode_tus_meta
 from metax_access.metax import (DS_STATE_INITIALIZED,
                                 DS_STATE_IN_DIGITAL_PRESERVATION)
 
+from upload_rest_api.models.project import Project
 import upload_rest_api.cleanup as clean
 from upload_rest_api.lock import ProjectLockManager
 from upload_rest_api.models.upload import UploadEntry
@@ -83,8 +84,14 @@ def test_expired_files(test_mongo, mock_config, requests_mock):
     assert files.count({"_id": fpath_expired}) == 0
     assert files.count({"_id": fpath}) == 1
 
+    # The metadata of expired file should be deleted from Metax
     assert delete_files_api.called_once
     assert delete_files_api.request_history[0].json() == ["urn:uuid:2"]
+
+    # Used quota should be updated. One copy of "test.txt" should be
+    # left.
+    assert Project.get(id='test_project').used_quota \
+        == pathlib.Path('tests/data/test.txt').stat().st_size
 
 
 @pytest.mark.usefixtures('app')  # Creates test_project
