@@ -414,7 +414,7 @@ class FileGroup():
                 if count >= result["count"]:
                     break
 
-                offset += 1
+                offset += len(result["results"])
 
     def get_datasets(self):
         """List of all files of the group."""

@@ -55,35 +55,47 @@ def test_get_many_datasets(requests_mock):
     file_identifier \
         = get_resource('test_project', 'testdir/testfile').identifier
 
-    # Add the uploaded file to two datasets: "urn:uuid:dataset1" and
-    # "urn:uuid:dataset2". When the metadata of the datasets is
-    # requested from Metax, one dataset is provided per page.
+    # Add the uploaded file to three datasets: "urn:uuid:dataset1",
+    # "urn:uuid:dataset2" and "urn:uuid:dataset3". When the metadata of
+    # the datasets is requested from Metax, two datasets are provided
+    # per page.
     requests_mock.post(
         "/rest/v2/files/datasets?keys=files",
-        json={file_identifier: ["urn:uuid:dataset1", "urn:uuid:dataset2"]}
+        json={file_identifier: ["urn:uuid:dataset1",
+                                "urn:uuid:dataset2",
+                                "urn:uuid:dataset3"]}
     )
     requests_mock.post(
         "/rest/datasets/list?offset=0&limit=1000000"
         "&fields=identifier%2Cpreservation_state%2Cresearch_dataset",
         json={
-            "count": 2,
-            "results": [{
-                "identifier": "urn:uuid:dataset1",
-                "research_dataset": {'title': 'foo'},
-                "preservation_state": 10
-            }],
+            "count": 3,
+            "results": [
+                {
+                    "identifier": "urn:uuid:dataset1",
+                    "research_dataset": {'title': 'foo'},
+                    "preservation_state": 10
+                },
+                {
+                    "identifier": "urn:uuid:dataset2",
+                    "research_dataset": {'title': 'foo'},
+                    "preservation_state": 10
+                }
+            ],
         }
     )
     requests_mock.post(
-        "/rest/datasets/list?offset=1&limit=1000000"
+        "/rest/datasets/list?offset=2&limit=1000000"
         "&fields=identifier%2Cpreservation_state%2Cresearch_dataset",
         json={
-            "count": 2,
-            "results": [{
-                "identifier": "urn:uuid:dataset2",
-                "research_dataset": {'title': 'foo'},
-                "preservation_state": 10
-            }],
+            "count": 3,
+            "results": [
+                {
+                    "identifier": "urn:uuid:dataset3",
+                    "research_dataset": {'title': 'foo'},
+                    "preservation_state": 10
+                }
+            ],
         }
     )
 
@@ -92,4 +104,4 @@ def test_get_many_datasets(requests_mock):
     # datasets.
     datasets = get_resource('test_project', 'testdir').get_datasets()
     assert {dataset['identifier'] for dataset in datasets} \
-        == {'urn:uuid:dataset1', 'urn:uuid:dataset2'}
+        == {'urn:uuid:dataset1', 'urn:uuid:dataset2', 'urn:uuid:dataset3'}
