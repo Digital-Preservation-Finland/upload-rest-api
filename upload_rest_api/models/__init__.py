@@ -10,10 +10,8 @@ from upload_rest_api.models.task import Task
 from upload_rest_api.models.token import Token
 from upload_rest_api.models.upload import Upload
 from upload_rest_api.models.user import User
-from upload_rest_api.models.file_entry import FileEntry
 
-__all__ = ("Project", "File", "Directory", "Task", "Token", "Upload", "User",
-           "FileEntry")
+__all__ = ("Project", "File", "Directory", "Task", "Token", "Upload", "User")
 
 try:
     connect(
