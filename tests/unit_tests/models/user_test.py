@@ -80,7 +80,7 @@ def test_create_user(projects):
     if projects:
         assert set(project.id for project in user.projects) == set(projects)
     else:
-        assert len(user.projects) == 0
+        assert not list(user.projects)
 
 
 def test_get_random_string():

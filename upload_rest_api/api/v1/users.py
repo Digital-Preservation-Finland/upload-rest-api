@@ -2,7 +2,7 @@
 from flask import Blueprint, abort, jsonify, request
 
 from upload_rest_api.authentication import current_user
-from upload_rest_api.models import Project, User
+from upload_rest_api.models import User
 
 USERS_API_V1 = Blueprint("users_v1", __name__, url_prefix="/v1/users")
 
@@ -28,8 +28,7 @@ def list_user_projects():
     else:
         # If 'username' is not provided, retrieve projects accessible
         # to the current session
-        projects = [Project.get(id=project_id)
-                    for project_id in current_user.projects]
+        projects = current_user.projects
 
     result = {"projects": []}
     for project in projects:

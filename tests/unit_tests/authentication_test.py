@@ -69,7 +69,7 @@ def test_auth_user_by_password(test_client, user, password, result):
         (
             # No access to the correct project - invalid
             {
-                "projects": ["test_project_2", "test_project_3"]
+                "projects": ["test_project2"]
             },
             False
         ),
@@ -90,7 +90,7 @@ def test_auth_user_by_token(test_client, options, is_valid):
     kwargs = {
         "name": "User test token #1",
         "username": "test",
-        "projects": ["test_project", "project"],
+        "projects": ["test_project", "test_project2"],
         "expiration_date": None,
         "admin": False
     }

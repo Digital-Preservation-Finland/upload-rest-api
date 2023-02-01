@@ -314,13 +314,12 @@ def test_revoke_user_projects(command_runner):
     result = command_runner([
         "users", "project-rights", "revoke", "test", "test_project"
     ])
-
-    user = User.get(username="test")
-
-    assert user.projects == []
     assert result.output == (
         "Revoked user 'test' access to project(s): test_project\n"
     )
+
+    user = User.get(username="test")
+    assert not list(user.projects)
 
 
 @pytest.mark.parametrize("quota", [0, 2468])

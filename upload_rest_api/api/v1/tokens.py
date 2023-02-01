@@ -127,7 +127,7 @@ def list_tokens():
             "identifier": token.id,
             "name": token.name,
             "username": token.username,
-            "projects": token.projects,
+            "projects": [project.id for project in token.projects],
             "admin": token.admin,
             "session": token.session,
             "expiration_date": token.expiration_date

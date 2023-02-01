@@ -5,6 +5,7 @@ import hashlib
 import secrets
 import uuid
 
+from upload_rest_api.models.project import ProjectEntry, Project
 from upload_rest_api.models.token_entry import TokenEntry
 
 
@@ -26,7 +27,6 @@ class Token:
     id = property(lambda x: x._db_token.id)
     name = property(lambda x: x._db_token.name)
     username = property(lambda x: x._db_token.username)
-    projects = property(lambda x: tuple(x._db_token.projects))
     token_hash = property(lambda x: x._db_token.token_hash)
     expiration_date = property(lambda x: x._db_token.expiration_date)
     admin = property(lambda x: x._db_token.admin)
@@ -122,7 +122,16 @@ class Token:
         if validate and not token_.is_valid:
             raise TokenInvalidError("Token has expired")
 
-        return token_
+        return cls(token_)
+
+    @property
+    def projects(self):
+        """Return projects of the token."""
+        return (
+            Project(db_project=entry)
+            for entry
+            in ProjectEntry.objects.filter(id__in=self._db_token.projects)
+        )
 
     def delete(self):
         """Delete the token."""

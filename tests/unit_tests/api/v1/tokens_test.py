@@ -15,7 +15,7 @@ def test_create_token(test_client, admin_auth):
         data={
             "name": "Test token",
             "username": "sso_test_user",
-            "projects": ",".join(["test_project", "project"]),
+            "projects": ",".join(["test_project", "test_project2"]),
         },
         headers=admin_auth
     )
@@ -29,7 +29,8 @@ def test_create_token(test_client, admin_auth):
 
     assert token_data.name == "Test token"
     assert token_data.username == "sso_test_user"
-    assert token_data.projects == ["test_project", "project"]
+    assert [project.id for project in token_data.projects] \
+        == ["test_project", "test_project2"]
     assert not token_data.expiration_date
     assert not token_data.admin
     assert not token_data.session
@@ -123,7 +124,7 @@ def test_create_session_token(test_client, admin_auth):
 
     assert token_data.name == "test_user session token"
     assert token_data.username == "test_user"
-    assert token_data.projects == ["test_project"]
+    assert [project.id for project in token_data.projects] == ["test_project"]
     assert token_data.expiration_date
     assert token_data.session
 
@@ -158,7 +159,7 @@ def test_create_session_token_new_user_created(test_client, admin_auth):
     # User should be created without any default projects
     user = User.get(username="acme_org/user")
     assert user.username == "acme_org/user"
-    assert user.projects == []
+    assert list(user.projects) == []
 
 
 def test_list_tokens(test_client, admin_auth, test_mongo):
@@ -174,7 +175,7 @@ def test_list_tokens(test_client, admin_auth, test_mongo):
             data={
                 "name": f"Test token {i}",
                 "username": "sso_test_user",
-                "projects": ",".join(["test_project", "project"]),
+                "projects": ",".join(["test_project", "test_project2"]),
             },
             headers=admin_auth
         )
@@ -193,7 +194,7 @@ def test_list_tokens(test_client, admin_auth, test_mongo):
     assert data["tokens"][0]["name"] == "Test token 0"
     assert data["tokens"][0]["username"] == "sso_test_user"
     assert data["tokens"][0]["projects"] == [
-        "test_project", "project"
+        "test_project", "test_project2"
     ]
     assert not data["tokens"][0]["expiration_date"]
 
@@ -226,7 +227,7 @@ def test_delete_token(test_client, admin_auth):
         data={
             "name": "Test token",
             "username": "sso_test_user",
-            "projects": ",".join(["test_project", "project"]),
+            "projects": ",".join(["test_project", "test_project2"]),
         },
         headers=admin_auth
     )

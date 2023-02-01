@@ -129,16 +129,20 @@ class User:
 
     @property
     def projects(self):
-        """List projects of the user."""
-        return list(ProjectEntry.objects.filter(id__in=self._db_user.projects))
+        """Return projects of the user."""
+        return (
+            Project(db_project=entry)
+            for entry
+            in ProjectEntry.objects.filter(id__in=self._db_user.projects)
+        )
 
     @property
     def tokens(self):
-        """List existing API tokens of user."""
+        """Return existing API tokens of user."""
         return (
             Token(db_token=entry)
-            for entry in
-            TokenEntry.objects.filter(username=self.username, session=False)
+            for entry
+            in TokenEntry.objects.filter(username=self.username, session=False)
         )
 
     def grant_project(self, project):

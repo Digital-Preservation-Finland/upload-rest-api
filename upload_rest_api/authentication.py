@@ -47,7 +47,7 @@ class CurrentUser:
         if self.admin:
             return True
 
-        if self.projects is None or project in self.projects:
+        if project in [project.id for project in self.projects]:
             return True
 
         return False
@@ -155,7 +155,7 @@ def _auth_user_by_password():
     if result:
         g.current_user = CurrentUser(
             username=user.username,
-            projects=[project.id for project in user.projects],
+            projects=user.projects,
             admin=False
         )
 

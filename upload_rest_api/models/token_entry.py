@@ -7,6 +7,7 @@ from mongoengine import (BooleanField, DateTimeField, Document, ListField,
                          StringField, ValidationError)
 
 from upload_rest_api.redis import get_redis_connection
+from upload_rest_api.models.project_entry import ProjectEntry
 
 
 def _validate_expiration_date(expiration_date):
@@ -25,6 +26,25 @@ def _validate_uuid(value):
         raise ValidationError("Value is not a valid UUID")
 
 
+def _validate_projects(projects):
+    if len(projects) == 0:
+        # Nothing to check
+        return
+
+    projects = set(projects)
+    existing_projects = set(
+        project.id for project in
+        ProjectEntry.objects.filter(id__in=projects).only("id")
+    )
+
+    missing_projects = projects - existing_projects
+
+    if missing_projects:
+        raise ValidationError(
+            f"Projects don't exist: {','.join(missing_projects)}"
+        )
+
+
 class TokenEntry(Document):
     """Database entry for the Pre-Ingest File Storage authentication token"""
     # Identifier for the token.
@@ -38,7 +58,7 @@ class TokenEntry(Document):
     # User the token is intended for
     username = StringField(required=True)
     # List of projects this token grants access to
-    projects = ListField(StringField())
+    projects = ListField(StringField(), validation=_validate_projects)
 
     # SHA256 token hash
     token_hash = StringField(required=True)
