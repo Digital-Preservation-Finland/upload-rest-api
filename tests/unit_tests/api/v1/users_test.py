@@ -110,41 +110,22 @@ def test_get_user_projects_by_username_admin(test_client, admin_auth):
 def test_get_user_projects_by_username_user(test_client, test_auth):
     """Try retrieving list of projects for user defined by query string.
 
-    The list should contain projects that user can access according to
-    the database. Users are not allowed to list projects of other users.
+    Only admins should be able list projects of specific users, so API
+    should respond with HTTP error "403 Forbidden".
     """
     # Create a user
     User.create(username="test_user",
                 projects=["test_project2"],
                 password="test_password")
 
-    # User can retrieve their own projects
+    # User can not retrieve even their own projects
     response = test_client.get(
         "/v1/users/projects",
         query_string={"username": "test_user"},
         headers=test_auth
     )
-
-    assert response.status_code == 200
-    assert response.json == {
-        "projects": [
-            {
-                "identifier": "test_project2",
-                "used_quota": 0,
-                "quota": 12345678
-            }
-        ]
-    }
-
-    # User can't retrieve other users' projects
-    response = test_client.get(
-        "/v1/users/projects",
-        query_string={"username": "test_user2"},
-        headers=test_auth
-    )
-
     assert response.status_code == 403
     assert response.json == {
-        "code": 403,
-        "error": "User does not have permission to list projects"
+        'code': 403,
+        'error': 'User does not have permission to list projects'
     }

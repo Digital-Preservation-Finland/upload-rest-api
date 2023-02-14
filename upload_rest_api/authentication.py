@@ -81,8 +81,8 @@ class CurrentUser:
         """
         Check if the user is allowed to list projects for a given user
         """
-        # Only the admin or the user itself can list projects
-        return self.admin or username == self.username
+        # Only the admin can list projects of any user
+        return self.admin
 
 
 # pylint: disable=invalid-name
