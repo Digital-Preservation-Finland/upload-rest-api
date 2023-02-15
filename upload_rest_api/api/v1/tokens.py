@@ -33,7 +33,7 @@ def create_token():
     if not username:
         abort(400, "'username' is required")
 
-    if not current_user.is_allowed_to_create_tokens(username):
+    if not current_user.admin:
         abort(403, "User does not have permission to create tokens")
 
     projects = request.form.get("projects", None)
@@ -75,7 +75,7 @@ def create_session_token():
     if not username:
         abort(400, "'username' is required")
 
-    if not current_user.is_allowed_to_create_tokens(username):
+    if not current_user.admin:
         abort(403, "User does not have permission to create tokens")
 
     expiration_date = \
@@ -113,7 +113,7 @@ def list_tokens():
     """
     username = request.args.get("username", current_user.username)
 
-    if not current_user.is_allowed_to_list_tokens(username):
+    if not current_user.admin:
         abort(403, "User does not have permission to list tokens")
 
     # Retrieve all tokens except for session tokens, which are not meant
@@ -153,7 +153,7 @@ def delete_token():
     if not username:
         abort(400, "'username' not provided")
 
-    if not current_user.is_allowed_to_delete_tokens(username):
+    if not current_user.admin:
         abort(403, "User does not have permission to delete tokens")
 
     # Token ID != token. Token ID is used to identify a token so that user

@@ -52,38 +52,6 @@ class CurrentUser:
 
         return False
 
-    # pylint: disable=unused-argument
-    def is_allowed_to_create_tokens(self, username):
-        """
-        Check if the user can create tokens
-        """
-        # Only the admin can create tokens
-        return self.admin
-
-    # pylint: disable=unused-argument
-    def is_allowed_to_delete_tokens(self, username):
-        """
-        Check if the user can delete tokens
-        """
-        # Only the admin can delete tokens
-        return self.admin
-
-    # pylint: disable=unused-argument
-    def is_allowed_to_list_tokens(self, username):
-        """
-        Check if the user is allowed to list metadata for created tokens
-        for the given user
-        """
-        # Only the admin can list tokens
-        return self.admin
-
-    def is_allowed_to_list_projects(self, username):
-        """
-        Check if the user is allowed to list projects for a given user
-        """
-        # Only the admin can list projects of any user
-        return self.admin
-
 
 # pylint: disable=invalid-name
 current_user = LocalProxy(lambda: g.current_user)

@@ -21,7 +21,7 @@ def list_user_projects():
         # user, if we have the permission
         username = request.args["username"]
 
-        if not current_user.is_allowed_to_list_projects(username):
+        if not current_user.admin:
             abort(403, "User does not have permission to list projects")
 
         projects = User.get(username=username).projects
