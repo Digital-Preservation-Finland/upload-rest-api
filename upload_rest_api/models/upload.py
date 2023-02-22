@@ -20,7 +20,6 @@ from upload_rest_api.models.resource import File, Directory
 from upload_rest_api.models.upload_entry import (UploadType, UploadEntry)
 from upload_rest_api.checksum import get_file_checksum
 from upload_rest_api.config import CONFIG
-from upload_rest_api.jobs.utils import (UPLOAD_QUEUE, enqueue_background_job)
 from upload_rest_api.lock import ProjectLockManager
 
 
@@ -235,27 +234,7 @@ class Upload:
             Path(file).rename(self._source_path)
 
         self._db_upload.source_checksum = checksum
-
-    @_release_lock_on_exception
-    def enqueue_store_task(self, verify_source):
-        """Enqueue store task for upload.
-
-        :returns: Task identifier
-        """
         self._db_upload.save()
-
-        task_id = enqueue_background_job(
-            task_func="upload_rest_api.jobs.upload.store_files",
-            task_id=self.id,
-            queue_name=UPLOAD_QUEUE,
-            project_id=self.project.id,
-            job_kwargs={
-                "identifier": self.id,
-                "verify_source": verify_source
-            }
-        )
-
-        return task_id
 
     def _extract_archive(self):
         """Extract archive to temporary project directory."""

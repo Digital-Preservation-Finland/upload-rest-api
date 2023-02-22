@@ -14,6 +14,8 @@ from upload_rest_api.authentication import current_user
 from upload_rest_api.models.upload import Upload
 from upload_rest_api.models.resource import get_resource, File
 from upload_rest_api.config import CONFIG
+from upload_rest_api.jobs import FILES_QUEUE, enqueue_background_job
+from upload_rest_api.lock import ProjectLockManager
 
 FILES_API_V1 = Blueprint("files_v1", __name__, url_prefix="/v1/files")
 
@@ -145,11 +147,33 @@ def delete_path(project_id, fpath):
         response.status_code = 200
 
     elif resource.storage_path.is_dir():
-        try:
-            task_id = resource.enqueue_delete_task()
-        except FileNotFoundError:
+
+        is_project_dir \
+            = resource.storage_path.samefile(resource.project.directory)
+        if is_project_dir and not any(resource.project.directory.iterdir()):
             # Trying to delete empty project directory
             abort(404, "No files found")
+
+        # Acquire a lock *and* keep it alive even after this HTTP
+        # request. It will be released by the 'delete_directory'
+        # background job once it finishes.
+        lock_manager = ProjectLockManager()
+        lock_manager.acquire(resource.project.id, resource.storage_path)
+
+        try:
+            task_id = enqueue_background_job(
+                task_func="upload_rest_api.jobs.files.delete_directory",
+                queue_name=FILES_QUEUE,
+                project_id=resource.project.id,
+                job_kwargs={
+                    "project_id": resource.project.id,
+                    "path": str(resource.path),
+                }
+            )
+        except Exception:
+            # If we couldn't enqueue background job, release the lock
+            lock_manager.release(resource.project.id, resource.storage_path)
+            raise
 
         polling_url = get_polling_url(task_id)
         response = jsonify({

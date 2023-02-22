@@ -4,6 +4,7 @@ import pathlib
 
 import pytest
 
+from upload_rest_api.lock import ProjectLockManager
 from upload_rest_api.models.resource import File, Directory
 from upload_rest_api.models.upload import (Upload, UploadConflictError,
                                            UploadError)
@@ -91,6 +92,24 @@ def test_file_metadata_conflict(mock_config, requests_mock):
     # Temporary files should be removed
     tmp_dir = pathlib.Path(mock_config['UPLOAD_TMP_PATH'])
     assert not any(tmp_dir.iterdir())
+
+
+@pytest.mark.usefixtures('app')
+def test_add_source():
+    """Test add_source method.
+
+    Test that checksum is saved to database.
+    """
+    new_upload = Upload.create(File('test_project', 'path/file1'), 123)
+    with open('tests/data/test.txt', 'rb') as source_file:
+        new_upload.add_source(source_file, checksum='foobar')
+
+    upload_from_database = Upload.get(id=new_upload.id)
+    assert upload_from_database.source_checksum == 'foobar'
+
+    # Release the file lock
+    lock_manager = ProjectLockManager()
+    lock_manager.release(new_upload.project.id, new_upload.storage_path)
 
 
 @pytest.mark.usefixtures('app')

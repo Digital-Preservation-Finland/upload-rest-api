@@ -9,6 +9,8 @@ from upload_rest_api.authentication import current_user
 from upload_rest_api.models.upload import Upload
 from upload_rest_api.models.resource import Directory
 from upload_rest_api.api.v1.tasks import get_polling_url
+from upload_rest_api.jobs.utils import enqueue_background_job, UPLOAD_QUEUE
+from upload_rest_api.lock import ProjectLockManager
 
 ARCHIVES_API_V1 = Blueprint("archives_v1", __name__, url_prefix="/v1/archives")
 
@@ -38,7 +40,22 @@ def upload_archive(project_id):
     upload = Upload.create(directory, size=request.content_length)
     checksum = request.args.get("md5", None)
     upload.add_source(file=request.stream, checksum=checksum)
-    task_id = upload.enqueue_store_task(verify_source=bool(checksum))
+    try:
+        task_id = enqueue_background_job(
+            task_func="upload_rest_api.jobs.upload.store_files",
+            task_id=upload.id,
+            queue_name=UPLOAD_QUEUE,
+            project_id=upload.project.id,
+            job_kwargs={
+                "identifier": upload.id,
+                "verify_source": bool(checksum)
+            }
+        )
+    except Exception:
+        # If we couldn't enqueue background job, release the lock
+        lock_manager = ProjectLockManager()
+        lock_manager.release(upload.project.id, upload.storage_path)
+        raise
 
     response = jsonify(
         {

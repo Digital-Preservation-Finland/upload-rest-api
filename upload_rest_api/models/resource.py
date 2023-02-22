@@ -13,7 +13,6 @@ from metax_access import (DS_STATE_ACCEPTED_TO_DIGITAL_PRESERVATION,
 
 from upload_rest_api.metax import get_metax_client
 from upload_rest_api.config import CONFIG
-from upload_rest_api import jobs
 from upload_rest_api.lock import ProjectLockManager
 from upload_rest_api.models.file_entry import FileEntry
 from upload_rest_api.models.project import Project
@@ -295,36 +294,6 @@ class Directory(Resource):
     def get_all_files(self):
         """List all files in directory and its subdirectories."""
         return self._get_file_group().files
-
-    def enqueue_delete_task(self):
-        """Enqueue directory deletion task."""
-
-        is_project_dir = self.storage_path.samefile(self.project.directory)
-        if is_project_dir and not any(self.project.directory.iterdir()):
-            raise FileNotFoundError('Project directory is empty')
-
-        # Acquire a lock *and* keep it alive even after this HTTP
-        # request. It will be released by the 'delete_directory'
-        # background job once it finishes.
-        lock_manager = ProjectLockManager()
-        lock_manager.acquire(self.project.id, self.storage_path)
-
-        try:
-            task_id = jobs.enqueue_background_job(
-                task_func="upload_rest_api.jobs.files.delete_directory",
-                queue_name=jobs.FILES_QUEUE,
-                project_id=self.project.id,
-                job_kwargs={
-                    "project_id": self.project.id,
-                    "path": str(self.path),
-                }
-            )
-        except Exception:
-            # If we couldn't enqueue background job, release the lock
-            lock_manager.release(self.project.id, self.storage_path)
-            raise
-
-        return task_id
 
     def delete(self):
         """Delete directory."""

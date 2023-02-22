@@ -11,6 +11,7 @@ from upload_rest_api.checksum import get_file_checksum
 from upload_rest_api.lock import lock_manager
 from upload_rest_api.models.resource import File, Directory
 from upload_rest_api.models.upload import Upload
+from upload_rest_api.jobs import UPLOAD_QUEUE, enqueue_background_job
 
 FILES_TUS_API_V1 = Blueprint(
     "files_tus_v1", __name__, url_prefix="/v1/files_tus"
@@ -107,7 +108,21 @@ def _store_files(workspace, resource, upload_type, calculated_algorithm=None,
     # right away. Source file verification can be skipped, because
     # it has already been verified during the upload.
     if upload_type == 'archive':
-        upload.enqueue_store_task(verify_source=False)
+        try:
+            enqueue_background_job(
+                task_func="upload_rest_api.jobs.upload.store_files",
+                task_id=upload.id,
+                queue_name=UPLOAD_QUEUE,
+                project_id=upload.project.id,
+                job_kwargs={
+                    "identifier": upload.id,
+                    "verify_source": False
+                }
+            )
+        except Exception:
+            # If we couldn't enqueue background job, release the lock
+            _release_lock(workspace)
+            raise
     else:
         upload.store_files(verify_source=False)
 
