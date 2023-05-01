@@ -17,7 +17,7 @@ lupa
 
 # Install requirements
 
-flask==1.1.2
+flask==2.3.2
 # itsdangerous 1.1.0 is available on centos7. Newest versions will cause
 # deprecation warnings with flask 1.1.2
 itsdangerous==1.1.0
