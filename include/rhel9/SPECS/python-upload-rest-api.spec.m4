@@ -1,0 +1,84 @@
+# vim:ft=spec
+
+%define file_prefix M4_FILE_PREFIX
+%define file_ext M4_FILE_EXT
+
+%define file_version M4_FILE_VERSION
+%define file_release_tag %{nil}M4_FILE_RELEASE_TAG
+%define file_release_number M4_FILE_RELEASE_NUMBER
+%define file_build_number M4_FILE_BUILD_NUMBER
+%define file_commit_ref M4_FILE_COMMIT_REF
+
+Name:           python-upload-rest-api
+Version:        %{file_version}
+Release:        %{file_release_number}%{file_release_tag}.%{file_build_number}.git%{file_commit_ref}%{?dist}
+Summary:        REST API for file uploads to passipservice.csc.fi
+Group:          Applications/Archiving
+License:        LGPLv3+
+URL:            http://www.csc.fi
+Source0:        %{file_prefix}-v%{file_version}%{?file_release_tag}-%{file_build_number}-g%{file_commit_ref}.%{file_ext}
+BuildArch:      noarch
+
+BuildRequires:  python3-devel
+BuildRequires:  pyproject-rpm-macros
+BuildRequires:  %{py3_dist mongobox}
+BuildRequires:  %{py3_dist fakeredis}
+BuildRequires:  %{py3_dist pip}
+BuildRequires:  %{py3_dist pytest}
+BuildRequires:  %{py3_dist pytest-mock}
+BuildRequires:  %{py3_dist requests_mock}
+BuildRequires:  %{py3_dist setuptools}
+BuildRequires:  %{py3_dist setuptools_scm}
+BuildRequires:  %{py3_dist wheel}
+
+%global _description %{expand:
+REST API for file uploads to passipservice.csc.fi
+}
+
+%description %_description
+
+%package -n python3-upload-rest-api
+Summary: %{summary}
+
+%description -n python3-upload-rest-api %_description
+
+
+%prep
+%autosetup -n %{file_prefix}-v%{file_version}%{?file_release_tag}-%{file_build_number}-g%{file_commit_ref}
+
+%build
+%pyproject_wheel
+
+%pre
+getent group %{user_group} >/dev/null || groupadd -f -g %{user_gid} -r %{user_group}
+if ! getent passwd %{user_name} >/dev/null ; then
+    if ! getent passwd %{user_uid} >/dev/null ; then
+      useradd -r -m -K UMASK=0027 -u %{user_uid} -g %{user_group} -s /sbin/nologin -c "upload-rest-api user" -d /var/lib/%{user_name} %{user_name}
+    else
+      useradd -r -g %{user_group} -s /sbin/nologin -c "upload-rest-api user" %{user_name}
+    fi
+fi
+
+usermod -aG %{user_group} %{user_name}
+
+%install
+%pyproject_install
+%pyproject_save_files upload-rest-api
+
+# Rename executable to prevent name collision with Python 2 RPM
+sed -i 's/\/bin\/upload-rest-api$/\/bin\/upload-rest-api-3/g' INSTALLED_FILES
+
+mv %{buildroot}%{_bindir}/upload-rest-api %{buildroot}%{_bindir}/upload-rest-api-3
+
+%post
+chown %{user_name}:%{user_group} /var/lib/%{user_name}
+chmod 770 /var/lib/%{user_name}
+
+%files -f INSTALLED_FILES
+%defattr(-,root,root,-)
+%config(noreplace) /etc/upload_rest_api.conf
+%attr(-,upload_rest_api,upload_rest_api) /var/spool/upload
+
+# TODO: For now changelog must be last, because it is generated automatically
+# from git log command. Appending should be fixed to happen only after %changelog macro
+%changelog
