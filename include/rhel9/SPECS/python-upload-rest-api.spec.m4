@@ -19,10 +19,11 @@ URL:            http://www.csc.fi
 Source0:        %{file_prefix}-v%{file_version}%{?file_release_tag}-%{file_build_number}-g%{file_commit_ref}.%{file_ext}
 BuildArch:      noarch
 
+
 BuildRequires:  python3-devel
 BuildRequires:  pyproject-rpm-macros
-BuildRequires:  %{py3_dist mongobox}
 BuildRequires:  %{py3_dist fakeredis}
+BuildRequires:  %{py3_dist mongobox}
 BuildRequires:  %{py3_dist pip}
 BuildRequires:  %{py3_dist pytest}
 BuildRequires:  %{py3_dist pytest-mock}
@@ -42,11 +43,11 @@ Summary: %{summary}
 
 %description -n python3-upload-rest-api %_description
 
-
 %prep
 %autosetup -n %{file_prefix}-v%{file_version}%{?file_release_tag}-%{file_build_number}-g%{file_commit_ref}
 
 %build
+export SETUPTOOLS_SCM_PRETEND_VERSION=%{file_version}
 %pyproject_wheel
 
 %pre
@@ -63,21 +64,19 @@ usermod -aG %{user_group} %{user_name}
 
 %install
 %pyproject_install
-%pyproject_save_files upload-rest-api
+%pyproject_save_files upload_rest_api
 
-# Rename executable to prevent name collision with Python 2 RPM
-sed -i 's/\/bin\/upload-rest-api$/\/bin\/upload-rest-api-3/g' INSTALLED_FILES
-
-mv %{buildroot}%{_bindir}/upload-rest-api %{buildroot}%{_bindir}/upload-rest-api-3
+# TODO: executables with "-3" suffix are added to maintain compatibility with our systems.
+# executables with "-3" suffix should be deprecated.
+cp %{buildroot}%{_bindir}/upload-rest-api %{buildroot}%{_bindir}/upload-rest-api-3
 
 %post
 chown %{user_name}:%{user_group} /var/lib/%{user_name}
 chmod 770 /var/lib/%{user_name}
 
-%files -f INSTALLED_FILES
-%defattr(-,root,root,-)
-%config(noreplace) /etc/upload_rest_api.conf
-%attr(-,upload_rest_api,upload_rest_api) /var/spool/upload
+%files -n python3-upload-rest-api -f %{pyproject_files}
+%{_bindir}/upload-rest-api
+%{_bindir}/upload-rest-api-3
 
 # TODO: For now changelog must be last, because it is generated automatically
 # from git log command. Appending should be fixed to happen only after %changelog macro
