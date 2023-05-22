@@ -66,6 +66,9 @@ usermod -aG %{user_group} %{user_name}
 %pyproject_install
 %pyproject_save_files upload_rest_api
 
+# Copy config file to /etc/upload_rest_api.cfg with correct permissions
+install -D -m 0644 include/etc/upload_rest_api.conf %{buildroot}%{_sysconfdir}/upload_rest_api.conf
+
 # TODO: executables with "-3" suffix are added to maintain compatibility with our systems.
 # executables with "-3" suffix should be deprecated.
 cp %{buildroot}%{_bindir}/upload-rest-api %{buildroot}%{_bindir}/upload-rest-api-3
@@ -77,6 +80,9 @@ chmod 770 /var/lib/%{user_name}
 %files -n python3-upload-rest-api -f %{pyproject_files}
 %{_bindir}/upload-rest-api
 %{_bindir}/upload-rest-api-3
+%config(noreplace) %{_sysconfdir}/upload_rest_api.conf
+%license LICENSE
+%doc README.rst
 
 # TODO: For now changelog must be last, because it is generated automatically
 # from git log command. Appending should be fixed to happen only after %changelog macro
