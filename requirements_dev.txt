@@ -17,11 +17,14 @@ lupa
 
 # Install requirements
 
-flask==1.1.2
+flask==1.1.2 ; python_version == '3.6'
 # itsdangerous 1.1.0 is available on centos7. Newest versions will cause
 # deprecation warnings with flask 1.1.2
-itsdangerous==1.1.0
-Werkzeug==1.0.1
+itsdangerous==1.1.0 ; python_version == '3.6'
+Werkzeug==1.0.1 ; python_version == '3.6'
+flask>=2.2.2 ; python_version >= '3.9'
+itsdangerous==2.1.2 ; python_version >= '3.9'
+Werkzeug>=2.2.2 ; python_version >= '3.9'
 pymongo==3.6.1
 
 # file-magic 0.4.1 is broken, since it requires a newer libmagic that CentOS 7
