@@ -40,6 +40,9 @@ REST API for file uploads to passipservice.csc.fi
 
 %package -n python3-upload-rest-api
 Summary: %{summary}
+Requires: %{py3_dist metax-access}
+Requires: %{py3_dist archive-helpers}
+Requires: %{py3_dist flask_tus_io}
 
 %description -n python3-upload-rest-api %_description
 
