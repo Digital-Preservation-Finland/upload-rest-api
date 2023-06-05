@@ -22,7 +22,7 @@ BuildArch:      noarch
 
 BuildRequires:  python3-devel
 BuildRequires:  pyproject-rpm-macros
-BuildRequires:  %{py3_dist fakeredis}
+BuildRequires:  %{py3_dist fakeredis[lua]}
 BuildRequires:  %{py3_dist mongobox}
 BuildRequires:  %{py3_dist pip}
 BuildRequires:  %{py3_dist pytest}
