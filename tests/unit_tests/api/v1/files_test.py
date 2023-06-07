@@ -402,7 +402,7 @@ def test_delete_file(app, test_auth, requests_mock, test_mongo, name):
     assert not os.path.isfile(fpath)
 
     # Check that file was removed from database
-    assert test_mongo.upload.files.count({}) == 0
+    assert test_mongo.upload.files.count_documents({}) == 0
 
     # Check that file was removed from Metax
     assert delete_files_api.called_once
