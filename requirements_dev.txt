@@ -2,15 +2,18 @@
 
 mongobox
 # Use pytest version that is available on centos7 to avoid deprecation warnings
-pytest==2.9.2
+pytest==2.9.2 ;python_version == '3.6'
+pytest ; python_version == '3.9'
 # Pytest-catchlog is required for pytest<3.3
-pytest-catchlog
-pytest-mock==1.10.4 # Newest versions probably won't work with old pytest
+pytest-catchlog ; python_version == '3.6'
+pytest-mock==1.10.4 ; python_version == '3.6' # Newest versions probably won't work with old pytest
+pytest-mock ; python_version == '3.9' #TARVIIKO TÄTÄ OLLENKAAN?
 # Pytest-warnings is required for pytest<3.1
-pytest-warnings
+pytest-warnings ; python_version == '3.6'
 # pytest-cov 2.5.1 is available for centos7. Newest versions are not compatible
 # with pytest 2.9.2
-pytest-cov==2.5.1
+pytest-cov==2.5.1 ; python_version == '3.6'
+pytest-cov ; python_version == '3.9'
 requests-mock
 fakeredis
 lupa
@@ -22,10 +25,12 @@ flask==1.1.2 ; python_version == '3.6'
 # deprecation warnings with flask 1.1.2
 itsdangerous==1.1.0 ; python_version == '3.6'
 Werkzeug==1.0.1 ; python_version == '3.6'
-flask>=2.2.2 ; python_version >= '3.9'
-itsdangerous==2.1.2 ; python_version >= '3.9'
-Werkzeug>=2.2.2 ; python_version >= '3.9'
-pymongo==3.6.1
+pymongo==3.6.1 ; python_version == '3.6'
+
+flask ; python_version == '3.9'
+itsdangerous ; python_version == '3.9'
+Werkzeug; python_version == '3.9'
+pymongo ; python_version == '3.9'
 
 # file-magic 0.4.1 is broken, since it requires a newer libmagic that CentOS 7
 # ships by default.
@@ -41,9 +46,7 @@ mongoengine
 #
 # Therefore, using redis version 4.2.0 must be prevented until pip is upgraded
 redis<4.2.0
-# RQ v1.9.0 is causing errors like:
-#    redis.exceptions.ResponseError: unknown command 'CLIENT'
-rq<1.9.0
+rq
 python-dateutil
 rehash
 click
