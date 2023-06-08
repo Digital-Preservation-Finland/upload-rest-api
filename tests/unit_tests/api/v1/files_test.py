@@ -4,6 +4,7 @@ import pathlib
 import shutil
 
 import pytest
+import pymongo
 from metax_access import (DS_STATE_TECHNICAL_METADATA_GENERATED,
                           DS_STATE_IN_DIGITAL_PRESERVATION)
 
@@ -401,8 +402,12 @@ def test_delete_file(app, test_auth, requests_mock, test_mongo, name):
                          "test_project", name)
     assert not os.path.isfile(fpath)
 
-    # Check that file was removed from database
-    assert test_mongo.upload.files.count_documents({}) == 0
+    # TODO remove support for pymongo 3.x when RHEL9 migration is done
+    if pymongo.__version__ <= "3.6.1":
+        assert test_mongo.upload.files.count({}) == 0
+    else:
+        # Check that file was removed from database
+        assert test_mongo.upload.files.count_documents({}) == 0
 
     # Check that file was removed from Metax
     assert delete_files_api.called_once
