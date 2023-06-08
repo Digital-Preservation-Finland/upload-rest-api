@@ -3,6 +3,7 @@ import os
 import pathlib
 import shutil
 import time
+import pymongo
 
 from datetime import datetime, timezone, timedelta
 
@@ -80,9 +81,14 @@ def test_expired_files(test_mongo, mock_config, requests_mock):
     assert not os.path.isfile(fpath_expired)
     assert os.path.isfile(fpath)
 
-    # The expired file should be removed from database
-    assert files.count_documents({"_id": fpath_expired}) == 0
-    assert files.count_documents({"_id": fpath}) == 1
+    # TODO remove support for pymongo 3.x when RHEL9 migration is done
+    if pymongo.__version__ <= "3.6.1":
+        assert files.count({"_id": fpath_expired}) == 0
+        assert files.count({"_id": fpath}) == 1
+    else:
+        # The expired file should be removed from database
+        assert files.count_documents({"_id": fpath_expired}) == 0
+        assert files.count_documents({"_id": fpath}) == 1
 
     # The metadata of expired file should be deleted from Metax
     assert delete_files_api.called_once
@@ -190,8 +196,14 @@ def test_cleaning_files_in_datasets(test_mongo, mock_config, requests_mock):
     # should be removed.
     assert os.path.isfile(fpath_pending)
     assert not os.path.isfile(fpath_preserved)
-    assert files.count_documents({"_id": fpath_pending}) == 1
-    assert files.count_documents({"_id": fpath_preserved}) == 0
+
+    # TODO remove support for pymongo 3.x when RHEL9 migration is done
+    if pymongo.__version__ <= "3.6.1":
+        assert files.count({"_id": fpath_pending}) == 1
+        assert files.count({"_id": fpath_preserved}) == 0
+    else:
+        assert files.count_documents({"_id": fpath_pending}) == 1
+        assert files.count_documents({"_id": fpath_preserved}) == 0
 
     # The metadata of any file should not be removed from Metax
     assert not delete_files_api.called
@@ -232,8 +244,12 @@ def test_all_files_expired(test_mongo, mock_config, requests_mock):
     assert project_path.exists()
     assert not any(project_path.iterdir())
 
-    # File should have been removed
-    assert files.count_documents({}) == 0
+    # TODO remove support for pymongo 3.x when RHEL9 migration is done
+    if pymongo.__version__ <= "3.6.1":
+        assert files.count() == 0
+    else:
+        # File should have been removed
+        assert files.count_documents({}) == 0
 
 
 def test_expired_tasks(test_mongo, mock_config):
@@ -255,7 +271,11 @@ def test_expired_tasks(test_mongo, mock_config):
     tasks.insert_one({"project_id": "project_4",
                       "timestamp": time.time(),
                       "status": 'pending'})
-    assert tasks.count_documents({}) == 4
+    # TODO remove support for pymongo 3.x when RHEL9 migration is done
+    if pymongo.__version__ <= "3.6.1":
+        assert tasks.count() == 4
+    else:
+        assert tasks.count_documents({}) == 4
 
     # Clean all tasks older than 1s
     clean.clean_mongo()
@@ -270,7 +290,11 @@ def test_expired_tasks(test_mongo, mock_config):
     assert projects[1] == "project_4"
     time.sleep(2)
     clean.clean_mongo()
-    assert tasks.count_documents({}) == 0
+    # TODO remove support for pymongo 3.x when RHEL9 migration is done
+    if pymongo.__version__ <= "3.6.1":
+        assert tasks.count({}) == 0
+    else:
+        assert tasks.count_documents({}) == 0
 
 
 def test_aborted_tus_uploads(app, test_mongo, test_client, test_auth):
@@ -312,7 +336,11 @@ def test_aborted_tus_uploads(app, test_mongo, test_client, test_auth):
     assert clean.clean_other_uploads() == 0
     deleted_count = clean.clean_tus_uploads()
     assert deleted_count == 2
-    assert test_mongo.upload.uploads.count_documents({}) == 3
+    # TODO remove support for pymongo 3.x when RHEL9 migration is done
+    if pymongo.__version__ == "3.6.1":
+        assert test_mongo.upload.uploads.count() == 3
+    else:
+        assert test_mongo.upload.uploads.count_documents({}) == 3
 
     # Pending uploads should be found in database, and their upload
     # paths should be locked

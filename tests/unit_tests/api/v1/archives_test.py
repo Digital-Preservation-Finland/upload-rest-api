@@ -4,6 +4,7 @@ import pathlib
 import filecmp
 
 import pytest
+import pymongo
 
 
 def _upload_file(client, url, auth, fpath):
@@ -89,8 +90,12 @@ def test_upload_archive(
     # Archive file is removed. Tmp directory should be empty.
     assert not any(upload_tmp_path.iterdir())
 
-    # file is added to database
-    assert files.count_documents({}) == 1
+    # TODO remove support for pymongo 3.x when RHEL9 migration is done.
+    if pymongo.__version__ <= "3.6.1":
+        assert files.count({}) == 1
+    else:
+        # file is added to database
+        assert files.count_documents({}) == 1
     document = files.find_one({"_id": str(text_file)})
     assert document['checksum'] == "150b62e4e7d58c70503bd5fc8a26463c"
     assert document['identifier'].startswith('urn:uuid:')
@@ -318,8 +323,12 @@ def test_upload_archive_multiple_archives(
     assert not archive_file1.is_file()
     assert not archive_file2.is_file()
 
-    # files are added to mongo
-    assert files.count_documents({}) == 2
+    # TODO remove support for pymongo 3.x when RHEL9 migration is done.
+    if pymongo.__version__ <= "3.6.1":
+        assert files.count() == 2
+    else:
+        # files are added to mongo
+        assert files.count_documents({}) == 2
     assert files.find_one({"_id": str(test_text_file)})
     assert files.find_one({"_id": str(test_2_text_file)})
 
@@ -361,8 +370,12 @@ def test_upload_invalid_archive(
     # archive file is removed
     assert not archive_file.is_file()
 
-    # no files are added to mongo
-    assert files.count_documents({}) == 0
+    # TODO remove pymongo 3.x support when RHEL9 migration is done.
+    if pymongo.__version__ <= "3.6.1":
+        assert files.count({}) == 0
+    else:
+        # no files are added to mongo
+        assert files.count_documents({}) == 0
 
 
 def test_upload_large_archive(app, test_auth, mock_config):
