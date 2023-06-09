@@ -82,7 +82,7 @@ def test_expired_files(test_mongo, mock_config, requests_mock):
     assert os.path.isfile(fpath)
 
     # TODO remove support for pymongo 3.x when RHEL9 migration is done
-    if pymongo.__version__ <= "3.6.1":
+    if pymongo.__version__ < "3.7":
         assert files.count({"_id": fpath_expired}) == 0
         assert files.count({"_id": fpath}) == 1
     else:
@@ -198,7 +198,7 @@ def test_cleaning_files_in_datasets(test_mongo, mock_config, requests_mock):
     assert not os.path.isfile(fpath_preserved)
 
     # TODO remove support for pymongo 3.x when RHEL9 migration is done
-    if pymongo.__version__ <= "3.6.1":
+    if pymongo.__version__ < "3.7":
         assert files.count({"_id": fpath_pending}) == 1
         assert files.count({"_id": fpath_preserved}) == 0
     else:
@@ -245,7 +245,7 @@ def test_all_files_expired(test_mongo, mock_config, requests_mock):
     assert not any(project_path.iterdir())
 
     # TODO remove support for pymongo 3.x when RHEL9 migration is done
-    if pymongo.__version__ <= "3.6.1":
+    if pymongo.__version__ < "3.7":
         assert files.count() == 0
     else:
         # File should have been removed
@@ -272,7 +272,7 @@ def test_expired_tasks(test_mongo, mock_config):
                       "timestamp": time.time(),
                       "status": 'pending'})
     # TODO remove support for pymongo 3.x when RHEL9 migration is done
-    if pymongo.__version__ <= "3.6.1":
+    if pymongo.__version__ < "3.7":
         assert tasks.count() == 4
     else:
         assert tasks.count_documents({}) == 4
@@ -291,7 +291,7 @@ def test_expired_tasks(test_mongo, mock_config):
     time.sleep(2)
     clean.clean_mongo()
     # TODO remove support for pymongo 3.x when RHEL9 migration is done
-    if pymongo.__version__ <= "3.6.1":
+    if pymongo.__version__ < "3.7":
         assert tasks.count() == 0
     else:
         assert tasks.count_documents({}) == 0
@@ -337,7 +337,7 @@ def test_aborted_tus_uploads(app, test_mongo, test_client, test_auth):
     deleted_count = clean.clean_tus_uploads()
     assert deleted_count == 2
     # TODO remove support for pymongo 3.x when RHEL9 migration is done
-    if pymongo.__version__ == "3.6.1":
+    if pymongo.__version__ < "3.7":
         assert test_mongo.upload.uploads.count() == 3
     else:
         assert test_mongo.upload.uploads.count_documents({}) == 3

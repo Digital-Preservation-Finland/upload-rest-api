@@ -91,7 +91,7 @@ def test_upload_archive(
     assert not any(upload_tmp_path.iterdir())
 
     # TODO remove support for pymongo 3.x when RHEL9 migration is done.
-    if pymongo.__version__ <= "3.6.1":
+    if pymongo.__version__ < "3.7":
         assert files.count({}) == 1
     else:
         # file is added to database
@@ -324,7 +324,7 @@ def test_upload_archive_multiple_archives(
     assert not archive_file2.is_file()
 
     # TODO remove support for pymongo 3.x when RHEL9 migration is done.
-    if pymongo.__version__ <= "3.6.1":
+    if pymongo.__version__ < "3.7":
         assert files.count() == 2
     else:
         # files are added to mongo
@@ -371,7 +371,7 @@ def test_upload_invalid_archive(
     assert not archive_file.is_file()
 
     # TODO remove pymongo 3.x support when RHEL9 migration is done.
-    if pymongo.__version__ <= "3.6.1":
+    if pymongo.__version__ < "3.7":
         assert files.count({}) == 0
     else:
         # no files are added to mongo

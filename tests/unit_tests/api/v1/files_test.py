@@ -403,7 +403,7 @@ def test_delete_file(app, test_auth, requests_mock, test_mongo, name):
     assert not os.path.isfile(fpath)
 
     # TODO remove support for pymongo 3.x when RHEL9 migration is done
-    if pymongo.__version__ <= "3.6.1":
+    if pymongo.__version__ < "3.7":
         assert test_mongo.upload.files.count({}) == 0
     else:
         # Check that file was removed from database
