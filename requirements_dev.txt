@@ -46,7 +46,10 @@ mongoengine
 #
 # Therefore, using redis version 4.2.0 must be prevented until pip is upgraded
 redis<4.2.0
-rq
+# RQ v1.9.0 is causing errors like:
+#    redis.exceptions.ResponseError: unknown command 'CLIENT'
+rq<1.9.0 ; python_version == "3.6"
+rq ; python_version > "3.6"
 python-dateutil
 rehash
 click
