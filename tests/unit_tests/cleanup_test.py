@@ -292,7 +292,7 @@ def test_expired_tasks(test_mongo, mock_config):
     clean.clean_mongo()
     # TODO remove support for pymongo 3.x when RHEL9 migration is done
     if pymongo.__version__ <= "3.6.1":
-        assert tasks.count({}) == 0
+        assert tasks.count() == 0
     else:
         assert tasks.count_documents({}) == 0
 
