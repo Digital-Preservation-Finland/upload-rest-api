@@ -1,6 +1,6 @@
 # Testing requirements
 
-mongobox
+mongobox @ git+https://github.com/theorm/mongobox@aba4175ed4fd60ea1259be7aa49102a06f488b1c
 # Use pytest version that is available on centos7 to avoid deprecation warnings
 pytest==2.9.2 ;python_version == '3.6'
 pytest ; python_version > '3.6'
