@@ -4,6 +4,7 @@ import hashlib
 import json
 import pickle
 
+import ssl
 import rehash
 
 from upload_rest_api.redis import get_redis_connection
@@ -17,6 +18,9 @@ HASH_FUNCTION_ALIASES = {
 
 # 4 hours, same as the workspace TTL for flask-tus-io
 CHECKSUM_CHECKPOINT_TTL = 4 * 60 * 60
+
+# rehash does not support OpenSSL 3 or newer
+REHASH_SUPPORTED = ssl.OPENSSL_VERSION_INFO[0] < 3
 
 
 def calculate_incr_checksum(algorithm, path, finalize=False):

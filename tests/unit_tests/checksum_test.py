@@ -1,6 +1,8 @@
 import pytest
 
-from upload_rest_api.checksum import calculate_incr_checksum, get_file_checksum
+from upload_rest_api.checksum import (calculate_incr_checksum,
+                                      get_file_checksum,
+                                      REHASH_SUPPORTED)
 
 
 @pytest.mark.parametrize(
@@ -40,6 +42,7 @@ def test_calculate_incr_checksum(
     Test calculating a file checksum incrementally and ensure the correct
     checksum is calculated at the end
     """
+
     file_chunks = [
         b"test ",
         b"file ",
@@ -55,19 +58,25 @@ def test_calculate_incr_checksum(
         with temp_file.open("ab") as file_:
             file_.write(chunk)
 
-        calculate_incr_checksum(
-            algorithm=algorithm,
-            path=temp_file
+        if REHASH_SUPPORTED:
+            calculate_incr_checksum(
+                algorithm=algorithm,
+                path=temp_file
+            )
+
+    if REHASH_SUPPORTED:
+        # Ensure the Redis checkpoint exists
+        assert mock_redis.exists(
+            f"upload-rest-api:checksum:{algorithm}:{temp_file}"
         )
 
-    # Ensure the Redis checkpoint exists
-    assert mock_redis.exists(
-        f"upload-rest-api:checksum:{algorithm}:{temp_file}"
-    )
-
-    checksum = calculate_incr_checksum(
-        algorithm=algorithm, path=temp_file, finalize=True
-    )
+        checksum = calculate_incr_checksum(
+            algorithm=algorithm, path=temp_file, finalize=True
+        )
+    else:
+        checksum = get_file_checksum(
+            algorithm=algorithm, path=temp_file
+        )
 
     assert checksum == expected_checksum
 
@@ -81,6 +90,10 @@ def test_calculate_incr_checksum_unrecognized():
     """
     Ensure that unknown checksum algorithm raises the expected error
     """
+    if not REHASH_SUPPORTED:
+        # We can't calculate incremental checksums without rehash.
+        return
+
     with pytest.raises(ValueError) as exc:
         calculate_incr_checksum(
             algorithm="blake3",

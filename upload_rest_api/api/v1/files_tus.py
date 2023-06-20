@@ -5,7 +5,9 @@ from flask import Blueprint, abort
 
 from upload_rest_api.authentication import current_user
 from upload_rest_api.checksum import (HASH_FUNCTION_ALIASES,
+                                      REHASH_SUPPORTED,
                                       calculate_incr_checksum)
+from upload_rest_api.checksum import get_file_checksum
 from upload_rest_api.lock import lock_manager
 from upload_rest_api.models.resource import File, Directory
 from upload_rest_api.models.upload import Upload
@@ -79,8 +81,13 @@ def _upload_started(workspace, resource):
 def _store_files(workspace, resource, upload_type):
     """Start the extraction job for an uploaded archive."""
     project_id = resource.upload_metadata["project_id"]
-    checksum = calculate_incr_checksum(algorithm='md5',
-                                       path=resource.upload_file_path)
+    if REHASH_SUPPORTED:
+        checksum = calculate_incr_checksum(algorithm='md5',
+                                           path=resource.upload_file_path)
+    try:
+        checksum = md5_checksum
+    except:
+        checksum = get_file_checksum(algorithm="md5", path=resource.upload_file_path)
 
     try:
         upload = Upload.get(
@@ -121,6 +128,10 @@ def _get_checksum_tuple(checksum):
 
 
 def _chunk_upload_completed(workspace, resource):
+    if not REHASH_SUPPORTED:
+        # We can't calculate incremental checksums without rehash.
+        return
+
     """
     Process the received chunk, calculating both the MD5 checksum and
     the optional user-provided algorithm incrementally
@@ -160,14 +171,22 @@ def _check_upload_integrity(resource, workspace, checksum):
     """
     try:
         algorithm, expected_checksum = _get_checksum_tuple(checksum)
-
-        calculated_checksum = calculate_incr_checksum(
-            algorithm=algorithm,
-            path=resource.upload_file_path,
-            # Don't delete the progress if it's a MD5 checksum, as we'll
-            # later use it for the checksum in our database
-            finalize=bool(checksum != "md5")
-        )
+        if REHASH_SUPPORTED:
+            calculated_checksum = calculate_incr_checksum(
+                algorithm=algorithm,
+                path=resource.upload_file_path,
+                # Don't delete the progress if it's a MD5 checksum, as we'll
+                # later use it for the checksum in our database
+                finalize=bool(checksum != "md5")
+            )
+        else:
+            calculated_checksum = get_file_checksum(
+                algorithm=algorithm,
+                path=resource.upload_file_path
+            )
+            if calculated_checksum.lower() == "md5":
+                global md5_checksum
+                md5_checksum = calculated_checksum
 
         if calculated_checksum != expected_checksum:
             abort(400, "Upload checksum mismatch")
