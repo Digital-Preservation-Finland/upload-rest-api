@@ -15,7 +15,9 @@ pytest-warnings ; python_version == '3.6'
 pytest-cov==2.5.1 ; python_version == '3.6'
 pytest-cov ; python_version > '3.6'
 requests-mock
-fakeredis
+# Fakeredis version 2.11 and newer are incompatible with newest redis. 
+# Therefore, using fakeredis version 2.11 or higher must be prevented for now.
+fakeredis<2.11
 lupa
 
 # Install requirements
@@ -45,11 +47,12 @@ mongoengine
 #    AttributeError: 'FakeStrictRedis' object has no attribute 'connection_pool'
 #
 # Therefore, using redis version 4.2.0 must be prevented until pip is upgraded
-redis<4.2.0
+redis<4.2.0 ; python_version == '3.6'
+redis ; python_version > '3.6'
 # RQ v1.9.0 is causing errors like:
 #    redis.exceptions.ResponseError: unknown command 'CLIENT'
-rq<1.9.0 ; python_version == "3.6"
-rq ; python_version > "3.6"
+rq<1.9.0 ; python_version == '3.6'
+rq ; python_version > '3.6'
 python-dateutil
 rehash
 click
