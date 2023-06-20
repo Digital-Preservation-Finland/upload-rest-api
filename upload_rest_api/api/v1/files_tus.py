@@ -78,16 +78,17 @@ def _upload_started(workspace, resource):
         raise
 
 
-def _store_files(workspace, resource, upload_type):
+def _store_files(workspace, resource, upload_type, algorithm=None, checksum=None):
     """Start the extraction job for an uploaded archive."""
     project_id = resource.upload_metadata["project_id"]
     if REHASH_SUPPORTED:
         checksum = calculate_incr_checksum(algorithm='md5',
                                            path=resource.upload_file_path)
-    try:
-        checksum = md5_checksum
-    except:
-        checksum = get_file_checksum(algorithm="md5", path=resource.upload_file_path)
+    elif algorithm == "md5":
+        checksum == checksum
+    else:
+        checksum = get_file_checksum(algorithm="md5",
+                                     path=resource.upload_file_path)
 
     try:
         upload = Upload.get(
@@ -184,9 +185,6 @@ def _check_upload_integrity(resource, workspace, checksum):
                 algorithm=algorithm,
                 path=resource.upload_file_path
             )
-            if calculated_checksum.lower() == "md5":
-                global md5_checksum
-                md5_checksum = calculated_checksum
 
         if calculated_checksum != expected_checksum:
             abort(400, "Upload checksum mismatch")
@@ -195,6 +193,8 @@ def _check_upload_integrity(resource, workspace, checksum):
         _delete_workspace(workspace)
         raise
 
+    return algorithm, calculated_checksum
+
 
 def _upload_completed(workspace, resource):
     """Callback function called when an upload is finished."""
@@ -202,17 +202,19 @@ def _upload_completed(workspace, resource):
 
     checksum = resource.upload_metadata.get("checksum", None)
 
-    if checksum:
-        _check_upload_integrity(
-            resource=resource, workspace=workspace, checksum=checksum
-        )
-
     if upload_type not in ['file', 'archive']:
         raise werkzeug.exceptions.BadRequest(
             f"Unknown upload type '{upload_type}'"
         )
 
-    _store_files(workspace, resource, upload_type)
+    if checksum:
+        algorithm, calculated_checksum = _check_upload_integrity(
+            resource=resource, workspace=workspace, checksum=checksum
+        )
+
+        _store_files(workspace, resource, upload_type, algorithm, calculated_checksum)
+    else:
+        _store_files(workspace, resource, upload_type)
 
 
 def tus_event_handler(event_type, workspace, resource):
