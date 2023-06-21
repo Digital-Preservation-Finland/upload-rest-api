@@ -78,14 +78,15 @@ def _upload_started(workspace, resource):
         raise
 
 
-def _store_files(workspace, resource, upload_type, algorithm=None, checksum=None):
+def _store_files(workspace, resource, upload_type, calculated_algorithm=None,
+                 calculated_checksum=None):
     """Start the extraction job for an uploaded archive."""
     project_id = resource.upload_metadata["project_id"]
     if REHASH_SUPPORTED:
         checksum = calculate_incr_checksum(algorithm='md5',
                                            path=resource.upload_file_path)
-    elif algorithm == "md5":
-        checksum == checksum
+    elif calculated_algorithm == "md5":
+        checksum == calculated_checksum
     else:
         checksum = get_file_checksum(algorithm="md5",
                                      path=resource.upload_file_path)
@@ -208,11 +209,12 @@ def _upload_completed(workspace, resource):
         )
 
     if checksum:
-        algorithm, calculated_checksum = _check_upload_integrity(
+        calculated_algorithm, calculated_checksum = _check_upload_integrity(
             resource=resource, workspace=workspace, checksum=checksum
         )
 
-        _store_files(workspace, resource, upload_type, algorithm, calculated_checksum)
+        _store_files(workspace, resource, upload_type, calculated_algorithm,
+                     calculated_checksum)
     else:
         _store_files(workspace, resource, upload_type)
 
