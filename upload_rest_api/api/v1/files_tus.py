@@ -130,14 +130,14 @@ def _get_checksum_tuple(checksum):
 
 
 def _chunk_upload_completed(workspace, resource):
-    if not REHASH_SUPPORTED:
-        # We can't calculate incremental checksums without rehash.
-        return
-
     """
     Process the received chunk, calculating both the MD5 checksum and
     the optional user-provided algorithm incrementally
     """
+    if not REHASH_SUPPORTED:
+        # We can't calculate incremental checksums without rehash.
+        return
+
     try:
         # Always calculate the MD5 checksum since that's what we'll
         # save into our database
