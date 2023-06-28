@@ -14,7 +14,7 @@ Version:        %{file_version}
 Release:        %{file_release_number}%{file_release_tag}.%{file_build_number}.git%{file_commit_ref}%{?dist}
 Summary:        REST API for file uploads to passipservice.csc.fi
 License:        LGPLv3+
-URL:            http://www.csc.fi
+URL:            http://www.digitalpreservation.fi
 Source0:        %{file_prefix}-v%{file_version}%{?file_release_tag}-%{file_build_number}-g%{file_commit_ref}.%{file_ext}
 BuildArch:      noarch
 
