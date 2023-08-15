@@ -13,6 +13,7 @@ from upload_rest_api.api.v1.tasks import get_polling_url
 from upload_rest_api.authentication import current_user
 from upload_rest_api.models.upload import Upload
 from upload_rest_api.models.resource import get_resource, File
+from upload_rest_api.config import CONFIG
 
 FILES_API_V1 = Blueprint("files_v1", __name__, url_prefix="/v1/files")
 
@@ -161,3 +162,7 @@ def delete_path(project_id, fpath):
         response.status_code = 202
 
     return response
+
+@FILES_API_V1.route("/get_size_limit", methods=["GET"])
+def get_file_size_limit():
+    return jsonify({"file_size_limit": CONFIG["MAX_CONTENT_LENGTH"]})
