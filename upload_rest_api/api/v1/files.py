@@ -163,6 +163,7 @@ def delete_path(project_id, fpath):
 
     return response
 
+
 @FILES_API_V1.route("/get_size_limit", methods=["GET"])
 def get_file_size_limit():
     return jsonify({"file_size_limit": CONFIG["MAX_CONTENT_LENGTH"]})
