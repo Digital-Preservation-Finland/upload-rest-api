@@ -764,3 +764,10 @@ def test_no_rights(test_auth2, test_client, method, url):
     response = test_client.open(url, method=method, headers=test_auth2)
 
     assert response.status_code == 403
+
+
+def test_file_size_limit(test_client, test_auth):
+    """Test accessing the file size limit."""
+    response = test_client.open("/v1/files/get_size_limit", headers=test_auth)
+    assert response.status_code == 200
+    assert response.json["file_size_limit"] == 50 * 1024**3
