@@ -17,7 +17,8 @@ pytest-cov ; python_version > '3.6'
 requests-mock
 # Fakeredis version 2.11 and newer are incompatible with newest redis. 
 # Therefore, using fakeredis version 2.11 or higher must be prevented for now.
-fakeredis<2.11
+fakeredis<2.11 ; python_version == '3.6'
+fakeredis ; python_version > '3.6'
 lupa
 
 # Install requirements
