@@ -9,6 +9,11 @@
 %define file_build_number M4_FILE_BUILD_NUMBER
 %define file_commit_ref M4_FILE_COMMIT_REF
 
+%define user_name upload_rest_api
+%define user_group upload_rest_api
+%define user_gid 336
+%define user_uid 336
+
 Name:           python-upload-rest-api
 Version:        %{file_version}
 Release:        %{file_release_number}%{file_release_tag}.%{file_build_number}.git%{file_commit_ref}%{?dist}
@@ -52,7 +57,7 @@ Requires: %{py3_dist flask_tus_io}
 export SETUPTOOLS_SCM_PRETEND_VERSION=%{file_version}
 %pyproject_wheel
 
-%pre
+%pre -n python3-upload-rest-api
 getent group %{user_group} >/dev/null || groupadd -f -g %{user_gid} -r %{user_group}
 if ! getent passwd %{user_name} >/dev/null ; then
     if ! getent passwd %{user_uid} >/dev/null ; then
@@ -75,7 +80,7 @@ install -D -m 0644 include/etc/upload_rest_api.conf %{buildroot}%{_sysconfdir}/u
 # executables with "-3" suffix should be deprecated.
 cp %{buildroot}%{_bindir}/upload-rest-api %{buildroot}%{_bindir}/upload-rest-api-3
 
-%post
+%post -n python3-upload-rest-api
 chown %{user_name}:%{user_group} /var/lib/%{user_name}
 chmod 770 /var/lib/%{user_name}
 
