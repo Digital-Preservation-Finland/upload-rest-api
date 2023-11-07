@@ -43,7 +43,7 @@ def upload_file(project_id, fpath):
     if not current_user.is_allowed_to_access_project(project_id):
         abort(403, "No permission to access this project")
 
-    if request.content_type not in ('application/octet-stream', None):
+    if request.content_type not in ('application/octet-stream', None, ''):
         raise werkzeug.exceptions.UnsupportedMediaType(
             f"Unsupported Content-Type: {request.content_type}"
         )
