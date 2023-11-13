@@ -65,7 +65,7 @@ def upload_archive(project_id):
             "status": "pending"
         }
     )
-    response.headers[b'Location'] = get_polling_url(task_id)
+    response.headers['Location'] = get_polling_url(task_id)
     response.status_code = 202
 
     return response

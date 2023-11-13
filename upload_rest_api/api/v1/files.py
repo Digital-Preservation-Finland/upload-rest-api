@@ -182,7 +182,7 @@ def delete_path(project_id, fpath):
             "polling_url": polling_url,
             "status": "pending"
         })
-        response.headers[b'Location'] = polling_url
+        response.headers['Location'] = polling_url
         response.status_code = 202
 
     return response
