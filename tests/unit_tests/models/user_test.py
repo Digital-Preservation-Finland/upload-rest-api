@@ -78,7 +78,7 @@ def test_create_user(projects):
     assert len(user.digest) == 64
 
     if projects:
-        assert set(project.id for project in user.projects) == set(projects)
+        assert {project.id for project in user.projects} == set(projects)
     else:
         assert not list(user.projects)
 

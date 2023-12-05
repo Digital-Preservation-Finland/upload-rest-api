@@ -592,7 +592,7 @@ def test_delete_directory(
     # Expected files should have been deleted from Metax
     assert delete_files_api.called_once
     deleted_identifiers = delete_files_api.request_history[0].json()
-    assert set(all_file_identifiers[file] for file in files_to_delete) \
+    assert {all_file_identifiers[file] for file in files_to_delete} \
         == set(deleted_identifiers)
 
 

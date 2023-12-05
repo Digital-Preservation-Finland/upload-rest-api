@@ -302,7 +302,7 @@ def test_delete_metadata(
     else:
         assert not files_dict
 
-    response = requests.delete("{}/rest/datasets/{}".format(URL, dataset_id),
+    response = requests.delete(f"{URL}/rest/datasets/{dataset_id}",
                                auth=(USER, PASSWORD),
                                verify=False)
     assert response.status_code == 204

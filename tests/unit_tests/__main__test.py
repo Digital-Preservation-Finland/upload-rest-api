@@ -280,9 +280,9 @@ def test_grant_user_projects(command_runner):
 
     user = User.get(username="test")
 
-    assert set(project.id for project in user.projects) == set(
-        ["test_project", "test_project_2", "test_project_3"]
-    )
+    assert {project.id for project in user.projects} == {
+        "test_project", "test_project_2", "test_project_3"
+    }
     assert result.output == (
         "Granted user 'test' access to project(s): "
         "test_project_2, test_project_3\n"

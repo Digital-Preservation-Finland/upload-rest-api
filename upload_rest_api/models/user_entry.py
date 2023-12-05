@@ -12,10 +12,10 @@ def _validate_projects(projects):
         return
 
     projects = set(projects)
-    existing_projects = set(
+    existing_projects = {
         project.id for project in
         ProjectEntry.objects.filter(id__in=projects).only("id")
-    )
+    }
 
     missing_projects = projects - existing_projects
 
