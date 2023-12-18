@@ -87,7 +87,7 @@ def _store_files(workspace, resource, upload_type, calculated_algorithm=None,
         checksum = calculate_incr_checksum(algorithm='md5',
                                            path=resource.upload_file_path)
     elif calculated_algorithm == "md5":
-        checksum == calculated_checksum
+        checksum = calculated_checksum
     else:
         checksum = get_file_checksum(algorithm="md5",
                                      path=resource.upload_file_path)
