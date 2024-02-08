@@ -2,21 +2,31 @@ Pre-ingest filestorage
 ======================
 Temporary filestorage service for datasets to be packaged by packaging service. Provides REST API for file uploads.
 
+Requirements
+------------
+
+Installation and usage requires Python 3.9 or newer.
+The software is tested with Python 3.9 on AlmaLinux 9 release.
+
+Installation using RPM packages (preferred)
+-------------------------------------------
+
+Installation on Linux distributions is done by using the RPM Package Manager.
+See how to `configure the PAS-jakelu RPM repositories`_ to setup necessary software sources.
+
+.. _configure the PAS-jakelu RPM repositories: https://www.digitalpreservation.fi/user_guide/installation_of_tools 
+
+After the repository has been added, the package can be installed by running the following command::
+
+    sudo dnf install python3-upload-rest-api
+
 Usage
 -----
-Development
-^^^^^^^^^^^
+
 Copy configuration file `include/etc/upload_rest_api.conf` to /etc/. Edit
 MongoDB, Redis, and Metax configuration according to your system. Ensure that
 filestorage service app has read&write permissions to directories configured in
 configuration file.
-
-Create virtual environment and install requirements::
-
-    virtualenv .venv
-    source .venv/bin/activate
-    pip install --upgrade pip
-    pip install -r requirements_dev.txt
 
 Start local development/test server::
 
@@ -43,6 +53,27 @@ GET file::
 DELETE file::
 
     curl -X DELETE -u <user>:<password> localhost:5000/v1/files/<project>/<path-to-file-on-server>
+
+
+Installation using Python Virtualenv for development purposes
+-------------------------------------------------------------
+
+Create a virtual environment::
+    
+    python3 -m venv venv
+
+Run the following to activate the virtual environment::
+
+    source venv/bin/activate
+
+Install the required software with commands::
+
+    pip install --upgrade pip==20.2.4 setuptools
+    pip install -r requirements_dev.txt
+    pip install .
+
+To deactivate the virtual environment, run ``deactivate``.
+To reactivate it, run the ``source`` command above.
 
 Copyright
 ---------
