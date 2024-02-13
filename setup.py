@@ -17,7 +17,6 @@ def main():
             "redis",
             "rq",
             "python-dateutil",
-            "rehash",
             "click",
             "mongoengine",
         ],

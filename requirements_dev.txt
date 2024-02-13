@@ -54,7 +54,6 @@ redis ; python_version > '3.6'
 rq<1.9.0 ; python_version == '3.6'
 rq ; python_version > '3.6'
 python-dateutil
-rehash
 click
 
 git+https://gitlab.ci.csc.fi/dpres/metax-access.git@develop#egg=metax_access

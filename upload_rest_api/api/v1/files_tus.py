@@ -4,14 +4,11 @@ import werkzeug
 from flask import Blueprint, abort
 
 from upload_rest_api.authentication import current_user
-from upload_rest_api.checksum import (HASH_FUNCTION_ALIASES,
-                                      REHASH_SUPPORTED,
-                                      calculate_incr_checksum)
-from upload_rest_api.checksum import get_file_checksum
-from upload_rest_api.lock import lock_manager
-from upload_rest_api.models.resource import File, Directory
-from upload_rest_api.models.upload import Upload
+from upload_rest_api.checksum import HASH_FUNCTION_ALIASES, get_file_checksum
 from upload_rest_api.jobs import UPLOAD_QUEUE, enqueue_background_job
+from upload_rest_api.lock import lock_manager
+from upload_rest_api.models.resource import Directory, File
+from upload_rest_api.models.upload import Upload
 
 FILES_TUS_API_V1 = Blueprint(
     "files_tus_v1", __name__, url_prefix="/v1/files_tus"
@@ -83,10 +80,7 @@ def _store_files(workspace, resource, upload_type, calculated_algorithm=None,
                  calculated_checksum=None):
     """Start the extraction job for an uploaded archive."""
     project_id = resource.upload_metadata["project_id"]
-    if REHASH_SUPPORTED:
-        checksum = calculate_incr_checksum(algorithm='md5',
-                                           path=resource.upload_file_path)
-    elif calculated_algorithm == "md5":
+    if calculated_algorithm == "md5":
         checksum = calculated_checksum
     else:
         checksum = get_file_checksum(algorithm="md5",
@@ -144,43 +138,6 @@ def _get_checksum_tuple(checksum):
     return algorithm, expected_checksum
 
 
-def _chunk_upload_completed(workspace, resource):
-    """
-    Process the received chunk, calculating both the MD5 checksum and
-    the optional user-provided algorithm incrementally
-    """
-    if not REHASH_SUPPORTED:
-        # We can't calculate incremental checksums without rehash.
-        return
-
-    try:
-        # Always calculate the MD5 checksum since that's what we'll
-        # save into our database
-        calculate_incr_checksum(
-            algorithm="md5",
-            path=resource.upload_file_path
-        )
-
-        checksum = resource.metadata.get("checksum", None)
-
-        if not checksum or checksum.lower() == "md5":
-            return
-
-        algorithm, _ = _get_checksum_tuple(checksum)
-
-        # Calculate the checksum up to the current end; the function
-        # will save the current progress and resume where it left off
-        # later.
-        calculate_incr_checksum(
-            algorithm=algorithm,
-            path=resource.upload_file_path
-        )
-    except Exception:
-        _release_lock(workspace)
-        _delete_workspace(workspace)
-        raise
-
-
 def _check_upload_integrity(resource, workspace, checksum):
     """
     Check the integrity of an upload by comparing the user provided
@@ -188,19 +145,10 @@ def _check_upload_integrity(resource, workspace, checksum):
     """
     try:
         algorithm, expected_checksum = _get_checksum_tuple(checksum)
-        if REHASH_SUPPORTED:
-            calculated_checksum = calculate_incr_checksum(
-                algorithm=algorithm,
-                path=resource.upload_file_path,
-                # Don't delete the progress if it's a MD5 checksum, as we'll
-                # later use it for the checksum in our database
-                finalize=bool(checksum != "md5")
-            )
-        else:
-            calculated_checksum = get_file_checksum(
-                algorithm=algorithm,
-                path=resource.upload_file_path
-            )
+        calculated_checksum = get_file_checksum(
+            algorithm=algorithm,
+            path=resource.upload_file_path
+        )
 
         if calculated_checksum != expected_checksum:
             abort(400, "Upload checksum mismatch")
@@ -246,7 +194,6 @@ def tus_event_handler(event_type, workspace, resource):
     callbacks = {
         "upload-started": _upload_started,
         "upload-completed": _upload_completed,
-        "chunk-upload-completed": _chunk_upload_completed,
     }
 
     if event_type in callbacks:
