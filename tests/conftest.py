@@ -77,6 +77,11 @@ def mock_config(monkeypatch, upload_tmpdir, test_mongo):
     monkeypatch.setitem(CONFIG, "UPLOAD_LOCK_TTL", 30)
     monkeypatch.setitem(CONFIG, "UPLOAD_LOCK_TIMEOUT", 1)
 
+    # Uploads of 64 MB or larger will be finished in a background task
+    monkeypatch.setitem(
+        CONFIG, "UPLOAD_ASYNC_THRESHOLD_BYTES", 64 * 1024 * 1024
+    )
+
     monkeypatch.setitem(CONFIG, "TUS_API_SPOOL_PATH", str(temp_tus_path))
 
     monkeypatch.setitem(CONFIG, "MONGO_HOST", test_mongo.address[0])
@@ -255,7 +260,7 @@ def app(test_mongo, mock_config, monkeypatch):
 
     # Initialize database.
     test_mongo.drop_database("upload")
-    Project.create(identifier="test_project", quota=1000000)
+    Project.create(identifier="test_project", quota=128 * 1024 * 1024)
     Project.create(identifier="test_project2", quota=12345678)
 
     monkeypatch.setattr("pymongo.MongoClient", lambda *args: test_mongo)
@@ -290,7 +295,9 @@ def user(test_mongo):
 def project():
     """Initialize and return a project dict
     """
-    project = Project.create(identifier="test_project")
+    project = Project.create(
+        identifier="test_project", quota=256 * 1024 * 1024
+    )
     return project
 
 

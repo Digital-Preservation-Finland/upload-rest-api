@@ -4,7 +4,8 @@ import werkzeug
 from flask import Blueprint, abort
 
 from upload_rest_api.authentication import current_user
-from upload_rest_api.checksum import HASH_FUNCTION_ALIASES, get_file_checksum
+from upload_rest_api.checksum import HASH_FUNCTION_ALIASES, get_file_checksums
+from upload_rest_api.config import CONFIG
 from upload_rest_api.jobs import UPLOAD_QUEUE, enqueue_background_job
 from upload_rest_api.lock import lock_manager
 from upload_rest_api.models.resource import Directory, File
@@ -79,28 +80,11 @@ def _upload_started(workspace, resource):
 def _store_files(workspace, resource, upload_type, calculated_algorithm=None,
                  calculated_checksum=None):
     """Start the extraction job for an uploaded archive."""
-    project_id = resource.upload_metadata["project_id"]
-    if calculated_algorithm == "md5":
-        checksum = calculated_checksum
-    else:
-        checksum = get_file_checksum(algorithm="md5",
-                                     path=resource.upload_file_path)
-
-    try:
-        upload = Upload.get(
-            id=resource.identifier,
-            project=project_id
-        )
-        upload.add_source(resource.upload_file_path, checksum)
-
-    finally:
-        # Delete the tus-specific workspace regardless of the
-        # outcome.
-        _delete_workspace(workspace)
+    upload = Upload.get(id=resource.identifier)
 
     # Enqueue background job for storing archive, or store single file
     # right away. Source file verification can be skipped, because
-    # it has already been verified during the upload.
+    # it was verified before this method.
     if upload_type == 'archive':
         try:
             enqueue_background_job(
@@ -125,6 +109,9 @@ def _get_checksum_tuple(checksum):
     """
     Return a (algorithm, checksum) tuple from a "checksum" tus metadata value
     """
+    if checksum is None:
+        return None, None
+
     # The 'checksum' tus field has the syntax
     # '<algorithm>:<hex_checksum>'.
     try:
@@ -138,26 +125,41 @@ def _get_checksum_tuple(checksum):
     return algorithm, expected_checksum
 
 
-def _check_upload_integrity(resource, workspace, checksum):
+def _calculate_upload_checksum(resource, workspace, checksum):
     """
-    Check the integrity of an upload by comparing the user provided
-    checksum against the calculated checksum
+    Calculate the MD5 checksum and save it. If user also provided their own
+    checksum, check the integrity of an upload by comparing the user provided
+    checksum against the calculated checksum.
     """
+    algorithms = set(["md5"])
     try:
-        algorithm, expected_checksum = _get_checksum_tuple(checksum)
-        calculated_checksum = get_file_checksum(
-            algorithm=algorithm,
+        upload = Upload.get(id=resource.identifier)
+
+        source_algorithm, expected_checksum = _get_checksum_tuple(checksum)
+        if source_algorithm:
+            algorithms.add(source_algorithm.lower())
+
+        calculated_checksums = get_file_checksums(
+            algorithms=algorithms,
             path=resource.upload_file_path
         )
 
-        if calculated_checksum != expected_checksum:
+        checksum_correct = (
+            not source_algorithm
+            or calculated_checksums[source_algorithm] == expected_checksum
+        )
+        if not checksum_correct:
+            # User provided checksum but it didn't match what we calculated
             abort(400, "Upload checksum mismatch")
+
+        # Save the MD5 checksum which we always calculate
+        upload.add_source(
+            resource.upload_file_path, checksum=calculated_checksums["md5"]
+        )
     except Exception:
         _release_lock(workspace)
         _delete_workspace(workspace)
         raise
-
-    return algorithm, calculated_checksum
 
 
 def _upload_completed(workspace, resource):
@@ -171,14 +173,36 @@ def _upload_completed(workspace, resource):
             f"Unknown upload type '{upload_type}'"
         )
 
-    if checksum:
-        calculated_algorithm, calculated_checksum = _check_upload_integrity(
+    if resource.bytes_uploaded >= CONFIG["UPLOAD_ASYNC_THRESHOLD_BYTES"]:
+        # Perform checksum calculation asynchronously
+        try:
+            source_checksum_algorithm, source_checksum = _get_checksum_tuple(
+                checksum
+            )
+            enqueue_background_job(
+                task_func=(
+                    "upload_rest_api.jobs.upload.calculate_upload_checksum"
+                ),
+                task_id=resource.identifier,
+                queue_name=UPLOAD_QUEUE,
+                project_id=resource.upload_metadata["project_id"],
+                job_kwargs={
+                    "identifier": resource.identifier,
+                    "path": workspace.path,
+                    "source_checksum_algorithm": source_checksum_algorithm,
+                    "source_checksum": source_checksum,
+                }
+            )
+        except Exception:
+            # If we couldn't enqueue background job, release the lock
+            _release_lock(workspace)
+            raise
+    else:
+        # Perform checksum calculation synchronously
+        _calculate_upload_checksum(
             resource=resource, workspace=workspace, checksum=checksum
         )
 
-        _store_files(workspace, resource, upload_type, calculated_algorithm,
-                     calculated_checksum)
-    else:
         _store_files(workspace, resource, upload_type)
 
 

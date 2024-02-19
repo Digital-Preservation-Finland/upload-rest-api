@@ -56,7 +56,8 @@ def _do_tus_upload(
 
     assert resp.status_code == expected_status
 
-    return resp
+    # Return the response and the upload identifier
+    return resp, location.split("/")[-1]
 
 
 @pytest.mark.usefixtures("project")
@@ -133,6 +134,7 @@ def test_upload_file(app, test_auth, test_mongo, name, requests_mock):
                          "files": [f"/{name}"]}
 
 
+
 @pytest.mark.usefixtures("project", "mock_redis")
 def test_upload_file_checksum(test_client, test_auth, requests_mock):
     """Test uploading a file with a checksum.
@@ -160,7 +162,7 @@ def test_upload_file_checksum(test_client, test_auth, requests_mock):
     }
 
     # First upload with correct checksum succeeds
-    response = _do_tus_upload(
+    _do_tus_upload(
         test_client=test_client,
         upload_metadata=upload_metadata,
         auth=test_auth,
@@ -176,7 +178,7 @@ def test_upload_file_checksum(test_client, test_auth, requests_mock):
         "f30e3a5a2e29741c3aedb2cf696a155bbd"
     )
 
-    response = _do_tus_upload(
+    response, _ = _do_tus_upload(
         test_client=test_client,
         upload_metadata=upload_metadata,
         auth=test_auth,
@@ -274,7 +276,7 @@ def test_upload_file_checksum_incorrect_syntax(test_client, test_auth):
         "checksum": "f96ab43c95b09f803870f8cbf83e"
     }
 
-    resp = _do_tus_upload(
+    resp, _ = _do_tus_upload(
         test_client=test_client,
         upload_metadata=upload_metadata,
         auth=test_auth,
@@ -305,7 +307,7 @@ def test_upload_file_checksum_unknown_algorithm(test_client, test_auth):
         )
     }
 
-    resp = _do_tus_upload(
+    resp, _ = _do_tus_upload(
         test_client=test_client,
         upload_metadata=upload_metadata,
         auth=test_auth,
@@ -409,6 +411,100 @@ def test_upload_file_exceed_quota(test_client, test_auth, requests_mock):
 
     assert resp.status_code == 413
     assert resp.json["error"] == "Quota exceeded"
+
+
+@pytest.mark.usefixtures("project")
+def test_upload_large_file(test_client, test_auth, test_mongo, requests_mock):
+    """
+    Test uploading a large file.
+
+    Finalizing the upload (checksum calculation and storing the file)
+    is done in a background task for large files.
+    """
+    # Mock metax
+    requests_mock.post('/rest/v2/files/', json={})
+    requests_mock.get('/rest/v2/files', json={'results': [], 'next': None})
+
+    # Upload file
+    file_content = b"A" * (128 * 1024 * 1024)
+    upload_metadata = {
+        "type": "file",
+        "project_id": "test_project",
+        "checksum": "sha2:eadaaf6bbacea8cabc6b4c3def3d1e4c76577249c01c0065bd9dd78a1c5a47b5",
+        "filename": "test.txt",
+        "upload_path": "test.txt",
+    }
+    _do_tus_upload(
+        test_client=test_client,
+        upload_metadata=upload_metadata,
+        auth=test_auth,
+        data=file_content
+    )
+
+    # Uploaded file was not added to database yet
+    files = list(test_mongo.upload.files.find())
+    assert not files
+
+    # Checksum calculation and finalization happens in a background task due
+    # to the large size of the upload; run it
+    queue = get_job_queue('upload')
+    queue.run_job(queue.jobs[0])
+
+    files = list(test_mongo.upload.files.find())
+    assert len(files) == 1
+    assert files[0]["_id"].endswith("/test.txt")
+    assert files[0]["checksum"] == "2ab4abd9d93f6e2b90675d17effe1d62"
+
+
+@pytest.mark.usefixtures("project")
+def test_upload_large_file_wrong_checksum(
+        test_client, test_auth, test_mongo, requests_mock):
+    """
+    Test uploading a large file with the wrong checksum
+    """
+    # Mock metax
+    requests_mock.post('/rest/v2/files/', json={})
+    requests_mock.get('/rest/v2/files', json={'results': [], 'next': None})
+
+    # Upload file
+    file_content = b"A" * (128 * 1024 * 1024)
+    upload_metadata = {
+        "type": "file",
+        "project_id": "test_project",
+        "checksum": "sha2:4d67c5cb3a0e17aaf578f9c8fee20d1f55d608acf064602349b9516046bee671",
+        "filename": "test.txt",
+        "upload_path": "test.txt",
+    }
+    _, upload_id = _do_tus_upload(
+        test_client=test_client,
+        upload_metadata=upload_metadata,
+        auth=test_auth,
+        data=file_content
+    )
+
+    # Uploaded file was not added to database yet
+    files = list(test_mongo.upload.files.find())
+    assert not files
+
+    # Checksum calculation and finalization happens in a background task;
+    # run it
+    queue = get_job_queue('upload')
+    queue.run_job(queue.jobs[0])
+
+    files = list(test_mongo.upload.files.find())
+    assert len(files) == 0
+
+    response = test_client.get(
+        f"/v1/tasks/{upload_id}",
+        headers=test_auth
+    )
+    result = response.json
+
+    # Upload task failed
+    assert len(result["errors"]) == 1
+    assert result["errors"][0] == {
+        "files": None, "message": "Upload checksum mismatch"
+    }
 
 
 def test_upload_file_parallel_upload_exceed_quota(

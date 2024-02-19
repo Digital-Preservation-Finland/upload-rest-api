@@ -39,7 +39,7 @@ def test_get_user_projects_by_token(test_client):
             {
                 "identifier": "test_project",
                 "used_quota": 0,
-                "quota": 1000000
+                "quota": 134217728
             }
         ]
     }
@@ -68,7 +68,7 @@ def test_get_user_projects_by_password(test_client):
             {
                 "identifier": "test_project",
                 "used_quota": 0,
-                "quota": 1000000
+                "quota": 134217728
             },
             {
                 "identifier": "test_project2",
@@ -101,7 +101,7 @@ def test_get_user_projects_by_username_admin(test_client, admin_auth):
             {
                 "identifier": "test_project",
                 "used_quota": 0,
-                "quota": 1000000
+                "quota": 134217728
             }
         ]
     }
