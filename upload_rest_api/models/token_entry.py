@@ -3,11 +3,12 @@ import datetime
 import hashlib
 import uuid
 
+from bson.json_util import JSONOptions
 from mongoengine import (BooleanField, DateTimeField, Document, ListField,
                          StringField, ValidationError)
 
-from upload_rest_api.redis import get_redis_connection
 from upload_rest_api.models.project_entry import ProjectEntry
+from upload_rest_api.redis import get_redis_connection
 
 
 def _validate_expiration_date(expiration_date):
@@ -116,7 +117,9 @@ class TokenEntry(Document):
 
         result = redis.get(f"fddps-token:{token_hash}")
         if result:
-            token_ = cls.from_json(result)
+            token_ = cls.from_json(
+                result, json_options=JSONOptions(tz_aware=True)
+            )
         else:
             # Token not in Redis cache, use MongoDB instead
             token_ = cls.objects.get(token_hash=token_hash)
