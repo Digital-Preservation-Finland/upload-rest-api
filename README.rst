@@ -58,8 +58,27 @@ DELETE file::
 Installation using Python Virtualenv for development purposes
 -------------------------------------------------------------
 
+Install MongoDB::
+
+    sudo bash -c "cat > /etc/yum.repos.d/mongodb-org.repo" << EOL
+    [mongodb-org-6.0]
+    name=MongoDB Repository
+    baseurl=https://repo.mongodb.org/yum/redhat/\$releasever/mongodb-org/6.0/x86_64/
+    gpgcheck=1
+    enabled=1
+    gpgkey=https://www.mongodb.org/static/pgp/server-6.0.asc
+    EOL
+    sudo dnf install mongodb-org
+
+To avoid MongoDB connection errors caused by system resource limits, ensure
+that user limits are high enough (see https://www.mongodb.com/docs/manual/reference/ulimit/
+for more information). For example::
+
+    ulimit -n 64000  # increase limit of open file descriptors for current session
+    echo "vagrant soft nofile 64000" | sudo tee -a /etc/security/limits.conf  # make the change permanent
+
 Create a virtual environment::
-    
+
     python3 -m venv venv
 
 Run the following to activate the virtual environment::
