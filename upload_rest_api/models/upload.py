@@ -29,6 +29,7 @@ def _release_lock_on_exception(method):
     Returns a decorated method of Upload object. The decorated method
     will release the file storage lock if it fails for any reason.
     """
+
     def wrapper(self, *args, **kwargs):
         try:
             return method(self, *args, **kwargs)
@@ -69,6 +70,7 @@ class InsufficientQuotaError(UploadError):
 
 class Upload:
     """Class for handling uploads."""
+
     def __init__(self, db_upload):
         self._db_upload = db_upload
         self._resource = None
@@ -355,7 +357,7 @@ class Upload:
                 raise UploadConflictError(
                     'Metadata could not be created because the file'
                     ' already has metadata',
-                    files=[old_file['file_path']]
+                    files=[old_file['pathname']]
                 )
             except metax_access.metax.FileNotAvailableError:
                 # No conflicts

@@ -46,16 +46,16 @@ def _dataset_to_result(dataset):
     :param dataset: Raw dataset metadata from Metax
     """
     language_identifiers = [
-        LANGUAGE_IDENTIFIERS[language["identifier"]]
-        for language in dataset["research_dataset"].get("language", [])
-        if LANGUAGE_IDENTIFIERS.get(language["identifier"], None)
+        LANGUAGE_IDENTIFIERS[language["url"]]
+        for language in dataset.get("language", [])
+        if LANGUAGE_IDENTIFIERS.get(language["url"], None)
     ]
 
     return {
-        "title": dataset["research_dataset"]["title"],
+        "title": dataset["title"],
         "languages": language_identifiers,
-        "identifier": dataset["identifier"],
-        "preservation_state": dataset["preservation_state"]
+        "identifier": dataset["id"],
+        "preservation_state": dataset.get("preservation", {}).get("state", 0)
     }
 
 
@@ -129,6 +129,7 @@ class Resource(abc.ABC):
 
 class File(Resource):
     """File class."""
+
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
@@ -246,12 +247,13 @@ class Directory(Resource):
         return directory
 
     @property
-    def identifier(self):
+    def identifier(self):  # directory identifier will be deprecated
         """Return identifier of directory."""
         metax_client = get_metax_client()
         try:
-            return metax_client.get_project_directory(self.project.id,
-                                                      self.path)['identifier']
+            return metax_client.get_directory_id(
+                self.project.id, self.path
+            )
         except DirectoryNotAvailableError:
             return None
 
@@ -376,7 +378,7 @@ class FileGroup():
                 )
 
                 for dataset in result["results"]:
-                    self._datasets[dataset['identifier']] \
+                    self._datasets[dataset['id']] \
                         = _dataset_to_result(dataset)
                     count += 1
 
