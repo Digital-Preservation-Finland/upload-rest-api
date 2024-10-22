@@ -73,12 +73,12 @@ def test_get_many_datasets(requests_mock):
             "results": [
                 {
                     "identifier": "urn:uuid:dataset1",
-                    "research_dataset": {'title': 'foo'},
+                    "research_dataset": {'title': 'foo', "files": [{"details": {"project_identifier": "bar"}}]},
                     "preservation_state": 10
                 },
                 {
                     "identifier": "urn:uuid:dataset2",
-                    "research_dataset": {'title': 'foo'},
+                    "research_dataset": {'title': 'foo', "files": [{"details": {"project_identifier": "bar"}}]},
                     "preservation_state": 10
                 }
             ],
@@ -92,7 +92,7 @@ def test_get_many_datasets(requests_mock):
             "results": [
                 {
                     "identifier": "urn:uuid:dataset3",
-                    "research_dataset": {'title': 'foo'},
+                    "research_dataset": {'title': 'foo', "files": [{"details": {"project_identifier": "bar"}}]},
                     "preservation_state": 10
                 }
             ],

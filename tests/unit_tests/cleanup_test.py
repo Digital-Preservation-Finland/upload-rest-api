@@ -154,13 +154,13 @@ def test_cleaning_files_in_datasets(test_mongo, mock_config, requests_mock):
             "results": [
                 {
                     "identifier": "pending_dataset",
-                    "research_dataset": {"title": {"en": "Dataset"}},
+                    "research_dataset": {"title": {"en": "Dataset"}, "files": [{"details": {"project_identifier": "bar"}}]},
                     "preservation_state":
                         DS_STATE_INITIALIZED
                 },
                 {
                     "identifier": "preserved_dataset",
-                    "research_dataset": {"title": {"en": "Dataset"}},
+                    "research_dataset": {"title": {"en": "Dataset"}, "files": [{"details": {"project_identifier": "bar"}}]},
                     "preservation_state":
                         DS_STATE_IN_DIGITAL_PRESERVATION
                 }
@@ -180,7 +180,7 @@ def test_cleaning_files_in_datasets(test_mongo, mock_config, requests_mock):
             "results": [
                 {
                     "identifier": "preserved_dataset",
-                    "research_dataset": {"title": {"en": "Dataset"}},
+                    "research_dataset": {"title": {"en": "Dataset"}, "files": [{"details": {"project_identifier": "bar"}}]},
                     "preservation_state":
                     DS_STATE_IN_DIGITAL_PRESERVATION
                 }

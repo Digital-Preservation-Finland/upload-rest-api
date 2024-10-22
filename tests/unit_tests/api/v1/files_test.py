@@ -652,7 +652,7 @@ def test_delete_file_in_dataset(test_auth, test_client, requests_mock,
             "results": [
                 {
                     "identifier": "test_dataset",
-                    "research_dataset": {"title": {"en": "Dataset"}},
+                    "research_dataset": {"title": {"en": "Dataset"}, "files": [{"details": {"project_identifier": "bar"}}]},
                     "preservation_state":
                         DS_STATE_TECHNICAL_METADATA_GENERATED
                 }
@@ -716,7 +716,7 @@ def test_delete_preserved_file(test_auth, test_client, requests_mock,
             "results": [
                 {
                     "identifier": "test_dataset",
-                    "research_dataset": {"title": {"en": "Dataset"}},
+                    "research_dataset": {"title": {"en": "Dataset"}, "files": [{"details": {"project_identifier": "bar"}}]},
                     "preservation_state": DS_STATE_IN_DIGITAL_PRESERVATION
                 }
             ]

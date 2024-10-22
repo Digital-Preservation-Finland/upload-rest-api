@@ -15,6 +15,13 @@ def _get_research_dataset(title):
                 "identifier": "http://lexvo.org/id/iso639-3/eng",
                 "title": {"en": "English"}
             }
+        ],
+        "files": [
+            {
+                "details": {
+                    "project_identifier": "bar"
+                }
+            }
         ]
     }
 
