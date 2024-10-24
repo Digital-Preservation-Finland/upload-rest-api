@@ -19,11 +19,13 @@ from upload_rest_api.models.upload import (Upload, UploadConflictError,
     )
 )
 def test_store_file(
-    mock_config, requests_mock, file_path, mimetype
+    mocker, mock_config, requests_mock, file_path, mimetype
 ):
     """Test that Upload object creates correct metadata."""
     # Mock metax
-    metax_files_api = requests_mock.post('/rest/v2/files/', json={})
+    mock_post_metadata = mocker.patch(
+        'upload_rest_api.models.upload._post_metadata'
+    )
     requests_mock.get('/rest/v2/files', json={'next': None, 'results': []})
 
     # Create an incomplete upload with one text file uploaded to
@@ -37,21 +39,23 @@ def test_store_file(
     upload.store_files(verify_source=False)
 
     # Check the metadata that was posted to Metax
-    metadata = metax_files_api.last_request.json()[0]
-    assert metadata["identifier"].startswith('urn:uuid:')
-    assert metadata["file_name"] == "bar"
-    assert metadata["file_format"] == mimetype
-    assert metadata["byte_size"] == test_file.stat().st_size
-    assert metadata["file_path"] == "/foo/bar"
-    assert metadata["project_identifier"] == 'test_project'
-    assert "file_uploaded" in metadata
-    assert "file_modified" in metadata
-    assert "file_frozen" in metadata
-    assert metadata['checksum']["algorithm"] == "MD5"
-    assert metadata['checksum']["value"] \
-        == hashlib.md5(test_file.read_bytes()).hexdigest()
-    assert "checked" in metadata['checksum']
-    assert metadata["file_storage"] == mock_config["STORAGE_ID"]
+    assert len(mock_post_metadata.mock_calls) == 1
+    call = mock_post_metadata.mock_calls[0]
+    metadata = call.args[0][0]
+
+    assert metadata["id"].startswith('urn:uuid:')
+    assert metadata["filename"] == "bar"
+    assert metadata["characteristics"]["file_format_version"]["file_format"] \
+        == mimetype
+    assert metadata["size"] == test_file.stat().st_size
+    assert metadata["pathname"] == "/foo/bar"
+    assert metadata["csc_project"] == 'test_project'
+    assert "modified" in metadata
+    assert "frozen" in metadata
+
+    checksum = hashlib.md5(test_file.read_bytes()).hexdigest()
+    assert metadata["checksum"] == f"md5:{checksum}"
+    assert metadata["storage_service"] == mock_config["STORAGE_ID"]
 
 
 @pytest.mark.usefixtures('app')

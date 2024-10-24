@@ -12,15 +12,16 @@ import metax_access
 from archive_helpers.extract import (ExtractError, MemberNameError,
                                      MemberOverwriteError, MemberTypeError,
                                      extract)
+from metax_access.response import MetaxFile
 
-from upload_rest_api.metax import get_metax_client
-from upload_rest_api.models.project import ProjectEntry, Project
-from upload_rest_api.models.file_entry import FileEntry
-from upload_rest_api.models.resource import File, Directory
-from upload_rest_api.models.upload_entry import (UploadType, UploadEntry)
 from upload_rest_api.checksum import get_file_checksum
 from upload_rest_api.config import CONFIG
 from upload_rest_api.lock import ProjectLockManager
+from upload_rest_api.metax import get_metax_client
+from upload_rest_api.models.file_entry import FileEntry
+from upload_rest_api.models.project import Project, ProjectEntry
+from upload_rest_api.models.resource import Directory, File
+from upload_rest_api.models.upload_entry import UploadEntry, UploadType
 
 
 def _release_lock_on_exception(method):
@@ -406,23 +407,24 @@ class Upload:
 
                 # Create metadata
                 timestamp = _iso8601_timestamp(file)
-                metadata_dicts.append({
-                    "identifier": identifier,
-                    "file_name": file.name,
-                    "file_format": _get_mimetype(file),
-                    "byte_size": file.stat().st_size,
-                    "file_path": f"/{relative_path}",
-                    "project_identifier": self.project.id,
-                    "file_uploaded": timestamp,
-                    "file_modified": timestamp,
-                    "file_frozen": timestamp,
-                    "checksum": {
-                        "algorithm": "MD5",
-                        "value": checksum,
-                        "checked": _timestamp_now()
-                    },
-                    "file_storage": CONFIG["STORAGE_ID"]
-                })
+                metadata: MetaxFile = {
+                    "id": identifier,
+                    "filename": file.name,
+                    "size": file.stat().st_size,
+                    "storage_service": "pas",
+                    "pathname": f"/{relative_path}",
+                    "csc_project": self.project.id,
+                    "modified": timestamp,
+                    "frozen": timestamp,
+                    "checksum": f"md5:{checksum}",
+                    "storage_identifier": CONFIG["STORAGE_ID"],
+                    "characteristics": {
+                        "file_format_version": {
+                            "file_format": _get_mimetype(file)
+                        }
+                    }
+                }
+                metadata_dicts.append(metadata)
 
         # Post all metadata to Metax in one go
         _post_metadata(metadata_dicts)
