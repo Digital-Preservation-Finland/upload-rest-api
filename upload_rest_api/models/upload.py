@@ -7,7 +7,6 @@ import zipfile
 from datetime import datetime, timezone
 from pathlib import Path
 
-import magic
 import metax_access
 from archive_helpers.extract import (ExtractError, MemberNameError,
                                      MemberOverwriteError, MemberTypeError,
@@ -418,11 +417,10 @@ class Upload:
                     "frozen": timestamp,
                     "checksum": f"md5:{checksum}",
                     "storage_identifier": CONFIG["STORAGE_ID"],
-                    "characteristics": {
-                        "file_format_version": {
-                            "file_format": _get_mimetype(file)
-                        }
-                    }
+                    # File format deliberately left out.
+                    # Metax V3 enforces complete file technical metadata
+                    # (format and version) from the get-go, which can't be
+                    # provided at this stage.
                 }
                 metadata_dicts.append(metadata)
 
@@ -485,18 +483,6 @@ def _timestamp_now():
     """Return current time in ISO 8601 format."""
     timestamp = datetime.now(timezone.utc).replace(microsecond=0)
     return timestamp.isoformat()
-
-
-def _get_mimetype(fpath):
-    """Return the MIME type of file fpath."""
-    try:
-        magic_ = magic.open(magic.MAGIC_MIME_TYPE)
-        magic_.load()
-        mimetype = magic_.file(fpath)
-    finally:
-        magic_.close()
-
-    return mimetype
 
 
 def _strip_metax_response(metax_response):

@@ -12,14 +12,14 @@ from upload_rest_api.models.upload import (Upload, UploadConflictError,
 
 @pytest.mark.usefixtures('app')
 @pytest.mark.parametrize(
-    ['file_path', 'mimetype'],
+    'file_path',
     (
-        ['tests/data/test.txt', 'text/plain'],
-        ['tests/data/test.zip', 'application/zip'],
+        'tests/data/test.txt',
+        'tests/data/test.zip',
     )
 )
 def test_store_file(
-    mocker, mock_config, requests_mock, file_path, mimetype
+    mocker, mock_config, requests_mock, file_path
 ):
     """Test that Upload object creates correct metadata."""
     # Mock metax
@@ -45,8 +45,6 @@ def test_store_file(
 
     assert metadata["id"].startswith('urn:uuid:')
     assert metadata["filename"] == "bar"
-    assert metadata["characteristics"]["file_format_version"]["file_format"] \
-        == mimetype
     assert metadata["size"] == test_file.stat().st_size
     assert metadata["pathname"] == "/foo/bar"
     assert metadata["csc_project"] == 'test_project'
