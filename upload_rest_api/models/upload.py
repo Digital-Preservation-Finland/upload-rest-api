@@ -417,6 +417,11 @@ class Upload:
                     "frozen": timestamp,
                     "checksum": f"md5:{checksum}",
                     "storage_identifier": CONFIG["STORAGE_ID"],
+                    # Metax V2 requires this, while Metax V3 has no 'created'
+                    # field.
+                    # TODO: Remove this field after Metax V3 migration
+                    # is complete
+                    "_file_uploaded": timestamp,
                     # File format deliberately left out.
                     # Metax V3 enforces complete file technical metadata
                     # (format and version) from the get-go, which can't be
