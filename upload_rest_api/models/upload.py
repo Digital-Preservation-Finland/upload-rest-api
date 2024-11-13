@@ -407,7 +407,7 @@ class Upload:
                 # Create metadata
                 timestamp = _iso8601_timestamp(file)
                 metadata: MetaxFile = {
-                    "id": identifier,
+                    "storage_identifier": identifier,
                     "filename": file.name,
                     "size": file.stat().st_size,
                     "storage_service": "pas",
@@ -416,7 +416,6 @@ class Upload:
                     "modified": timestamp,
                     "frozen": timestamp,
                     "checksum": f"md5:{checksum}",
-                    "storage_identifier": CONFIG["STORAGE_ID"],
                     # Metax V2 requires this, while Metax V3 has no 'created'
                     # field.
                     # TODO: Remove this field after Metax V3 migration

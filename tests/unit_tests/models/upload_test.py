@@ -43,7 +43,7 @@ def test_store_file(
     call = mock_post_metadata.mock_calls[0]
     metadata = call.args[0][0]
 
-    assert metadata["id"].startswith('urn:uuid:')
+    assert metadata["storage_identifier"].startswith('urn:uuid:')
     assert metadata["filename"] == "bar"
     assert metadata["size"] == test_file.stat().st_size
     assert metadata["pathname"] == "/foo/bar"
@@ -53,7 +53,6 @@ def test_store_file(
 
     checksum = hashlib.md5(test_file.read_bytes()).hexdigest()
     assert metadata["checksum"] == f"md5:{checksum}"
-    assert metadata["storage_service"] == mock_config["STORAGE_ID"]
 
 
 @pytest.mark.usefixtures('app')
