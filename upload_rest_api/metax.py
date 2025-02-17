@@ -12,9 +12,8 @@ def get_metax_client():
     if not singleton['metax_client']:
         # Create metax client
         url = CONFIG.get("METAX_URL")
-        user = CONFIG.get("METAX_USER")
-        password = CONFIG.get("METAX_PASSWORD")
+        token = CONFIG.get("METAX_TOKEN")
         verify = CONFIG.get("METAX_SSL_VERIFICATION", True)
-        singleton['metax_client'] = Metax(url, user, password, verify=verify)
+        singleton['metax_client'] = Metax(url=url, token=token, verify=verify)
 
     return singleton['metax_client']
