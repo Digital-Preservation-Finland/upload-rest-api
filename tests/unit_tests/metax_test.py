@@ -2,6 +2,7 @@
 import pytest
 
 import upload_rest_api.metax
+from tests.metax_data.utils import TEMPLATE_DATASET
 
 
 @pytest.mark.parametrize('verify', [True, False])
@@ -16,7 +17,7 @@ def test_metax_ssl_verification(requests_mock, verify, mock_config):
     :param mock_config: Configuration
     """
     # Mock metax
-    requests_mock.get('/rest/v2/datasets/qux', json={})
+    requests_mock.get('/v3/datasets/qux', json=TEMPLATE_DATASET)
 
     # Set METAX_SSL_VERIFICATION option
     mock_config['METAX_SSL_VERIFICATION'] = verify

@@ -415,12 +415,7 @@ class Upload:
                     "csc_project": self.project.id,
                     "modified": timestamp,
                     "frozen": timestamp,
-                    "checksum": f"md5:{checksum}",
-                    # Metax V2 requires this, while Metax V3 has no 'created'
-                    # field.
-                    # TODO: Remove this field after Metax V3 migration
-                    # is complete
-                    "_file_uploaded": timestamp,
+                    "checksum": f"md5:{checksum}"
                     # File format deliberately left out.
                     # Metax V3 enforces complete file technical metadata
                     # (format and version) from the get-go, which can't be
@@ -483,12 +478,6 @@ def _iso8601_timestamp(fpath):
     return timestamp.replace(microsecond=0).isoformat()
 
 
-def _timestamp_now():
-    """Return current time in ISO 8601 format."""
-    timestamp = datetime.now(timezone.utc).replace(microsecond=0)
-    return timestamp.isoformat()
-
-
 def _strip_metax_response(metax_response):
     """Collect only the necessary fields from the metax response."""
     response = {"success": [], "failed": []}
@@ -498,16 +487,14 @@ def _strip_metax_response(metax_response):
 
     if "success" in metax_response and metax_response["success"]:
         for file_md in metax_response["success"]:
-            identifier = file_md["object"]["identifier"]
-            file_path = file_md["object"]["file_path"]
-            parent_dir = file_md["object"]["parent_directory"]["identifier"]
-            checksum = file_md["object"]["checksum"]["value"]
+            identifier = file_md["object"]["id"]
+            file_path = file_md["object"]["pathname"]
+            checksum = file_md["object"]["checksum"]
 
             metadata = {
                 "object": {
-                    "identifier": identifier,
+                    "identifier": id,
                     "file_path": file_path,
-                    "parent_directory": {"identifier": parent_dir},
                     "checksum": {"value": checksum}
                 }
             }
@@ -552,13 +539,13 @@ def _post_metadata(metadata_dicts):
 
         i += 1
         if i % 5000 == 0:
-            response = metax_client.post_file(metadata)
+            response = metax_client.post_files(metadata)
             responses.append(_strip_metax_response(response))
             metadata = []
 
     # POST remaining metadata
     if metadata:
-        response = metax_client.post_file(metadata)
+        response = metax_client.post_files(metadata)
         responses.append(_strip_metax_response(response))
 
     # Merge all responses into one response

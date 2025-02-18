@@ -50,8 +50,8 @@ def test_upload_archive(
     :param request_mock: HTTP request mocker
     """
     # Mock metax
-    metax_files_api = requests_mock.post('/rest/v2/files/', json={})
-    requests_mock.get('/rest/v2/files', json={'next': None, 'results': []})
+    metax_files_api = requests_mock.post('/v3/files/post-many?include_nulls=True', json={})
+    requests_mock.get('/v3/files', json={'next': None, 'results': []})
 
     test_client = app.test_client()
     files = test_mongo.upload.files
@@ -90,20 +90,15 @@ def test_upload_archive(
     # Archive file is removed. Tmp directory should be empty.
     assert not any(upload_tmp_path.iterdir())
 
-    # TODO remove support for pymongo 3.x when RHEL9 migration is done.
-    if pymongo.__version__ < "3.7":
-        assert files.count({}) == 1
-    else:
-        # file is added to database
-        assert files.count_documents({}) == 1
+    assert files.count_documents({}) == 1
     document = files.find_one({"_id": str(text_file)})
     assert document['checksum'] == "150b62e4e7d58c70503bd5fc8a26463c"
     assert document['identifier'].startswith('urn:uuid:')
 
     # correct metadata is sent to Metax
     metadata = metax_files_api.last_request.json()[0]
-    assert metadata['file_path'] == '/test/test.txt'
-    assert metadata['file_name'] == 'test.txt'
+    assert metadata['pathname'] == '/test/test.txt'
+    assert metadata['filename'] == 'test.txt'
 
 
 @pytest.mark.parametrize(
@@ -128,8 +123,8 @@ def test_upload_archive_to_dirpath(
     :param requests_mock: HTTP request mocker
     """
     # Mock metax
-    requests_mock.post('/rest/v2/files/', json={})
-    requests_mock.get('/rest/v2/files', json={'next': None, 'results': []})
+    requests_mock.post('/v3/files/post-many?include_nulls=True', json={})
+    requests_mock.get('/v3/files', json={'next': None, 'results': []})
 
     test_client = app.test_client()
 
@@ -164,8 +159,8 @@ def test_upload_archive_already_exists(
     :param requests_mock: HTTP request mocker
     """
     # Mock metax
-    requests_mock.post('/rest/v2/files/', json={})
-    requests_mock.get('/rest/v2/files', json={'next': None, 'results': []})
+    requests_mock.post('/v3/files/post-many?include_nulls=True', json={})
+    requests_mock.get('/v3/files', json={'next': None, 'results': []})
 
     # Upload a file to a path that will cause a conflict
     url = '/v1/files/test_project/foo'
@@ -214,8 +209,8 @@ def test_upload_two_archives(
     :param requests_mock: HTTP request mocker
     """
     # Mock metax
-    requests_mock.post('/rest/v2/files/', json={})
-    requests_mock.get('/rest/v2/files', json={'next': None, 'results': []})
+    requests_mock.post('/v3/files/post-many?include_nulls=True', json={})
+    requests_mock.get('/v3/files', json={'next': None, 'results': []})
 
     test_client = app.test_client()
 
@@ -267,8 +262,8 @@ def test_upload_archive_multiple_archives(
     :param requests_mock: HTTP request mocker
     """
     # Mock metax
-    requests_mock.post('/rest/v2/files/', json={})
-    requests_mock.get('/rest/v2/files', json={'next': None, 'results': []})
+    requests_mock.post('/v3/files/post-many?include_nulls=True', json={})
+    requests_mock.get('/v3/files', json={'next': None, 'results': []})
 
     test_client = app.test_client()
     upload_path = pathlib.Path(app.config.get("UPLOAD_PROJECTS_PATH"))
