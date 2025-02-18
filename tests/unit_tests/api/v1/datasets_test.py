@@ -5,25 +5,7 @@ import pytest
 from metax_access import (DS_STATE_ACCEPTED_TO_DIGITAL_PRESERVATION,
                           DS_STATE_IN_DISSEMINATION,
                           DS_STATE_TECHNICAL_METADATA_GENERATED)
-
-
-def _get_research_dataset(title):
-    return {
-        "title": {"en": title},
-        "language": [
-            {
-                "identifier": "http://lexvo.org/id/iso639-3/eng",
-                "title": {"en": "English"}
-            }
-        ],
-        "files": [
-            {
-                "details": {
-                    "project_identifier": "bar"
-                }
-            }
-        ]
-    }
+from tests.metax_data.utils import TEMPLATE_DATASET, update_nested_dict
 
 
 @pytest.mark.parametrize(
@@ -33,39 +15,71 @@ def _get_research_dataset(title):
         (
             [
                 {
-                    "identifier": "urn:uuid:dataset1",
-                    "research_dataset": _get_research_dataset("Dataset 1"),
-                    "preservation_state":
-                        DS_STATE_ACCEPTED_TO_DIGITAL_PRESERVATION
+                    "id": "urn:uuid:dataset1",
+                    "title": {"en": "Dataset 1"},
+                    "language": [
+                        {
+                            "url": "http://lexvo.org/id/iso639-3/eng",
+                            "title": {"en": "English"},
+                        }
+                    ],
+                    "fileset": {"csc_project": "bar"},
+                    "preservation": {
+                        "state": DS_STATE_ACCEPTED_TO_DIGITAL_PRESERVATION
+                    },
                 },
                 {
-                    "identifier": "urn:uuid:dataset3",
-                    "research_dataset": _get_research_dataset("Dataset 3"),
-                    "preservation_state":
-                        DS_STATE_TECHNICAL_METADATA_GENERATED
-                }
+                    "id": "urn:uuid:dataset3",
+                    "title": {"en": "Dataset 3"},
+                    "language": [
+                        {
+                            "url": "http://lexvo.org/id/iso639-3/eng",
+                            "title": {"en": "English"},
+                        }
+                    ],
+                    "fileset": {"csc_project": "bar"},
+                    "preservation": {
+                        "state": DS_STATE_TECHNICAL_METADATA_GENERATED
+                    },
+                },
             ],
-            True
+            True,
         ),
         # Doesn't contain pending datasets
         (
             [
                 {
-                    "identifier": "urn:uuid:dataset1",
-                    "research_dataset": _get_research_dataset("Dataset 1"),
-                    "preservation_state":
-                        DS_STATE_ACCEPTED_TO_DIGITAL_PRESERVATION
+                    "id": "urn:uuid:dataset1",
+                    "title": {"en": "Dataset 1"},
+                    "language": [
+                        {
+                            "url": "http://lexvo.org/id/iso639-3/eng",
+                            "title": {"en": "English"},
+                        }
+                    ],
+                    "fileset": {"csc_project": "bar"},
+                    "preservation": {
+                        "state": DS_STATE_ACCEPTED_TO_DIGITAL_PRESERVATION
+                    },
                 },
                 {
-                    "identifier": "urn:uuid:dataset3",
-                    "research_dataset": _get_research_dataset("Dataset 3"),
-                    "preservation_state":
-                        DS_STATE_IN_DISSEMINATION
-                }
+                    "id": "urn:uuid:dataset3",
+                    "title": {"en": "Dataset 3"},
+                    "language": [
+                        {
+                            "url": "http://lexvo.org/id/iso639-3/eng",
+                            "title": {"en": "English"},
+                        }
+                    ],
+                    "fileset": {"csc_project": "bar"},
+                    "preservation": {
+                        "state": DS_STATE_IN_DISSEMINATION
+                    },
+                },
             ],
-            False
-        )
-    ]
+            False,
+        ),
+    ],
 )
 def test_get_file_datasets_directory(
         app, test_client, test_auth, requests_mock,
@@ -89,9 +103,9 @@ def test_get_file_datasets_directory(
             "identifier": "urn:uuid:test2"
         }
     ])
-
+    
     requests_mock.post(
-        "https://metax.localdomain/rest/v2/files/datasets?keys=files",
+        "/v3/files/datasets?relations=true&include_nulls=True",
         additional_matcher=(
             lambda req: set(req.json()) == {"urn:uuid:test1", "urn:uuid:test2"}
         ),
@@ -99,27 +113,22 @@ def test_get_file_datasets_directory(
             "urn:uuid:test1": ["urn:uuid:dataset1", "urn:uuid:dataset3"]
         }
     )
-    requests_mock.post(
-        "https://metax.localdomain/rest/datasets/list?offset=0&limit=1000000"
-        "&fields=identifier%2Cpreservation_state%2Cresearch_dataset",
-        additional_matcher=(
-            lambda req: set(req.json()) == {"urn:uuid:dataset1",
-                                            "urn:uuid:dataset3"}
-        ),
-        json={
-            "count": 2, "next": None, "previous": None,
-            "results": datasets
-        }
+    requests_mock.get(
+        "/v3/datasets/urn:uuid:dataset1?include_nulls=True",
+        json = update_nested_dict(TEMPLATE_DATASET, datasets[0])
+    )
+    requests_mock.get(
+        "/v3/datasets/urn:uuid:dataset3?include_nulls=True",
+        json = update_nested_dict(TEMPLATE_DATASET, datasets[1])
     )
 
     response = test_client.get(
         "/v1/datasets/test_project/test", headers=test_auth
     )
     result = response.json
-
     assert result["has_pending_dataset"] == has_pending_dataset
     assert len(result["datasets"]) == 2
-    dataset_a, dataset_b = result["datasets"]
+    dataset_a, dataset_b = sorted(result["datasets"], key= lambda ds: ds["title"]["en"])
 
     assert dataset_a["title"]["en"] == "Dataset 1"
     assert dataset_a["languages"] == ["en"]

@@ -346,7 +346,6 @@ class FileGroup():
             = [file.identifier for file in self.files]
         self._file2dataset \
             = metax_client.get_file2dataset_dict(file_identifiers)
-
         # Retrieve metadata of all datasets associated to files
         all_dataset_ids = set()
         for dataset_ids in self._file2dataset.values():
@@ -367,7 +366,6 @@ class FileGroup():
         if self._datasets is None:
             # Retrive datasets
             self._retrieve_all_dataset_metadata()
-
         return list(self._datasets.values())
 
     def has_pending_dataset(self):
