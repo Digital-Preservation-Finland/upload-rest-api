@@ -47,7 +47,7 @@ def _dataset_to_result(dataset):
     """
     language_identifiers = [
         LANGUAGE_IDENTIFIERS[language["url"]]
-        for language in dataset.get("language", [])
+        for language in dataset["language"]
         if LANGUAGE_IDENTIFIERS.get(language["url"], None)
     ]
 
@@ -55,7 +55,7 @@ def _dataset_to_result(dataset):
         "title": dataset["title"],
         "languages": language_identifiers,
         "identifier": dataset["id"],
-        "preservation_state": dataset.get("preservation", {}).get("state", 0)
+        "preservation_state": dataset["preservation"]["state"]
     }
 
 
@@ -354,27 +354,13 @@ class FileGroup():
         if not all_dataset_ids:
             self._datasets = {}
         else:
-            # TODO: Maybe the Metax client should handle paging?
-            count = 0
-            offset = 0
             self._datasets = {}
-            while True:
-                result = metax_client.get_datasets_by_ids(
-                    list(all_dataset_ids),
-                    fields=["identifier", "preservation_state",
-                            "research_dataset"],
-                    offset=offset
-                )
-
-                for dataset in result["results"]:
-                    self._datasets[dataset['id']] \
-                        = _dataset_to_result(dataset)
-                    count += 1
-
-                if count >= result["count"]:
-                    break
-
-                offset += len(result["results"])
+            datasets = metax_client.get_datasets_by_ids(
+                list(all_dataset_ids)
+            )
+            for dataset in datasets:
+                self._datasets[dataset['id']] \
+                    = _dataset_to_result(dataset)
 
     def get_datasets(self):
         """List of all files of the group."""
