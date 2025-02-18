@@ -4,6 +4,7 @@ import pathlib
 import shutil
 import time
 import pymongo
+import copy
 
 from datetime import datetime, timezone, timedelta
 
@@ -16,6 +17,7 @@ from upload_rest_api.models.project import Project
 import upload_rest_api.cleanup as clean
 from upload_rest_api.lock import ProjectLockManager
 from upload_rest_api.models.upload import UploadEntry
+from tests.metax_data.utils import TEMPLATE_DATASET
 
 
 @pytest.mark.usefixtures('app')  # Creates test_project
@@ -51,8 +53,8 @@ def test_no_expired_files(mock_config):
 def test_expired_files(test_mongo, mock_config, requests_mock):
     """Test that all the expired files are removed."""
     # Mock metax. Files do not have pending datasets.
-    requests_mock.post('/rest/v2/files/datasets?keys=files', json={})
-    delete_files_api = requests_mock.delete('/rest/v2/files', json={})
+    requests_mock.post('/v3/files/datasets?relations=true', json={})
+    delete_files_api = requests_mock.delete('/v3/files/delete-many?include_nulls=True', json={})
 
     mock_config["CLEANUP_TIMELIM"] = 10
     project_directory \
@@ -92,7 +94,7 @@ def test_expired_files(test_mongo, mock_config, requests_mock):
 
     # The metadata of expired file should be deleted from Metax
     assert delete_files_api.called_once
-    assert delete_files_api.request_history[0].json() == ["urn:uuid:2"]
+    assert delete_files_api.request_history[0].json() == [{'id': 'urn:uuid:2'}]
 
     # Used quota should be updated. One copy of "test.txt" should be
     # left.
@@ -136,58 +138,40 @@ def test_cleaning_files_in_datasets(test_mongo, mock_config, requests_mock):
     # ensure that the files can be deleted. Therefore, the pending
     # datasets of deleted files will be checked twice.
     requests_mock.post(
-        "/rest/v2/files/datasets?keys=files",
+        "/v3/files/datasets?relations=true",
         additional_matcher=(
             lambda req: set(req.json()) == {'urn:uuid:1', 'urn:uuid:2'}
         ),
         json={'urn:uuid:1': ["pending_dataset"],
               'urn:uuid:2': ["preserved_dataset"]}
     )
-    requests_mock.post(
-        "/rest/datasets/list",
-        additional_matcher=(
-            lambda req: set(req.json()) == {"preserved_dataset",
-                                            "pending_dataset"}
-        ),
-        json={
-            "count": 2,
-            "results": [
-                {
-                    "identifier": "pending_dataset",
-                    "research_dataset": {"title": {"en": "Dataset"}, "files": [{"details": {"project_identifier": "bar"}}]},
-                    "preservation_state":
-                        DS_STATE_INITIALIZED
-                },
-                {
-                    "identifier": "preserved_dataset",
-                    "research_dataset": {"title": {"en": "Dataset"}, "files": [{"details": {"project_identifier": "bar"}}]},
-                    "preservation_state":
-                        DS_STATE_IN_DIGITAL_PRESERVATION
-                }
-            ]
-        }
+
+    ds1 = copy.deepcopy(TEMPLATE_DATASET)
+    ds1['id'] = "pending_dataset"
+    ds1['title'] = {"en": "Dataset"}
+    ds1['fileset']['csc_project'] = "bar"
+    ds1['preservation']['state'] = DS_STATE_INITIALIZED
+
+    ds2 = copy.deepcopy(TEMPLATE_DATASET)
+    ds2['id'] = "preserved_dataset"
+    ds2['title'] = {"en": "Dataset"}
+    ds2['fileset']['csc_project'] = "bar"
+    ds2['preservation']['state'] = DS_STATE_IN_DIGITAL_PRESERVATION
+
+    requests_mock.get(
+        "/v3/datasets/pending_dataset",
+        json=ds1
+    )
+    requests_mock.get(
+        "/v3/datasets/preserved_dataset",
+        json=ds2
     )
     requests_mock.post(
-        "/rest/v2/files/datasets?keys=files",
+        "/v3/files/datasets?relations=true",
         additional_matcher=lambda req: req.json() == ['urn:uuid:2'],
         json={'urn:uuid:2': ["preserved_dataset"]}
     )
-    requests_mock.post(
-        "/rest/datasets/list",
-        additional_matcher=lambda req: req.json() == ["preserved_dataset"],
-        json={
-            "count": 1,
-            "results": [
-                {
-                    "identifier": "preserved_dataset",
-                    "research_dataset": {"title": {"en": "Dataset"}, "files": [{"details": {"project_identifier": "bar"}}]},
-                    "preservation_state":
-                    DS_STATE_IN_DIGITAL_PRESERVATION
-                }
-            ]
-        }
-    )
-    delete_files_api = requests_mock.delete('/rest/v2/files', json={})
+    delete_files_api = requests_mock.delete('/v3/files', json={})
 
     # Clean all files older than 10s.
     assert clean.clean_disk() == 1
@@ -217,8 +201,8 @@ def test_all_files_expired(test_mongo, mock_config, requests_mock):
     expired.
     """
     # Mock metax. Files do not have pending datasets.
-    requests_mock.post('/rest/v2/files/datasets?keys=files', json={})
-    requests_mock.delete('/rest/v2/files', json={})
+    requests_mock.post('/v3/files/datasets?relations=true', json={})
+    requests_mock.delete('/v3/files/delete-many?include_nulls=True', json={})
 
     mock_config["CLEANUP_TIMELIM"] = 10
     upload_path = pathlib.Path(mock_config["UPLOAD_PROJECTS_PATH"])
