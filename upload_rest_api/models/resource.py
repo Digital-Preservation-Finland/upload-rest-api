@@ -246,17 +246,6 @@ class Directory(Resource):
             directory.storage_path.mkdir(parents=True)
         return directory
 
-    @property
-    def identifier(self):  # directory identifier will be deprecated
-        """Return identifier of directory."""
-        metax_client = get_metax_client()
-        try:
-            return metax_client.get_directory_id(
-                self.project.id, self.path
-            )
-        except DirectoryNotAvailableError:
-            return None
-
     def _get_entries(self):
         return list(os.scandir(self.storage_path))
 

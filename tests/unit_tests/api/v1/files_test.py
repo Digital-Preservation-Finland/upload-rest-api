@@ -443,7 +443,6 @@ def test_delete_file(app, test_auth, requests_mock, test_mongo, name):
         (
             '/',
             {
-                'identifier': 'foo',
                 'directories': ['dir2', 'dir1'],
                 'files': ['file1.txt']
             }
@@ -452,7 +451,6 @@ def test_delete_file(app, test_auth, requests_mock, test_mongo, name):
         (
             '/dir1/',
             {
-                'identifier': 'foo',
                 'directories': [],
                 'files': ['file2.txt']
             }
@@ -461,7 +459,6 @@ def test_delete_file(app, test_auth, requests_mock, test_mongo, name):
         (
             '/dir2/',
             {
-                'identifier': 'foo',
                 'directories': ['subdir1'],
                 'files': []
             }
