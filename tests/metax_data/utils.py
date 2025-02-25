@@ -38,6 +38,20 @@ TEMPLATE_DATASET = {
     "data_catalog": None
     }
 
+TEMPLATE_FILE = {
+    "id": None,
+    "pathname": None,
+    "filename": None,
+    "size": None,
+    "checksum": None,
+    "csc_project": None,
+    "storage_service": None,
+    "dataset_metadata": {"use_category": None},
+    "characteristics": None,
+    "characteristics_extension": None,
+}
+
+
 def update_nested_dict(original, update):
     """Update nested dictionary.
 
