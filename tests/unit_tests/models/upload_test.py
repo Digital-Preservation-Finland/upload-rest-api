@@ -1,6 +1,7 @@
 """Unit tests for upload module."""
 import hashlib
 import pathlib
+import urllib
 
 import pytest
 
@@ -8,6 +9,7 @@ from upload_rest_api.lock import ProjectLockManager
 from upload_rest_api.models.resource import File, Directory
 from upload_rest_api.models.upload import (Upload, UploadConflictError,
                                            UploadError)
+from tests.metax_data.utils import TEMPLATE_FILE, TEMPLATE_DATASET, update_nested_dict
 
 
 @pytest.mark.usefixtures('app')
@@ -19,14 +21,14 @@ from upload_rest_api.models.upload import (Upload, UploadConflictError,
     )
 )
 def test_store_file(
-    mocker, mock_config, requests_mock, file_path
+    requests_mock, file_path
 ):
     """Test that Upload object creates correct metadata."""
     # Mock metax
-    mock_post_metadata = mocker.patch(
-        'upload_rest_api.models.upload._post_metadata'
+    mock_post_metadata = requests_mock.post(
+        "/v3/files/post-many?include_nulls=True", json = {}
     )
-    requests_mock.get('/rest/v2/files', json={'next': None, 'results': []})
+    requests_mock.get('/v3/files', json={'next': None, 'results': []})
 
     # Create an incomplete upload with one text file uploaded to
     # source path
@@ -39,9 +41,8 @@ def test_store_file(
     upload.store_files(verify_source=False)
 
     # Check the metadata that was posted to Metax
-    assert len(mock_post_metadata.mock_calls) == 1
-    call = mock_post_metadata.mock_calls[0]
-    metadata = call.args[0][0]
+    assert mock_post_metadata.call_count == 1
+    metadata = mock_post_metadata.last_request.json()[0]
 
     assert metadata["storage_identifier"].startswith('urn:uuid:')
     assert metadata["filename"] == "bar"
@@ -64,18 +65,18 @@ def test_file_metadata_conflict(mock_config, requests_mock):
         upload.add_source(file, None)
 
     # Mock metax.
-    metax_files_api = requests_mock.post('/rest/v2/files/', json={})
+    file = {
+        'id': 2,
+        'pathname': '/path/file1',
+        'storage_identifier': 'foo'
+    }
+    metax_files_api = requests_mock.post('/v3/files/post-many?include_nulls=True', json={})
     requests_mock.get(
-        '/rest/v2/files',
+        '/v3/files?pathname=%2Fpath%2Ffile1&csc_project=test_project&include_nulls=True',
         json={
             'next': None,
             'results': [
-                {
-                    'file_path': '/path/file1',
-                    'id': 2,
-                    'identifier': '2',
-                    'file_storage': {'identifier': 'foo'}
-                }
+                update_nested_dict(TEMPLATE_FILE, file)
             ]
         }
     )
@@ -126,8 +127,9 @@ def test_add_source():
 def test_checksum(checksum, verify, requests_mock, mock_get_file_checksum):
     """Test that checksum is not computed needlessly."""
     # Mock metax.
-    requests_mock.post('/rest/v2/files/', json={})
-    requests_mock.get('/rest/v2/files', json={'results': []})
+    requests_mock.post('/v3/files/post-many?include_nulls=True', json={})
+    requests_mock.get('/v3/files?pathname=%2Fpath%2Ffile1&csc_project=test_project&include_nulls=True',
+                      json={'next': None, 'results': []})
 
     # Upload a file. Checksum should be computed only if it must be
     # verified.
@@ -200,8 +202,10 @@ def test_upload_archive_conflict(
     :param requests_mock: HTTP request mocker
     """
     # Mock metax
-    requests_mock.post('/rest/v2/files/', json={})
-    requests_mock.get('/rest/v2/files', json={'next': None, 'results': []})
+    requests_mock.post('/v3/files/post-many?include_nulls=True', json={})
+    requests_mock.get(f'/v3/files?pathname=%2F{urllib.parse.quote(existing_file, safe="")}&csc_project=test_project&include_nulls=True',
+                      json={'next': None, 'results': []})
+
 
     # Upload a file to a path that will cause a conflict when the
     # archive is uploaded
