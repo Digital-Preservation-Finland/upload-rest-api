@@ -6,7 +6,7 @@ import pytest
 from upload_rest_api.models.resource import (File, InvalidPathError,
                                              get_resource)
 from upload_rest_api.models.upload import Upload
-
+from tests.metax_data.utils import TEMPLATE_FILE, TEMPLATE_DATASET, update_nested_dict
 
 @pytest.mark.usefixtures('app')  # Initialize database
 @pytest.mark.parametrize(
@@ -44,8 +44,9 @@ def test_parse_relative_user_path(path, result):
 def test_get_many_datasets(requests_mock):
     """Test that get_datasets method handles paging in Metax."""
     # Mock metax
-    requests_mock.get('/rest/v2/files', json={'results': []})
-    requests_mock.post('/rest/v2/files/', json={})
+    requests_mock.get('/v3/files?pathname=%2Ftestdir%2Ftestfile&csc_project=test_project&include_nulls=True',
+                    json={'next': None, 'results': []})
+    requests_mock.post('/v3/files/post-many?include_nulls=True', json={})
 
     # Upload a file to directory /testdir
     upload = Upload.create(File('test_project', 'testdir/testfile'), 123)
@@ -60,43 +61,33 @@ def test_get_many_datasets(requests_mock):
     # the datasets is requested from Metax, two datasets are provided
     # per page.
     requests_mock.post(
-        "/rest/v2/files/datasets?keys=files",
+        "/v3/files/datasets?relations=true&include_nulls=True",
         json={file_identifier: ["urn:uuid:dataset1",
                                 "urn:uuid:dataset2",
                                 "urn:uuid:dataset3"]}
     )
-    requests_mock.post(
-        "/rest/datasets/list?offset=0&limit=1000000"
-        "&fields=identifier%2Cpreservation_state%2Cresearch_dataset",
-        json={
-            "count": 3,
-            "results": [
-                {
-                    "identifier": "urn:uuid:dataset1",
-                    "research_dataset": {'title': 'foo', "files": [{"details": {"project_identifier": "bar"}}]},
-                    "preservation_state": 10
-                },
-                {
-                    "identifier": "urn:uuid:dataset2",
-                    "research_dataset": {'title': 'foo', "files": [{"details": {"project_identifier": "bar"}}]},
-                    "preservation_state": 10
-                }
-            ],
-        }
+    ds = {
+        "title": "foo",
+        "fileset": {"csc_project": "bar"},
+        "preservation": {"state": 10},
+    }
+    ds['id'] = "urn:uuid:dataset1"
+    requests_mock.get(
+        "/v3/datasets/urn:uuid:dataset1?include_nulls=True",
+        json = update_nested_dict(TEMPLATE_DATASET,
+                                  ds)
     )
-    requests_mock.post(
-        "/rest/datasets/list?offset=2&limit=1000000"
-        "&fields=identifier%2Cpreservation_state%2Cresearch_dataset",
-        json={
-            "count": 3,
-            "results": [
-                {
-                    "identifier": "urn:uuid:dataset3",
-                    "research_dataset": {'title': 'foo', "files": [{"details": {"project_identifier": "bar"}}]},
-                    "preservation_state": 10
-                }
-            ],
-        }
+    ds['id'] = "urn:uuid:dataset2"
+    requests_mock.get(
+        "/v3/datasets/urn:uuid:dataset2?include_nulls=True",
+        json = update_nested_dict(TEMPLATE_DATASET,
+                                  ds)
+    )
+    ds['id'] = "urn:uuid:dataset3"
+    requests_mock.get(
+        "/v3/datasets/urn:uuid:dataset3?include_nulls=True",
+        json = update_nested_dict(TEMPLATE_DATASET,
+                                  ds)
     )
 
     # Get the list of datasets associated with directory "test_dir"
