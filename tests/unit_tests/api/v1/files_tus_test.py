@@ -1,6 +1,8 @@
 """Tests for `upload_rest_api.api.v1.files_tus` module."""
 
 import pathlib
+import urllib
+import re
 from io import BytesIO
 
 import pytest
@@ -76,9 +78,9 @@ def test_upload_file(app, test_auth, test_mongo, name, requests_mock):
     test_client = app.test_client()
 
     # Mock metax
-    requests_mock.post('/rest/v2/files/', json={})
-    requests_mock.get('/rest/v2/files', json={'results': [], 'next': None})
-
+    requests_mock.post('/v3/files/post-many?include_nulls=True', json={})
+    requests_mock.get(f'/v3/files?pathname=%2F{urllib.parse.quote(name, safe="")}&csc_project=test_project&include_nulls=True',
+                      json={'results': [], 'next': None})
     # Upload file
     file_content = b"XyzzyXyzzy"
     upload_metadata = {
@@ -146,8 +148,9 @@ def test_upload_file_checksum(test_client, test_auth, requests_mock):
     :param requests_mock: HTTP request mocker
     """
     # Mock Metax
-    requests_mock.post('/rest/v2/files/', json={})
-    requests_mock.get('/rest/v2/files', json={'results': [], 'next': None})
+    requests_mock.post('/v3/files/post-many?include_nulls=True', json={})
+    requests_mock.get('/v3/files?pathname=%2Ftest.txt&csc_project=test_project&include_nulls=True',
+                      json={'results': [], 'next': None})
 
     data = b"XyzzyXyzzy"
     upload_metadata = {
@@ -198,9 +201,9 @@ def test_upload_file_checksum_iterative(
     is calculated correctly
     """
     # Mock Metax
-    requests_mock.post('/rest/v2/files/', json={})
-    requests_mock.get('/rest/v2/files', json={'results': [], 'next': None})
-
+    requests_mock.post('/v3/files/post-many?include_nulls=True', json={})
+    requests_mock.get('/v3/files?pathname=%2Ftest.txt&csc_project=test_project&include_nulls=True',
+                      json={'results': [], 'next': None})
     upload_metadata = {
         "type": "file",
         "project_id": "test_project",
@@ -330,9 +333,9 @@ def test_upload_file_deep_directory(
     Ensure that the directories are created as well.
     """
     # Mock Metax
-    requests_mock.post('/rest/v2/files/', json={})
-    requests_mock.get('/rest/v2/files', json={'results': [], 'next': None})
-
+    requests_mock.post('/v3/files/post-many?include_nulls=True', json={})
+    requests_mock.get(f'/v3/files?pathname=%2F{urllib.parse.quote(f"foo/bar/{name}", safe="")}&csc_project=test_project&include_nulls=True',
+                      json={'results': [], 'next': None})
     data = b"XyzzyXyzzy"
 
     upload_metadata = {
@@ -369,9 +372,9 @@ def test_upload_file_exceed_quota(test_client, test_auth, requests_mock):
     the quota.
     """
     # Mock Metax
-    requests_mock.post('/rest/v2/files/', json={})
-    requests_mock.get('/rest/v2/files', json={'results': [], 'next': None})
-
+    requests_mock.post('/v3/files/post-many?include_nulls=True', json={})
+    requests_mock.get('/v3/files?pathname=%2Ftest.txt&csc_project=test_project&include_nulls=True',
+                      json={'results': [], 'next': None})
     project = ProjectEntry.objects.get(id="test_project")
     project.quota = 15
     project.save()
@@ -422,9 +425,9 @@ def test_upload_large_file(test_client, test_auth, test_mongo, requests_mock):
     is done in a background task for large files.
     """
     # Mock metax
-    requests_mock.post('/rest/v2/files/', json={})
-    requests_mock.get('/rest/v2/files', json={'results': [], 'next': None})
-
+    requests_mock.post('/v3/files/post-many?include_nulls=True', json={})
+    requests_mock.get('/v3/files?pathname=%2Ftest.txt&csc_project=test_project&include_nulls=True',
+                      json={'results': [], 'next': None})
     # Upload file
     file_content = b"A" * (128 * 1024 * 1024)
     upload_metadata = {
@@ -463,9 +466,9 @@ def test_upload_large_file_wrong_checksum(
     Test uploading a large file with the wrong checksum
     """
     # Mock metax
-    requests_mock.post('/rest/v2/files/', json={})
-    requests_mock.get('/rest/v2/files', json={'results': [], 'next': None})
-
+    requests_mock.post('/v3/files/post-many?include_nulls=True', json={})
+    requests_mock.get('/v3/files?pathname=%2Ftest.txt&csc_project=test_project&include_nulls=True',
+                      json={'results': [], 'next': None})
     # Upload file
     file_content = b"A" * (128 * 1024 * 1024)
     upload_metadata = {
@@ -511,8 +514,10 @@ def test_upload_file_parallel_upload_exceed_quota(
         test_client, test_auth, requests_mock):
     """Start enough parallel uploads to exceed the user quota."""
     # Mock metax
-    requests_mock.post('/rest/v2/files/', json={})
-    requests_mock.get('/rest/v2/files', json={'results': [], 'next': None})
+    requests_mock.post('/v3/files/post-many?include_nulls=True', json={})
+    requests_mock.get(re.compile('/v3/files\?pathname=%2Ftest[0-2].txt&csc_project=test_project&include_nulls=True'),
+                      json={'results': [], 'next': None})
+
     ProjectEntry.objects.filter(id="test_project").update_one(set__quota=2999)
 
     data = b'0' * 1000
@@ -572,9 +577,9 @@ def test_mixed_parallel_upload_exceed_quota(
     possible to upload files using /v1/files API.
     """
     # Mock metax
-    requests_mock.post('/rest/v2/files/', json={})
-    requests_mock.get('/rest/v2/files', json={'results': [], 'next': None})
-
+    requests_mock.post('/v3/files/post-many?include_nulls=True', json={})
+    requests_mock.get('/v3/files?pathname=%2Ftest.txt&csc_project=test_project&include_nulls=True',
+                      json={'results': [], 'next': None})
     project = ProjectEntry.objects.get(id="test_project")
     project.quota = 2000
     project.save()
@@ -627,9 +632,9 @@ def test_mixed_parallel_upload_exceed_quota(
 def test_upload_file_conflict(test_client, test_auth, requests_mock):
     """Try initiating two uploads with the same file path."""
     # Mock metax
-    requests_mock.post('/rest/v2/files/', json={})
-    requests_mock.get('/rest/v2/files', json={'results': [], 'next': None})
-
+    requests_mock.post('/v3/files/post-many?include_nulls=True', json={})
+    requests_mock.get('/v3/files?pathname=%2Ftest.txt&csc_project=test_project&include_nulls=True',
+                      json={'results': [], 'next': None})
     data = b'foo'
     upload_length = len(data)
 
@@ -693,9 +698,9 @@ def test_mixed_parallel_upload_conflict(test_client, test_auth, requests_mock):
     path using /v1/files API should not be possible.
     """
     # Mock metax
-    requests_mock.post('/rest/v2/files/', json={})
-    requests_mock.get('/rest/v2/files', json={'results': [], 'next': None})
-
+    requests_mock.post('/v3/files/post-many?include_nulls=True', json={})
+    requests_mock.get('/v3/files?pathname=%2Ftest.txt&csc_project=test_project&include_nulls=True',
+                      json={'results': [], 'next': None})
     # Start a tus upload to '/test.txt'
     data = b'foo'
     tus_upload = test_client.post(
@@ -753,9 +758,9 @@ def test_upload_archive(test_client, test_auth, mock_config, requests_mock):
     :param requests_mock: HTTP request mocker
     """
     # Mock Metax
-    requests_mock.post('/rest/v2/files/', json={})
-    requests_mock.get('/rest/v2/files', json={'results': [], 'next': None})
-
+    requests_mock.post('/v3/files/post-many?include_nulls=True', json={})
+    requests_mock.get('/v3/files?pathname=%2Fextract_dir&csc_project=test_project&include_nulls=True',
+                      json={'results': [], 'next': None})
     upload_metadata = {
         "type": "archive",
         "project_id": "test_project",
@@ -796,9 +801,9 @@ def test_compute_checksum_once(app, test_auth, requests_mock,
     test_client = app.test_client()
 
     # Mock metax
-    metax_files_api = requests_mock.post('/rest/v2/files/', json={})
-    requests_mock.get('/rest/v2/files', json={'results': [], 'next': None})
-
+    metax_files_api = requests_mock.post('/v3/files/post-many?include_nulls=True', json={})
+    requests_mock.get('/v3/files?pathname=%2Ffoo&csc_project=test_project&include_nulls=True',
+                      json={'results': [], 'next': None})
     # Upload file
     upload_metadata = {
         "type": "file",
@@ -816,6 +821,6 @@ def test_compute_checksum_once(app, test_auth, requests_mock,
     # The correct checksum should be posted to Metax, but the checksum
     # should be computed only during the TUS upload. Checksum should NOT
     # be computed again when metadata is generated.
-    assert metax_files_api.last_request.json()[0]['checksum']['value'] \
-        == '912ec803b2ce49e4a541068d495ab570'
+    assert metax_files_api.last_request.json()[0]['checksum'] \
+        == 'md5:912ec803b2ce49e4a541068d495ab570'
     mock_get_file_checksum.assert_not_called()
