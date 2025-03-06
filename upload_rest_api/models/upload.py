@@ -493,9 +493,9 @@ def _strip_metax_response(metax_response):
 
             metadata = {
                 "object": {
-                    "identifier": id,
-                    "file_path": file_path,
-                    "checksum": {"value": checksum}
+                    "id": identifier,
+                    "pathname": file_path,
+                    "checksum": checksum
                 }
             }
 

@@ -8,8 +8,7 @@ import time
 from datetime import datetime, timezone
 
 from metax_access import (DS_STATE_ACCEPTED_TO_DIGITAL_PRESERVATION,
-                          DS_STATE_REJECTED_IN_DIGITAL_PRESERVATION_SERVICE,
-                          DirectoryNotAvailableError)
+                          DS_STATE_REJECTED_IN_DIGITAL_PRESERVATION_SERVICE)
 
 from upload_rest_api.metax import get_metax_client
 from upload_rest_api.config import CONFIG
