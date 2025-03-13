@@ -341,10 +341,10 @@ class FileGroup():
         metax_client = get_metax_client()
 
         # Retrieve file -> dataset(s) associations
-        file_identifiers \
+        file_storage_identifiers \
             = [file.identifier for file in self.files]
         self._file2dataset \
-            = metax_client.get_file2dataset_dict(file_identifiers)
+            = metax_client.get_file2dataset_dict(file_storage_identifiers)
         # Retrieve metadata of all datasets associated to files
         all_dataset_ids = set()
         for dataset_ids in self._file2dataset.values():
@@ -414,14 +414,14 @@ class FileGroup():
         if any(self.file_has_pending_dataset(file) for file in self.files):
             raise HasPendingDatasetError
 
-        identifiers = []
+        storage_identifiers = []
         storage_paths = []  # All storage_paths in one list
         for file in self.files:
             # Remove the actual file
             os.remove(file.storage_path)
             # add identifiers storage_path to lists for bulk removal
             # from databases
-            identifiers.append(file.identifier)
+            storage_identifiers.append(file.identifier)
             storage_paths.append(str(file.storage_path))
 
         # Remove all files from database
@@ -437,9 +437,14 @@ class FileGroup():
         # inefficient), as we can just remove metadata of all files that
         # are not inlcuded in any dataset.
         metax_client = get_metax_client()
-        file2datasets = metax_client.get_file2dataset_dict(identifiers)
+        file2datasets = metax_client.get_file2dataset_dict(storage_identifiers)
         files_without_datasets = [
-            identifier for identifier in identifiers if not file2datasets
+            {
+                "storage_identifier": storage_identifier,
+                "storage_service": "pas",
+            }
+            for storage_identifier in storage_identifiers
+            if not file2datasets
         ]
         if files_without_datasets:
             metax_client.delete_files(files_without_datasets)

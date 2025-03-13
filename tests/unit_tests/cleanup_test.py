@@ -54,7 +54,7 @@ def test_expired_files(test_mongo, mock_config, requests_mock):
     """Test that all the expired files are removed."""
     # Mock metax. Files do not have pending datasets.
     requests_mock.post('/v3/files/datasets?relations=true', json={})
-    delete_files_api = requests_mock.delete('/v3/files/delete-many?include_nulls=True', json={})
+    delete_files_api = requests_mock.post('/v3/files/delete-many?include_nulls=True', json={})
 
     mock_config["CLEANUP_TIMELIM"] = 10
     project_directory \
@@ -94,7 +94,9 @@ def test_expired_files(test_mongo, mock_config, requests_mock):
 
     # The metadata of expired file should be deleted from Metax
     assert delete_files_api.called_once
-    assert delete_files_api.request_history[0].json() == [{'id': 'urn:uuid:2'}]
+    assert delete_files_api.request_history[0].json() == [
+        {"storage_identifier": "urn:uuid:2", "storage_service": "pas"}
+    ]
 
     # Used quota should be updated. One copy of "test.txt" should be
     # left.
@@ -202,7 +204,7 @@ def test_all_files_expired(test_mongo, mock_config, requests_mock):
     """
     # Mock metax. Files do not have pending datasets.
     requests_mock.post('/v3/files/datasets?relations=true', json={})
-    requests_mock.delete('/v3/files/delete-many?include_nulls=True', json={})
+    requests_mock.post('/v3/files/delete-many?include_nulls=True', json={})
 
     mock_config["CLEANUP_TIMELIM"] = 10
     upload_path = pathlib.Path(mock_config["UPLOAD_PROJECTS_PATH"])

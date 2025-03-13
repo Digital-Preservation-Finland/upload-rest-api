@@ -168,7 +168,7 @@ def test_used_quota(app, test_auth, requests_mock):
         "/v3/files/datasets?relations=true&include_nulls=True",
         json={}
     )
-    requests_mock.delete("/v3/files/delete-many?include_nulls=True", json={})
+    requests_mock.post("/v3/files/delete-many?include_nulls=True", json={})
 
     test_client = app.test_client()
 
@@ -388,7 +388,7 @@ def test_delete_file(app, test_auth, requests_mock, test_mongo, name):
                       json={'next': None, 'results': []})
     requests_mock.post("/v3/files/post-many?include_nulls=True", json={})
     requests_mock.post("/v3/files/datasets?relations=true&include_nulls=True", json={})
-    delete_files_api = requests_mock.delete("/v3/files/delete-many?include_nulls=True", json={})
+    delete_files_api = requests_mock.post("/v3/files/delete-many?include_nulls=True", json={})
 
     # Upload a file
     test_client = app.test_client()
@@ -424,7 +424,7 @@ def test_delete_file(app, test_auth, requests_mock, test_mongo, name):
     request_json = delete_files_api.last_request.json()
     assert isinstance(request_json, list)
     assert len(request_json) == 1
-    assert request_json[0]['id'].startswith('urn:uuid:')
+    assert request_json[0]['storage_identifier'].startswith('urn:uuid:')
 
     # Try to DELETE file that does not exist. Request should fail with
     # 404 "Not found" error.
@@ -546,8 +546,8 @@ def test_delete_directory(
                       json={"results": [], "next": None})
     requests_mock.get('/v3/files?pathname=%2Ftestdir%2Ftest.txt&csc_project=test_project&include_nulls=True',
                       json={"results": [], "next": None})
-    requests_mock.post("/v3/files/datasets?relations=true&include_nulls=True", json={})
-    delete_files_api = requests_mock.delete("/v3/files/delete-many?include_nulls=True", json={})
+    requests_mock.post("/v3/files/datasets?relations=true&storage_service=pas&include_nulls=True", json={})
+    delete_files_api = requests_mock.post("/v3/files/delete-many?include_nulls=True", json={})
 
     # Create test files
     test_client = app.test_client()
@@ -605,7 +605,7 @@ def test_delete_directory(
     assert delete_files_api.called_once
     deleted_identifiers = delete_files_api.request_history[0].json()
     assert {all_file_identifiers[file] for file in files_to_delete} \
-        == set([d['id'] for d in deleted_identifiers])
+        == set([d['storage_identifier'] for d in deleted_identifiers])
 
 
 def test_delete_empty_project(app, test_auth, requests_mock):
