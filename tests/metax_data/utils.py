@@ -40,6 +40,7 @@ TEMPLATE_DATASET = {
 
 TEMPLATE_FILE = {
     "id": None,
+    "storage_identifier": None,
     "pathname": None,
     "filename": None,
     "size": None,
