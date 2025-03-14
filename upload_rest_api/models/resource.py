@@ -444,7 +444,7 @@ class FileGroup():
                 "storage_service": "pas",
             }
             for storage_identifier in storage_identifiers
-            if not file2datasets
+            if not file2datasets.get(storage_identifier)
         ]
         if files_without_datasets:
             metax_client.delete_files(files_without_datasets)

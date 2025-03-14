@@ -692,7 +692,7 @@ def test_delete_file_in_dataset(test_auth, test_client, requests_mock,
 @pytest.mark.parametrize(
     'path_to_delete',
     [
-        '/testdir/test.txt',  # only the file
+        '/testdir/test1.txt',  # only the file
         '/testdir',  # parent directory of the file
         '/',  # project root directory
     ]
@@ -707,23 +707,39 @@ def test_delete_preserved_file(test_auth, test_client, requests_mock,
     :param path_to_delete: The path to be deleted.
     """
     # Mock Metax
-    requests_mock.get("/v3/files?pathname=%2Ftestdir%2Ftest.txt&csc_project=test_project&include_nulls=True",
+    requests_mock.get("/v3/files?pathname=%2Ftestdir%2Ftest1.txt&csc_project=test_project&include_nulls=True",
+                      json={"next": None, "results": []})
+    requests_mock.get("/v3/files?pathname=%2Ftestdir%2Ftest2.txt&csc_project=test_project&include_nulls=True",
                       json={"next": None, "results": []})
     requests_mock.post("/v3/files/post-many?include_nulls=True", json={})
-    delete_file_metadata_api = requests_mock.delete("/v3/files", json={})
+    delete_file_metadata_api \
+        = requests_mock.delete("/v3/files/delete-many", json={})
 
-    # Upload a file
+    # Upload a file that will be added to a dataset. The metadata of
+    # this file should NOT be removed from Metax.
     _upload_file(
         test_client,
-        '/v1/files/test_project/testdir/test.txt',
+        '/v1/files/test_project/testdir/test1.txt',
         test_auth,
         'tests/data/test.txt'
     )
-    file_id = test_client.get(
-        '/v1/files/test_project/testdir/test.txt', headers=test_auth
+    file_id1 = test_client.get(
+        '/v1/files/test_project/testdir/test1.txt', headers=test_auth
     ).json['identifier']
 
-    # Create a dataset "test_dataset", and add the uploaded file to it
+    # Upload a file that is not added to any dataset. The metadata of
+    # this file should be removed from Metax if the file is removed.
+    _upload_file(
+        test_client,
+        '/v1/files/test_project/testdir/test2.txt',
+        test_auth,
+        'tests/data/test.txt'
+    )
+    file_id2 = test_client.get(
+        '/v1/files/test_project/testdir/test2.txt', headers=test_auth
+    ).json['identifier']
+
+    # Create a dataset "test_dataset", and add test1.txt to it
     requests_mock.get(
         "/v3/datasets/test_dataset?include_nulls=True",
         json = 
@@ -742,8 +758,7 @@ def test_delete_preserved_file(test_auth, test_client, requests_mock,
     )
     requests_mock.post(
         "/v3/files/datasets?relations=true&include_nulls=True",
-        additional_matcher=lambda req: req.json() == [file_id],
-        json={file_id: ["test_dataset"]}
+        json={file_id1: ["test_dataset"], file_id2: []}
     )
 
     # Delete the file (or some parent directory of the file)
@@ -763,7 +778,22 @@ def test_delete_preserved_file(test_auth, test_client, requests_mock,
     else:
         raise ValueError('Wrong status code')
 
-    assert not delete_file_metadata_api.called
+    if pathlib.Path("/testdir/text2.txt").is_relative_to(path_to_delete):
+        # Both files are removed from upload-rest-api. The metadata of
+        # test2.txt should be removed from Metax, as it is not in
+        # preservation.
+        assert delete_file_metadata_api.called_once
+        assert delete_file_metadata_api.request_history[0].json() == [
+            {
+                # TODO: should this be "storage_identifer" or "id"?
+                "id": file_id2
+            }
+        ]
+    else:
+        # Only test1.txt is removed removed from upload-rest-api.
+        # Metadata should not be removed from Metax, because test1.txt
+        # is in digital preservation.
+        assert not delete_file_metadata_api.called
 
 
 @pytest.mark.parametrize(
