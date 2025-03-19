@@ -1,12 +1,11 @@
-from datetime import datetime
 import copy
 
 TEMPLATE_DATASET = {
     "id": None,
-    "created": datetime.now().strftime("%Y-%m-%dT%H:%M:%SZ"), # a default value
+    "created": '2025-03-19T08:57:27Z',
     "title": None, # non nullable
     "description": None,
-    "modified": datetime.now().strftime("%Y-%m-%dT%H:%M:%SZ"), # a default value
+    "modified": '2025-03-19T08:57:27Z',
     "fileset": 
         {
             "csc_project": None,

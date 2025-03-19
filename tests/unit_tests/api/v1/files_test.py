@@ -713,7 +713,7 @@ def test_delete_preserved_file(test_auth, test_client, requests_mock,
                       json={"next": None, "results": []})
     requests_mock.post("/v3/files/post-many?include_nulls=True", json={})
     delete_file_metadata_api \
-        = requests_mock.delete("/v3/files/delete-many", json={})
+        = requests_mock.post("/v3/files/delete-many?include_nulls=True", json={})
 
     # Upload a file that will be added to a dataset. The metadata of
     # this file should NOT be removed from Metax.
@@ -785,8 +785,8 @@ def test_delete_preserved_file(test_auth, test_client, requests_mock,
         assert delete_file_metadata_api.called_once
         assert delete_file_metadata_api.request_history[0].json() == [
             {
-                # TODO: should this be "storage_identifer" or "id"?
-                "id": file_id2
+                "storage_identifier": file_id2,
+                "storage_service": "pas",
             }
         ]
     else:
