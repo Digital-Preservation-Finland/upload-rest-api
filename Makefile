@@ -15,20 +15,9 @@ install:
 	# Use Python setuptools
 	python3 ./setup.py install -O1 --prefix="${PREFIX}" --root="${DESTDIR}" --record=INSTALLED_FILES
 
-test:
-	${PYTHON} -m pytest tests/unit_tests -v \
-	    --junitprefix=upload_rest_api --junitxml=junit.xml
-
 test-with-db-logging:
-	${PYTHON} -m pytest tests/unit_tests -vs --log-queries \
+	${PYTHON} -m pytest tests -vs --log-queries \
 		--junitprefix=upload_rest_api --junitxml=junit.xml
-
-coverage:
-	${PYTHON} -m pytest tests/unit_tests -svvv \
-		--cov=upload_rest_api --cov-fail-under=80 \
-		--cov-report=term-missing
-	coverage html
-	coverage xml
 
 clean: clean-rpm
 	find . -iname '*.pyc' -type f -delete

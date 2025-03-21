@@ -59,15 +59,15 @@ def _raise_client_error(task):
     ('task_func', 'expected_response'),
     [
         (
-            'tests.unit_tests.api.v1.tasks_test._modify_task_info',
+            'tests.api.v1.tasks_test._modify_task_info',
             {'message': 'baz', 'status': 'done'}
         ),
         (
-            'tests.unit_tests.api.v1.tasks_test._raise_general_exception',
+            'tests.api.v1.tasks_test._raise_general_exception',
             {'message': 'Internal server error', 'status': 'error'}
         ),
         (
-            'tests.unit_tests.api.v1.tasks_test._raise_client_error',
+            'tests.api.v1.tasks_test._raise_client_error',
             {
                 'message': 'Task failed',
                 'errors': [{'message': 'Client made mistake.', 'files': None}],
