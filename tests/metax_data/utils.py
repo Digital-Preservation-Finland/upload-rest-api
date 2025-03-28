@@ -49,6 +49,8 @@ TEMPLATE_FILE = {
     "dataset_metadata": {"use_category": None},
     "characteristics": None,
     "characteristics_extension": None,
+    "pas_compatible_file": None,
+    "non_pas_compatible_file": None,
 }
 
 
