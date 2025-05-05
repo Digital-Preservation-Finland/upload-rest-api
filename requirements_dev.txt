@@ -5,7 +5,10 @@ pytest
 pytest-mock
 pytest-cov
 requests-mock
-fakeredis
+# TODO: Fakeredis 2.27 is causing errors like:
+# redis.exceptions.ResponseError: unknown command `client list`
+# so version is locked to 2.26
+fakeredis<2.27
 # TODO: Explain why lupa is required
 lupa
 
