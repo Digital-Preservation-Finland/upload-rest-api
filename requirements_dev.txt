@@ -1,58 +1,22 @@
 # Testing requirements
 
 mongobox @ git+https://github.com/theorm/mongobox@aba4175ed4fd60ea1259be7aa49102a06f488b1c
-# Use pytest version that is available on centos7 to avoid deprecation warnings
-pytest==2.9.2 ;python_version == '3.6'
-pytest ; python_version > '3.6'
-# Pytest-catchlog is required for pytest<3.3
-pytest-catchlog ; python_version == '3.6'
-pytest-mock==1.10.4 ; python_version == '3.6' # Newest versions probably won't work with old pytest
-pytest-mock ; python_version > '3.6'
-# Pytest-warnings is required for pytest<3.1
-pytest-warnings ; python_version == '3.6'
-# pytest-cov 2.5.1 is available for centos7. Newest versions are not compatible
-# with pytest 2.9.2
-pytest-cov==2.5.1 ; python_version == '3.6'
-pytest-cov ; python_version > '3.6'
+pytest
+pytest-mock
+pytest-cov
 requests-mock
-# Fakeredis version 2.11 and newer are incompatible with newest redis. 
-# Therefore, using fakeredis version 2.11 or higher must be prevented for now.
-fakeredis<2.11 ; python_version == '3.6'
-fakeredis ; python_version > '3.6'
+fakeredis
+# TODO: Explain why lupa is required
 lupa
 
 # Install requirements
 
-flask==1.1.2 ; python_version == '3.6'
-flask ; python_version > '3.6'
-# itsdangerous 1.1.0 is available on centos7. Newest versions will cause
-# deprecation warnings with flask 1.1.2
-itsdangerous==1.1.0 ; python_version == '3.6'
-itsdangerous ; python_version > '3.6'
-Werkzeug==1.0.1 ; python_version == '3.6'
-Werkzeug; python_version > '3.6'
-pymongo==3.6.1 ; python_version == '3.6'
-pymongo ; python_version > '3.6'
-
-# file-magic 0.4.1 is broken, since it requires a newer libmagic that CentOS 7
-# ships by default.
-file-magic==0.4.0
-
+flask
+Werkzeug
+pymongo
 mongoengine
-# Latest fakeredis (version 1.7.1) is incompatible with redis 4.2.0. The pip
-# version (20.2.4) used in GitLab testing pipeline can not resolve
-# compatibility problems, and will therefore install redis 4.2.0 anyway.
-# The unit tests will then fail with
-#
-#    AttributeError: 'FakeStrictRedis' object has no attribute 'connection_pool'
-#
-# Therefore, using redis version 4.2.0 must be prevented until pip is upgraded
-redis<4.2.0 ; python_version == '3.6'
-redis ; python_version > '3.6'
-# RQ v1.9.0 is causing errors like:
-#    redis.exceptions.ResponseError: unknown command 'CLIENT'
-rq<1.9.0 ; python_version == '3.6'
-rq ; python_version > '3.6'
+redis
+rq
 python-dateutil
 click
 
