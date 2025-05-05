@@ -8,10 +8,7 @@ requests-mock
 # Fakeredis 2.28.0 and 2.28.1 have buggy `CLIENT LIST`, while
 # the newer version will fix the issue.
 # (https://github.com/cunla/fakeredis-py/issues/376)
-fakeredis != 2.28.0
-fakeredis != 2.28.1
-# TODO: Explain why lupa is required
-lupa
+fakeredis[lua] != 2.28.0, != 2.28.1
 
 # Install requirements
 
