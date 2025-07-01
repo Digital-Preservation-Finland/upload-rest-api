@@ -5,6 +5,7 @@ from rq import SimpleWorker
 from upload_rest_api.jobs.utils import (api_background_job,
                                         enqueue_background_job, get_job_queue)
 from upload_rest_api.models.task import Task, TaskEntry, TaskStatus
+from upload_rest_api.jobs import BackgroundJobQueue
 
 
 @api_background_job
@@ -178,5 +179,5 @@ def test_background_job_queue(mock_redis):
     from upload_rest_api.jobs module.
     """
     SimpleWorker(['foo'],
-                 queue_class="upload_rest_api.jobs.BackgroundJobQueue",
+                 queue_class=BackgroundJobQueue,
                  connection=mock_redis)
