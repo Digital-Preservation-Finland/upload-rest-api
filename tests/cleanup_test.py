@@ -165,8 +165,10 @@ def test_cleaning_files_in_datasets(test_mongo, mock_config, requests_mock):
         re.compile("/v3/datasets\?id=(pending_dataset|preserved_dataset)&id=(pending_dataset|preserved_dataset).*"),
         json={"results": [ds1, ds2]}
     )
+
     requests_mock.get(
-        "/v3/datasets?id=preserved_dataset",
+        "/v3/datasets?id=preserved_dataset&limit=1000000&offset=0&include_nulls=True",
+        complete_qs=True,
         json={"results": [ds2]}
     )
     requests_mock.post(
