@@ -5,6 +5,7 @@ import shutil
 import time
 import pymongo
 import copy
+import re
 
 from datetime import datetime, timezone, timedelta
 
@@ -161,12 +162,12 @@ def test_cleaning_files_in_datasets(test_mongo, mock_config, requests_mock):
     ds2['preservation']['state'] = DS_STATE_IN_DIGITAL_PRESERVATION
 
     requests_mock.get(
-        "/v3/datasets/pending_dataset",
-        json=ds1
+        re.compile("/v3/datasets\?include_nulls=True&id=(pending_dataset|preserved_dataset)%2C(pending_dataset|preserved_dataset)"),
+        json={"results": [ds1, ds2]}
     )
     requests_mock.get(
-        "/v3/datasets/preserved_dataset",
-        json=ds2
+        "/v3/datasets?id=preserved_dataset",
+        json={"results": [ds2]}
     )
     requests_mock.post(
         "/v3/files/datasets?relations=true",

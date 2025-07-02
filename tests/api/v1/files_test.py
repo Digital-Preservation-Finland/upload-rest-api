@@ -657,21 +657,22 @@ def test_delete_file_in_dataset(test_auth, test_client, requests_mock,
 
     # Create a dataset "test_dataset", and add the uploaded file to it
     requests_mock.get(
-        "/v3/datasets/test_dataset?include_nulls=True",
-        json = 
-            update_nested_dict(TEMPLATE_DATASET, {
-                "id" : "test_dataset",
-                "title": {
-                    "en": "Dataset"
-                },
-                "fileset": {
-                    "csc_project": "bar"
-                },
-                "preservation": {
-                    "state": DS_STATE_TECHNICAL_METADATA_GENERATED
-                }
-            })
-        
+        "/v3/datasets?id=test_dataset",
+        json={
+            "results": [
+                update_nested_dict(
+                    TEMPLATE_DATASET,
+                    {
+                        "id": "test_dataset",
+                        "title": {"en": "Dataset"},
+                        "fileset": {"csc_project": "bar"},
+                        "preservation": {
+                            "state": DS_STATE_TECHNICAL_METADATA_GENERATED
+                        },
+                    },
+                )
+            ]
+        },
     )
 
     requests_mock.post(
@@ -741,20 +742,22 @@ def test_delete_preserved_file(test_auth, test_client, requests_mock,
 
     # Create a dataset "test_dataset", and add test1.txt to it
     requests_mock.get(
-        "/v3/datasets/test_dataset?include_nulls=True",
-        json = 
-            update_nested_dict(TEMPLATE_DATASET, {
-                "id" : "test_dataset",
-                "title": {
-                    "en": "Dataset"
-                },
-                "fileset": {
-                    "csc_project": "bar"
-                },
-                "preservation": {
-                    "state": DS_STATE_IN_DIGITAL_PRESERVATION
-                }
-            })   
+        "/v3/datasets?id=test_dataset",
+        json={
+            "results": [
+                update_nested_dict(
+                    TEMPLATE_DATASET,
+                    {
+                        "id": "test_dataset",
+                        "title": {"en": "Dataset"},
+                        "fileset": {"csc_project": "bar"},
+                        "preservation": {
+                            "state": DS_STATE_IN_DIGITAL_PRESERVATION
+                        },
+                    },
+                )
+            ]
+        },
     )
     requests_mock.post(
         "/v3/files/datasets?relations=true&include_nulls=True",

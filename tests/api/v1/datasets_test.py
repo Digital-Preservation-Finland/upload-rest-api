@@ -1,5 +1,6 @@
 """Tests for ``upload_rest_api.api.v1.datasets`` module."""
 from pathlib import Path
+import re
 
 import pytest
 from metax_access import (DS_STATE_ACCEPTED_TO_DIGITAL_PRESERVATION,
@@ -103,7 +104,7 @@ def test_get_file_datasets_directory(
             "identifier": "urn:uuid:test2"
         }
     ])
-    
+
     requests_mock.post(
         "/v3/files/datasets?relations=true&include_nulls=True",
         additional_matcher=(
@@ -114,12 +115,15 @@ def test_get_file_datasets_directory(
         }
     )
     requests_mock.get(
-        "/v3/datasets/urn:uuid:dataset1?include_nulls=True",
-        json = update_nested_dict(TEMPLATE_DATASET, datasets[0])
-    )
-    requests_mock.get(
-        "/v3/datasets/urn:uuid:dataset3?include_nulls=True",
-        json = update_nested_dict(TEMPLATE_DATASET, datasets[1])
+        re.compile(
+            "/v3/datasets\?include_nulls=True&id=urn%3Auuid%3Adataset[13]%2Curn%3Auuid%3Adataset[13]"
+        ),
+        json={
+            "results": [
+                update_nested_dict(TEMPLATE_DATASET, datasets[0]),
+                update_nested_dict(TEMPLATE_DATASET, datasets[1]),
+            ]
+        },
     )
 
     response = test_client.get(

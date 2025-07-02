@@ -1,5 +1,6 @@
 """Unit tests for resource module."""
 import io
+import re
 
 import pytest
 
@@ -66,28 +67,15 @@ def test_get_many_datasets(requests_mock):
                                 "urn:uuid:dataset2",
                                 "urn:uuid:dataset3"]}
     )
-    ds = {
+    datasets = [update_nested_dict(TEMPLATE_DATASET, {
+        "id": f"urn:uuid:dataset{x}",
         "title": "foo",
         "fileset": {"csc_project": "bar"},
         "preservation": {"state": 10},
-    }
-    ds['id'] = "urn:uuid:dataset1"
+    }) for x in range(1,4)]
     requests_mock.get(
-        "/v3/datasets/urn:uuid:dataset1?include_nulls=True",
-        json = update_nested_dict(TEMPLATE_DATASET,
-                                  ds)
-    )
-    ds['id'] = "urn:uuid:dataset2"
-    requests_mock.get(
-        "/v3/datasets/urn:uuid:dataset2?include_nulls=True",
-        json = update_nested_dict(TEMPLATE_DATASET,
-                                  ds)
-    )
-    ds['id'] = "urn:uuid:dataset3"
-    requests_mock.get(
-        "/v3/datasets/urn:uuid:dataset3?include_nulls=True",
-        json = update_nested_dict(TEMPLATE_DATASET,
-                                  ds)
+        re.compile("/v3/datasets\?include_nulls=True&id=urn%3Auuid%3Adataset[123]%2Curn%3Auuid%3Adataset[123]%2Curn%3Auuid%3Adataset[123]"),
+        json = {"results": datasets}
     )
 
     # Get the list of datasets associated with directory "test_dir"
