@@ -515,7 +515,7 @@ def test_upload_file_parallel_upload_exceed_quota(
     """Start enough parallel uploads to exceed the user quota."""
     # Mock metax
     requests_mock.post('/v3/files/post-many', json={})
-    requests_mock.get(re.compile('/v3/files\?include_nulls=True&pathname=%2Ftest[0-2].txt&csc_project=test_project'),
+    requests_mock.get(re.compile('/v3/files\?pathname=%2Ftest[0-2].txt&csc_project=test_project.*'),
                       json={'results': [], 'next': None})
 
     ProjectEntry.objects.filter(id="test_project").update_one(set__quota=2999)

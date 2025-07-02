@@ -162,7 +162,7 @@ def test_cleaning_files_in_datasets(test_mongo, mock_config, requests_mock):
     ds2['preservation']['state'] = DS_STATE_IN_DIGITAL_PRESERVATION
 
     requests_mock.get(
-        re.compile("/v3/datasets\?include_nulls=True&id=(pending_dataset|preserved_dataset)%2C(pending_dataset|preserved_dataset)"),
+        re.compile("/v3/datasets\?id=(pending_dataset|preserved_dataset)&id=(pending_dataset|preserved_dataset).*"),
         json={"results": [ds1, ds2]}
     )
     requests_mock.get(
