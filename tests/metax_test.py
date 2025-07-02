@@ -2,7 +2,7 @@
 import pytest
 
 import upload_rest_api.metax
-from tests.metax_data.utils import TEMPLATE_DATASET
+from metax_access.template_data import DATASET as TEMPLATE_DATASET
 
 
 @pytest.mark.parametrize('verify', [True, False])

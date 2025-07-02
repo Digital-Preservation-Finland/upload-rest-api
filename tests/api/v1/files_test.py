@@ -11,7 +11,9 @@ from metax_access import (DS_STATE_TECHNICAL_METADATA_GENERATED,
 from upload_rest_api.models.file_entry import FileEntry
 from upload_rest_api.models.project import ProjectEntry
 from upload_rest_api.lock import ProjectLockManager, LockAlreadyTaken
-from tests.metax_data.utils import TEMPLATE_FILE, TEMPLATE_DATASET, update_nested_dict
+from tests.utils import update_nested_dict
+from metax_access.template_data import FILE as TEMPLATE_FILE
+from metax_access.template_data import DATASET as TEMPLATE_DATASET
 
 
 def _upload_file(client, url, auth, fpath):

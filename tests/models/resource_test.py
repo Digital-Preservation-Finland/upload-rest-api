@@ -7,7 +7,8 @@ import pytest
 from upload_rest_api.models.resource import (File, InvalidPathError,
                                              get_resource)
 from upload_rest_api.models.upload import Upload
-from tests.metax_data.utils import TEMPLATE_FILE, TEMPLATE_DATASET, update_nested_dict
+from tests.utils import update_nested_dict
+from metax_access.template_data import DATASET as TEMPLATE_DATASET
 
 @pytest.mark.usefixtures('app')  # Initialize database
 @pytest.mark.parametrize(

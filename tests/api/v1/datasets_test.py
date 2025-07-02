@@ -6,8 +6,8 @@ import pytest
 from metax_access import (DS_STATE_ACCEPTED_TO_DIGITAL_PRESERVATION,
                           DS_STATE_IN_DISSEMINATION,
                           DS_STATE_TECHNICAL_METADATA_GENERATED)
-from tests.metax_data.utils import TEMPLATE_DATASET, update_nested_dict
-
+from tests.utils import update_nested_dict
+from metax_access.template_data import DATASET as TEMPLATE_DATASET
 
 @pytest.mark.parametrize(
     "datasets,has_pending_dataset",

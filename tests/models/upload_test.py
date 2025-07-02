@@ -9,7 +9,8 @@ from upload_rest_api.lock import ProjectLockManager
 from upload_rest_api.models.resource import File, Directory
 from upload_rest_api.models.upload import (Upload, UploadConflictError,
                                            UploadError)
-from tests.metax_data.utils import TEMPLATE_FILE, TEMPLATE_DATASET, update_nested_dict
+from tests.utils import update_nested_dict
+from metax_access.template_data import FILE as TEMPLATE_FILE
 
 
 @pytest.mark.usefixtures('app')

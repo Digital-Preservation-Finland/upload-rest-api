@@ -18,7 +18,7 @@ from upload_rest_api.models.project import Project
 import upload_rest_api.cleanup as clean
 from upload_rest_api.lock import ProjectLockManager
 from upload_rest_api.models.upload import UploadEntry
-from tests.metax_data.utils import TEMPLATE_DATASET
+from metax_access.template_data import DATASET as TEMPLATE_DATASET
 
 
 @pytest.mark.usefixtures('app')  # Creates test_project
