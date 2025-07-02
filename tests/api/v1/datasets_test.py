@@ -21,7 +21,7 @@ from metax_access.template_data import DATASET as TEMPLATE_DATASET
                     "language": [
                         {
                             "url": "http://lexvo.org/id/iso639-3/eng",
-                            "title": {"en": "English"},
+                            "pref_label": {"en": "English"},
                         }
                     ],
                     "fileset": {"csc_project": "bar"},
@@ -35,7 +35,7 @@ from metax_access.template_data import DATASET as TEMPLATE_DATASET
                     "language": [
                         {
                             "url": "http://lexvo.org/id/iso639-3/eng",
-                            "title": {"en": "English"},
+                            "pref_label": {"en": "English"},
                         }
                     ],
                     "fileset": {"csc_project": "bar"},
@@ -55,7 +55,7 @@ from metax_access.template_data import DATASET as TEMPLATE_DATASET
                     "language": [
                         {
                             "url": "http://lexvo.org/id/iso639-3/eng",
-                            "title": {"en": "English"},
+                            "pref_label": {"en": "English"},
                         }
                     ],
                     "fileset": {"csc_project": "bar"},
@@ -69,7 +69,7 @@ from metax_access.template_data import DATASET as TEMPLATE_DATASET
                     "language": [
                         {
                             "url": "http://lexvo.org/id/iso639-3/eng",
-                            "title": {"en": "English"},
+                            "pref_label": {"en": "English"},
                         }
                     ],
                     "fileset": {"csc_project": "bar"},
