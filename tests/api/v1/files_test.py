@@ -49,7 +49,7 @@ def _request_accepted(response):
 def test_upload(app, test_auth, test_mongo, path, requests_mock):
     """Test uploading a plain text file."""
     # Mock metax
-    metax_files_api = requests_mock.post('/v3/files/post-many?include_nulls=True',
+    metax_files_api = requests_mock.post('/v3/files/post-many',
                                         json={})
     requests_mock.get('/v3/files', json={'results': [], 'next': None})
 
@@ -101,7 +101,7 @@ def test_upload_conflict(test_client, test_auth, requests_mock):
     """Test uploading a file that already has metadata in Metax."""
     # Mock metax
     requests_mock.get(
-        '/v3/files?pathname=%2Ffoo%2Fbar&csc_project=test_project&include_nulls=True',
+        '/v3/files?pathname=%2Ffoo%2Fbar&csc_project=test_project',
         json={'results': [update_nested_dict(TEMPLATE_FILE, {"pathname": '/foo/bar'})], 'next': None}
     )
 
@@ -161,16 +161,16 @@ def test_user_quota(app, test_auth):
 def test_used_quota(app, test_auth, requests_mock):
     """Test that used quota is calculated correctly."""
     # Mock Metax
-    requests_mock.get("/v3/files?pathname=%2Ftest1&csc_project=test_project&include_nulls=True",
+    requests_mock.get("/v3/files?pathname=%2Ftest1&csc_project=test_project",
                       json={'next': None, 'results': []})
-    requests_mock.get("/v3/files?pathname=%2Ftest2&csc_project=test_project&include_nulls=True",
+    requests_mock.get("/v3/files?pathname=%2Ftest2&csc_project=test_project",
                       json={'next': None, 'results': []})
-    requests_mock.post("/v3/files/post-many?include_nulls=True", json={})
+    requests_mock.post("/v3/files/post-many", json={})
     requests_mock.post(
-        "/v3/files/datasets?relations=true&include_nulls=True",
+        "/v3/files/datasets?relations=true",
         json={}
     )
-    requests_mock.post("/v3/files/delete-many?include_nulls=True", json={})
+    requests_mock.post("/v3/files/delete-many", json={})
 
     test_client = app.test_client()
 
@@ -199,8 +199,8 @@ def test_used_quota(app, test_auth, requests_mock):
 def test_upload_conflicting_directory(app, test_auth, requests_mock):
     """Test uploading file to path that is a directory."""
     # Mock metax
-    requests_mock.post('/v3/files/post-many?include_nulls=True', json={})
-    requests_mock.get('/v3/files?pathname=%2Ffoo%2Fbar&csc_project=test_project&include_nulls=True',
+    requests_mock.post('/v3/files/post-many', json={})
+    requests_mock.get('/v3/files?pathname=%2Ffoo%2Fbar&csc_project=test_project',
                       json={'results': [], 'next': None})
 
     # First upload file to "/foo/bar", so that directory "/foo" is
@@ -326,8 +326,8 @@ def test_file_integrity_validation(app, test_auth, checksum,
     :param requests_mock: HTTP request mocker
     """
     # Mock Metax
-    requests_mock.post('/v3/files/post-many?include_nulls=True', json={})
-    requests_mock.get('/v3/files?pathname=%2Ftest_path&csc_project=test_project&include_nulls=True', json={'results': [], 'next': None})
+    requests_mock.post('/v3/files/post-many', json={})
+    requests_mock.get('/v3/files?pathname=%2Ftest_path&csc_project=test_project', json={'results': [], 'next': None})
 
     # Post a file
     test_client = app.test_client()
@@ -382,15 +382,15 @@ def test_get_file(app, test_auth, test_auth2):
 def test_delete_file(app, test_auth, requests_mock, test_mongo, name):
     """Test DELETE for single file."""
     # Mock Metax
-    requests_mock.get("/v3/files?pathname=%2Ftest.txt&csc_project=test_project&include_nulls=True",
+    requests_mock.get("/v3/files?pathname=%2Ftest.txt&csc_project=test_project",
                       json={'next': None, 'results': []})
-    requests_mock.get("/v3/files?pathname=%2Ft%C3%A4m%C3%A4ontesti.txt&csc_project=test_project&include_nulls=True",
+    requests_mock.get("/v3/files?pathname=%2Ft%C3%A4m%C3%A4ontesti.txt&csc_project=test_project",
                       json={'next': None, 'results': []})
-    requests_mock.get("/v3/files?pathname=%2Ft%C3%A4m%C3%A4+on+testi.txt&csc_project=test_project&include_nulls=True",
+    requests_mock.get("/v3/files?pathname=%2Ft%C3%A4m%C3%A4+on+testi.txt&csc_project=test_project",
                       json={'next': None, 'results': []})
-    requests_mock.post("/v3/files/post-many?include_nulls=True", json={})
-    requests_mock.post("/v3/files/datasets?relations=true&include_nulls=True", json={})
-    delete_files_api = requests_mock.post("/v3/files/delete-many?include_nulls=True", json={})
+    requests_mock.post("/v3/files/post-many", json={})
+    requests_mock.post("/v3/files/datasets?relations=true", json={})
+    delete_files_api = requests_mock.post("/v3/files/delete-many", json={})
 
     # Upload a file
     test_client = app.test_client()
@@ -541,15 +541,15 @@ def test_delete_directory(
         = pathlib.Path(app.config.get("UPLOAD_PROJECTS_PATH")) / 'test_project'
 
     # Mock metax.
-    requests_mock.post('/v3/files/post-many?include_nulls=True', json={})
-    requests_mock.get('/v3/files?pathname=%2Ftest.txt&csc_project=test_project&include_nulls=True',
+    requests_mock.post('/v3/files/post-many', json={})
+    requests_mock.get('/v3/files?pathname=%2Ftest.txt&csc_project=test_project',
                       json={"results": [], "next": None})
-    requests_mock.get('/v3/files?pathname=%2Ftest%2Ftest.txt&csc_project=test_project&include_nulls=True',
+    requests_mock.get('/v3/files?pathname=%2Ftest%2Ftest.txt&csc_project=test_project',
                       json={"results": [], "next": None})
-    requests_mock.get('/v3/files?pathname=%2Ftestdir%2Ftest.txt&csc_project=test_project&include_nulls=True',
+    requests_mock.get('/v3/files?pathname=%2Ftestdir%2Ftest.txt&csc_project=test_project',
                       json={"results": [], "next": None})
-    requests_mock.post("/v3/files/datasets?relations=true&storage_service=pas&include_nulls=True", json={})
-    delete_files_api = requests_mock.post("/v3/files/delete-many?include_nulls=True", json={})
+    requests_mock.post("/v3/files/datasets?relations=true&storage_service=pas", json={})
+    delete_files_api = requests_mock.post("/v3/files/delete-many", json={})
 
     # Create test files
     test_client = app.test_client()
@@ -643,8 +643,8 @@ def test_delete_file_in_dataset(test_auth, test_client, requests_mock,
     :param path_to_delete: The path to be deleted.
     """
     # Mock Metax
-    requests_mock.get("/v3/files?pathname=%2Ftestdir%2Ftest.txt&csc_project=test_project&include_nulls=True", json={"next": None, "results": []})
-    requests_mock.post("/v3/files/post-many?include_nulls=True", json={})
+    requests_mock.get("/v3/files?pathname=%2Ftestdir%2Ftest.txt&csc_project=test_project", json={"next": None, "results": []})
+    requests_mock.post("/v3/files/post-many", json={})
 
     # Upload a file
     _upload_file(
@@ -678,7 +678,7 @@ def test_delete_file_in_dataset(test_auth, test_client, requests_mock,
     )
 
     requests_mock.post(
-        "/v3/files/datasets?relations=true&include_nulls=True",
+        "/v3/files/datasets?relations=true",
         additional_matcher=lambda req: req.json() == [file_id],
         json={file_id: ["test_dataset"]}
     )
@@ -710,13 +710,13 @@ def test_delete_preserved_file(test_auth, test_client, requests_mock,
     :param path_to_delete: The path to be deleted.
     """
     # Mock Metax
-    requests_mock.get("/v3/files?pathname=%2Ftestdir%2Ftest1.txt&csc_project=test_project&include_nulls=True",
+    requests_mock.get("/v3/files?pathname=%2Ftestdir%2Ftest1.txt&csc_project=test_project",
                       json={"next": None, "results": []})
-    requests_mock.get("/v3/files?pathname=%2Ftestdir%2Ftest2.txt&csc_project=test_project&include_nulls=True",
+    requests_mock.get("/v3/files?pathname=%2Ftestdir%2Ftest2.txt&csc_project=test_project",
                       json={"next": None, "results": []})
-    requests_mock.post("/v3/files/post-many?include_nulls=True", json={})
+    requests_mock.post("/v3/files/post-many", json={})
     delete_file_metadata_api \
-        = requests_mock.post("/v3/files/delete-many?include_nulls=True", json={})
+        = requests_mock.post("/v3/files/delete-many", json={})
 
     # Upload a file that will be added to a dataset. The metadata of
     # this file should NOT be removed from Metax.
@@ -762,7 +762,7 @@ def test_delete_preserved_file(test_auth, test_client, requests_mock,
         },
     )
     requests_mock.post(
-        "/v3/files/datasets?relations=true&include_nulls=True",
+        "/v3/files/datasets?relations=true",
         json={file_id1: ["test_dataset"], file_id2: []}
     )
 

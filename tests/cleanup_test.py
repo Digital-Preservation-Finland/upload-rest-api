@@ -55,7 +55,7 @@ def test_expired_files(test_mongo, mock_config, requests_mock):
     """Test that all the expired files are removed."""
     # Mock metax. Files do not have pending datasets.
     requests_mock.post('/v3/files/datasets?relations=true', json={})
-    delete_files_api = requests_mock.post('/v3/files/delete-many?include_nulls=True', json={})
+    delete_files_api = requests_mock.post('/v3/files/delete-many', json={})
 
     mock_config["CLEANUP_TIMELIM"] = 10
     project_directory \
@@ -205,7 +205,7 @@ def test_all_files_expired(test_mongo, mock_config, requests_mock):
     """
     # Mock metax. Files do not have pending datasets.
     requests_mock.post('/v3/files/datasets?relations=true', json={})
-    requests_mock.post('/v3/files/delete-many?include_nulls=True', json={})
+    requests_mock.post('/v3/files/delete-many', json={})
 
     mock_config["CLEANUP_TIMELIM"] = 10
     upload_path = pathlib.Path(mock_config["UPLOAD_PROJECTS_PATH"])

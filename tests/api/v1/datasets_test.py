@@ -106,7 +106,7 @@ def test_get_file_datasets_directory(
     ])
 
     requests_mock.post(
-        "/v3/files/datasets?relations=true&include_nulls=True",
+        "/v3/files/datasets?relations=true",
         additional_matcher=(
             lambda req: set(req.json()) == {"urn:uuid:test1", "urn:uuid:test2"}
         ),

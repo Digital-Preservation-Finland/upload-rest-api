@@ -50,7 +50,7 @@ def test_upload_archive(
     :param request_mock: HTTP request mocker
     """
     # Mock metax
-    metax_files_api = requests_mock.post('/v3/files/post-many?include_nulls=True', json={})
+    metax_files_api = requests_mock.post('/v3/files/post-many', json={})
     requests_mock.get('/v3/files', json={'next': None, 'results': []})
 
     test_client = app.test_client()
@@ -123,7 +123,7 @@ def test_upload_archive_to_dirpath(
     :param requests_mock: HTTP request mocker
     """
     # Mock metax
-    requests_mock.post('/v3/files/post-many?include_nulls=True', json={})
+    requests_mock.post('/v3/files/post-many', json={})
     requests_mock.get('/v3/files', json={'next': None, 'results': []})
 
     test_client = app.test_client()
@@ -159,7 +159,7 @@ def test_upload_archive_already_exists(
     :param requests_mock: HTTP request mocker
     """
     # Mock metax
-    requests_mock.post('/v3/files/post-many?include_nulls=True', json={})
+    requests_mock.post('/v3/files/post-many', json={})
     requests_mock.get('/v3/files', json={'next': None, 'results': []})
 
     # Upload a file to a path that will cause a conflict
@@ -209,7 +209,7 @@ def test_upload_two_archives(
     :param requests_mock: HTTP request mocker
     """
     # Mock metax
-    requests_mock.post('/v3/files/post-many?include_nulls=True', json={})
+    requests_mock.post('/v3/files/post-many', json={})
     requests_mock.get('/v3/files', json={'next': None, 'results': []})
 
     test_client = app.test_client()
@@ -262,7 +262,7 @@ def test_upload_archive_multiple_archives(
     :param requests_mock: HTTP request mocker
     """
     # Mock metax
-    requests_mock.post('/v3/files/post-many?include_nulls=True', json={})
+    requests_mock.post('/v3/files/post-many', json={})
     requests_mock.get('/v3/files', json={'next': None, 'results': []})
 
     test_client = app.test_client()

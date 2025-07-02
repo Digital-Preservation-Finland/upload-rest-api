@@ -27,7 +27,7 @@ def test_store_file(
     """Test that Upload object creates correct metadata."""
     # Mock metax
     mock_post_metadata = requests_mock.post(
-        "/v3/files/post-many?include_nulls=True", json = {}
+        "/v3/files/post-many", json = {}
     )
     requests_mock.get('/v3/files', json={'next': None, 'results': []})
 
@@ -71,9 +71,9 @@ def test_file_metadata_conflict(mock_config, requests_mock):
         'pathname': '/path/file1',
         'storage_identifier': 'foo'
     }
-    metax_files_api = requests_mock.post('/v3/files/post-many?include_nulls=True', json={})
+    metax_files_api = requests_mock.post('/v3/files/post-many', json={})
     requests_mock.get(
-        '/v3/files?pathname=%2Fpath%2Ffile1&csc_project=test_project&include_nulls=True',
+        '/v3/files?pathname=%2Fpath%2Ffile1&csc_project=test_project',
         json={
             'next': None,
             'results': [
@@ -128,8 +128,8 @@ def test_add_source():
 def test_checksum(checksum, verify, requests_mock, mock_get_file_checksum):
     """Test that checksum is not computed needlessly."""
     # Mock metax.
-    requests_mock.post('/v3/files/post-many?include_nulls=True', json={})
-    requests_mock.get('/v3/files?pathname=%2Fpath%2Ffile1&csc_project=test_project&include_nulls=True',
+    requests_mock.post('/v3/files/post-many', json={})
+    requests_mock.get('/v3/files?pathname=%2Fpath%2Ffile1&csc_project=test_project',
                       json={'next': None, 'results': []})
 
     # Upload a file. Checksum should be computed only if it must be
@@ -203,8 +203,8 @@ def test_upload_archive_conflict(
     :param requests_mock: HTTP request mocker
     """
     # Mock metax
-    requests_mock.post('/v3/files/post-many?include_nulls=True', json={})
-    requests_mock.get(f'/v3/files?pathname=%2F{urllib.parse.quote(existing_file, safe="")}&csc_project=test_project&include_nulls=True',
+    requests_mock.post('/v3/files/post-many', json={})
+    requests_mock.get(f'/v3/files?pathname=%2F{urllib.parse.quote(existing_file, safe="")}&csc_project=test_project',
                       json={'next': None, 'results': []})
 
 

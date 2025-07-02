@@ -46,9 +46,9 @@ def test_parse_relative_user_path(path, result):
 def test_get_many_datasets(requests_mock):
     """Test that get_datasets method handles paging in Metax."""
     # Mock metax
-    requests_mock.get('/v3/files?pathname=%2Ftestdir%2Ftestfile&csc_project=test_project&include_nulls=True',
+    requests_mock.get('/v3/files?pathname=%2Ftestdir%2Ftestfile&csc_project=test_project',
                     json={'next': None, 'results': []})
-    requests_mock.post('/v3/files/post-many?include_nulls=True', json={})
+    requests_mock.post('/v3/files/post-many', json={})
 
     # Upload a file to directory /testdir
     upload = Upload.create(File('test_project', 'testdir/testfile'), 123)
@@ -63,17 +63,23 @@ def test_get_many_datasets(requests_mock):
     # the datasets is requested from Metax, two datasets are provided
     # per page.
     requests_mock.post(
-        "/v3/files/datasets?relations=true&include_nulls=True",
+        "/v3/files/datasets?relations=true",
         json={file_identifier: ["urn:uuid:dataset1",
                                 "urn:uuid:dataset2",
                                 "urn:uuid:dataset3"]}
     )
-    datasets = [update_nested_dict(TEMPLATE_DATASET, {
-        "id": f"urn:uuid:dataset{x}",
-        "title": "foo",
-        "fileset": {"csc_project": "bar"},
-        "preservation": {"state": 10},
-    }) for x in range(1,4)]
+    datasets = [
+        update_nested_dict(
+            TEMPLATE_DATASET,
+            {
+                "id": f"urn:uuid:dataset{x}",
+                "title": "foo",
+                "fileset": {"csc_project": "bar"},
+                "preservation": {"state": 10},
+            },
+        )
+        for x in range(1, 4)
+    ]
     requests_mock.get(
         re.compile("/v3/datasets\?include_nulls=True&id=urn%3Auuid%3Adataset[123]%2Curn%3Auuid%3Adataset[123]%2Curn%3Auuid%3Adataset[123]"),
         json = {"results": datasets}
