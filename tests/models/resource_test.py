@@ -81,8 +81,8 @@ def test_get_many_datasets(requests_mock):
         for x in range(1, 4)
     ]
     requests_mock.get(
-        re.compile("/v3/datasets\?id=urn%3Auuid%3Adataset[123]&id=urn%3Auuid%3Adataset[123]&id=urn%3Auuid%3Adataset[123].*"),
-        json = {"results": datasets}
+        re.compile("/v3/datasets\?id=urn%3Auuid%3Adataset[123]%2Curn%3Auuid%3Adataset[123]%2Curn%3Auuid%3Adataset[123].*"),
+        json = datasets
     )
 
     # Get the list of datasets associated with directory "test_dir"

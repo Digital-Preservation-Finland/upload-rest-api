@@ -660,8 +660,7 @@ def test_delete_file_in_dataset(test_auth, test_client, requests_mock,
     # Create a dataset "test_dataset", and add the uploaded file to it
     requests_mock.get(
         "/v3/datasets?id=test_dataset",
-        json={
-            "results": [
+        json=[
                 update_nested_dict(
                     TEMPLATE_DATASET,
                     {
@@ -674,7 +673,6 @@ def test_delete_file_in_dataset(test_auth, test_client, requests_mock,
                     },
                 )
             ]
-        },
     )
 
     requests_mock.post(
@@ -745,8 +743,7 @@ def test_delete_preserved_file(test_auth, test_client, requests_mock,
     # Create a dataset "test_dataset", and add test1.txt to it
     requests_mock.get(
         "/v3/datasets?id=test_dataset",
-        json={
-            "results": [
+        json=[
                 update_nested_dict(
                     TEMPLATE_DATASET,
                     {
@@ -759,7 +756,6 @@ def test_delete_preserved_file(test_auth, test_client, requests_mock,
                     },
                 )
             ]
-        },
     )
     requests_mock.post(
         "/v3/files/datasets?relations=true",

@@ -116,14 +116,12 @@ def test_get_file_datasets_directory(
     )
     requests_mock.get(
         re.compile(
-            "/v3/datasets\?id=urn%3Auuid%3Adataset[13]&id=urn%3Auuid%3Adataset[13].*"
+            "/v3/datasets\?id=urn%3Auuid%3Adataset[13]%2Curn%3Auuid%3Adataset[13].*"
         ),
-        json={
-            "results": [
+        json=[
                 update_nested_dict(TEMPLATE_DATASET, datasets[0]),
                 update_nested_dict(TEMPLATE_DATASET, datasets[1]),
-            ]
-        },
+            ],
     )
 
     response = test_client.get(

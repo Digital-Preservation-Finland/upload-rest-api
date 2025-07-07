@@ -161,15 +161,15 @@ def test_cleaning_files_in_datasets(test_mongo, mock_config, requests_mock):
     ds2['fileset']['csc_project'] = "bar"
     ds2['preservation']['state'] = DS_STATE_IN_DIGITAL_PRESERVATION
 
-    requests_mock.get(
-        re.compile("/v3/datasets\?id=(pending_dataset|preserved_dataset)&id=(pending_dataset|preserved_dataset).*"),
-        json={"results": [ds1, ds2]}
+    resp = requests_mock.get(
+        re.compile("/v3/datasets\?id=(pending_dataset|preserved_dataset)%2C(pending_dataset|preserved_dataset).*"),
+        json=[ds1, ds2]
     )
 
     requests_mock.get(
-        "/v3/datasets?id=preserved_dataset&limit=1000000&offset=0&include_nulls=True",
+        "/v3/datasets?id=preserved_dataset&pagination=False&include_nulls=True",
         complete_qs=True,
-        json={"results": [ds2]}
+        json=[ds2]
     )
     requests_mock.post(
         "/v3/files/datasets?relations=true",
@@ -196,6 +196,8 @@ def test_cleaning_files_in_datasets(test_mongo, mock_config, requests_mock):
 
     # The metadata of any file should not be removed from Metax
     assert not delete_files_api.called
+    print('HELLO ID')
+    print(resp.last_request.qs)
 
 
 @pytest.mark.usefixtures('app')  # Creates test_project
