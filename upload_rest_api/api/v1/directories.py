@@ -4,7 +4,7 @@ Functionality for creating directories.
 """
 from flask import Blueprint, abort, jsonify
 
-from upload_rest_api.authentication import current_user
+from upload_rest_api.authentication import require_project_access
 from upload_rest_api.models.resource import Directory
 
 
@@ -18,8 +18,7 @@ DIRECTORIES_API_V1 = Blueprint(
 )
 def create_directory(project_id, dir_path):
     """Create a directory inside given project."""
-    if not current_user.is_allowed_to_access_project(project_id):
-        abort(403, "No permission to access this project")
+    require_project_access(project_id)
 
     try:
         resource = Directory.create(project_id=project_id, path=dir_path)

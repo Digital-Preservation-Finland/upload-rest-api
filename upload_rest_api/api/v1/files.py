@@ -10,7 +10,7 @@ import werkzeug
 from flask import Blueprint, abort, jsonify, request
 
 from upload_rest_api.api.v1.tasks import get_polling_url
-from upload_rest_api.authentication import current_user
+from upload_rest_api.authentication import require_project_access
 from upload_rest_api.models.upload import Upload
 from upload_rest_api.models.resource import get_resource, File
 from upload_rest_api.config import CONFIG
@@ -40,8 +40,7 @@ def upload_file(project_id, fpath):
 
     :returns: HTTP Response
     """
-    if not current_user.is_allowed_to_access_project(project_id):
-        abort(403, "No permission to access this project")
+    require_project_access(project_id)
 
     if request.content_type not in ('application/octet-stream', None, ''):
         raise werkzeug.exceptions.UnsupportedMediaType(
@@ -80,8 +79,7 @@ def get_path(project_id, fpath):
 
     :returns: HTTP Response
     """
-    if not current_user.is_allowed_to_access_project(project_id):
-        abort(403, "No permission to access this project")
+    require_project_access(project_id)
 
     try:
         resource = get_resource(project_id, fpath)
@@ -121,8 +119,7 @@ def delete_path(project_id, fpath):
 
     :returns: HTTP Response
     """
-    if not current_user.is_allowed_to_access_project(project_id):
-        abort(403, "No permission to access this project")
+    require_project_access(project_id)
 
     try:
         resource = get_resource(project_id, fpath)

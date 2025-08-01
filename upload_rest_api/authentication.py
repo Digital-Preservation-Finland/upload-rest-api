@@ -145,3 +145,13 @@ def authenticate():
 
     # Neither authentication method worked, abort the request
     abort(401)
+
+
+def require_project_access(project_id: str) -> None:
+    """Abort with code 403 if `current_user` does not have permissions to
+    access `project_id`
+
+    :param project_id: ID of the project.
+    """
+    if not current_user.is_allowed_to_access_project(project_id):
+        abort(403, "No permission to access this project")
