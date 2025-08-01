@@ -96,7 +96,7 @@ class Upload:
             elif self.type_ == UploadType.FILE:
                 self._resource = File(self.project.id, self.path)
             else:
-                raise ValueError("Invalid upload type""")
+                raise ValueError("Invalid upload type")
 
         return self._resource
 
