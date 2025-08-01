@@ -1,5 +1,8 @@
 """Module for calculating checksums for files"""
+from __future__ import annotations
+
 import hashlib
+from pathlib import Path
 from typing import Iterable
 
 
@@ -11,7 +14,7 @@ HASH_FUNCTION_ALIASES = {
 }
 
 
-def get_file_checksums(algorithms: Iterable[str], path: str) -> dict:
+def get_file_checksums(algorithms: Iterable[str], path: str | Path) -> dict:
     """
     Calculate the file checksum using given algorithms for a file
 

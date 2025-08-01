@@ -1,7 +1,11 @@
 """Event handler for the /files_tus/v1 endpoint."""
+from __future__ import annotations
+
 import flask_tus_io
 import werkzeug
-from flask import Blueprint, abort
+from flask import Blueprint, abort, Flask
+from flask_tus_io.resource import TusResource
+from flask_tus_io.workspace import Workspace
 
 from upload_rest_api.authentication import current_user
 from upload_rest_api.checksum import HASH_FUNCTION_ALIASES, get_file_checksums
@@ -16,7 +20,7 @@ FILES_TUS_API_V1 = Blueprint(
 )
 
 
-def register_blueprint(app):
+def register_blueprint(app: Flask) -> None:
     """
     Register the `flask_tus_io` application under the `/v1/files_tus`
     URL prefix
@@ -29,7 +33,7 @@ def register_blueprint(app):
     app.register_blueprint(FILES_TUS_API_V1)
 
 
-def _release_lock(workspace):
+def _release_lock(workspace: Workspace) -> None:
     """Release file storage lock."""
     resource = workspace.get_resource()
     try:
@@ -39,12 +43,12 @@ def _release_lock(workspace):
         return
 
 
-def _delete_workspace(workspace):
+def _delete_workspace(workspace: Workspace) -> None:
     """Delete the workspace."""
     workspace.remove()
 
 
-def _upload_started(workspace, resource):
+def _upload_started(workspace: Workspace, resource: TusResource) -> None:
     """Callback function called when a new upload is started."""
     try:
         upload_type = resource.upload_metadata["type"]
@@ -77,8 +81,9 @@ def _upload_started(workspace, resource):
         raise
 
 
-def _store_files(workspace, resource, upload_type, calculated_algorithm=None,
-                 calculated_checksum=None):
+def _store_files(
+    workspace: Workspace, resource: TusResource, upload_type: str
+) -> None:
     """Start the extraction job for an uploaded archive."""
     upload = Upload.get(id=resource.identifier)
 
@@ -105,7 +110,7 @@ def _store_files(workspace, resource, upload_type, calculated_algorithm=None,
         upload.store_files(verify_source=False)
 
 
-def _get_checksum_tuple(checksum):
+def _get_checksum_tuple(checksum: str | None) -> tuple[str | None, str | None]:
     """
     Return a (algorithm, checksum) tuple from a "checksum" tus metadata value
     """
@@ -125,7 +130,9 @@ def _get_checksum_tuple(checksum):
     return algorithm, expected_checksum
 
 
-def _calculate_upload_checksum(resource, workspace, checksum):
+def _calculate_upload_checksum(
+    resource: TusResource, workspace: Workspace, checksum: str
+) -> None:
     """
     Calculate the MD5 checksum and save it. If user also provided their own
     checksum, check the integrity of an upload by comparing the user provided
@@ -162,7 +169,7 @@ def _calculate_upload_checksum(resource, workspace, checksum):
         raise
 
 
-def _upload_completed(workspace, resource):
+def _upload_completed(workspace: Workspace, resource: TusResource) -> None:
     """Callback function called when an upload is finished."""
     upload_type = resource.upload_metadata["type"]
 
@@ -206,7 +213,9 @@ def _upload_completed(workspace, resource):
         _store_files(workspace, resource, upload_type)
 
 
-def tus_event_handler(event_type, workspace, resource):
+def tus_event_handler(
+    event_type: str, workspace: Workspace, resource: TusResource
+) -> None:
     """
     Call the corresponding callback function if available for the given
     event type.
