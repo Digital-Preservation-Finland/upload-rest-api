@@ -306,7 +306,7 @@ class Upload:
         self._source_path.unlink()
 
     @_release_lock_on_exception
-    def store_files(self, verify_source):
+    def store_files(self, verify_source: bool) -> None:
         """Store files.
 
         Moves/extracts source files to temporary project directory,
@@ -359,7 +359,7 @@ class Upload:
                     ' already has metadata',
                     files=[old_file['pathname']]
                 )
-            except metax_access.metax.FileNotAvailableError:
+            except metax_access.error.FileNotAvailableError:
                 # No conflicts
                 pass
         else:
@@ -407,6 +407,7 @@ class Upload:
                 # Create metadata
                 timestamp = _iso8601_timestamp(file)
                 metadata: MetaxFile = {
+                    "id": self.id,
                     "storage_identifier": identifier,
                     "filename": file.name,
                     "size": file.stat().st_size,
