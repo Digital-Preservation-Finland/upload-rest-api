@@ -336,14 +336,7 @@ class Upload:
         # Refuse to store files if Metax has conflicting files. See
         # https://jira.ci.csc.fi/browse/TPASPKT-749 for more
         # information.
-        new_files = []
-        for dirpath, _, files in os.walk(self._tmp_project_directory):
-            for fname in files:
-                new_files.append(
-                    Path(dirpath, fname).relative_to(
-                        self._tmp_project_directory
-                    )
-                )
+        new_files = self._get_new_files()
         metax_client = get_metax_client()
         if len(new_files) == 1:
             # Creating metadata for only one file, so it is probably
@@ -377,52 +370,7 @@ class Upload:
                     'already have metadata', files=conflicts
                 )
 
-        # Generate metadata
-        metadata_dicts = []  # File metadata for Metax
-        file_documents = []  # Basic file information to database
-        for dirpath, _, files in os.walk(self._tmp_project_directory):
-            for fname in files:
-                file = Path(dirpath, fname)
-                relative_path = file.relative_to(self._tmp_project_directory)
-
-                # Create file information for database
-                identifier = str(uuid.uuid4().urn)
-                file_checksum_provided = (
-                    self.type_ == UploadType.FILE
-                    and self.source_checksum
-                )
-                if file_checksum_provided:
-                    checksum = self.source_checksum
-                else:
-                    checksum = get_file_checksum("md5", file)
-
-                file_documents.append(
-                    FileEntry(
-                        path=str(self.project.directory / relative_path),
-                        checksum=checksum,
-                        identifier=identifier
-                    )
-                )
-
-                # Create metadata
-                timestamp = _iso8601_timestamp(file)
-                metadata: MetaxFile = {
-                    "id": self.id,
-                    "storage_identifier": identifier,
-                    "filename": file.name,
-                    "size": file.stat().st_size,
-                    "storage_service": "pas",
-                    "pathname": f"/{relative_path}",
-                    "csc_project": self.project.id,
-                    "modified": timestamp,
-                    "frozen": timestamp,
-                    "checksum": f"md5:{checksum}"
-                    # File format deliberately left out.
-                    # Metax V3 enforces complete file technical metadata
-                    # (format and version) from the get-go, which can't be
-                    # provided at this stage.
-                }
-                metadata_dicts.append(metadata)
+        metadata_dicts, file_documents = self._generate_metadata()
 
         # Post all metadata to Metax in one go
         _post_metadata(metadata_dicts)
@@ -446,7 +394,81 @@ class Upload:
         lock_manager = ProjectLockManager()
         lock_manager.release(self.project.id, self.storage_path)
 
-    def _move_files_to_project_directory(self):
+    def _get_new_files(self) -> list[Path]:
+        """Collects new files from the temporary project directory.
+
+        :returns: List of file paths relative to the temporary project
+            directory.
+        """
+        new_files = []
+        for dirpath, _, files in os.walk(self._tmp_project_directory):
+            for fname in files:
+                new_files.append(
+                    Path(dirpath, fname).relative_to(
+                        self._tmp_project_directory
+                    )
+                )
+
+        return new_files
+
+    def _generate_metadata(
+        self,
+    ) -> tuple[list[MetaxFile], list[FileEntry]]:
+        """Generates metadata for Metax and file entries for the database.
+
+        :returns: Tuple containing:
+
+            - List of MetaxFile dictionaries with metadata for each file.
+            - List of FileEntry objects with basic file information
+        """
+        metadata_dicts = []  # File metadata for Metax
+        file_documents = []  # Basic file information to database
+        for dirpath, _, files in os.walk(self._tmp_project_directory):
+            for fname in files:
+                file = Path(dirpath, fname)
+                relative_path = file.relative_to(self._tmp_project_directory)
+
+                # Create file information for database
+                identifier = str(uuid.uuid4().urn)
+                file_checksum_provided = (
+                    self.type_ == UploadType.FILE and self.source_checksum
+                )
+                if file_checksum_provided:
+                    checksum = self.source_checksum
+                else:
+                    checksum = get_file_checksum("md5", file)
+
+                file_documents.append(
+                    FileEntry(
+                        path=str(self.project.directory / relative_path),
+                        checksum=checksum,
+                        identifier=identifier,
+                    )
+                )
+
+                # Create metadata
+                timestamp = _iso8601_timestamp(file)
+                metadata: MetaxFile = {
+                    "id": self.id,
+                    "storage_identifier": identifier,
+                    "filename": file.name,
+                    "size": file.stat().st_size,
+                    "storage_service": "pas",
+                    "pathname": f"/{relative_path}",
+                    "csc_project": self.project.id,
+                    "modified": timestamp,
+                    "frozen": timestamp,
+                    "checksum": f"md5:{checksum}",
+                    # File format deliberately left out.
+                    # Metax V3 enforces complete file technical metadata
+                    # (format and version) from the get-go, which can't be
+                    # provided at this stage.
+                }
+                metadata_dicts.append(metadata)
+
+        return metadata_dicts, file_documents
+
+    def _move_files_to_project_directory(self) -> None:
         """Move files to project directory."""
         for dirpath, _, files in os.walk(self._tmp_project_directory):
             for fname in files:
