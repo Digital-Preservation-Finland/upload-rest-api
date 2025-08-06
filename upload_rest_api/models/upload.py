@@ -449,7 +449,8 @@ class Upload:
                 # Create metadata
                 timestamp = _iso8601_timestamp(file)
                 metadata: MetaxFile = {
-                    "id": self.id,
+                    # Metax will generate id automatically
+                    "id": None,
                     "storage_identifier": identifier,
                     "filename": file.name,
                     "size": file.stat().st_size,
