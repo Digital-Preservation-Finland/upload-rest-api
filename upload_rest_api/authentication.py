@@ -89,7 +89,7 @@ def _auth_user_by_token():
             admin=data.admin
         )
         return True
-    except TokenInvalidError:
+    except (Token.DoesNotExist, TokenInvalidError):
         # Token does not exist or expired
         return False
 
