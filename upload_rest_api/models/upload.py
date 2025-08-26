@@ -376,7 +376,7 @@ class Upload:
         _post_metadata(metadata_dicts)
 
         # Insert information of all files to database in one go
-        FileEntry.objects.insert(file_documents)
+        FileEntry.objects.insert(file_documents, load_bulk=False)
 
         # Move files to project directory
         self._move_files_to_project_directory()
