@@ -8,9 +8,11 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 import metax_access
-from archive_helpers.extract import (ExtractError, MemberNameError,
-                                     MemberOverwriteError, MemberTypeError,
-                                     extract)
+from archive_helpers.extract import extract
+from archive_helpers.exceptions import (ExtractError,
+                                        MemberNameError,
+                                        MemberOverwriteError,
+                                        MemberTypeError)
 from metax_access.response import MetaxFile
 
 from upload_rest_api.checksum import get_file_checksum
