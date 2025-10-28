@@ -7,7 +7,7 @@ import shutil
 import time
 from datetime import datetime, timezone
 
-from metax_access import (DS_STATE_ACCEPTED_TO_DIGITAL_PRESERVATION,
+from metax_access import (DS_STATE_IN_DIGITAL_PRESERVATION,
                           DS_STATE_REJECTED_IN_DIGITAL_PRESERVATION_SERVICE)
 
 from upload_rest_api.metax import get_metax_client
@@ -372,7 +372,7 @@ class FileGroup():
         datasets = self.get_datasets()
         return any(
             dataset["preservation_state"]
-            < DS_STATE_ACCEPTED_TO_DIGITAL_PRESERVATION
+            < DS_STATE_IN_DIGITAL_PRESERVATION
             or dataset["preservation_state"]
             == DS_STATE_REJECTED_IN_DIGITAL_PRESERVATION_SERVICE
             for dataset in datasets
@@ -396,7 +396,7 @@ class FileGroup():
 
         return any(
             dataset["preservation_state"]
-            < DS_STATE_ACCEPTED_TO_DIGITAL_PRESERVATION
+            < DS_STATE_IN_DIGITAL_PRESERVATION
             or dataset["preservation_state"]
             == DS_STATE_REJECTED_IN_DIGITAL_PRESERVATION_SERVICE
             for dataset in datasets

@@ -1,13 +1,13 @@
 """Tests for ``upload_rest_api.api.v1.datasets`` module."""
 from pathlib import Path
-import re
 
 import pytest
-from metax_access import (DS_STATE_ACCEPTED_TO_DIGITAL_PRESERVATION,
+from metax_access import (DS_STATE_IN_DIGITAL_PRESERVATION,
                           DS_STATE_IN_DISSEMINATION,
                           DS_STATE_TECHNICAL_METADATA_GENERATED)
 from tests.utils import update_nested_dict
 from metax_access.template_data import DATASET as TEMPLATE_DATASET
+
 
 @pytest.mark.parametrize(
     "datasets,has_pending_dataset",
@@ -26,7 +26,7 @@ from metax_access.template_data import DATASET as TEMPLATE_DATASET
                     ],
                     "fileset": {"csc_project": "bar"},
                     "preservation": {
-                        "state": DS_STATE_ACCEPTED_TO_DIGITAL_PRESERVATION
+                        "state": DS_STATE_IN_DIGITAL_PRESERVATION
                     },
                 },
                 {
@@ -60,7 +60,7 @@ from metax_access.template_data import DATASET as TEMPLATE_DATASET
                     ],
                     "fileset": {"csc_project": "bar"},
                     "preservation": {
-                        "state": DS_STATE_ACCEPTED_TO_DIGITAL_PRESERVATION
+                        "state": DS_STATE_IN_DIGITAL_PRESERVATION
                     },
                 },
                 {
@@ -74,7 +74,7 @@ from metax_access.template_data import DATASET as TEMPLATE_DATASET
                     ],
                     "fileset": {"csc_project": "bar"},
                     "preservation": {
-                        "state": DS_STATE_IN_DISSEMINATION
+                        "state": DS_STATE_IN_DIGITAL_PRESERVATION
                     },
                 },
             ],
