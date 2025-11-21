@@ -142,10 +142,12 @@ class Resource(abc.ABC):
 class File(Resource):
     """File class."""
 
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
+    def __init__(self, db_file: None | FileEntry = None, *args, **kwargs):
+        # If 'db_file' is provided, set it to prevent unnecessary DB queries
+        # later on
+        self._db_file_ = db_file
 
-        self._db_file_ = None
+        super().__init__(*args, **kwargs)
 
     @property
     def exists(self):
