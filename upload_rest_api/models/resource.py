@@ -92,13 +92,16 @@ class Resource(abc.ABC):
 
         # Raise InvalidPathError on attempted path escape
         try:
+            # TODO: Could we use something besides pathlib.Path here?
+            # `resolve()` involves actual I/O even if we only use it to process
+            # any `..` parts in the path.
             relative_path = pathlib.Path(
                 '/root', path.strip('/')
             ).resolve().relative_to('/root')
         except ValueError as error:
             raise InvalidPathError('Invalid path') from error
 
-        self.path = pathlib.Path('/') / relative_path
+        self.path = pathlib.Path('/', relative_path)
 
         if sum([bool(project), bool(project_id)]) != 1:
             raise ValueError(
@@ -303,7 +306,7 @@ class Directory(Resource):
         files = []
         for dirpath, _, filenames in os.walk(self.storage_path):
             for file in filenames:
-                path = (pathlib.Path(dirpath) / file).relative_to(
+                path = (pathlib.Path(dirpath, file)).relative_to(
                     self.project.directory
                 )
                 fs_path = pathlib.Path(dirpath, file)
