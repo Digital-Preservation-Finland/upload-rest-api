@@ -34,7 +34,9 @@ def test_store_file(
     # Create an incomplete upload with one text file uploaded to
     # source path
     test_file = pathlib.Path(file_path)
-    upload = Upload.create(File('test_project', 'foo/bar'), 123)
+    upload = Upload.create(
+        File(project_id='test_project', path='foo/bar'), 123
+    )
     with open(test_file, 'rb') as file:
         upload.add_source(file, None)
 
@@ -61,7 +63,9 @@ def test_store_file(
 def test_file_metadata_conflict(mock_config, requests_mock):
     """Test uploading a file that already has metadata in Metax."""
     # Create an incomplete upload with a text file copied to source path
-    upload = Upload.create(File('test_project', 'path/file1'), 123)
+    upload = Upload.create(
+        File(project_id='test_project', path='path/file1'), 123
+    )
     with open('tests/data/test.txt', 'rb') as file:
         upload.add_source(file, None)
 
@@ -103,7 +107,9 @@ def test_add_source():
 
     Test that checksum is saved to database.
     """
-    new_upload = Upload.create(File('test_project', 'path/file1'), 123)
+    new_upload = Upload.create(
+        File(project_id='test_project', path='path/file1'), 123
+    )
     with open('tests/data/test.txt', 'rb') as source_file:
         new_upload.add_source(source_file, checksum='foobar')
 
@@ -134,7 +140,9 @@ def test_checksum(checksum, verify, requests_mock, mock_get_file_checksum):
 
     # Upload a file. Checksum should be computed only if it must be
     # verified.
-    upload = Upload.create(File('test_project', 'path/file1'), 123)
+    upload = Upload.create(
+        File(project_id='test_project', path='path/file1'), 123
+    )
     with open('tests/data/test.txt', 'rb') as source_file:
         upload.add_source(source_file, checksum=checksum)
     upload.store_files(verify_source=verify)
@@ -148,7 +156,9 @@ def test_checksum(checksum, verify, requests_mock, mock_get_file_checksum):
 @pytest.mark.usefixtures('app')
 def test_invalid_checksum():
     """Test that upload fails if invalid source checksum is provided."""
-    upload = Upload.create(File('test_project', 'path/file1'), 123)
+    upload = Upload.create(
+        File(project_id='test_project', path='path/file1'), 123
+    )
     with open('tests/data/test.txt', 'rb') as source_file:
         upload.add_source(source_file, checksum='wrong-checksum')
 
@@ -210,14 +220,16 @@ def test_upload_archive_conflict(
 
     # Upload a file to a path that will cause a conflict when the
     # archive is uploaded
-    upload = Upload.create(File('test_project', existing_file), 123)
+    upload = Upload.create(
+        File(project_id='test_project', path=existing_file), 123
+    )
     with open('tests/data/test.txt', 'rb') as source_file:
         upload.add_source(source_file, checksum=None)
     upload.store_files(verify_source=False)
 
     # Try to upload an archive that will overwrite the file that was
     # just uploaded (or its parent directory).
-    upload = Upload.create(Directory('test_project', 'foo'), 123)
+    upload = Upload.create(Directory(project_id='test_project', path='foo'), 123)
     with open(archive, 'rb') as source_file:
         upload.add_source(source_file, checksum=None)
     with pytest.raises(UploadConflictError) as error:
@@ -229,7 +241,9 @@ def test_upload_archive_conflict(
 @pytest.mark.usefixtures('app')  # Creates test_project
 def test_upload_file_as_archive():
     """Test uploading a reqular file as an archive."""
-    upload = Upload.create(Directory('test_project', 'foo'), 123)
+    upload = Upload.create(
+        Directory(project_id='test_project', path='foo'), 123
+    )
     with open('tests/data/test.txt', 'rb') as source_file:
         upload.add_source(source_file, checksum=None)
     with pytest.raises(UploadError) as error:

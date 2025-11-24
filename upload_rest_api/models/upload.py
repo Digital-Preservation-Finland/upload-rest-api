@@ -94,9 +94,13 @@ class Upload:
         """The file or directory to be uploaded."""
         if not self._resource:
             if self.type_ == UploadType.ARCHIVE:
-                self._resource = Directory(self.project.id, self.path)
+                self._resource = Directory(
+                    project=self.project, path=self.path
+                )
             elif self.type_ == UploadType.FILE:
-                self._resource = File(self.project.id, self.path)
+                self._resource = File(
+                    project=self.project, path=self.path
+                )
             else:
                 raise ValueError("Invalid upload type")
 

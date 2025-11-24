@@ -64,9 +64,9 @@ def get_resource(project_id, path):
     :param project_id: The identifier of project that owns the resource.
     :param path: Path of the resource.
     """
-    resource = File(project_id, path)
+    resource = File(project_id=project_id, path=path)
     if not resource.exists:
-        resource = Directory(project_id, path)
+        resource = Directory(project_id=project_id, path=path)
     if not resource.exists:
         raise FileNotFoundError('Resource does not exist')
 
@@ -76,12 +76,16 @@ def get_resource(project_id, path):
 class Resource(abc.ABC):
     """Resource class."""
 
-    def __init__(self, project_id, path):
-        """Initialize resource.
+    def __init__(
+            self, path, *,
+            project_id: str | None = None, project: Project | None = None):
+        """Initialize resource
 
-        :param str project_id: The identifier of project that owns the
-                               resource.
         :param path: Path of the resource.
+        :param project_id: The identifier of project that owns the
+                               resource. Mutually exclusive with `project`.
+        :param project: Project that owns the resource. Mutually exclusive
+                        with `project_id`.
         """
         path = str(path)  # Allow pathlib.Path objects or strings
 
@@ -94,7 +98,16 @@ class Resource(abc.ABC):
             raise InvalidPathError('Invalid path') from error
 
         self.path = pathlib.Path('/') / relative_path
-        self.project = Project.get(id=project_id)
+
+        if sum([bool(project), bool(project_id)]) != 1:
+            raise ValueError(
+                "Either 'project' or 'project_id' must be provided, not both."
+            )
+
+        if project:
+            self.project = project
+        elif project_id:
+            self.project = Project.get(id=project_id)
         self._datasets = None
 
     @property
@@ -161,7 +174,7 @@ class File(Resource):
 
         project = Project.get(id=project_id)
         path = pathlib.Path(entry.path).relative_to(project.directory)
-        return cls(project.id, path)
+        return cls(path=path, project_id=project.id)
 
     def _get_file_group(self):
         """File group that that contains only this file."""
@@ -258,14 +271,14 @@ class Directory(Resource):
         # Instead, we should preload any database entries that already exist
         # in a bulk query and attach them to the instances here
         return [
-            File(self.project.id, self.path / entry.name)
+            File(project=self.project, path=self.path / entry.name)
             for entry in self._get_entries() if entry.is_file()
         ]
 
     def get_directories(self):
         """List of directories in directory."""
         return [
-            Directory(self.project.id, self.path / entry.name)
+            Directory(project=self.project, path=self.path / entry.name)
             for entry in self._get_entries() if entry.is_dir()
         ]
 
@@ -277,7 +290,7 @@ class Directory(Resource):
                 path = (pathlib.Path(dirpath) / file).relative_to(
                     self.project.directory
                 )
-                files.append(get_resource(self.project.id, path))
+                files.append(File(project=self.project, path=path))
 
         return FileGroup(files)
 

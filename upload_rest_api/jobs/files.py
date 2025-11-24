@@ -17,7 +17,7 @@ def delete_directory(project_id, path, task):
         message=f"Deleting files and metadata: {path}"
     )
     project = Project.get(id=project_id)
-    directory = Directory(project.id, path)
+    directory = Directory(path=path, project=project)
     directory.delete()
 
     # Release the lock we've held from the time this background job was

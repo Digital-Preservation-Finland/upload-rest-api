@@ -36,10 +36,10 @@ def test_parse_relative_user_path(path, result):
     paths raise an exception.
     """
     if result is not None:
-        assert str(File('test_project', path).path) == result
+        assert str(File(project_id='test_project', path=path).path) == result
     else:
         with pytest.raises(InvalidPathError):
-            File('test_project', path)
+            File(project_id='test_project', path=path)
 
 
 @pytest.mark.usefixtures('app')  # Initialize db
@@ -51,7 +51,9 @@ def test_get_many_datasets(requests_mock):
     requests_mock.post('/v3/files/post-many', json={})
 
     # Upload a file to directory /testdir
-    upload = Upload.create(File('test_project', 'testdir/testfile'), 123)
+    upload = Upload.create(
+        File(project_id='test_project', path='testdir/testfile'), 123
+    )
     with io.BytesIO(b'foo') as textfile:
         upload.add_source(file=textfile, checksum=None)
     upload.store_files(verify_source=False)

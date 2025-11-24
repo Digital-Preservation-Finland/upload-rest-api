@@ -66,8 +66,8 @@ def _upload_started(workspace: Workspace, resource: TusResource) -> None:
             abort(403)
 
         target = target_class(
-            resource.upload_metadata['project_id'],
-            resource.upload_metadata['upload_path']
+            project_id=resource.upload_metadata['project_id'],
+            path=resource.upload_metadata['upload_path']
         )
         Upload.create(target,
                       size=resource.upload_length,

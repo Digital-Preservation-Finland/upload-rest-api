@@ -53,7 +53,7 @@ def upload_file(project_id, fpath):
         )
 
     # Upload file
-    file = File(project_id, fpath)
+    file = File(project_id=project_id, path=fpath)
     upload = Upload.create(file, request.content_length)
     checksum = request.args.get('md5', None)
     upload.add_source(request.stream, checksum)

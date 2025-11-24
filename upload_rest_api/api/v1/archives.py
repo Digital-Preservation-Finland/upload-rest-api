@@ -36,7 +36,9 @@ def upload_archive(project_id):
             "Missing Content-Length header"
         )
 
-    directory = Directory(project_id, request.args.get('dir', default='/'))
+    directory = Directory(
+        project_id=project_id, path=request.args.get('dir', default='/')
+    )
     upload = Upload.create(directory, size=request.content_length)
     checksum = request.args.get("md5", None)
     upload.add_source(file=request.stream, checksum=checksum)

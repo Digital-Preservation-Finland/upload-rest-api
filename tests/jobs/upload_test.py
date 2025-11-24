@@ -33,7 +33,9 @@ def test_upload_conflict_error(mocker, exception, errors):
     """
     # Create an upload. Mock Upload class to fail during archive
     # extraction.
-    upload = Upload.create(Directory('test_project', '/test'), 1)
+    upload = Upload.create(
+        Directory(project_id='test_project', path='/test'), 1
+    )
     mocker.patch.object(Upload, '_extract_archive', side_effect=exception)
 
     # Run store_files job for upload
