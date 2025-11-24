@@ -495,18 +495,17 @@ def test_get_files(app, test_auth, path, expected_data, requests_mock):
     upload_path = app.config.get("UPLOAD_PROJECTS_PATH")
     os.makedirs(os.path.join(upload_path, "test_project/dir1"))
     os.makedirs(os.path.join(upload_path, "test_project/dir2/subdir1"))
-    shutil.copy(
-        "tests/data/test.txt",
-        os.path.join(upload_path, "test_project/file1.txt")
-    )
-    shutil.copy(
-        "tests/data/test.txt",
-        os.path.join(upload_path, "test_project/dir1/file2.txt")
-    )
-    shutil.copy(
-        "tests/data/test.txt",
-        os.path.join(upload_path, "test_project/dir2/subdir1/file3.txt")
-    )
+
+    for path_ in ["file1.txt", "dir1/file2.txt", "dir2/subdir1/file3.txt"]:
+        shutil.copy(
+            "tests/data/test.txt",
+            os.path.join(upload_path, "test_project", path_)
+        )
+        FileEntry(
+            path=os.path.join(upload_path, "test_project", path_),
+            checksum="foo",
+            identifier=path_
+        ).save()
 
     # Check the response
     test_client = app.test_client()

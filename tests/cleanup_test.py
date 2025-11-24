@@ -1,24 +1,24 @@
 """Unit tests for the cleanup.py script."""
+import copy
 import os
 import pathlib
+import re
 import shutil
 import time
+from datetime import datetime, timedelta, timezone
+
 import pymongo
-import copy
-import re
-
-from datetime import datetime, timezone, timedelta
-
 import pytest
 from flask_tus_io.resource import encode_tus_meta
-from metax_access.metax import (DS_STATE_INITIALIZED,
-                                DS_STATE_IN_DIGITAL_PRESERVATION)
+from metax_access.metax import (DS_STATE_IN_DIGITAL_PRESERVATION,
+                                DS_STATE_INITIALIZED)
+from metax_access.template_data import DATASET as TEMPLATE_DATASET
 
-from upload_rest_api.models.project import Project
 import upload_rest_api.cleanup as clean
 from upload_rest_api.lock import ProjectLockManager
+from upload_rest_api.models.file_entry import FileEntry
+from upload_rest_api.models.project import Project
 from upload_rest_api.models.upload import UploadEntry
-from metax_access.template_data import DATASET as TEMPLATE_DATASET
 
 
 @pytest.mark.usefixtures('app')  # Creates test_project
@@ -32,6 +32,7 @@ def test_no_expired_files(mock_config):
     dirpath = os.path.join(mock_config["UPLOAD_PROJECTS_PATH"], "test_project")
     fpath = os.path.join(dirpath, "test.txt")
     shutil.copy("tests/data/test.txt", fpath)
+    FileEntry(path=fpath, checksum="foo", identifier="foo").save()
 
     current_time = time.time()
     last_access = int(current_time-5)

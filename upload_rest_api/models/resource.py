@@ -1,8 +1,10 @@
 """File and Directory models."""
+from __future__ import annotations
 
 import abc
 import os
 import pathlib
+import re
 import shutil
 import time
 from datetime import datetime, timezone
@@ -10,12 +12,11 @@ from datetime import datetime, timezone
 from metax_access import (DS_STATE_IN_DIGITAL_PRESERVATION,
                           DS_STATE_REJECTED_IN_DIGITAL_PRESERVATION_SERVICE)
 
-from upload_rest_api.metax import get_metax_client
 from upload_rest_api.config import CONFIG
 from upload_rest_api.lock import ProjectLockManager
+from upload_rest_api.metax import get_metax_client
 from upload_rest_api.models.file_entry import FileEntry
 from upload_rest_api.models.project import Project
-
 
 LANGUAGE_IDENTIFIERS = {
     "http://lexvo.org/id/iso639-3/eng": "en",
@@ -265,15 +266,21 @@ class Directory(Resource):
 
     def get_files(self):
         """List of files in directory."""
-        # TODO: Both 'get_files' and 'get_directories' are lazy when it comes
-        # to database access. This means the underlying database entry
-        # is not retrieved until it's accessed for the first time.
-        # This can lead to a "N + 1 query" performance issue if the identifier
-        # is retrieved from each file/directory, for example.
-        # Instead, we should preload any database entries that already exist
-        # in a bulk query and attach them to the instances here
+        # Retrieve all files in this directory in bulk to retrieve an
+        # individual query for every file later on (N+1 query issue)
+        path2file_entry = {
+            file_entry.path: file_entry
+            for file_entry in FileEntry.objects.filter(
+                # Retrieve all files in this directory
+                path__regex=fr"^{re.escape(str(self.storage_path))}\/[^\/]+$"
+            )
+        }
+
         return [
-            File(project=self.project, path=self.path / entry.name)
+            File(
+                project=self.project, path=self.path / entry.name,
+                db_file=path2file_entry[str(self.storage_path / entry.name)]
+            )
             for entry in self._get_entries() if entry.is_file()
         ]
 
@@ -286,13 +293,27 @@ class Directory(Resource):
 
     def _get_file_group(self):
         """Group of all files in directory and its subdirectories."""
+        path2file_entry = {
+            file_entry.path: file_entry
+            for file_entry in FileEntry.objects.filter(
+                # Retrieve all files in this directory and subdirectories
+                path__regex=fr"^{re.escape(str(self.storage_path))}\/"
+            )
+        }
         files = []
         for dirpath, _, filenames in os.walk(self.storage_path):
             for file in filenames:
                 path = (pathlib.Path(dirpath) / file).relative_to(
                     self.project.directory
                 )
-                files.append(File(project=self.project, path=path))
+                fs_path = pathlib.Path(dirpath, file)
+                files.append(
+                    File(
+                        project=self.project,
+                        path=path,
+                        db_file=path2file_entry[str(fs_path)]
+                    )
+                )
 
         return FileGroup(files)
 
