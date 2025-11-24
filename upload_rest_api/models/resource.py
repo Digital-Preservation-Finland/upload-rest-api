@@ -96,8 +96,8 @@ class Resource(abc.ABC):
             # `resolve()` involves actual I/O even if we only use it to process
             # any `..` parts in the path.
             relative_path = pathlib.Path(
-                '/root', path.strip('/')
-            ).resolve().relative_to('/root')
+                '/root-test', path.strip('/')
+            ).resolve().relative_to('/root-test')
         except ValueError as error:
             raise InvalidPathError('Invalid path') from error
 
