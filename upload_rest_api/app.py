@@ -35,7 +35,7 @@ except ImportError:
     from werkzeug.contrib.fixers import ProxyFix
 
 
-logging.basicConfig(level=logging.ERROR)
+logging.basicConfig(level=logging.INFO)
 LOGGER = logging.getLogger(__name__)
 
 
