@@ -1,4 +1,6 @@
 """Background task utility functions."""
+import logging
+
 from functools import wraps
 
 from rq import Queue
@@ -43,6 +45,8 @@ def api_background_job(func):
     """
     @wraps(func)
     def wrapper(*args, **kwargs):
+        logging.basicConfig(level=logging.INFO)
+
         task_id = kwargs["task_id"]
         task = Task.get(id=task_id)
 
