@@ -1,4 +1,5 @@
 """Upload model."""
+import logging
 import os
 import shutil
 import tarfile
@@ -23,6 +24,9 @@ from upload_rest_api.models.file_entry import FileEntry
 from upload_rest_api.models.project import Project, ProjectEntry
 from upload_rest_api.models.resource import Directory, File
 from upload_rest_api.models.upload_entry import UploadEntry, UploadType
+
+
+LOGGER = logging.getLogger(__name__)
 
 
 def _release_lock_on_exception(method):
@@ -399,6 +403,12 @@ class Upload:
         # Release file storage lock
         lock_manager = ProjectLockManager()
         lock_manager.release(self.project.id, self.storage_path)
+
+        LOGGER.info(
+            "Stored %s to %s",
+            str(self.type_),
+            str(self.resource.storage_path)
+        )
 
     def _get_new_files(self) -> list[Path]:
         """Collects new files from the temporary project directory.

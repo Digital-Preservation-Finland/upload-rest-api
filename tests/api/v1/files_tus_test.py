@@ -1,5 +1,6 @@
 """Tests for `upload_rest_api.api.v1.files_tus` module."""
 
+import logging
 import pathlib
 import urllib
 import re
@@ -66,7 +67,7 @@ def _do_tus_upload(
 @pytest.mark.parametrize(
     "name", ("test.txt", "tämäontesti.txt", "tämä on testi.txt")
 )
-def test_upload_file(app, test_auth, test_mongo, name, requests_mock):
+def test_upload_file(app, test_auth, test_mongo, name, caplog, requests_mock):
     """Test uploading a small file.
 
     :param app: Flask app
@@ -75,6 +76,8 @@ def test_upload_file(app, test_auth, test_mongo, name, requests_mock):
     :param name: Name of uploaded file
     :param requests_mock: HTTP request mocker
     """
+    caplog.set_level(logging.INFO)
+
     test_client = app.test_client()
 
     # Mock metax
@@ -116,6 +119,14 @@ def test_upload_file(app, test_auth, test_mongo, name, requests_mock):
         {"_id": "test_project"}
     )["used_quota"]
     assert used_quota == 10
+
+    # Completed upload is logged with upload type and file name
+    assert any(
+        record for record in caplog.records
+        if record.levelname == "INFO"
+        and "Stored UploadType.FILE" in record.message
+        and name in record.message
+    )
 
     # Another upload to the same path can't be initiated
     resp = test_client.post(

@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import abc
 import os
+import logging
 import pathlib
 import re
 import shutil
@@ -23,6 +24,8 @@ LANGUAGE_IDENTIFIERS = {
     "http://lexvo.org/id/iso639-3/fin": "fi",
     "http://lexvo.org/id/iso639-3/swe": "sv"
 }
+
+LOGGER = logging.getLogger(__name__)
 
 
 class HasPendingDatasetError(Exception):
@@ -238,6 +241,8 @@ class File(Resource):
 
             self.project.update_used_quota()
 
+            LOGGER.info("Deleted file %s", str(self.storage_path))
+
             return {'deleted_files_count': 1}
 
 
@@ -262,6 +267,7 @@ class Directory(Resource):
         lock_manager = ProjectLockManager()
         with lock_manager.lock(directory.project.id, directory.storage_path):
             directory.storage_path.mkdir(parents=True)
+            LOGGER.info("Created directory %s", str(directory.storage_path))
         return directory
 
     def _get_entries(self):
@@ -336,6 +342,8 @@ class Directory(Resource):
 
         # Update used_quota
         self.project.update_used_quota()
+
+        LOGGER.info("Deleted directory %s", str(self.storage_path))
 
     def delete_expired_files(self):
         """Remove expired files.
@@ -458,6 +466,7 @@ class FileGroup():
         for file in self.files:
             # Remove the actual file
             os.remove(file.storage_path)
+            LOGGER.info("Deleted file %s", str(file.storage_path))
             # add identifiers storage_path to lists for bulk removal
             # from databases
             storage_identifiers.append(file.identifier)
