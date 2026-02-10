@@ -21,7 +21,7 @@ from upload_rest_api.api.v1.files import FILES_API_V1
 from upload_rest_api.api.v1.tasks import TASK_STATUS_API_V1
 from upload_rest_api.api.v1.tokens import TOKEN_API_V1
 from upload_rest_api.api.v1.users import USERS_API_V1
-from upload_rest_api.config import get_config
+from upload_rest_api.config import configure_logger, get_config
 from upload_rest_api.lock import LockAlreadyTaken
 from upload_rest_api.models.upload import (InsufficientQuotaError,
                                            UploadConflictError, UploadError)
@@ -35,13 +35,14 @@ except ImportError:
     from werkzeug.contrib.fixers import ProxyFix
 
 
-logging.basicConfig(level=logging.INFO)
 LOGGER = logging.getLogger(__name__)
 
 
 def configure_app(app):
     """Read config from /etc/upload_rest_api.conf."""
     # Require that "/etc/upload_rest_api.conf" exists
+    configure_logger()
+
     app.config.from_pyfile("/etc/upload_rest_api.conf")
 
     app.config.update(get_config())

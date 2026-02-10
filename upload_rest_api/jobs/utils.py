@@ -1,12 +1,10 @@
 """Background task utility functions."""
-import logging
-
 from functools import wraps
 
 from rq import Queue
 
 from upload_rest_api.models.task import Task, TaskStatus
-from upload_rest_api.config import CONFIG
+from upload_rest_api.config import configure_logger, CONFIG
 from upload_rest_api.redis import get_redis_connection
 
 FILES_QUEUE = "files"
@@ -45,7 +43,7 @@ def api_background_job(func):
     """
     @wraps(func)
     def wrapper(*args, **kwargs):
-        logging.basicConfig(level=logging.INFO)
+        configure_logger()
 
         task_id = kwargs["task_id"]
         task = Task.get(id=task_id)

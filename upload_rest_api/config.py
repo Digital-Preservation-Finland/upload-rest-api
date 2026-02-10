@@ -4,6 +4,14 @@ import logging
 from flask import Config
 
 
+def configure_logger():
+    """
+    Configure root logger for the application if it is not already
+    configured
+    """
+    logging.basicConfig(level=logging.INFO)
+
+
 def get_config():
     """Get the configuration file and return a flask.Config instance."""
     config = Config("/")
