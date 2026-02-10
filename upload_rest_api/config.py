@@ -1,6 +1,7 @@
 """Read configuration file."""
-import os.path
 import logging
+import os.path
+
 from flask import Config
 
 
@@ -16,10 +17,7 @@ def get_config():
     """Get the configuration file and return a flask.Config instance."""
     config = Config("/")
 
-    if os.path.exists("/etc/upload_rest_api.conf"):
-        config.from_pyfile("/etc/upload_rest_api.conf")
-    else:
-        logging.error("/etc/upload_rest_api.conf not found!")
+    config.from_pyfile("/etc/upload_rest_api.conf")
 
     # Set defaults for the different directories under spool
     spool_path = config.get("UPLOAD_BASE_PATH", "/var/spool/upload")

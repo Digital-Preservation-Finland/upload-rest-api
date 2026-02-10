@@ -12,6 +12,17 @@ from mongobox import MongoBox
 from mongoengine import connect, disconnect
 from rq import SimpleWorker
 
+# Circumvent loading configuration from "/etc/upload_rest_api.conf".
+# This is needed because any config import will also load the file
+# and fail immediately if it's missing; desirable in production, painful in
+# tests.
+# We will add the test-specific configuration later in a pytest fixture.
+config_template = Path("include/etc/upload_rest_api.conf").read_text()
+with unittest.mock.patch(
+        "flask.config.open",
+        unittest.mock.mock_open(read_data=config_template)):
+    from upload_rest_api.config import CONFIG  # noqa
+
 import upload_rest_api.app as app_module
 from upload_rest_api.jobs.utils import get_job_queue
 from upload_rest_api.lock import ProjectLockManager

@@ -40,10 +40,7 @@ LOGGER = logging.getLogger(__name__)
 
 def configure_app(app):
     """Read config from /etc/upload_rest_api.conf."""
-    # Require that "/etc/upload_rest_api.conf" exists
     configure_logger()
-
-    app.config.from_pyfile("/etc/upload_rest_api.conf")
 
     app.config.update(get_config())
 
