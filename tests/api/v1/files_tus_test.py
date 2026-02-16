@@ -11,6 +11,7 @@ from flask_tus_io.resource import encode_tus_meta
 
 from upload_rest_api.jobs.utils import get_job_queue
 from upload_rest_api.models.project import ProjectEntry
+from upload_rest_api.models.file_entry import FileEntry
 
 
 @pytest.mark.usefixtures("project")
@@ -273,6 +274,46 @@ def test_upload_file_checksum_unknown_algorithm(tus_upload):
     assert resp.json["error"] == "Unrecognized hash algorithm 'blake3'"
 
 
+def test_upload_conflicting_directory(
+        test_client, tus_upload_file, requests_mock, mock_redis):
+    """Test uploading file to path that is a directory."""
+    # Mock metax
+    requests_mock.post('/v3/files/post-many', json={})
+    requests_mock.get('/v3/files?pathname=%2Ffoo%2Fbar&csc_project=test_project',
+                      json={'results': [], 'next': None})
+
+    # First upload file to "/foo/bar", so that directory "/foo" is
+    # created.
+    tus_upload_file(
+        project_id="test_project",
+        path="foo/bar"
+    )
+
+    # Then, try to upload file to "/foo". It should fail because
+    # directory "/foo" exists
+    response, _ = tus_upload_file(
+        project_id="test_project",
+        path="foo",
+        expected_status=409
+    )
+    assert response.json['error'] == "Directory '/foo' already exists"
+
+
+def test_upload_outside_project_directory(tus_upload_file):
+    """Test attempting an upload outside project directory; this should fail.
+
+    :param url: URL of request
+    :param data: content of Request
+    """
+    response, _ = tus_upload_file(
+        project_id="test_project",
+        path="../test.txt",
+        expected_status=400
+    )
+    assert response.status_code == 400
+    assert response.json['error'] == 'Invalid path'
+
+
 @pytest.mark.usefixtures("project")
 @pytest.mark.parametrize(
     "name", ("test.txt", "tämäontesti.txt", "tämä on testi.txt")
@@ -509,8 +550,8 @@ def test_upload_file_parallel_upload_exceed_quota(
 
 
 def test_mixed_parallel_upload_exceed_quota(
-        test_client, test_auth, requests_mock):
-    """Test parallel uploads to /v1/files_tus API and /v1/files API.
+        test_client, test_auth, tus_upload, requests_mock):
+    """Test parallel uploads to /v1/files_tus API.
 
     If all quota has been alloceted for TUS uploads, it should not be
     possible to upload files using /v1/files API.
@@ -525,7 +566,7 @@ def test_mixed_parallel_upload_exceed_quota(
 
     # Allocate almost all quota for a TUS upload
     tus_upload_data = b'0' * 1999
-    tus_upload = test_client.post(
+    upload_resp = test_client.post(
         "/v1/files_tus",
         headers={
             **{
@@ -541,19 +582,22 @@ def test_mixed_parallel_upload_exceed_quota(
             **test_auth
         }
     )
-
-    # Try to upload a small file using /v1/files API.
-    upload = test_client.post(
-            '/v1/files/test_project/foo',
-            data=b'foobar',
-            headers=test_auth
+    # Try to upload a different file
+    upload_resp_2, _ = tus_upload(
+        upload_metadata={
+            "type": "file",
+            "project_id": "test_project",
+            "filename": "test2.txt",
+            "upload_path": "test2.txt"
+        },
+        data=b'foobar',
+        expected_status=413  # REQUEST ENTITY TOO LARGE
     )
-    assert upload.status_code == 413
-    assert upload.json['error'] == 'Quota exceeded'
+    assert upload_resp_2.json['error'] == 'Quota exceeded'
 
     # The TUS upload can be continued
-    tus_upload = test_client.patch(
-        tus_upload.location,
+    upload_resp = test_client.patch(
+        upload_resp.location,
         content_type="application/offset+octet-stream",
         headers={
             **{
@@ -565,10 +609,11 @@ def test_mixed_parallel_upload_exceed_quota(
         },
         input_stream=BytesIO(tus_upload_data)
     )
-    assert tus_upload.status_code == 204
+    assert upload_resp.status_code == 204
 
 
-def test_upload_file_conflict(test_client, test_auth, requests_mock):
+def test_upload_file_conflict(
+        test_client, test_auth, tus_upload_file, requests_mock):
     """Try initiating two uploads with the same file path."""
     # Mock metax
     requests_mock.post('/v3/files/post-many', json={})
@@ -630,63 +675,31 @@ def test_upload_file_conflict(test_client, test_auth, requests_mock):
     assert response.status_code == 204
 
 
-def test_mixed_parallel_upload_conflict(test_client, test_auth, requests_mock):
-    """Test parallel uploads to /v1/files_tus API and /v1/files API.
-
-    If a TUS upload has been started, uploading a file to conflicting
-    path using /v1/files API should not be possible.
+def test_upload_oversized_file(
+        tus_upload, test_client, mock_config, background_job_runner):
     """
-    # Mock metax
-    requests_mock.post('/v3/files/post-many', json={})
-    requests_mock.get('/v3/files?pathname=%2Ftest.txt&csc_project=test_project',
-                      json={'results': [], 'next': None})
-    # Start a tus upload to '/test.txt'
-    data = b'foo'
-    tus_upload = test_client.post(
-        "/v1/files_tus",
-        headers={
-            **{
-                "Tus-Resumable": "1.0.0",
-                "Upload-Length": str(len(data)),
-                "Upload-Metadata": encode_tus_meta({
-                    "type": "file",
-                    "project_id": "test_project",
-                    "filename": "test.txt",
-                    "upload_path": "test.txt",
-                })
-            },
-            **test_auth
-        }
+    Test uploading an oversized file which
+    exceeds the size limit for a single upload
+    """
+    mock_config["MAX_CONTENT_LENGTH"] = 1
+
+    upload_metadata = {
+        "type": "file",
+        "project_id": "test_project",
+        "filename": "test",
+        "upload_path": "foo"
+    }
+    resp, _ = tus_upload(
+        upload_metadata=upload_metadata,
+        data=b"five",
+        expected_status=413  # REQUEST ENTITY TOO LARGE
     )
 
-    # Try to upload a file to same path using /v1/files API
-    upload = test_client.post(
-            '/v1/files/test_project/test.txt',
-            data=data,
-            headers=test_auth
-    )
-    assert upload.status_code == 409
-    assert upload.json['error'] \
-        == 'The file/directory is currently locked by another task'
-
-    # The TUS upload can be continued
-    tus_upload = test_client.patch(
-        tus_upload.location,
-        content_type="application/offset+octet-stream",
-        headers={
-            **{
-                "Content-Type": "application/offset+octet-stream",
-                "Tus-Resumable": "1.0.0",
-                "Upload-Offset": "0"
-            },
-            **test_auth
-        },
-        input_stream=BytesIO(data)
-    )
-    assert tus_upload.status_code == 204
+    assert resp.json["error"] == "Max single file size exceeded"
 
 
-def test_upload_archive(tus_upload, mock_config, requests_mock):
+def test_upload_archive(
+        tus_upload_archive, mock_config, requests_mock):
     """Test uploading an archive.
 
     Ensure that the archive is extracted successfully.
@@ -698,26 +711,197 @@ def test_upload_archive(tus_upload, mock_config, requests_mock):
     requests_mock.post('/v3/files/post-many', json={})
     requests_mock.get('/v3/files?pathname=%2Fextract_dir&csc_project=test_project',
                       json={'results': [], 'next': None})
-    upload_metadata = {
-        "type": "archive",
-        "project_id": "test_project",
-        "filename": "test.zip",
-        "upload_path": "extract_dir",
-    }
 
-    test_data = pathlib.Path("tests/data/test.zip").read_bytes()
+    tus_upload_archive(project_id="test_project", path="extract_dir")
 
-    tus_upload(upload_metadata=upload_metadata, data=test_data)
+    # Uploaded ZIP is stored in a temporary location
+    assert len(list(pathlib.Path(mock_config["UPLOAD_TMP_PATH"]).iterdir())) \
+        == 1
 
     # Run the upload background job
     queue = get_job_queue('upload')
     queue.run_job(queue.jobs[0])
 
+    # File was created
     base_path = pathlib.Path(mock_config["UPLOAD_BASE_PATH"])
     assert (
         base_path / "projects" / "test_project" / "extract_dir"
         / "test" / "test.txt"
     ).read_text(encoding="utf-8").startswith("test file for REST file upload")
+
+    # Temporary directory is empty
+    assert not list(pathlib.Path(mock_config["UPLOAD_TMP_PATH"]).iterdir())
+
+    # File documents are added
+    assert FileEntry.objects.count() == 1
+    file = FileEntry.objects.first()
+    assert file.checksum == "150b62e4e7d58c70503bd5fc8a26463c"
+    assert file.path == str(
+        pathlib.Path(mock_config["UPLOAD_PROJECTS_PATH"])
+        / "test_project/extract_dir/test/test.txt"
+    )
+
+
+def test_upload_multiple_archives_to_root(
+        test_client, mock_config, tus_upload_archive, background_job_runner,
+        requests_mock):
+    """
+    Test uploading multiple archives to project in order. Uploads
+    should succeed since archive contents don't conflict.
+    """
+    # Mock metax
+    requests_mock.post('/v3/files/post-many', json={})
+    requests_mock.get('/v3/files', json={'next': None, 'results': []})
+
+    # Upload first archive
+    _, upload_id = tus_upload_archive(
+        project_id="test_project", src_path="tests/data/test.zip", path="/"
+    )
+    background_job_runner(test_client, "upload", task_id=upload_id)
+
+    # Upload second archive
+    _, upload_id = tus_upload_archive(
+        project_id="test_project", src_path="tests/data/test2.zip", path="/"
+    )
+    background_job_runner(test_client, "upload", task_id=upload_id)
+
+    project_root = \
+        pathlib.Path(mock_config["UPLOAD_PROJECTS_PATH"]) / "test_project"
+
+    # Both files exist and have correct content
+    assert "test" in (project_root / "test/test.txt").read_text()
+    assert "test" in (project_root / "test2/test.txt").read_text()
+
+    assert FileEntry.objects.count() == 2
+    assert FileEntry.objects.filter(
+        path=str(project_root / "test/test.txt")
+    ).count() == 1
+    assert FileEntry.objects.filter(
+        path=str(project_root / "test2/test.txt")
+    ).count() == 1
+
+
+@pytest.mark.parametrize(
+    "dir_path",
+    [
+        "directory",
+        "directory/subdirectory",
+        "/directory",
+        "///directory",
+        "directory/"
+    ]
+)
+def test_upload_archive_to_destination(
+        test_client, mock_config, tus_upload_archive,
+        background_job_runner, requests_mock, dir_path
+):
+    """Test that archive is extracted to path given as parameter.
+    """
+    # Mock metax
+    requests_mock.post('/v3/files/post-many', json={})
+    requests_mock.get('/v3/files', json={'next': None, 'results': []})
+
+    _, upload_id = tus_upload_archive(project_id="test_project", path=dir_path)
+
+    # Complete the task
+    response = background_job_runner(test_client, "upload", task_id=upload_id)
+    assert response.status_code == 200
+    assert response.json['message'] == \
+        f'archive uploaded to /{dir_path.strip("/")}'
+
+    # test.txt is correctly extracted
+    text_file = (
+        pathlib.Path(mock_config["UPLOAD_PROJECTS_PATH"])
+        / 'test_project' / dir_path.lstrip('/')
+        / "test" / "test.txt"
+    )
+    assert text_file.is_file()
+    assert "test" in text_file.read_text()
+
+
+@pytest.mark.parametrize(
+    "archive",
+    [
+        "tests/data/symlink.zip",
+        "tests/data/symlink.tar.gz"
+    ]
+)
+def test_upload_invalid_archive(
+        tus_upload, test_client, test_mongo, background_job_runner, archive):
+    """Test uploading an invalid archive with symlinks"""
+    upload_metadata = {
+        "type": "archive",
+        "project_id": "test_project",
+        "filename": pathlib.Path(archive).name,
+        "upload_path": "foo"
+    }
+    resp, upload_id = tus_upload(
+        upload_metadata=upload_metadata,
+        data=pathlib.Path(archive).read_bytes()
+    )
+
+    resp = background_job_runner(
+        test_client, "upload", task_id=upload_id,
+        expect_success=False
+    )
+
+    errors = resp.json["errors"]
+    assert errors[0]["message"] == "File 'test/link' has unsupported type: SYM"
+
+    assert FileEntry.objects.count() == 0  # No files added
+
+
+def test_upload_archive_already_exists(
+    test_client, test_auth, tus_upload_file, tus_upload_archive,
+    requests_mock
+):
+    """Test uploading archive to path that is a file.
+    """
+    # Mock metax
+    requests_mock.post('/v3/files/post-many', json={})
+    requests_mock.get('/v3/files', json={'next': None, 'results': []})
+
+    # Upload a file to a path that will cause a conflict
+    tus_upload_file(project_id="test_project", path="foo")
+
+    # Try to upload an archive to same path
+    response, _ = tus_upload_archive(
+        project_id="test_project", path="foo", expected_status=409  # CONFLICT
+    )
+    assert response.json['error'] == "File '/foo' already exists"
+    assert response.json['files'] == ['/foo']
+
+
+def test_upload_empty_archive(
+        test_client, tus_upload_archive, requests_mock, background_job_runner):
+    requests_mock.post('/v3/files/post-many', json={})
+    requests_mock.get('/v3/files', json={'next': None, 'results': []})
+
+    _, upload_id = tus_upload_archive(
+        project_id="test_project", src_path="tests/data/blank_tar.tar",
+        path="test"
+    )
+
+    response = background_job_runner(
+        test_client, "upload", task_id=upload_id, expect_success=False
+    )
+
+    errors = response.json["errors"]
+
+    assert errors[0]["message"] == "Blank tar archives are not supported."
+
+
+def test_upload_no_rights(tus_upload_file):
+    """
+    Test uploading a file to a project that the user does not have
+    permissions for
+    """
+    response, _ = tus_upload_file(
+        project_id="test_project2", path="test",
+        expected_status=403  # FORBIDDEN
+    )
+
+    assert "You don't have the permission" in response.json["error"]
 
 
 @pytest.mark.usefixtures("project")
