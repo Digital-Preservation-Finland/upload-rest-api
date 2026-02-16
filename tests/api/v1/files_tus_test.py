@@ -13,61 +13,12 @@ from upload_rest_api.jobs.utils import get_job_queue
 from upload_rest_api.models.project import ProjectEntry
 
 
-def _do_tus_upload(
-        test_client, upload_metadata, data, auth,
-        # 204 NO CONTENT by default
-        expected_status=204):
-    """Perform a tus upload."""
-    upload_length = len(data)
-
-    resp = test_client.post(
-        "/v1/files_tus",
-        headers={
-            **{
-                "Tus-Resumable": "1.0.0",
-                "Upload-Length": str(upload_length),
-                "Upload-Metadata": encode_tus_meta(upload_metadata)
-            },
-            **auth
-        }
-    )
-
-    assert resp.status_code == 201  # CREATED
-    location = resp.location
-
-    resp = test_client.head(
-        location,
-        headers={
-            **{"Tus-Resumable": "1.0.0"},
-            **auth
-        }
-    )
-
-    resp = test_client.patch(
-        location,
-        content_type="application/offset+octet-stream",
-        headers={
-            **{
-                "Content-Type": "application/offset+octet-stream",
-                "Tus-Resumable": "1.0.0",
-                "Upload-Offset": "0"
-            },
-            **auth
-        },
-        input_stream=BytesIO(data)
-    )
-
-    assert resp.status_code == expected_status
-
-    # Return the response and the upload identifier
-    return resp, location.split("/")[-1]
-
-
 @pytest.mark.usefixtures("project")
 @pytest.mark.parametrize(
     "name", ("test.txt", "tämäontesti.txt", "tämä on testi.txt")
 )
-def test_upload_file(app, test_auth, test_mongo, name, caplog, requests_mock):
+def test_upload_file(
+        app, tus_upload, test_auth, test_mongo, name, caplog, requests_mock):
     """Test uploading a small file.
 
     :param app: Flask app
@@ -92,10 +43,8 @@ def test_upload_file(app, test_auth, test_mongo, name, caplog, requests_mock):
         "filename": name,
         "upload_path": name,
     }
-    _do_tus_upload(
-        test_client=test_client,
+    tus_upload(
         upload_metadata=upload_metadata,
-        auth=test_auth,
         data=file_content
     )
 
@@ -149,7 +98,7 @@ def test_upload_file(app, test_auth, test_mongo, name, caplog, requests_mock):
 
 
 @pytest.mark.usefixtures("project", "mock_redis")
-def test_upload_file_checksum(test_client, test_auth, requests_mock):
+def test_upload_file_checksum(tus_upload, requests_mock):
     """Test uploading a file with a checksum.
 
     Ensure that the checksum is checked.
@@ -176,10 +125,8 @@ def test_upload_file_checksum(test_client, test_auth, requests_mock):
     }
 
     # First upload with correct checksum succeeds
-    _do_tus_upload(
-        test_client=test_client,
+    tus_upload(
         upload_metadata=upload_metadata,
-        auth=test_auth,
         data=data,
         expected_status=204
     )
@@ -192,10 +139,8 @@ def test_upload_file_checksum(test_client, test_auth, requests_mock):
         "f30e3a5a2e29741c3aedb2cf696a155bbd"
     )
 
-    response, _ = _do_tus_upload(
-        test_client=test_client,
+    response, _ = tus_upload(
         upload_metadata=upload_metadata,
-        auth=test_auth,
         data=data,
         expected_status=400
     )
@@ -278,7 +223,7 @@ def test_upload_file_checksum_iterative(
 
 
 @pytest.mark.usefixtures("project", "mock_redis")
-def test_upload_file_checksum_incorrect_syntax(test_client, test_auth):
+def test_upload_file_checksum_incorrect_syntax(tus_upload):
     """Test uploading a file with a checksum using incorrect syntax."""
     data = b"XyzzyXyzzy"
 
@@ -290,10 +235,8 @@ def test_upload_file_checksum_incorrect_syntax(test_client, test_auth):
         "checksum": "f96ab43c95b09f803870f8cbf83e"
     }
 
-    resp, _ = _do_tus_upload(
-        test_client=test_client,
+    resp, _ = tus_upload (
         upload_metadata=upload_metadata,
-        auth=test_auth,
         data=data,
         expected_status=400
     )
@@ -303,7 +246,7 @@ def test_upload_file_checksum_incorrect_syntax(test_client, test_auth):
 
 
 @pytest.mark.usefixtures("project", "mock_redis")
-def test_upload_file_checksum_unknown_algorithm(test_client, test_auth):
+def test_upload_file_checksum_unknown_algorithm(tus_upload):
     """
     Test uploading a file with a checksum using an unknown algorithm,
     and ensure it is rejected.
@@ -321,10 +264,8 @@ def test_upload_file_checksum_unknown_algorithm(test_client, test_auth):
         )
     }
 
-    resp, _ = _do_tus_upload(
-        test_client=test_client,
+    resp, _ = tus_upload(
         upload_metadata=upload_metadata,
-        auth=test_auth,
         data=data,
         expected_status=400
     )
@@ -337,7 +278,7 @@ def test_upload_file_checksum_unknown_algorithm(test_client, test_auth):
     "name", ("test.txt", "tämäontesti.txt", "tämä on testi.txt")
 )
 def test_upload_file_deep_directory(
-    test_client, test_auth, test_mongo, name, mock_config, requests_mock
+    tus_upload, test_mongo, name, mock_config, requests_mock
 ):
     """Test uploading a small file within a directory hierarchy.
 
@@ -356,10 +297,8 @@ def test_upload_file_deep_directory(
         "upload_path": f"foo/bar/{name}",
     }
 
-    _do_tus_upload(
-        test_client=test_client,
+    tus_upload(
         upload_metadata=upload_metadata,
-        auth=test_auth,
         data=data
     )
 
@@ -376,7 +315,8 @@ def test_upload_file_deep_directory(
     ).read_bytes() == data
 
 
-def test_upload_file_exceed_quota(test_client, test_auth, requests_mock):
+def test_upload_file_exceed_quota(
+        test_client, test_auth, tus_upload, requests_mock):
     """Test exceeding quota.
 
     Upload one file and try uploading a second file which would exceed
@@ -398,12 +338,7 @@ def test_upload_file_exceed_quota(test_client, test_auth, requests_mock):
     }
     data = b"XyzzyXyzzy"
 
-    _do_tus_upload(
-        test_client=test_client,
-        upload_metadata=upload_metadata,
-        auth=test_auth,
-        data=data
-    )
+    tus_upload(upload_metadata=upload_metadata, data=data)
 
     # 10 bytes of quota used, the next upload shoud fail
     resp = test_client.post(
@@ -428,7 +363,7 @@ def test_upload_file_exceed_quota(test_client, test_auth, requests_mock):
 
 
 @pytest.mark.usefixtures("project")
-def test_upload_large_file(test_client, test_auth, test_mongo, requests_mock):
+def test_upload_large_file(tus_upload, test_mongo, requests_mock):
     """
     Test uploading a large file.
 
@@ -448,12 +383,7 @@ def test_upload_large_file(test_client, test_auth, test_mongo, requests_mock):
         "filename": "test.txt",
         "upload_path": "test.txt",
     }
-    _do_tus_upload(
-        test_client=test_client,
-        upload_metadata=upload_metadata,
-        auth=test_auth,
-        data=file_content
-    )
+    tus_upload(upload_metadata=upload_metadata, data=file_content)
 
     # Uploaded file was not added to database yet
     files = list(test_mongo.upload.files.find())
@@ -472,7 +402,7 @@ def test_upload_large_file(test_client, test_auth, test_mongo, requests_mock):
 
 @pytest.mark.usefixtures("project")
 def test_upload_large_file_wrong_checksum(
-        test_client, test_auth, test_mongo, requests_mock):
+        test_client, test_auth, tus_upload, test_mongo, requests_mock):
     """
     Test uploading a large file with the wrong checksum
     """
@@ -489,10 +419,8 @@ def test_upload_large_file_wrong_checksum(
         "filename": "test.txt",
         "upload_path": "test.txt",
     }
-    _, upload_id = _do_tus_upload(
-        test_client=test_client,
+    _, upload_id = tus_upload(
         upload_metadata=upload_metadata,
-        auth=test_auth,
         data=file_content
     )
 
@@ -758,13 +686,11 @@ def test_mixed_parallel_upload_conflict(test_client, test_auth, requests_mock):
     assert tus_upload.status_code == 204
 
 
-def test_upload_archive(test_client, test_auth, mock_config, requests_mock):
+def test_upload_archive(tus_upload, mock_config, requests_mock):
     """Test uploading an archive.
 
     Ensure that the archive is extracted successfully.
 
-    :param test_client: Flask client
-    :param test_auth: Authorization headers
     :param mock_config: Configuration
     :param requests_mock: HTTP request mocker
     """
@@ -781,12 +707,7 @@ def test_upload_archive(test_client, test_auth, mock_config, requests_mock):
 
     test_data = pathlib.Path("tests/data/test.zip").read_bytes()
 
-    _do_tus_upload(
-        test_client=test_client,
-        upload_metadata=upload_metadata,
-        auth=test_auth,
-        data=test_data
-    )
+    tus_upload(upload_metadata=upload_metadata, data=test_data)
 
     # Run the upload background job
     queue = get_job_queue('upload')
@@ -800,7 +721,7 @@ def test_upload_archive(test_client, test_auth, mock_config, requests_mock):
 
 
 @pytest.mark.usefixtures("project")
-def test_compute_checksum_once(app, test_auth, requests_mock,
+def test_compute_checksum_once(app, test_auth, tus_upload, requests_mock,
                                mock_get_file_checksum):
     """Test that file checksum is computed only once.
 
@@ -822,10 +743,8 @@ def test_compute_checksum_once(app, test_auth, requests_mock,
         "filename": 'foo',
         "upload_path": 'foo',
     }
-    _do_tus_upload(
-        test_client=test_client,
+    tus_upload(
         upload_metadata=upload_metadata,
-        auth=test_auth,
         data=b"asdf"
     )
 

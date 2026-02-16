@@ -1,13 +1,18 @@
 """Configure py.test default values and functionality."""
+from __future__ import annotations
+
 import os
 import pprint
 import sys
 import unittest.mock
 from pathlib import Path
 from runpy import run_path
+from io import BytesIO
+from typing import TYPE_CHECKING
 
 import fakeredis
 import pytest
+from flask_tus_io.resource import encode_tus_meta
 from mongobox import MongoBox
 from mongoengine import connect, disconnect
 from rq import SimpleWorker
@@ -29,6 +34,11 @@ from upload_rest_api.lock import ProjectLockManager
 from upload_rest_api.models.project import Project
 from upload_rest_api.models.token import Token
 from upload_rest_api.models.user import User
+
+
+if TYPE_CHECKING:
+    import werkzeug.test
+
 
 # Prefer modules from source directory rather than from site-python
 sys.path.insert(
@@ -310,6 +320,120 @@ def project():
         identifier="test_project", quota=256 * 1024 * 1024
     )
     return project
+
+
+@pytest.fixture(scope="function")
+def tus_upload(test_client, test_auth):
+    """
+    Function to perform a tus upload with arbitrary metadata using the tus
+    API
+    """
+    def func(
+            upload_metadata, data,
+            expected_status: int = 204  # 204 NO CONTENT by default
+        ) -> tuple[werkzeug.test.TestResponse, str]:
+        upload_length = len(data)
+
+        resp = test_client.post(
+            "/v1/files_tus",
+            headers={
+                **{
+                    "Tus-Resumable": "1.0.0",
+                    "Upload-Length": str(upload_length),
+                    "Upload-Metadata": encode_tus_meta(upload_metadata)
+                },
+                **test_auth
+            }
+        )
+
+        assert resp.status_code in (
+            201,  # CREATED
+            expected_status
+        )
+
+        if resp.status_code in range(400, 500):
+            # If status code is in the 4XX range (indicating it's user error),
+            # return the response so it can be inspected
+            return resp, None
+
+        location = resp.location
+
+        resp = test_client.head(
+            location,
+            headers={
+                **{"Tus-Resumable": "1.0.0"},
+                **test_auth
+            }
+        )
+
+        resp = test_client.patch(
+            location,
+            content_type="application/offset+octet-stream",
+            headers={
+                **{
+                    "Content-Type": "application/offset+octet-stream",
+                    "Tus-Resumable": "1.0.0",
+                    "Upload-Offset": "0"
+                },
+                **test_auth
+            },
+            input_stream=BytesIO(data)
+        )
+
+        assert resp.status_code == expected_status
+
+        # Return the response and the upload identifier
+        return resp, location.split("/")[-1]
+
+    return func
+
+
+@pytest.fixture(scope="function")
+def tus_upload_file(tus_upload):
+    """Upload a single file using the tus API"""
+    def func(
+            project_id, path,
+            src_path = "tests/data/test.txt",
+            expected_status: int = 204  # 204 NO CONTENT by default
+        ) -> tuple[werkzeug.test.TestResponse, str]:
+        upload_metadata = {
+            "type": "file",
+            "project_id": project_id,
+            "filename": Path(path).name,
+            "upload_path": str(Path(path))
+        }
+
+        return tus_upload(
+            upload_metadata=upload_metadata,
+            data=Path(src_path).read_bytes(),
+            expected_status=expected_status
+        )
+
+    return func
+
+
+@pytest.fixture(scope="function")
+def tus_upload_archive(tus_upload):
+    """Upload an archive using the tus API"""
+    def func(
+            project_id, path,
+            src_path = "tests/data/test.tar.gz",
+            expected_status: int = 204  # 204 NO CONTENT by default
+        ) -> tuple[werkzeug.test.TestResponse, str]:
+        upload_metadata = {
+            "type": "archive",
+            "project_id": project_id,
+            "filename": Path(src_path).name,
+            "upload_path": path
+        }
+
+        return tus_upload(
+            upload_metadata=upload_metadata,
+            data=Path(src_path).read_bytes(),
+            expected_status=expected_status
+        )
+
+    return func
 
 
 @pytest.fixture(scope="function")
