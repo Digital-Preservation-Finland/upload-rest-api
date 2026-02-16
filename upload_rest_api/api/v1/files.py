@@ -6,13 +6,11 @@ server.
 import os
 from pathlib import Path
 
-import werkzeug
 from flask import Blueprint, abort, jsonify, request
 
 from upload_rest_api.api.v1.tasks import get_polling_url
 from upload_rest_api.authentication import require_project_access
-from upload_rest_api.models.upload import Upload
-from upload_rest_api.models.resource import get_resource, File
+from upload_rest_api.models.resource import get_resource
 from upload_rest_api.config import CONFIG
 from upload_rest_api.jobs import FILES_QUEUE, enqueue_background_job
 from upload_rest_api.lock import ProjectLockManager
@@ -32,39 +30,6 @@ def _get_dir_tree(project):
         file_dict["/"] = file_dict.pop("/.")
 
     return file_dict
-
-
-@FILES_API_V1.route("/<string:project_id>/<path:fpath>", methods=["POST"])
-def upload_file(project_id, fpath):
-    """Save the uploaded file at <UPLOAD_PROJECTS_PATH>/project/fpath.
-
-    :returns: HTTP Response
-    """
-    require_project_access(project_id)
-
-    if request.content_type not in ('application/octet-stream', None, ''):
-        raise werkzeug.exceptions.UnsupportedMediaType(
-            f"Unsupported Content-Type: {request.content_type}"
-        )
-
-    if request.content_length is None:
-        raise werkzeug.exceptions.LengthRequired(
-            "Missing Content-Length header"
-        )
-
-    # Upload file
-    file = File(project_id=project_id, path=fpath)
-    upload = Upload.create(file, request.content_length)
-    checksum = request.args.get('md5', None)
-    upload.add_source(request.stream, checksum)
-    upload.store_files(verify_source=bool(checksum))
-
-    return jsonify(
-        {
-            'file_path': str(upload.path),
-            'status': 'created'
-        }
-    )
 
 
 @FILES_API_V1.route(

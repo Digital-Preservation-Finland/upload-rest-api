@@ -16,149 +16,12 @@ from metax_access.template_data import FILE as TEMPLATE_FILE
 from metax_access.template_data import DATASET as TEMPLATE_DATASET
 
 
-def _upload_file(client, url, auth, fpath):
-    """Send POST request to given URL with file fpath.
-
-    :returns: HTTP response
-    """
-    with open(fpath, "rb") as test_file:
-        response = client.post(
-            url,
-            input_stream=test_file,
-            headers=auth
-        )
-
-    return response
-
-
 def _request_accepted(response):
     """Return True if request was accepted."""
     return response.status_code == 202
 
 
-@pytest.mark.parametrize(
-    "path",
-    [
-        "test.txt",
-        "test_directory/test_file",
-        "test_directory/../test_file",
-        "tämäontesti.txt",
-        "tämä on testi.txt"
-    ]
-)
-def test_upload(app, test_auth, test_mongo, path, requests_mock):
-    """Test uploading a plain text file."""
-    # Mock metax
-    metax_files_api = requests_mock.post('/v3/files/post-many',
-                                        json={})
-    requests_mock.get('/v3/files', json={'results': [], 'next': None})
-
-    test_client = app.test_client()
-    files = test_mongo.upload.files
-    resolved_path = pathlib.Path('/', path).resolve()
-    project_path = pathlib.Path(app.config.get("UPLOAD_PROJECTS_PATH"),
-                                'test_project')
-
-    response = _upload_file(
-        test_client, f"/v1/files/test_project/{path}",
-        test_auth, "tests/data/test.txt"
-    )
-    assert response.status_code == 200
-    assert response.json['status'] == 'created'
-    assert response.json['file_path'] == str(resolved_path)
-
-    # File should be available after metadata has been created
-    fpath = project_path / resolved_path.relative_to('/')
-    assert fpath.is_file()
-    assert fpath.read_bytes() \
-        == pathlib.Path("tests/data/test.txt").read_bytes()
-
-    # Check that the file has 664 permissions. The group write
-    # permission is required, otherwise siptools-research will crash
-    # later.
-    assert oct(fpath.stat().st_mode)[5:8] == "664"
-
-    # Check that the uploaded file was added to database
-    document = files.find_one({"_id": str(fpath)})
-    assert document["checksum"] == "150b62e4e7d58c70503bd5fc8a26463c"
-    assert document["identifier"].startswith('urn:uuid:')
-
-    # Check that correct file metadata was sent to Metax
-    metadata = metax_files_api.last_request.json()[0]
-    assert metadata['pathname'] == str(resolved_path)
-    assert metadata['filename'] == resolved_path.name
-
-    # Test that trying to upload the file again returns 409 Conflict
-    response = _upload_file(
-        test_client, f"/v1/files/test_project/{path}",
-        test_auth, "tests/data/test.txt"
-    )
-    assert response.status_code == 409
-    assert response.json['error'] == f"File '{resolved_path}' already exists"
-
-
-def test_upload_conflict(test_client, test_auth, requests_mock):
-    """Test uploading a file that already has metadata in Metax."""
-    # Mock metax
-    requests_mock.get(
-        '/v3/files?pathname=%2Ffoo%2Fbar&csc_project=test_project',
-        json={'results': [update_nested_dict(TEMPLATE_FILE, {"pathname": '/foo/bar'})], 'next': None}
-    )
-
-    # Upload file
-    response = _upload_file(
-        test_client, "/v1/files/test_project/foo/bar",
-        test_auth, "tests/data/test.txt"
-    )
-    assert response.status_code == 409
-    assert response.json['error'] \
-        == ('Metadata could not be created because the file already has'
-            ' metadata')
-
-
-def test_upload_max_size(app, test_auth, mock_config):
-    """Test uploading file larger than the supported max file size."""
-    # Set max upload size to 1 byte
-    mock_config["MAX_CONTENT_LENGTH"] = 1
-    test_client = app.test_client()
-    upload_path = app.config.get("UPLOAD_PROJECTS_PATH")
-
-    response = _upload_file(
-        test_client, "/v1/files/test_project/test.txt",
-        test_auth, "tests/data/test.txt"
-    )
-    assert response.status_code == 413
-    assert response.json['error'] == "Max single file size exceeded"
-
-    # Check that file was not saved on the server
-    fpath = os.path.join(upload_path, "test/test.txt")
-    assert not os.path.isfile(fpath)
-
-
-def test_user_quota(app, test_auth):
-    """Test uploading files larger than allowed by user quota."""
-    test_client = app.test_client()
-    upload_path = app.config.get("UPLOAD_PROJECTS_PATH")
-
-    project = ProjectEntry.objects.get(id="test_project")
-    project.quota = 200
-    project.used_quota = 0
-    project.save()
-
-    response = _upload_file(
-        test_client, "/v1/files/test_project/test.zip",
-        test_auth, "tests/data/test.zip"
-    )
-    assert response.status_code == 413
-    assert response.json['error'] == "Quota exceeded"
-
-    # Check that the file was not actually created
-    assert not os.path.isdir(os.path.join(upload_path,
-                                          "test_project",
-                                          "test.zip"))
-
-
-def test_used_quota(app, test_auth, requests_mock):
+def test_used_quota(test_client, test_auth, tus_upload_file, requests_mock):
     """Test that used quota is calculated correctly."""
     # Mock Metax
     requests_mock.get("/v3/files?pathname=%2Ftest1&csc_project=test_project",
@@ -172,17 +35,9 @@ def test_used_quota(app, test_auth, requests_mock):
     )
     requests_mock.post("/v3/files/delete-many", json={})
 
-    test_client = app.test_client()
-
     # Upload two 31B txt files
-    _upload_file(
-        test_client, "/v1/files/test_project/test1",
-        test_auth, "tests/data/test.txt"
-    )
-    _upload_file(
-        test_client, "/v1/files/test_project/test2",
-        test_auth, "tests/data/test.txt"
-    )
+    tus_upload_file(project_id="test_project", path="test1")
+    tus_upload_file(project_id="test_project", path="test2")
 
     project = ProjectEntry.objects.get(id="test_project")
     assert project.used_quota == 62
@@ -196,49 +51,9 @@ def test_used_quota(app, test_auth, requests_mock):
     assert project.used_quota == 31
 
 
-def test_upload_conflicting_directory(app, test_auth, requests_mock):
-    """Test uploading file to path that is a directory."""
-    # Mock metax
-    requests_mock.post('/v3/files/post-many', json={})
-    requests_mock.get('/v3/files?pathname=%2Ffoo%2Fbar&csc_project=test_project',
-                      json={'results': [], 'next': None})
-
-    # First upload file to "/foo/bar", so that directory "/foo" is
-    # created.
-    test_client = app.test_client()
-    response = _upload_file(
-        test_client, "/v1/files/test_project/foo/bar",
-        test_auth, "tests/data/test.txt"
-    )
-    assert response.status_code == 200
-
-    # Then, try to upload file to "/foo". It should fail because
-    # directory "/foo" exists
-    test_client = app.test_client()
-    response = _upload_file(
-        test_client, "/v1/files/test_project/foo",
-        test_auth, "tests/data/test.txt"
-    )
-    assert response.status_code == 409
-    assert response.json['error'] == "Directory '/foo' already exists"
-
-
-def test_upload_to_root(app, test_auth):
-    """Test uploading file to root directory."""
-    test_client = app.test_client()
-    response = _upload_file(
-        test_client, "/v1/files/test_project/",
-        test_auth, "tests/data/test.txt"
-    )
-    assert response.status_code == 405
-    assert response.json['error'] \
-        == 'The method is not allowed for the requested URL.'
-
-
 @pytest.mark.parametrize(
     'method,url,data',
     [
-        ("POST", "/v1/files/test_project/../test.txt", b'foo'),
         ("GET", "/v1/files/test_project/../test.txt", None),
         ("DELETE", "/v1/files/test_project/../test.txt", None),
     ]
@@ -254,96 +69,6 @@ def test_resource_outside_project_directory(app, method, url, data, test_auth):
 
     assert response.status_code == 400
     assert response.json['error'] == 'Invalid path'
-
-
-def test_unsupported_content(app, test_auth):
-    """Test uploading unsupported type."""
-    client = app.test_client()
-
-    response = client.post(
-        '/v1/files/test_project/test',
-        headers=test_auth,
-        content_length=1,
-        content_type='foo'
-    )
-
-    assert response.status_code == 415
-    assert response.json['error'] == "Unsupported Content-Type: foo"
-
-
-def test_unknown_content_length(app, test_auth):
-    """Test uploading file without Content-Lengt header."""
-    client = app.test_client()
-
-    response = client.post(
-        '/v1/files/test_project/test',
-        headers=test_auth,
-        content_length=None,
-        content_type='application/octet-stream',
-    )
-
-    assert response.status_code == 411
-    assert response.json['error'] == "Missing Content-Length header"
-
-
-@pytest.mark.parametrize(
-    ('checksum', 'expected_status_code', 'expected_response'),
-    [
-        # The actual md5sum of tests/data/test.txt
-        (
-            '150b62e4e7d58c70503bd5fc8a26463c',
-            200,
-            {
-                'file_path': '/test_path',
-                'status': 'created'
-            }
-
-        ),
-        # Invalid md5sum
-        (
-            'foo',
-            400,
-            {
-                'code': 400,
-                'error': 'Checksum of uploaded file does not match provided'
-                ' checksum.'
-            }
-        )
-    ]
-)
-def test_file_integrity_validation(app, test_auth, checksum,
-                                   expected_status_code,
-                                   expected_response, requests_mock):
-    """Test integrity validation of uploaded file.
-
-    Upload file with checksum provided in HTTP request header.
-
-    :param app: Flask app
-    :param test_auth: authentication headers
-    :param cheksum: checksum included in HTTP headers
-    :param expected_status_code: expected status of response from API
-    :param expected_response: expected JSON response from API
-    :param requests_mock: HTTP request mocker
-    """
-    # Mock Metax
-    requests_mock.post('/v3/files/post-many', json={})
-    requests_mock.get('/v3/files?pathname=%2Ftest_path&csc_project=test_project', json={'results': [], 'next': None})
-
-    # Post a file
-    test_client = app.test_client()
-    with open('tests/data/test.txt', "rb") as test_file:
-        response = test_client.post(
-            '/v1/files/test_project/test_path',
-            query_string={'md5': checksum},
-            input_stream=test_file,
-            headers=test_auth
-        )
-
-    # Check response
-    assert response.status_code == expected_status_code
-    for key in expected_response:
-
-        assert response.json[key] == expected_response[key]
 
 
 def test_get_file(app, test_auth, test_auth2):
@@ -379,7 +104,8 @@ def test_get_file(app, test_auth, test_auth2):
 @pytest.mark.parametrize(
     "name", ("test.txt", "tämäontesti.txt", "tämä on testi.txt")
 )
-def test_delete_file(app, test_auth, requests_mock, test_mongo, name):
+def test_delete_file(
+        app, test_auth, tus_upload_file, requests_mock, test_mongo, name):
     """Test DELETE for single file."""
     # Mock Metax
     requests_mock.get("/v3/files?pathname=%2Ftest.txt&csc_project=test_project",
@@ -394,12 +120,7 @@ def test_delete_file(app, test_auth, requests_mock, test_mongo, name):
 
     # Upload a file
     test_client = app.test_client()
-    response = _upload_file(
-        test_client, f"/v1/files/test_project/{name}",
-        test_auth, "tests/data/test.txt"
-    )
-    assert response.status_code == 200
-    assert response.json['status'] == 'created'
+    tus_upload_file(project_id="test_project", path=name)
 
     # DELETE file that exists
     response = test_client.delete(
@@ -527,8 +248,8 @@ def test_get_files(app, test_auth, path, expected_data, requests_mock):
     ]
 )
 def test_delete_directory(
-    app, test_auth, requests_mock, test_mongo, background_job_runner,
-    target, files_to_delete
+    app, tus_upload_file, test_auth, requests_mock, test_mongo,
+    background_job_runner, target, files_to_delete
 ):
     """Test deleting a directory.
 
@@ -555,11 +276,7 @@ def test_delete_directory(
     all_files = ['test.txt', 'test/test.txt']
     all_file_identifiers = {}
     for file in all_files:
-        response = _upload_file(test_client,
-                                f'/v1/files/test_project/{file}',
-                                test_auth,
-                                'tests/data/test.txt')
-        assert response.status_code == 200
+        tus_upload_file(project_id="test_project", path=file)
         all_file_identifiers[file] = test_client.get(
             f'/v1/files/test_project/{file}', headers=test_auth
         ).json['identifier']
@@ -633,8 +350,9 @@ def test_delete_empty_project(app, test_auth, requests_mock):
         '/',  # project root directory
     ]
 )
-def test_delete_file_in_dataset(test_auth, test_client, requests_mock,
-                                path_to_delete):
+def test_delete_file_in_dataset(
+        test_auth, test_client, tus_upload_file,
+        requests_mock, path_to_delete):
     """Test deleting a file that belongs to a pending dataset.
 
     The deletion should fail.
@@ -646,12 +364,7 @@ def test_delete_file_in_dataset(test_auth, test_client, requests_mock,
     requests_mock.post("/v3/files/post-many", json={})
 
     # Upload a file
-    _upload_file(
-        test_client,
-        '/v1/files/test_project/testdir/test.txt',
-        test_auth,
-        'tests/data/test.txt'
-    )
+    tus_upload_file(project_id="test_project", path="testdir/test.txt")
     file_id = test_client.get(
         '/v1/files/test_project/testdir/test.txt', headers=test_auth
     ).json['identifier']
@@ -697,8 +410,9 @@ def test_delete_file_in_dataset(test_auth, test_client, requests_mock,
         '/',  # project root directory
     ]
 )
-def test_delete_preserved_file(test_auth, test_client, requests_mock,
-                               background_job_runner, path_to_delete):
+def test_delete_preserved_file(
+        test_auth, test_client, tus_upload_file, requests_mock,
+        background_job_runner, path_to_delete):
     """Test deleting a file that belongs to a preserved dataset.
 
     The file should be deleted, but the metadata should not be deleted
@@ -717,24 +431,14 @@ def test_delete_preserved_file(test_auth, test_client, requests_mock,
 
     # Upload a file that will be added to a dataset. The metadata of
     # this file should NOT be removed from Metax.
-    _upload_file(
-        test_client,
-        '/v1/files/test_project/testdir/test1.txt',
-        test_auth,
-        'tests/data/test.txt'
-    )
+    tus_upload_file(project_id="test_project", path="testdir/test1.txt")
     file_id1 = test_client.get(
         '/v1/files/test_project/testdir/test1.txt', headers=test_auth
     ).json['identifier']
 
     # Upload a file that is not added to any dataset. The metadata of
     # this file should be removed from Metax if the file is removed.
-    _upload_file(
-        test_client,
-        '/v1/files/test_project/testdir/test2.txt',
-        test_auth,
-        'tests/data/test.txt'
-    )
+    tus_upload_file(project_id="test_project", path="testdir/test2.txt")
     file_id2 = test_client.get(
         '/v1/files/test_project/testdir/test2.txt', headers=test_auth
     ).json['identifier']
@@ -800,7 +504,6 @@ def test_delete_preserved_file(test_auth, test_client, requests_mock,
     ("method", "url"),
     (
         ("GET", "/v1/files/test_project/fake_file"),
-        ("POST", "/v1/files/test_project/fake_file"),
         ("DELETE", "/v1/files/test_project/fake_file"),
     )
 )
