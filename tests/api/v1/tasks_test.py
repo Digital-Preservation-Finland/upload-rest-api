@@ -1,30 +1,47 @@
 """Tests for ``upload_rest_api.app`` module."""
+from urllib.parse import urlencode
+
 import pytest
 from rq import SimpleWorker
 
-from upload_rest_api.models.task import TaskStatus
 from upload_rest_api import jobs
+from upload_rest_api.models.task import TaskStatus
 
 
-def test_reverse_proxy_polling_url(app, mock_redis, test_auth):
+def test_reverse_proxy_polling_url(
+        app, mock_redis, test_auth, requests_mock, tus_upload_file):
     """Test reverse proxy polling url.
 
     Mock the web application running behind a reverse proxy and ensure
     that the reverse proxy's URL is detected by the web application.
     """
+    requests_mock.get(
+        "https://metax.localdomain/v3/files?{}".format(
+            urlencode({
+                "pathname": "/testdir/test.txt", "csc_project": "test_project",
+            })
+        ),
+        json={"results": [], "next": None}
+    )
+    requests_mock.post("https://metax.localdomain/v3/files/post-many", json={})
+    requests_mock.post(
+        "https://metax.localdomain/v3/files/datasets"
+        "?relations=true&storage_service=pas",
+        json={}
+    )
     test_client = app.test_client()
+
+    tus_upload_file(project_id="test_project", path="testdir/test.txt")
 
     # Add an environment variable containing the X-Forwarded-Host HTTP
     # header value.
     # This is how Werkzeug (eg. all WSGI servers) read the HTTP headers
     # for an incoming request.
-    with open('tests/data/test.tar.gz', 'rb') as archive:
-        response = test_client.post(
-            "/v1/archives/test_project?dir=foo",
-            data=archive.read(),
-            headers=test_auth,
-            environ_base={"HTTP_X_FORWARDED_HOST": "reverse_proxy"}
-        )
+    response = test_client.delete(
+        "/v1/files/test_project/testdir",
+        headers=test_auth,
+        environ_base={"HTTP_X_FORWARDED_HOST": "reverse_proxy"}
+    )
     assert response.json["polling_url"].startswith(
         "http://reverse_proxy/v1/tasks/"
     )

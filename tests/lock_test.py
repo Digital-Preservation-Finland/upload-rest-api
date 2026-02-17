@@ -1,5 +1,6 @@
 """Tests for ``upload_rest_api.lock`` module."""
 import time
+from pathlib import Path
 
 import pytest
 
@@ -53,30 +54,35 @@ def test_lock_timeout(lock_manager, upload_tmpdir):
     _test_lock(lock_manager, project_dir / "foo")
 
 
-def test_lock_response(test_auth, test_client, mock_redis):
+def test_lock_response(test_auth, test_client, mock_redis, tus_upload):
     """
     Test performing a HTTP request that acquires a lock while a lock
     is already acquired.
     """
     # Upload a archive. This will acquire a lock.
-    with open('tests/data/test.tar.gz', 'rb') as archive:
-        response = test_client.post(
-            "/v1/archives/test_project?dir=foo",
-            data=archive.read(),
-            headers=test_auth
-        )
-
-    assert response.status_code == 202
+    tus_upload(
+        upload_metadata={
+            "type": "archive",
+            "project_id": "test_project",
+            "filename": "test.tar.gz",
+            "upload_path": "foo"
+        },
+        data=Path("tests/data/test.tar.gz").read_bytes()
+    )
 
     # Try to upload a file to same location before metadata generation
     # has finished. This will be blocked.
-    response = test_client.post(
-        "/v1/files/test_project/foo",
-        data='foo',
-        headers=test_auth
+    response, _ = tus_upload(
+        upload_metadata={
+            "type": "file",
+            "project_id": "test_project",
+            "filename": "foo",
+            "upload_path": "foo"
+        },
+        data=b"foo",
+        expected_status=409  # CONFLICT
     )
 
-    assert response.status_code == 409  # Conflict
     assert response.json["error"] \
         == "The file/directory is currently locked by another task"
 
