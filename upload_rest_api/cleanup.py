@@ -89,28 +89,3 @@ def clean_tus_uploads():
         UploadEntry.objects.filter(id__in=resource_ids_to_delete).delete()
 
     return deleted_count
-
-
-def clean_other_uploads():
-    """Clean likely aborted uploads from the MongoDB database.
-
-    Uploads older than 2 days after expired locks are deleted from the
-    database, as it's likely the upload has crashed at that point.
-    """
-    lock_manager = ProjectLockManager()
-
-    # The cutoff is the default lock TTL with additional two days to ensure
-    # uploads exceeding the TTL have plenty of time to succeed.
-    cutoff = (
-        datetime.datetime.now(datetime.timezone.utc)
-        - datetime.timedelta(seconds=lock_manager.default_lock_ttl)
-        - NON_TUS_UPLOAD_TTL
-    )
-
-    # We don't need to deal with locks here, as they have expired at this
-    # point.
-    deleted_count = UploadEntry.objects.filter(
-        is_tus_upload=False, started_at__lte=cutoff
-    ).delete()
-
-    return deleted_count

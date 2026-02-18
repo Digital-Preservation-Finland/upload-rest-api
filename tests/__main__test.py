@@ -47,8 +47,6 @@ def test_cleanup(mocker, command, command_runner):
     mock_clean_disk = mocker.patch('upload_rest_api.__main__.clean_disk')
     mock_clean_tus_uploads \
         = mocker.patch('upload_rest_api.__main__.clean_tus_uploads')
-    mock_clean_other_uploads \
-        = mocker.patch('upload_rest_api.__main__.clean_other_uploads')
 
     command_runner(["cleanup", command])
 
@@ -59,11 +57,10 @@ def test_cleanup(mocker, command, command_runner):
     elif command == "mongo":
         funcs_to_call = [mock_clean_mongo]
     elif command == "uploads":
-        funcs_to_call = [mock_clean_tus_uploads, mock_clean_other_uploads]
+        funcs_to_call = [mock_clean_tus_uploads]
 
     all_cli_funcs = (
         mock_clean_disk, mock_clean_mongo, mock_clean_tus_uploads,
-        mock_clean_other_uploads
     )
 
     for cli_func in all_cli_funcs:

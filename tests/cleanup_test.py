@@ -325,9 +325,7 @@ def test_aborted_tus_uploads(app, test_mongo, test_client, test_auth):
             shutil.rmtree(path)
 
     # Run the cleanup. 'test_1.txt' and 'test_2.txt' will be cleaned.
-    assert clean.clean_other_uploads() == 0
-    deleted_count = clean.clean_tus_uploads()
-    assert deleted_count == 2
+    assert clean.clean_tus_uploads() == 2
     # TODO remove support for pymongo 3.x when RHEL9 migration is done
     if pymongo.__version__ < "3.7":
         assert test_mongo.upload.uploads.count() == 3
@@ -358,58 +356,9 @@ def test_aborted_tus_uploads(app, test_mongo, test_client, test_auth):
         lock_manager.acquire('test_project', upload_path, timeout=0.1)
 
     # Nothing is cleaned on second run
-    assert clean.clean_other_uploads() == 0
     assert clean.clean_tus_uploads() == 0
 
     # Release the file storage locks
     for i in range(0, 5):
         upload_path = str(project_path / f"test_{i}.txt")
         lock_manager.release('test_project', upload_path)
-
-
-@pytest.mark.usefixtures("app")
-def test_cleanup_only_tus_uploads():
-    """
-    Test that non-tus uploads are not cleaned
-    """
-    # Create a fake pending upload manually to fake an unlikely scenario in
-    # which the entry was not deleted upon crashing.
-    UploadEntry(
-        id="upload1", path="/fake/path", project="test_project", size=1,
-        type_="file"
-    ).save()
-    UploadEntry(
-        id="upload2", path="/fake/path2", project="test_project", size=2,
-        type_="file"
-    ).save()
-    UploadEntry(
-        id="upload3", path="/fake/path3", project="test_project", size=3,
-        type_="file", is_tus_upload=True
-    ).save()
-
-    # Only tus upload will be deleted
-    assert clean.clean_tus_uploads() == 1
-    assert clean.clean_other_uploads() == 0
-
-    assert UploadEntry.objects.filter(path="/fake/path").count() == 1
-    assert UploadEntry.objects.filter(path="/fake/path2").count() == 1
-    assert UploadEntry.objects.filter(path="/fake/path3").count() == 0
-
-
-@pytest.mark.usefixtures("app")
-def test_cleanup_other_uploads(mock_config, monkeypatch):
-    for i in range(0, 52):
-        UploadEntry(
-            id=f"upload{i}", path=f"/fake/path{i}", project="test_project",
-            size=1, started_at=datetime.now(timezone.utc) - timedelta(hours=i)
-        ).save()
-
-    # Set the lock TTL to 1 hour
-    mock_config["UPLOAD_LOCK_TTL"] = 60 * 60
-
-    # Uploads older than 48 hours will be deleted
-    assert clean.clean_tus_uploads() == 0
-    assert clean.clean_other_uploads() == 3
-
-    assert UploadEntry.objects.filter(path="/fake/path0").count() == 1
-    assert UploadEntry.objects.filter(path="/fake/path49").count() == 0
