@@ -71,8 +71,7 @@ def _upload_started(workspace: Workspace, resource: TusResource) -> None:
         )
         Upload.create(target,
                       size=resource.upload_length,
-                      identifier=resource.identifier,
-                      is_tus_upload=True)
+                      identifier=resource.identifier)
     except Exception:
         # Remove the workspace to prevent filling up disk space with
         # bogus requests

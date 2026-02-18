@@ -56,8 +56,7 @@ def clean_tus_uploads():
     resource_ids_on_disk = {path.name for path in tus_spool_dir.iterdir()}
     resource_ids_on_mongo = {
         str(entry["_id"]) for entry
-        in UploadEntry.objects.filter(is_tus_upload=True)
-                      .only("id").as_pymongo()
+        in UploadEntry.objects.only("id").as_pymongo()
     }
 
     resource_ids_to_delete = list(resource_ids_on_mongo - resource_ids_on_disk)

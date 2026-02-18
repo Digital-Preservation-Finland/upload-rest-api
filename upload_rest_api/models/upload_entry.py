@@ -2,7 +2,7 @@
 from datetime import datetime, timezone
 from enum import Enum
 
-from mongoengine import (BooleanField, DateTimeField, Document, EnumField,
+from mongoengine import (DateTimeField, Document, EnumField,
                          LongField, ReferenceField, StringField)
 
 
@@ -30,8 +30,6 @@ class UploadEntry(Document):
     type_ = EnumField(UploadType, db_field="type")
     project = ReferenceField(ProjectEntry, required=True)
     source_checksum = StringField()
-
-    is_tus_upload = BooleanField(default=False)
 
     started_at = DateTimeField(default=lambda: datetime.now(timezone.utc))
 

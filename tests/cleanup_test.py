@@ -340,7 +340,7 @@ def test_aborted_tus_uploads(app, test_mongo, test_client, test_auth):
     for name in ("test_0.txt", "test_3.txt", "test_4.txt"):
         upload_path = str(project_path / name)
         assert test_mongo.upload.uploads.find_one({
-            'path': f"/{name}", "is_tus_upload": True
+            'path': f"/{name}"
         })
         with pytest.raises(ValueError) as error:
             lock_manager.acquire('test_project', upload_path, timeout=0.1)
@@ -350,9 +350,7 @@ def test_aborted_tus_uploads(app, test_mongo, test_client, test_auth):
     # should not be locked i.e. lock can be acquired
     for name in ("test_1.txt", "test_2.txt"):
         upload_path = str(project_path / name)
-        assert not test_mongo.upload.uploads.find_one(
-            {'path': f"/{name}"}
-        )
+        assert not test_mongo.upload.uploads.find_one({'path': f"/{name}"})
         lock_manager.acquire('test_project', upload_path, timeout=0.1)
 
     # Nothing is cleaned on second run

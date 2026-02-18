@@ -87,7 +87,6 @@ class Upload:
     type_ = property(lambda x: x._db_upload.type_)
     source_checksum = property(lambda x: x._db_upload.source_checksum)
     size = property(lambda x: x._db_upload.size)
-    is_tus_upload = property(lambda x: x._db_upload.is_tus_upload)
     started_at = property(lambda x: x._db_upload.started_at)
     project = property(lambda x: Project(x._db_upload.project))
 
@@ -157,13 +156,12 @@ class Upload:
         return self._tmp_path / "source"
 
     @classmethod
-    def create(cls, resource, size, identifier=None, is_tus_upload=None):
+    def create(cls, resource, size, identifier=None):
         """Create new upload.
 
         :param Resource resource: Target resource
         :param int size: Size of upload
         :param str identifier: Optional upload identifier
-        :param bool is_tus_upload: Upload is TUS-upload
         """
         if not identifier:
             identifier = str(uuid.uuid4())
@@ -184,8 +182,6 @@ class Upload:
             type_=type_,
             size=size
         )
-        if is_tus_upload is not None:
-            db_upload.is_tus_upload = is_tus_upload
         upload = cls(db_upload=db_upload)
 
         # Check that project has enough quota. Update used quota
