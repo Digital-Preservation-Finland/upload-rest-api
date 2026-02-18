@@ -135,12 +135,8 @@ def test_delete_file(
                          "test_project", name)
     assert not os.path.isfile(fpath)
 
-    # TODO remove support for pymongo 3.x when RHEL9 migration is done
-    if pymongo.__version__ < "3.7":
-        assert test_mongo.upload.files.count({}) == 0
-    else:
-        # Check that file was removed from database
-        assert test_mongo.upload.files.count_documents({}) == 0
+    # Check that file was removed from database
+    assert test_mongo.upload.files.count_documents({}) == 0
 
     # Check that file was removed from Metax
     assert delete_files_api.called_once

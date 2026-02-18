@@ -190,13 +190,9 @@ def test_create_user(test_mongo, mock_config, command_runner):
     """
     command_runner(["users", "create", "test_user"])
 
-    # TODO remove support for pymongo 3.x when RHEL9 migration is done
-    if pymongo.__version__ < "3.7":
-        assert test_mongo.upload.users.count({"_id": "test_user"}) == 1
-    else:
-        assert test_mongo.upload.users.count_documents({
-            "_id": "test_user"
-        }) == 1
+    assert test_mongo.upload.users.count_documents({
+        "_id": "test_user"
+    }) == 1
 
 
 @pytest.mark.usefixtures('test_mongo')
@@ -216,11 +212,7 @@ def test_delete_user(test_mongo, command_runner):
     User.create(username="test", projects=["test_project"])
     command_runner(["users", "delete", "test"])
 
-    # TODO remove support for pymongo 3.xS when RHEL9 migration is done
-    if pymongo.__version__ < "3.7":
-        assert test_mongo.upload.users.count({"_id": "test"}) == 0
-    else:
-        assert test_mongo.upload.users.count_documents({"_id": "test"}) == 0
+    assert test_mongo.upload.users.count_documents({"_id": "test"}) == 0
 
 
 @pytest.mark.usefixtures('test_mongo')
