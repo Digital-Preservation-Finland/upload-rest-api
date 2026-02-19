@@ -904,6 +904,38 @@ def test_upload_no_rights(tus_upload_file):
     assert "You don't have the permission" in response.json["error"]
 
 
+def test_upload_archive_exceeding_quota(
+        tus_upload, test_client, background_job_runner):
+    """
+    Test uploading an archive that would exceed the quota after extraction
+    """
+    # The only file in `2kb_test.tar.gz` is 2 KB, while the archive is only
+    # 131 bytes; make quota 200 bytes to ensure the quota is exceeded
+    # only during extraction.
+    project = ProjectEntry.objects.get(id="test_project")
+    project.quota = 200
+    project.save()
+
+    upload_metadata = {
+        "type": "archive",
+        "project_id": "test_project",
+        "filename": "test.tar.gz",
+        "upload_path": "foo"
+    }
+    resp, upload_id = tus_upload(
+        upload_metadata=upload_metadata,
+        data=pathlib.Path("tests/data/2kb_test.tar.gz").read_bytes()
+    )
+
+    resp = background_job_runner(
+        test_client, "upload", task_id=upload_id, expect_success=False
+    )
+
+    errors = resp.json["errors"]
+
+    assert errors[0]["message"] == "Quota exceeded"
+
+
 @pytest.mark.usefixtures("project")
 def test_compute_checksum_once(app, test_auth, tus_upload, requests_mock,
                                mock_get_file_checksum):
