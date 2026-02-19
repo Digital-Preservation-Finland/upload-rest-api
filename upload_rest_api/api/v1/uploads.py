@@ -1,4 +1,4 @@
-"""Event handler for the /files_tus/v1 endpoint."""
+"""Event handler for the /uploads/v1 endpoint."""
 from __future__ import annotations
 
 import flask_tus_io
@@ -15,22 +15,22 @@ from upload_rest_api.lock import lock_manager
 from upload_rest_api.models.resource import Directory, File
 from upload_rest_api.models.upload import Upload
 
-FILES_TUS_API_V1 = Blueprint(
-    "files_tus_v1", __name__, url_prefix="/v1/files_tus"
+UPLOADS_API_V1 = Blueprint(
+    "uploads_v1", __name__, url_prefix="/v1/uploads"
 )
 
 
 def register_blueprint(app: Flask) -> None:
     """
-    Register the `flask_tus_io` application under the `/v1/files_tus`
+    Register the `flask_tus_io` application under the `/v1/uploads`
     URL prefix
     """
     flask_tus_io.register_blueprints(
         app,
-        url_prefixes=["/v1/files_tus"],
+        url_prefixes=["/v1/uploads"],
         event_handler=tus_event_handler
     )
-    app.register_blueprint(FILES_TUS_API_V1)
+    app.register_blueprint(UPLOADS_API_V1)
 
 
 def _release_lock(workspace: Workspace) -> None:

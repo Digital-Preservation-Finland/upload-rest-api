@@ -1,4 +1,4 @@
-"""Tests for `upload_rest_api.api.v1.files_tus` module."""
+"""Tests for `upload_rest_api.api.v1.uploads` module."""
 
 import logging
 import pathlib
@@ -80,7 +80,7 @@ def test_upload_file(
 
     # Another upload to the same path can't be initiated
     resp = test_client.post(
-        "/v1/files_tus",
+        "/v1/uploads",
         headers={
             **{
                 "Tus-Resumable": "1.0.0",
@@ -173,7 +173,7 @@ def test_upload_file_checksum_iterative(
     }
 
     resp = test_client.post(
-        "/v1/files_tus",
+        "/v1/uploads",
         headers={
             **{
                 "Tus-Resumable": "1.0.0",
@@ -383,7 +383,7 @@ def test_upload_file_exceed_quota(
 
     # 10 bytes of quota used, the next upload shoud fail
     resp = test_client.post(
-        "/v1/files_tus",
+        "/v1/uploads",
         headers={
             **{
                 "Tus-Resumable": "1.0.0",
@@ -509,7 +509,7 @@ def test_upload_file_parallel_upload_exceed_quota(
     for i in range(0, 3):
         # Initiate upload, but don't finish it
         responses[i] = test_client.post(
-            "/v1/files_tus",
+            "/v1/uploads",
             headers={
                 **{
                     "Tus-Resumable": "1.0.0",
@@ -551,7 +551,7 @@ def test_upload_file_parallel_upload_exceed_quota(
 
 def test_mixed_parallel_upload_exceed_quota(
         test_client, test_auth, tus_upload, requests_mock):
-    """Test parallel uploads to /v1/files_tus API.
+    """Test parallel uploads to /v1/uploads API.
 
     If all quota has been alloceted for TUS uploads, it should not be
     possible to upload files using /v1/files API.
@@ -567,7 +567,7 @@ def test_mixed_parallel_upload_exceed_quota(
     # Allocate almost all quota for a TUS upload
     tus_upload_data = b'0' * 1999
     upload_resp = test_client.post(
-        "/v1/files_tus",
+        "/v1/uploads",
         headers={
             **{
                 "Tus-Resumable": "1.0.0",
@@ -630,7 +630,7 @@ def test_upload_file_conflict(
     }
 
     resp1 = test_client.post(
-        "/v1/files_tus",
+        "/v1/uploads",
         headers={
             **{
                 "Tus-Resumable": "1.0.0",
@@ -644,7 +644,7 @@ def test_upload_file_conflict(
 
     # Another upload with the same path can't be initiated
     resp2 = test_client.post(
-        "/v1/files_tus",
+        "/v1/uploads",
         headers={
             **{
                 "Tus-Resumable": "1.0.0",

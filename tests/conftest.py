@@ -335,7 +335,7 @@ def tus_upload(test_client, test_auth):
         upload_length = len(data)
 
         resp = test_client.post(
-            "/v1/files_tus",
+            "/v1/uploads",
             headers={
                 **{
                     "Tus-Resumable": "1.0.0",

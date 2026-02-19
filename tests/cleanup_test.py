@@ -274,7 +274,7 @@ def test_aborted_tus_uploads(app, test_mongo, test_client, test_auth):
     """
     for i in range(0, 5):
         resp = test_client.post(
-            "/v1/files_tus",
+            "/v1/uploads",
             headers={
                 **{
                     "Tus-Resumable": "1.0.0",
