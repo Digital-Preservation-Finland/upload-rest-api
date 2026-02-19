@@ -43,11 +43,6 @@ def _release_lock(workspace: Workspace) -> None:
         return
 
 
-def _delete_workspace(workspace: Workspace) -> None:
-    """Delete the workspace."""
-    workspace.remove()
-
-
 def _upload_started(workspace: Workspace, resource: TusResource) -> None:
     """Callback function called when a new upload is started."""
     try:
@@ -76,7 +71,7 @@ def _upload_started(workspace: Workspace, resource: TusResource) -> None:
         # Remove the workspace to prevent filling up disk space with
         # bogus requests
         _release_lock(workspace)
-        _delete_workspace(workspace)
+        workspace.remove()
         raise
 
 
@@ -164,7 +159,7 @@ def _calculate_upload_checksum(
         )
     except Exception:
         _release_lock(workspace)
-        _delete_workspace(workspace)
+        workspace.remove()
         raise
 
 
