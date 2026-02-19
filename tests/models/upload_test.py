@@ -102,6 +102,61 @@ def test_file_metadata_conflict(mock_config, requests_mock):
 
 
 @pytest.mark.usefixtures('app')
+def test_file_metadata_multiple_conflicts(mock_config, requests_mock):
+    """
+    Test uploading multiple files, some of which already have metadata in Metax.
+    """
+    # Try uploading files `file{1..5}` while `file3` and `file4` already exist
+    # in Metax
+
+    # Create an incomplete upload with a text file copied to source path
+    upload = Upload.create(
+        Directory(project_id='test_project', path='path'), 123
+    )
+    with open('tests/data/5_files.tar', 'rb') as file:
+        upload.add_source(file, None)
+
+    # Mock metax.
+    metax_files_api = requests_mock.post('/v3/files/post-many', json={})
+    requests_mock.get(
+        '/v3/files?csc_project=test_project',
+        json={
+            'next': None,
+            'results': [
+                update_nested_dict(
+                    TEMPLATE_FILE,
+                    {
+                        "id": 3, "pathname": "/path/file3.txt",
+                        "storage_identifier": "foo3"
+                    }
+                ),
+                update_nested_dict(
+                    TEMPLATE_FILE,
+                    {
+                        "id": 4, "pathname": "/path/file4.txt",
+                        "storage_identifier": "foo4"
+                    }
+                )
+            ]
+        }
+    )
+
+    # Try to create metadata. Metadata creation should fail.
+    with pytest.raises(UploadConflictError) as error:
+        upload.store_files(verify_source=False)
+    assert str(error.value) == ('Metadata could not be created because some '
+                                'files already have metadata')
+    assert error.value.files == ['path/file3.txt', 'path/file4.txt']
+
+    # Nothing should have been posted to Metax
+    assert not metax_files_api.called
+
+    # Temporary files should be removed
+    tmp_dir = pathlib.Path(mock_config['UPLOAD_TMP_PATH'])
+    assert not any(tmp_dir.iterdir())
+
+
+@pytest.mark.usefixtures('app')
 def test_add_source():
     """Test add_source method.
 
