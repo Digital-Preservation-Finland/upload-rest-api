@@ -1,7 +1,10 @@
 """Unit tests for upload module."""
+from __future__ import annotations
+
 import hashlib
 import pathlib
 import urllib
+import tempfile
 
 import pytest
 
@@ -13,6 +16,25 @@ from tests.utils import update_nested_dict
 from metax_access.template_data import FILE as TEMPLATE_FILE
 
 
+@pytest.fixture(scope="function")
+def clone_test_file(tmp_path):
+    """
+    Fixture function to create a copy of the given file in a temporary
+    location.
+
+    Needed because upload process will often attempt to delete the file;
+    we cannot give a path to a test file directly.
+    """
+    def func(path: str | pathlib.Path):
+        path = pathlib.Path(path)
+        new_path = (tmp_path / path.name)
+        new_path.write_bytes(path.read_bytes())
+
+        return new_path
+
+    return func
+
+
 @pytest.mark.usefixtures('app')
 @pytest.mark.parametrize(
     'file_path',
@@ -22,7 +44,7 @@ from metax_access.template_data import FILE as TEMPLATE_FILE
     )
 )
 def test_store_file(
-    requests_mock, file_path
+    requests_mock, clone_test_file, file_path
 ):
     """Test that Upload object creates correct metadata."""
     # Mock metax
@@ -37,8 +59,7 @@ def test_store_file(
     upload = Upload.create(
         File(project_id='test_project', path='foo/bar'), 123
     )
-    with open(test_file, 'rb') as file:
-        upload.add_source(file, None)
+    upload.add_source(clone_test_file(test_file), None)
 
     # Create metadata
     upload.store_files(verify_source=False)
@@ -60,14 +81,13 @@ def test_store_file(
 
 
 @pytest.mark.usefixtures('app')
-def test_file_metadata_conflict(mock_config, requests_mock):
+def test_file_metadata_conflict(mock_config, requests_mock, clone_test_file):
     """Test uploading a file that already has metadata in Metax."""
     # Create an incomplete upload with a text file copied to source path
     upload = Upload.create(
         File(project_id='test_project', path='path/file1'), 123
     )
-    with open('tests/data/test.txt', 'rb') as file:
-        upload.add_source(file, None)
+    upload.add_source(clone_test_file("tests/data/test.txt"), None)
 
     # Mock metax.
     file = {
@@ -102,7 +122,8 @@ def test_file_metadata_conflict(mock_config, requests_mock):
 
 
 @pytest.mark.usefixtures('app')
-def test_file_metadata_multiple_conflicts(mock_config, requests_mock):
+def test_file_metadata_multiple_conflicts(
+        mock_config, requests_mock, clone_test_file):
     """
     Test uploading multiple files, some of which already have metadata in Metax.
     """
@@ -113,8 +134,7 @@ def test_file_metadata_multiple_conflicts(mock_config, requests_mock):
     upload = Upload.create(
         Directory(project_id='test_project', path='path'), 123
     )
-    with open('tests/data/5_files.tar', 'rb') as file:
-        upload.add_source(file, None)
+    upload.add_source(clone_test_file("tests/data/5_files.tar"), None)
 
     # Mock metax.
     metax_files_api = requests_mock.post('/v3/files/post-many', json={})
@@ -157,7 +177,7 @@ def test_file_metadata_multiple_conflicts(mock_config, requests_mock):
 
 
 @pytest.mark.usefixtures('app')
-def test_add_source():
+def test_add_source(clone_test_file):
     """Test add_source method.
 
     Test that checksum is saved to database.
@@ -165,8 +185,9 @@ def test_add_source():
     new_upload = Upload.create(
         File(project_id='test_project', path='path/file1'), 123
     )
-    with open('tests/data/test.txt', 'rb') as source_file:
-        new_upload.add_source(source_file, checksum='foobar')
+    new_upload.add_source(
+        clone_test_file("tests/data/test.txt"), checksum='foobar'
+    )
 
     upload_from_database = Upload.get(id=new_upload.id)
     assert upload_from_database.source_checksum == 'foobar'
@@ -186,7 +207,8 @@ def test_add_source():
         ['wrong-checksum', False]
     )
 )
-def test_checksum(checksum, verify, requests_mock, mock_get_file_checksum):
+def test_checksum(
+        checksum, verify, requests_mock, clone_test_file, mock_get_file_checksum):
     """Test that checksum is not computed needlessly."""
     # Mock metax.
     requests_mock.post('/v3/files/post-many', json={})
@@ -198,8 +220,7 @@ def test_checksum(checksum, verify, requests_mock, mock_get_file_checksum):
     upload = Upload.create(
         File(project_id='test_project', path='path/file1'), 123
     )
-    with open('tests/data/test.txt', 'rb') as source_file:
-        upload.add_source(source_file, checksum=checksum)
+    upload.add_source(clone_test_file("tests/data/test.txt"), checksum=checksum)
     upload.store_files(verify_source=verify)
 
     if verify or not checksum:
@@ -209,13 +230,14 @@ def test_checksum(checksum, verify, requests_mock, mock_get_file_checksum):
 
 
 @pytest.mark.usefixtures('app')
-def test_invalid_checksum():
+def test_invalid_checksum(clone_test_file):
     """Test that upload fails if invalid source checksum is provided."""
     upload = Upload.create(
         File(project_id='test_project', path='path/file1'), 123
     )
-    with open('tests/data/test.txt', 'rb') as source_file:
-        upload.add_source(source_file, checksum='wrong-checksum')
+    upload.add_source(
+        clone_test_file("tests/data/test.txt"), checksum='wrong-checksum'
+    )
 
     with pytest.raises(
         UploadError,
@@ -255,7 +277,7 @@ def test_invalid_checksum():
     ]
 )
 def test_upload_archive_conflict(
-    archive, existing_file, conflicts, requests_mock
+    clone_test_file, archive, existing_file, conflicts, requests_mock
 ):
     """Test uploading archive that would overwrite files or directories.
 
@@ -278,15 +300,13 @@ def test_upload_archive_conflict(
     upload = Upload.create(
         File(project_id='test_project', path=existing_file), 123
     )
-    with open('tests/data/test.txt', 'rb') as source_file:
-        upload.add_source(source_file, checksum=None)
+    upload.add_source(clone_test_file("tests/data/test.txt"), checksum=None)
     upload.store_files(verify_source=False)
 
     # Try to upload an archive that will overwrite the file that was
     # just uploaded (or its parent directory).
     upload = Upload.create(Directory(project_id='test_project', path='foo'), 123)
-    with open(archive, 'rb') as source_file:
-        upload.add_source(source_file, checksum=None)
+    upload.add_source(clone_test_file(archive), checksum=None)
     with pytest.raises(UploadConflictError) as error:
         upload.store_files(verify_source=False)
     assert str(error.value) == 'Some files already exist'
@@ -294,13 +314,12 @@ def test_upload_archive_conflict(
 
 
 @pytest.mark.usefixtures('app')  # Creates test_project
-def test_upload_file_as_archive():
+def test_upload_file_as_archive(clone_test_file):
     """Test uploading a reqular file as an archive."""
     upload = Upload.create(
         Directory(project_id='test_project', path='foo'), 123
     )
-    with open('tests/data/test.txt', 'rb') as source_file:
-        upload.add_source(source_file, checksum=None)
+    upload.add_source(clone_test_file("tests/data/test.txt"), checksum=None)
     with pytest.raises(UploadError) as error:
         upload.store_files(verify_source=False)
 

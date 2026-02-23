@@ -43,7 +43,7 @@ def test_parse_relative_user_path(path, result):
 
 
 @pytest.mark.usefixtures('app')  # Initialize db
-def test_get_many_datasets(requests_mock):
+def test_get_many_datasets(requests_mock, tmp_path):
     """Test that get_datasets method handles paging in Metax."""
     # Mock metax
     requests_mock.get('/v3/files?pathname=%2Ftestdir%2Ftestfile&csc_project=test_project',
@@ -54,8 +54,9 @@ def test_get_many_datasets(requests_mock):
     upload = Upload.create(
         File(project_id='test_project', path='testdir/testfile'), 123
     )
-    with io.BytesIO(b'foo') as textfile:
-        upload.add_source(file=textfile, checksum=None)
+    text_path = (tmp_path / "test.txt")
+    text_path.write_bytes(b"foo")
+    upload.add_source(text_path, checksum=None)
     upload.store_files(verify_source=False)
     file_identifier \
         = get_resource('test_project', 'testdir/testfile').identifier

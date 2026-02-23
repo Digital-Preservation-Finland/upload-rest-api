@@ -1,4 +1,6 @@
 """Upload model."""
+from __future__ import annotations
+
 import logging
 import os
 import shutil
@@ -222,24 +224,14 @@ class Upload:
         return upload
 
     @_release_lock_on_exception
-    def add_source(self, file, checksum):
+    def add_source(self, path: str | Path, checksum: str | None):
         """Save file to source path.
 
-        :param file: File stream or path to file
+        :param path: Path to file
         :param checksum: MD5 checksum of file, or ``None`` if unknown
         :returns: ``None``
         """
-        if 'read' in dir(file):
-            # 'file' is a stream. Write it to source path in 1MB chunks
-            with open(self._source_path, "wb") as source_file:
-                while True:
-                    chunk = file.read(1024*1024)
-                    if chunk == b'':
-                        break
-                    source_file.write(chunk)
-        else:
-            # 'file' is path to a file. Move it to source path.
-            Path(file).rename(self._source_path)
+        Path(path).rename(self._source_path)
 
         self._db_upload.source_checksum = checksum
         self._db_upload.save()
