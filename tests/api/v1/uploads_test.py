@@ -2,30 +2,32 @@
 
 import logging
 import pathlib
-import urllib
 import re
+import urllib
 from io import BytesIO
 
 import pytest
 from flask_tus_io.resource import encode_tus_meta
 
 from upload_rest_api.jobs.utils import get_job_queue
-from upload_rest_api.models.project import ProjectEntry
 from upload_rest_api.models.file_entry import FileEntry
+from upload_rest_api.models.project import ProjectEntry
 
 
 @pytest.mark.usefixtures("project")
 @pytest.mark.parametrize(
-    "name", ("test.txt", "tämäontesti.txt", "tämä on testi.txt")
+    "name", ["test.txt", "tämäontesti.txt", "tämä on testi.txt"]
 )
 def test_upload_file(
         app, tus_upload, test_auth, test_mongo, name, caplog, requests_mock):
     """Test uploading a small file.
 
     :param app: Flask app
+    :param tus_upload: TUS upload function
     :param test_auth: Authentication headers
     :param test_mongo: Mongo client
     :param name: Name of uploaded file
+    :param caplog: Obejct that captures log messages
     :param requests_mock: HTTP request mocker
     """
     caplog.set_level(logging.INFO)
@@ -97,21 +99,21 @@ def test_upload_file(
                          "files": [f"/{name}"]}
 
 
-
 @pytest.mark.usefixtures("project", "mock_redis")
 def test_upload_file_checksum(tus_upload, requests_mock):
     """Test uploading a file with a checksum.
 
     Ensure that the checksum is checked.
 
-    :param test_client: Flask client
-    :param test_auth: Authentication headers
+    :param tus_upload: TUS upload function
     :param requests_mock: HTTP request mocker
     """
     # Mock Metax
     requests_mock.post('/v3/files/post-many', json={})
-    requests_mock.get('/v3/files?pathname=%2Ftest.txt&csc_project=test_project',
-                      json={'results': [], 'next': None})
+    requests_mock.get(
+        '/v3/files?pathname=%2Ftest.txt&csc_project=test_project',
+        json={'results': [], 'next': None}
+    )
 
     data = b"XyzzyXyzzy"
     upload_metadata = {
@@ -159,8 +161,10 @@ def test_upload_file_checksum_iterative(
     """
     # Mock Metax
     requests_mock.post('/v3/files/post-many', json={})
-    requests_mock.get('/v3/files?pathname=%2Ftest.txt&csc_project=test_project',
-                      json={'results': [], 'next': None})
+    requests_mock.get(
+        '/v3/files?pathname=%2Ftest.txt&csc_project=test_project',
+        json={'results': [], 'next': None}
+    )
     upload_metadata = {
         "type": "file",
         "project_id": "test_project",
@@ -236,7 +240,7 @@ def test_upload_file_checksum_incorrect_syntax(tus_upload):
         "checksum": "f96ab43c95b09f803870f8cbf83e"
     }
 
-    resp, _ = tus_upload (
+    resp, _ = tus_upload(
         upload_metadata=upload_metadata,
         data=data,
         expected_status=400
@@ -274,13 +278,14 @@ def test_upload_file_checksum_unknown_algorithm(tus_upload):
     assert resp.json["error"] == "Unrecognized hash algorithm 'blake3'"
 
 
-def test_upload_conflicting_directory(
-        test_client, tus_upload_file, requests_mock, mock_redis):
+def test_upload_conflicting_directory(tus_upload_file, requests_mock):
     """Test uploading file to path that is a directory."""
     # Mock metax
     requests_mock.post('/v3/files/post-many', json={})
-    requests_mock.get('/v3/files?pathname=%2Ffoo%2Fbar&csc_project=test_project',
-                      json={'results': [], 'next': None})
+    requests_mock.get(
+        '/v3/files?pathname=%2Ffoo%2Fbar&csc_project=test_project',
+        json={'results': [], 'next': None}
+    )
 
     # First upload file to "/foo/bar", so that directory "/foo" is
     # created.
@@ -300,10 +305,9 @@ def test_upload_conflicting_directory(
 
 
 def test_upload_outside_project_directory(tus_upload_file):
-    """Test attempting an upload outside project directory; this should fail.
+    """Test attempting an upload outside project directory.
 
-    :param url: URL of request
-    :param data: content of Request
+    Request should fail with HTTP error 400.
     """
     response, _ = tus_upload_file(
         project_id="test_project",
@@ -316,7 +320,7 @@ def test_upload_outside_project_directory(tus_upload_file):
 
 @pytest.mark.usefixtures("project")
 @pytest.mark.parametrize(
-    "name", ("test.txt", "tämäontesti.txt", "tämä on testi.txt")
+    "name", ["test.txt", "tämäontesti.txt", "tämä on testi.txt"]
 )
 def test_upload_file_deep_directory(
     tus_upload, test_mongo, name, mock_config, requests_mock
@@ -365,8 +369,10 @@ def test_upload_file_exceed_quota(
     """
     # Mock Metax
     requests_mock.post('/v3/files/post-many', json={})
-    requests_mock.get('/v3/files?pathname=%2Ftest.txt&csc_project=test_project',
-                      json={'results': [], 'next': None})
+    requests_mock.get(
+        '/v3/files?pathname=%2Ftest.txt&csc_project=test_project',
+        json={'results': [], 'next': None}
+    )
     project = ProjectEntry.objects.get(id="test_project")
     project.quota = 15
     project.save()
@@ -413,8 +419,10 @@ def test_upload_large_file(tus_upload, test_mongo, requests_mock):
     """
     # Mock metax
     requests_mock.post('/v3/files/post-many', json={})
-    requests_mock.get('/v3/files?pathname=%2Ftest.txt&csc_project=test_project',
-                      json={'results': [], 'next': None})
+    requests_mock.get(
+        '/v3/files?pathname=%2Ftest.txt&csc_project=test_project',
+        json={'results': [], 'next': None}
+    )
     # Upload file
     file_content = b"A" * (128 * 1024 * 1024)
     upload_metadata = {
@@ -430,8 +438,8 @@ def test_upload_large_file(tus_upload, test_mongo, requests_mock):
     files = list(test_mongo.upload.files.find())
     assert not files
 
-    # Checksum calculation and finalization happens in a background task due
-    # to the large size of the upload; run it
+    # Checksum calculation and finalization happens in a background task
+    # due to the large size of the upload; run it
     queue = get_job_queue('upload')
     queue.run_job(queue.jobs[0])
 
@@ -444,13 +452,13 @@ def test_upload_large_file(tus_upload, test_mongo, requests_mock):
 @pytest.mark.usefixtures("project")
 def test_upload_large_file_wrong_checksum(
         test_client, test_auth, tus_upload, test_mongo, requests_mock):
-    """
-    Test uploading a large file with the wrong checksum
-    """
+    """Test uploading a large file with the wrong checksum."""
     # Mock metax
     requests_mock.post('/v3/files/post-many', json={})
-    requests_mock.get('/v3/files?pathname=%2Ftest.txt&csc_project=test_project',
-                      json={'results': [], 'next': None})
+    requests_mock.get(
+        '/v3/files?pathname=%2Ftest.txt&csc_project=test_project',
+        json={'results': [], 'next': None}
+    )
     # Upload file
     file_content = b"A" * (128 * 1024 * 1024)
     upload_metadata = {
@@ -469,8 +477,8 @@ def test_upload_large_file_wrong_checksum(
     files = list(test_mongo.upload.files.find())
     assert not files
 
-    # Checksum calculation and finalization happens in a background task;
-    # run it
+    # Checksum calculation and finalization happens in a background
+    # task; run it
     queue = get_job_queue('upload')
     queue.run_job(queue.jobs[0])
 
@@ -558,8 +566,10 @@ def test_mixed_parallel_upload_exceed_quota(
     """
     # Mock metax
     requests_mock.post('/v3/files/post-many', json={})
-    requests_mock.get('/v3/files?pathname=%2Ftest.txt&csc_project=test_project',
-                      json={'results': [], 'next': None})
+    requests_mock.get(
+        '/v3/files?pathname=%2Ftest.txt&csc_project=test_project',
+        json={'results': [], 'next': None}
+    )
     project = ProjectEntry.objects.get(id="test_project")
     project.quota = 2000
     project.save()
@@ -612,8 +622,7 @@ def test_mixed_parallel_upload_exceed_quota(
     assert upload_resp.status_code == 204
 
 
-def test_upload_file_conflict(
-        test_client, test_auth, tus_upload_file, requests_mock):
+def test_upload_file_conflict(test_client, test_auth, requests_mock):
     """Try initiating two uploads with the same file path."""
     # Mock metax
     requests_mock.post('/v3/files/post-many', json={})
@@ -675,8 +684,7 @@ def test_upload_file_conflict(
     assert response.status_code == 204
 
 
-def test_upload_oversized_file(
-        tus_upload, test_client, mock_config, background_job_runner):
+def test_upload_oversized_file(tus_upload, mock_config):
     """
     Test uploading an oversized file which
     exceeds the size limit for a single upload
@@ -704,13 +712,16 @@ def test_upload_archive(
 
     Ensure that the archive is extracted successfully.
 
+    :param tus_upload_archive: TUS upload function
     :param mock_config: Configuration
     :param requests_mock: HTTP request mocker
     """
     # Mock Metax
     requests_mock.post('/v3/files/post-many', json={})
-    requests_mock.get('/v3/files?pathname=%2Fextract_dir&csc_project=test_project',
-                      json={'results': [], 'next': None})
+    requests_mock.get(
+        '/v3/files?pathname=%2Fextract_dir&csc_project=test_project',
+        json={'results': [], 'next': None}
+    )
 
     tus_upload_archive(project_id="test_project", path="extract_dir")
 
@@ -827,8 +838,8 @@ def test_upload_archive_to_destination(
     ]
 )
 def test_upload_invalid_archive(
-        tus_upload, test_client, test_mongo, background_job_runner, archive):
-    """Test uploading an invalid archive with symlinks"""
+        tus_upload, test_client, background_job_runner, archive):
+    """Test uploading an invalid archive with symlinks."""
     upload_metadata = {
         "type": "archive",
         "project_id": "test_project",
@@ -852,11 +863,9 @@ def test_upload_invalid_archive(
 
 
 def test_upload_archive_already_exists(
-    test_client, test_auth, tus_upload_file, tus_upload_archive,
-    requests_mock
+    tus_upload_file, tus_upload_archive, requests_mock
 ):
-    """Test uploading archive to path that is a file.
-    """
+    """Test uploading archive to path that is a file."""
     # Mock metax
     requests_mock.post('/v3/files/post-many', json={})
     requests_mock.get('/v3/files', json={'next': None, 'results': []})
@@ -937,17 +946,14 @@ def test_upload_archive_exceeding_quota(
 
 
 @pytest.mark.usefixtures("project")
-def test_compute_checksum_once(app, test_auth, tus_upload, requests_mock,
+def test_compute_checksum_once(tus_upload, requests_mock,
                                mock_get_file_checksum):
     """Test that file checksum is computed only once.
 
-    :param app: Flask app
-    :param test_auth: Authentication headers
+    :param tus_upload: TUS upload function
     :param requests_mock: HTTP request mocker
     :param mock_get_file_checksum: get_file_checksum mock
     """
-    test_client = app.test_client()
-
     # Mock metax
     metax_files_api = requests_mock.post('/v3/files/post-many', json={})
     requests_mock.get('/v3/files?pathname=%2Ffoo&csc_project=test_project',

@@ -1,7 +1,6 @@
 """Tests for ``upload_rest_api.__main__`` module."""
 import datetime
 import json
-import pymongo
 
 import pytest
 from click.testing import CliRunner
@@ -13,7 +12,7 @@ from upload_rest_api.models.token import Token, TokenEntry
 from upload_rest_api.models.user import User, UserExistsError
 
 
-@pytest.fixture(scope="function")
+@pytest.fixture
 def command_runner():
     """Run the CLI entrypoint using the provided arguments and return the
     result.
@@ -34,7 +33,7 @@ def command_runner():
     return wrapper
 
 
-@pytest.mark.parametrize("command", ("files", "mongo", "uploads"))
+@pytest.mark.parametrize("command", ["files", "mongo", "uploads"])
 def test_cleanup(mocker, command, command_runner):
     """Test that correct function is called from main function when
     cleanup command is used.
@@ -183,7 +182,7 @@ def test_get_project(command_runner):
     assert "Project 'test_project_b' not found" in result.output
 
 
-def test_create_user(test_mongo, mock_config, command_runner):
+def test_create_user(test_mongo, command_runner):
     """Test creating user test.
 
     User should be added to database and project directory should be
@@ -294,7 +293,7 @@ def test_grant_user_projects_nonexistent_project(command_runner):
 
 
 @pytest.mark.usefixtures('test_mongo')
-def test_grant_user_projects_nonexistent_user(monkeypatch, command_runner):
+def test_grant_user_projects_nonexistent_user(command_runner):
     """Test granting a nonexistent user access to a project."""
     Project.create(identifier="test_project", quota=0)
 
@@ -365,7 +364,7 @@ def test_create_project_already_exists(command_runner):
 
 @pytest.mark.usefixtures("test_mongo")
 def test_delete_project(command_runner):
-    """Test deleting a project"""
+    """Test deleting a project."""
     Project.create(identifier="test_project", quota=2048)
 
     command_runner(["projects", "delete", "test_project"])
@@ -377,7 +376,7 @@ def test_delete_project(command_runner):
 @pytest.mark.parametrize("quota", [0, 1])
 @pytest.mark.usefixtures("test_mongo")
 def test_modify_project(command_runner, quota):
-    """Test setting new quota for a project"""
+    """Test setting new quota for a project."""
     Project.create(identifier="test_project", quota=2048)
 
     result = command_runner([
@@ -409,7 +408,7 @@ def test_modify_project_with_negative_quota(command_runner):
 
 @pytest.mark.usefixtures("test_mongo")
 def test_modify_project_fail(command_runner):
-    """Test modifying a project that does not exist"""
+    """Test modifying a project that does not exist."""
     result = command_runner(["projects", "modify", "test_project"])
 
     assert result.output == "Project 'test_project' does not exist.\n"
@@ -485,7 +484,7 @@ def test_get_file_by_identifier(command_runner):
 
 @pytest.mark.usefixtures('app')  # initialize database
 @pytest.mark.parametrize(
-    'command,result_data',
+    ("command", "result_data"),
     [
         (
             ["files", "list"],

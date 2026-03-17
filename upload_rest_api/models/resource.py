@@ -2,16 +2,18 @@
 from __future__ import annotations
 
 import abc
-import os
 import logging
+import os
 import pathlib
 import re
 import shutil
 import time
 from datetime import datetime, timezone
 
-from metax_access import (DS_STATE_IN_DIGITAL_PRESERVATION,
-                          DS_STATE_REJECTED_IN_DIGITAL_PRESERVATION_SERVICE)
+from metax_access import (
+    DS_STATE_IN_DIGITAL_PRESERVATION,
+    DS_STATE_REJECTED_IN_DIGITAL_PRESERVATION_SERVICE,
+)
 
 from upload_rest_api.config import CONFIG
 from upload_rest_api.lock import ProjectLockManager
@@ -51,7 +53,7 @@ def _dataset_to_result(dataset):
     language_identifiers = [
         LANGUAGE_IDENTIFIERS[language["url"]]
         for language in dataset["language"]
-        if LANGUAGE_IDENTIFIERS.get(language["url"], None)
+        if LANGUAGE_IDENTIFIERS.get(language["url"])
     ]
 
     return {
@@ -83,7 +85,7 @@ class Resource(abc.ABC):
     def __init__(
             self, path, *,
             project_id: str | None = None, project: Project | None = None):
-        """Initialize resource
+        """Initialize resource.
 
         :param path: Path of the resource.
         :param project_id: The identifier of project that owns the
@@ -150,8 +152,11 @@ class File(Resource):
     """File class."""
 
     def __init__(self, db_file: None | FileEntry = None, *args, **kwargs):
-        # If 'db_file' is provided, set it to prevent unnecessary DB queries
-        # later on
+        """Initialize File.
+
+        If 'db_file' is provided, set it to prevent unnecessary DB
+        queries later on
+        """
         self._db_file_ = db_file
 
         super().__init__(*args, **kwargs)
@@ -255,8 +260,7 @@ class Directory(Resource):
 
     @classmethod
     def create(cls, project_id, path):
-        """
-        Create a new directory for a project
+        """Create a new directory for a project.
 
         :param project_id: Project identifier
         :param path: Relative path for the project
@@ -354,7 +358,6 @@ class Directory(Resource):
 
         :returns: Number of deleted files
         """
-
         lock_manager = ProjectLockManager()
         with lock_manager.lock(self.project.id, self.storage_path):
 
@@ -374,7 +377,7 @@ class Directory(Resource):
         return len(expired_files)
 
 
-class FileGroup():
+class FileGroup:
     """Class for managing group of files efficiently."""
 
     def __init__(self, files):
@@ -465,7 +468,7 @@ class FileGroup():
         storage_paths = []  # All storage_paths in one list
         for file in self.files:
             # Remove the actual file
-            os.remove(file.storage_path)
+            file.storage_path.unlink()
             LOGGER.info("Deleted file %s", str(file.storage_path))
             # add identifiers storage_path to lists for bulk removal
             # from databases

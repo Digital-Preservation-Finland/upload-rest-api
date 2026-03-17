@@ -2,15 +2,17 @@
 from pathlib import Path
 
 import pytest
-from metax_access import (DS_STATE_IN_DIGITAL_PRESERVATION,
-                          DS_STATE_IN_DISSEMINATION,
-                          DS_STATE_TECHNICAL_METADATA_GENERATED)
-from tests.utils import update_nested_dict
+from metax_access import (
+    DS_STATE_IN_DIGITAL_PRESERVATION,
+    DS_STATE_TECHNICAL_METADATA_GENERATED,
+)
 from metax_access.template_data import DATASET as TEMPLATE_DATASET
+
+from tests.utils import update_nested_dict
 
 
 @pytest.mark.parametrize(
-    "datasets,has_pending_dataset",
+    ("datasets", "has_pending_dataset"),
     [
         # Contains a pending dataset
         (
@@ -130,7 +132,8 @@ def test_get_file_datasets_directory(
     result = response.json
     assert result["has_pending_dataset"] == has_pending_dataset
     assert len(result["datasets"]) == 2
-    dataset_a, dataset_b = sorted(result["datasets"], key= lambda ds: ds["title"]["en"])
+    dataset_a, dataset_b = sorted(result["datasets"],
+                                  key=lambda ds: ds["title"]["en"])
 
     assert dataset_a["title"]["en"] == "Dataset 1"
     assert dataset_a["languages"] == ["en"]

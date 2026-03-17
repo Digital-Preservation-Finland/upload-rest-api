@@ -2,23 +2,21 @@
 import copy
 import os
 import pathlib
-import re
 import shutil
 import time
-from datetime import datetime, timedelta, timezone
 
-import pymongo
 import pytest
 from flask_tus_io.resource import encode_tus_meta
-from metax_access.metax import (DS_STATE_IN_DIGITAL_PRESERVATION,
-                                DS_STATE_INITIALIZED)
+from metax_access.metax import (
+    DS_STATE_IN_DIGITAL_PRESERVATION,
+    DS_STATE_INITIALIZED,
+)
 from metax_access.template_data import DATASET as TEMPLATE_DATASET
 
 import upload_rest_api.cleanup as clean
 from upload_rest_api.lock import ProjectLockManager
 from upload_rest_api.models.file_entry import FileEntry
 from upload_rest_api.models.project import Project
-from upload_rest_api.models.upload import UploadEntry
 
 
 @pytest.mark.usefixtures('app')  # Creates test_project
@@ -292,8 +290,8 @@ def test_aborted_tus_uploads(app, test_mongo, test_client, test_auth):
 
         assert resp.status_code == 201
 
-    # Delete the tus workspaces for 'test_1.txt' and 'test_2.txt' to make them
-    # eligible for removal. In practice this is done by the
+    # Delete the tus workspaces for 'test_1.txt' and 'test_2.txt' to
+    # make them eligible for removal. In practice this is done by the
     # 'tus-clean-workspaces' script periodically.
     tus_spool_dir = pathlib.Path(app.config["TUS_API_SPOOL_PATH"])
 

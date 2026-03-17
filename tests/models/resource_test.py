@@ -1,6 +1,4 @@
 """Unit tests for resource module."""
-import io
-import re
 
 import pytest
 
@@ -10,9 +8,10 @@ from upload_rest_api.models.upload import Upload
 from tests.utils import update_nested_dict
 from metax_access.template_data import DATASET as TEMPLATE_DATASET
 
+
 @pytest.mark.usefixtures('app')  # Initialize database
 @pytest.mark.parametrize(
-    "path,result",
+    ("path", "result"),
     [
         # Valid
         ("/", "/"),
@@ -46,8 +45,10 @@ def test_parse_relative_user_path(path, result):
 def test_get_many_datasets(requests_mock, tmp_path):
     """Test that get_datasets method handles paging in Metax."""
     # Mock metax
-    requests_mock.get('/v3/files?pathname=%2Ftestdir%2Ftestfile&csc_project=test_project',
-                    json={'next': None, 'results': []})
+    requests_mock.get(
+        '/v3/files?pathname=%2Ftestdir%2Ftestfile&csc_project=test_project',
+        json={'next': None, 'results': []}
+    )
     requests_mock.post('/v3/files/post-many', json={})
 
     # Upload a file to directory /testdir

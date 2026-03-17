@@ -1,4 +1,4 @@
-"""Tests for ``upload_rest_api.app`` module."""
+"""Tests for ``upload_rest_api.api.v1.tasks`` module."""
 from urllib.parse import urlencode
 
 import pytest
@@ -8,6 +8,7 @@ from upload_rest_api import jobs
 from upload_rest_api.models.task import TaskStatus
 
 
+# TODO: why this test is in tasks_test.py?
 def test_reverse_proxy_polling_url(
         app, mock_redis, test_auth, requests_mock, tus_upload_file):
     """Test reverse proxy polling url.
@@ -61,13 +62,13 @@ def _modify_task_info(task):
 
 
 @jobs.api_background_job
-def _raise_general_exception(task):
+def _raise_general_exception(*_args, **_kwargs):
     """Raise general exception."""
     raise Exception('Something failed')
 
 
 @jobs.api_background_job
-def _raise_client_error(task):
+def _raise_client_error(*_args, **_kwargs):
     """Raise ClientError."""
     raise jobs.ClientError('Client made mistake.')
 

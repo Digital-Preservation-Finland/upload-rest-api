@@ -10,10 +10,10 @@ from flask import Blueprint, abort, jsonify, request
 
 from upload_rest_api.api.v1.tasks import get_polling_url
 from upload_rest_api.authentication import require_project_access
-from upload_rest_api.models.resource import get_resource
 from upload_rest_api.config import CONFIG
 from upload_rest_api.jobs import FILES_QUEUE, enqueue_background_job
 from upload_rest_api.lock import ProjectLockManager
+from upload_rest_api.models.resource import get_resource
 
 FILES_API_V1 = Blueprint("files_v1", __name__, url_prefix="/v1/files")
 

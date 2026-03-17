@@ -4,7 +4,6 @@ from __future__ import annotations
 import hashlib
 import pathlib
 import urllib
-import tempfile
 
 import pytest
 

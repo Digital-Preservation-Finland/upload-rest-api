@@ -1,24 +1,18 @@
 """Tests for ``upload_rest_api.api.v1.files`` module."""
-import os
 import pathlib
 import shutil
 
 import pytest
-import pymongo
-from metax_access import (DS_STATE_TECHNICAL_METADATA_GENERATED,
-                          DS_STATE_IN_DIGITAL_PRESERVATION)
-
-from upload_rest_api.models.file_entry import FileEntry
-from upload_rest_api.models.project import ProjectEntry
-from upload_rest_api.lock import ProjectLockManager, LockAlreadyTaken
-from tests.utils import update_nested_dict
-from metax_access.template_data import FILE as TEMPLATE_FILE
+from metax_access import (
+    DS_STATE_IN_DIGITAL_PRESERVATION,
+    DS_STATE_TECHNICAL_METADATA_GENERATED,
+)
 from metax_access.template_data import DATASET as TEMPLATE_DATASET
 
-
-def _request_accepted(response):
-    """Return True if request was accepted."""
-    return response.status_code == 202
+from tests.utils import update_nested_dict
+from upload_rest_api.lock import LockAlreadyTaken, ProjectLockManager
+from upload_rest_api.models.file_entry import FileEntry
+from upload_rest_api.models.project import ProjectEntry
 
 
 def test_used_quota(test_client, test_auth, tus_upload_file, requests_mock):
@@ -52,7 +46,7 @@ def test_used_quota(test_client, test_auth, tus_upload_file, requests_mock):
 
 
 @pytest.mark.parametrize(
-    'method,url,data',
+    ("method", "url", "data"),
     [
         ("GET", "/v1/files/test_project/../test.txt", None),
         ("DELETE", "/v1/files/test_project/../test.txt", None),
@@ -74,12 +68,13 @@ def test_resource_outside_project_directory(app, method, url, data, test_auth):
 def test_get_file(app, test_auth, test_auth2):
     """Test GET for single file."""
     test_client = app.test_client()
-    upload_path = app.config.get("UPLOAD_PROJECTS_PATH")
+    upload_path = pathlib.Path(app.config.get("UPLOAD_PROJECTS_PATH"))
 
-    fpath = os.path.join(upload_path, "test_project/test.txt")
+    fpath = upload_path / "test_project/test.txt"
     shutil.copy("tests/data/test.txt", fpath)
     FileEntry(
-        path=fpath, checksum="150b62e4e7d58c70503bd5fc8a26463c",
+        path=str(fpath),
+        checksum="150b62e4e7d58c70503bd5fc8a26463c",
         identifier="fake_identifier"
     ).save()
 
@@ -102,18 +97,26 @@ def test_get_file(app, test_auth, test_auth2):
 
 
 @pytest.mark.parametrize(
-    "name", ("test.txt", "tämäontesti.txt", "tämä on testi.txt")
+    "name", ["test.txt", "tämäontesti.txt", "tämä on testi.txt"]
 )
 def test_delete_file(
         app, test_auth, tus_upload_file, requests_mock, test_mongo, name):
     """Test DELETE for single file."""
     # Mock Metax
-    requests_mock.get("/v3/files?pathname=%2Ftest.txt&csc_project=test_project",
-                      json={'next': None, 'results': []})
-    requests_mock.get("/v3/files?pathname=%2Ft%C3%A4m%C3%A4ontesti.txt&csc_project=test_project",
-                      json={'next': None, 'results': []})
-    requests_mock.get("/v3/files?pathname=%2Ft%C3%A4m%C3%A4+on+testi.txt&csc_project=test_project",
-                      json={'next': None, 'results': []})
+    requests_mock.get(
+        "/v3/files?pathname=%2Ftest.txt&csc_project=test_project",
+        json={'next': None, 'results': []}
+    )
+    requests_mock.get(
+        "/v3/files?pathname=%2Ft%C3%A4m%C3%A4ontesti.txt"
+        "&csc_project=test_project",
+        json={'next': None, 'results': []}
+    )
+    requests_mock.get(
+        "/v3/files?pathname=%2Ft%C3%A4m%C3%A4+on+testi.txt"
+        "&csc_project=test_project",
+        json={'next': None, 'results': []}
+    )
     requests_mock.post("/v3/files/post-many", json={})
     requests_mock.post("/v3/files/datasets?relations=true", json={})
     delete_files_api = requests_mock.post("/v3/files/delete-many", json={})
@@ -131,9 +134,9 @@ def test_delete_file(
     assert response.json["metax"] == {'deleted_files_count': 1}
 
     # Check that file was removed from filesystem
-    fpath = os.path.join(app.config.get("UPLOAD_PROJECTS_PATH"),
-                         "test_project", name)
-    assert not os.path.isfile(fpath)
+    fpath = pathlib.Path(app.config.get("UPLOAD_PROJECTS_PATH")) \
+        / "test_project" / name
+    assert not fpath.is_file()
 
     # Check that file was removed from database
     assert test_mongo.upload.files.count_documents({}) == 0
@@ -156,7 +159,7 @@ def test_delete_file(
 
 
 @pytest.mark.parametrize(
-    ['path', 'expected_data'],
+    ("path", "expected_data"),
     [
         # All files of user
         (
@@ -209,17 +212,17 @@ def test_get_files(app, test_auth, path, expected_data, requests_mock):
     )
 
     # Create sample directory structure
-    upload_path = app.config.get("UPLOAD_PROJECTS_PATH")
-    os.makedirs(os.path.join(upload_path, "test_project/dir1"))
-    os.makedirs(os.path.join(upload_path, "test_project/dir2/subdir1"))
+    upload_path = pathlib.Path(app.config.get("UPLOAD_PROJECTS_PATH"))
+    (upload_path / "test_project/dir1").mkdir(parents=True)
+    (upload_path / "test_project/dir2/subdir1").mkdir(parents=True)
 
     for path_ in ["file1.txt", "dir1/file2.txt", "dir2/subdir1/file3.txt"]:
         shutil.copy(
             "tests/data/test.txt",
-            os.path.join(upload_path, "test_project", path_)
+            upload_path / "test_project" / path_
         )
         FileEntry(
-            path=os.path.join(upload_path, "test_project", path_),
+            path=str(upload_path / "test_project" / path_),
             checksum="foo",
             identifier=path_
         ).save()
@@ -230,13 +233,13 @@ def test_get_files(app, test_auth, path, expected_data, requests_mock):
         "/v1/files/test_project" + path, headers=test_auth
     )
     assert response.status_code == 200
-    for key in response.json.keys():
+    for key in response.json:
         assert response.json[key] == expected_data[key] \
             or set(response.json[key]) == set(expected_data[key])
 
 
 @pytest.mark.parametrize(
-    'target,files_to_delete',
+    ("target", "files_to_delete"),
     [
         ('/test', ['test/test.txt']),
         ('/', ['test.txt', 'test/test.txt']),
@@ -254,17 +257,26 @@ def test_delete_directory(
                             directory is deleted
     """
     project_directory \
-        = pathlib.Path(app.config.get("UPLOAD_PROJECTS_PATH")) / 'test_project'
+        = pathlib.Path(app.config.get("UPLOAD_PROJECTS_PATH")) / "test_project"
 
     # Mock metax.
-    requests_mock.post('/v3/files/post-many', json={})
-    requests_mock.get('/v3/files?pathname=%2Ftest.txt&csc_project=test_project',
-                      json={"results": [], "next": None})
-    requests_mock.get('/v3/files?pathname=%2Ftest%2Ftest.txt&csc_project=test_project',
-                      json={"results": [], "next": None})
-    requests_mock.get('/v3/files?pathname=%2Ftestdir%2Ftest.txt&csc_project=test_project',
-                      json={"results": [], "next": None})
-    requests_mock.post("/v3/files/datasets?relations=true&storage_service=pas", json={})
+    requests_mock.post("/v3/files/post-many", json={})
+    requests_mock.get(
+        "/v3/files?pathname=%2Ftest.txt&csc_project=test_project",
+        json={"results": [], "next": None}
+    )
+    requests_mock.get(
+        "/v3/files?pathname=%2Ftest%2Ftest.txt&csc_project=test_project",
+        json={"results": [], "next": None}
+    )
+    requests_mock.get(
+        "/v3/files?pathname=%2Ftestdir%2Ftest.txt&csc_project=test_project",
+        json={"results": [], "next": None}
+    )
+    requests_mock.post(
+        "/v3/files/datasets?relations=true&storage_service=pas",
+        json={}
+    )
     delete_files_api = requests_mock.post("/v3/files/delete-many", json={})
 
     # Create test files
@@ -317,9 +329,9 @@ def test_delete_directory(
 
     # Expected files should have been deleted from Metax
     assert delete_files_api.called_once
-    deleted_identifiers = delete_files_api.request_history[0].json()
+    deleted_files = delete_files_api.request_history[0].json()
     assert {all_file_identifiers[file] for file in files_to_delete} \
-        == set([d['storage_identifier'] for d in deleted_identifiers])
+        == {file["storage_identifier"] for file in deleted_files}
 
 
 def test_delete_empty_project(app, test_auth, requests_mock):
@@ -356,7 +368,10 @@ def test_delete_file_in_dataset(
     :param path_to_delete: The path to be deleted.
     """
     # Mock Metax
-    requests_mock.get("/v3/files?pathname=%2Ftestdir%2Ftest.txt&csc_project=test_project", json={"next": None, "results": []})
+    requests_mock.get(
+        "/v3/files?pathname=%2Ftestdir%2Ftest.txt&csc_project=test_project",
+        json={"next": None, "results": []}
+    )
     requests_mock.post("/v3/files/post-many", json={})
 
     # Upload a file
@@ -417,10 +432,14 @@ def test_delete_preserved_file(
     :param path_to_delete: The path to be deleted.
     """
     # Mock Metax
-    requests_mock.get("/v3/files?pathname=%2Ftestdir%2Ftest1.txt&csc_project=test_project",
-                      json={"next": None, "results": []})
-    requests_mock.get("/v3/files?pathname=%2Ftestdir%2Ftest2.txt&csc_project=test_project",
-                      json={"next": None, "results": []})
+    requests_mock.get(
+        "/v3/files?pathname=%2Ftestdir%2Ftest1.txt&csc_project=test_project",
+        json={"next": None, "results": []}
+    )
+    requests_mock.get(
+        "/v3/files?pathname=%2Ftestdir%2Ftest2.txt&csc_project=test_project",
+        json={"next": None, "results": []}
+    )
     requests_mock.post("/v3/files/post-many", json={})
     delete_file_metadata_api \
         = requests_mock.post("/v3/files/delete-many", json={})
@@ -498,10 +517,10 @@ def test_delete_preserved_file(
 
 @pytest.mark.parametrize(
     ("method", "url"),
-    (
+    [
         ("GET", "/v1/files/test_project/fake_file"),
         ("DELETE", "/v1/files/test_project/fake_file"),
-    )
+    ]
 )
 def test_no_rights(test_auth2, test_client, method, url):
     """

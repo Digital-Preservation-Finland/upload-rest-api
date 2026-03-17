@@ -94,7 +94,6 @@ def cleanup_uploads():
 @cli.group()
 def users():
     """Manage users and user project rights."""
-    pass
 
 
 @users.command("create")
@@ -187,7 +186,7 @@ def get_user(username):
 @users.command("list")
 def list_users():
     """List all users."""
-    users = [user for user in User.list_all()]
+    users = list(User.list_all())
     if users:
         for user in users:
             click.echo(user.username)
@@ -198,7 +197,6 @@ def list_users():
 @cli.group()
 def projects():
     """Manage projects."""
-    pass
 
 
 @projects.command("create")
@@ -261,7 +259,7 @@ def delete_project(project):
 @projects.command("list")
 def list_projects():
     """List all projects."""
-    projects_ = [project for project in Project.list_all()]
+    projects_ = list(Project.list_all())
     if projects_:
         for project in projects_:
             click.echo(project.id)
@@ -287,13 +285,11 @@ def get_project(project):
 @cli.group("files")
 def files():
     """Manage files."""
-    pass
 
 
 @files.group("get")
 def files_get():
     """Show information of a file."""
-    pass
 
 
 @files_get.command("path")
