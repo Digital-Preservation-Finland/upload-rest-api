@@ -5,21 +5,25 @@ import abc
 import logging
 import os
 import pathlib
-import re
 import shutil
 import time
 from datetime import datetime, timezone
+from typing import TYPE_CHECKING
 
 from metax_access import (
     DS_STATE_IN_DIGITAL_PRESERVATION,
     DS_STATE_REJECTED_IN_DIGITAL_PRESERVATION_SERVICE,
+    FileNotAvailableError,
 )
 
 from upload_rest_api.config import CONFIG
 from upload_rest_api.lock import ProjectLockManager
 from upload_rest_api.metax import get_metax_client
-from upload_rest_api.models.file_entry import FileEntry
 from upload_rest_api.models.project import Project
+
+if TYPE_CHECKING:
+    from metax_access.metax import MetaxFile
+
 
 LANGUAGE_IDENTIFIERS = {
     "http://lexvo.org/id/iso639-3/eng": "en",
@@ -84,7 +88,9 @@ class Resource(abc.ABC):
 
     def __init__(
             self, path, *,
-            project_id: str | None = None, project: Project | None = None):
+            project_id: str | None = None,
+            project: Project | None = None,
+    ):
         """Initialize resource.
 
         :param path: Path of the resource.
@@ -151,13 +157,18 @@ class Resource(abc.ABC):
 class File(Resource):
     """File class."""
 
-    def __init__(self, db_file: None | FileEntry = None, *args, **kwargs):
+    def __init__(
+        self,
+        file_metadata: None | MetaxFile = None,
+        *args,
+        **kwargs
+    ):
         """Initialize File.
 
-        If 'db_file' is provided, set it to prevent unnecessary DB
-        queries later on
+        If 'file_metadata' is provided, set it to prevent unnecessary
+        Metax request later on.
         """
-        self._db_file_ = db_file
+        self._file_metadata_ = file_metadata
 
         super().__init__(*args, **kwargs)
 
@@ -166,56 +177,55 @@ class File(Resource):
         return self.storage_path.is_file()
 
     @classmethod
-    def get(cls, **kwargs):
+    def get(cls, identifier: str):
         """
         Retrieve an existing file.
 
-        :param kwargs: Keyword arguments used to retrieve the project
+        :param identifier: Identifier of the file
 
         :returns: File instance
         """
+        # TODO: there is "id" and "storage_identifier" in file metadata.
+        # Ensure that correct identifier is used everywhere in our code.
         try:
-            entry = FileEntry.objects.get(**kwargs)
-        except FileEntry.DoesNotExist as error:
-            raise FileNotFoundError from error
+            db_file = get_metax_client().get_file(identifier)
+        except FileNotAvailableError:
+            # TODO: Add unit test for this?
+            raise FileNotFoundError
+        path = db_file["pathname"]
+        project_id = db_file["csc_project"]
 
-        # Extract the project identifier from the file path stored in
-        # database.
-        # TODO: This stupid hack could be avoided if the project
-        # identifier would be stored in the database
-        project_id = pathlib.Path(entry.path)\
-            .relative_to(CONFIG['UPLOAD_PROJECTS_PATH']).parts[0]
-
-        project = Project.get(id=project_id)
-        path = pathlib.Path(entry.path).relative_to(project.directory)
-        return cls(path=path, project_id=project.id)
+        return cls(db_file=db_file, path=path, project_id=project_id)
 
     def _get_file_group(self):
         """File group that that contains only this file."""
         return FileGroup([self])
 
     @property
-    def _db_file(self):
-        """
-        The database entry for this file.
+    def _file_metadata(self):
+        """The metadata for this file.
 
-        This property is lazy, meaning the database entry is not retrieved
+        This property is lazy, meaning the metadata is not retrieved
         until this property is accessed for the first time.
         """
-        if not self._db_file_:
-            self._db_file_ = FileEntry.objects.get(path=str(self.storage_path))
+        if not self._file_metadata_:
+            self._file_metadata_ = get_metax_client().get_project_file(
+                project=str(self.project.id),
+                path=str(self.path)
+            )
 
-        return self._db_file_
+        return self._file_metadata_
 
     @property
     def identifier(self):
         """Return identifier of file."""
-        return self._db_file.identifier
+        # TODO: Why "storage_identifier" and not "id"?
+        return self._file_metadata["storage_identifier"]
 
     @property
     def checksum(self):
         """Return checksum of file."""
-        return self._db_file.checksum
+        return self._file_metadata["checksum"]
 
     @property
     def timestamp(self):
@@ -279,20 +289,24 @@ class Directory(Resource):
 
     def get_files(self):
         """List of files in directory."""
-        # Retrieve all files in this directory in bulk to retrieve an
-        # individual query for every file later on (N+1 query issue)
-        path2file_entry = {
-            file_entry.path: file_entry
-            for file_entry in FileEntry.objects.filter(
-                # Retrieve all files in this directory
-                path__regex=fr"^{re.escape(str(self.storage_path))}\/[^\/]+$"
-            )
+        metax = get_metax_client()
+        # Note that this dict will contain metadata of files that have
+        # already been removed from upload-rest-api (see TPASPKT-749).
+        # However, that metadata is not used for anything, so it is not
+        # a problem.
+        filename2file_entry = {
+            file_entry["filename"]: file_entry
+            for file_entry in metax.get_directory(
+                project=self.project.id,
+                path=self.path,
+            )["files"]
         }
 
         return [
             File(
-                project=self.project, path=self.path / entry.name,
-                db_file=path2file_entry[str(self.storage_path / entry.name)]
+                project=self.project,
+                path=self.path / entry.name,
+                file_metadata=filename2file_entry[entry.name]
             )
             for entry in self._get_entries() if entry.is_file()
         ]
@@ -306,25 +320,31 @@ class Directory(Resource):
 
     def _get_file_group(self):
         """Group of all files in directory and its subdirectories."""
+        metax = get_metax_client()
+        # Note that this dict will contain metadata of files that have
+        # already been removed from upload-rest-api (see TPASPKT-749).
+        # However, that metadata is not used for anything, so it is not
+        # a problem.
         path2file_entry = {
-            file_entry.path: file_entry
-            for file_entry in FileEntry.objects.filter(
-                # Retrieve all files in this directory and subdirectories
-                path__regex=fr"^{re.escape(str(self.storage_path))}\/"
+            file_entry["pathname"]: file_entry
+            for file_entry in metax.get_directory_files_recursively(
+                project=self.project.id,
+                path=str(self.path),
             )
         }
         files = []
         for dirpath, _, filenames in os.walk(self.storage_path):
             for file in filenames:
-                path = (pathlib.Path(dirpath, file)).relative_to(
-                    self.project.directory
-                )
-                fs_path = pathlib.Path(dirpath, file)
+                path = pathlib.Path("/") \
+                    / pathlib.Path(dirpath, file).relative_to(
+                        self.project.directory
+                    )
+
                 files.append(
                     File(
                         project=self.project,
                         path=path,
-                        db_file=path2file_entry[str(fs_path)]
+                        file_metadata=path2file_entry[str(path)]
                     )
                 )
 
@@ -411,7 +431,7 @@ class FileGroup:
                     = _dataset_to_result(dataset)
 
     def get_datasets(self):
-        """List of all files of the group."""
+        """List of all datasets that contain any file of the group."""
         if self._datasets is None:
             # Retrive datasets
             self._retrieve_all_dataset_metadata()
@@ -455,11 +475,11 @@ class FileGroup:
     def delete(self):
         """Delete files of the group.
 
-        Deletes each file from filesystem, database, and Metax.
+        Deletes each file from filesystem and file metadata from Metax.
 
-        The metadata of files that are part of a dataset is not removed.
-
-        :param files: List of files to be deleted
+        The metadata of files that are part of a dataset is not removed
+        (unless the dataset is in digital preservation, see TPASPKT-749
+        for more information).
         """
         if any(self.file_has_pending_dataset(file) for file in self.files):
             raise HasPendingDatasetError
@@ -474,9 +494,6 @@ class FileGroup:
             # from databases
             storage_identifiers.append(file.identifier)
             storage_paths.append(str(file.storage_path))
-
-        # Remove all files from database
-        FileEntry.objects.filter(path__in=storage_paths).delete()
 
         # Remove metadata from Metax.
         # The metadata of preserved files should not be removed (see

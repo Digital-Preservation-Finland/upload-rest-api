@@ -1,12 +1,17 @@
 """Unit tests for resource module."""
+import copy
 
 import pytest
+from metax_access import template_data
 
-from upload_rest_api.models.resource import (File, InvalidPathError,
-                                             get_resource)
-from upload_rest_api.models.upload import Upload
 from tests.utils import update_nested_dict
-from metax_access.template_data import DATASET as TEMPLATE_DATASET
+from upload_rest_api.models.resource import (
+    Directory,
+    File,
+    InvalidPathError,
+    Project,
+    get_resource,
+)
 
 
 @pytest.mark.usefixtures('app')  # Initialize database
@@ -41,40 +46,39 @@ def test_parse_relative_user_path(path, result):
             File(project_id='test_project', path=path)
 
 
+# TODO: According to the docstring, this test should test that paging is
+# handled correctly, but it looks it does not test that. Is this test
+# necessary?
 @pytest.mark.usefixtures('app')  # Initialize db
-def test_get_many_datasets(requests_mock, tmp_path):
+def test_get_many_datasets(requests_mock):
     """Test that get_datasets method handles paging in Metax."""
-    # Mock metax
+    # Create a test file in filesystem
+    project = Project.get(id="test_project")
+    testfile = project.directory / "testdir" / "testfile"
+    testfile.parent.mkdir()
+    testfile.write_text("foo")
+
+    # Create file metadata in Metax
+    file = copy.deepcopy(template_data.FILE)
+    file["pathname"] = "/testdir/testfile"
     requests_mock.get(
-        '/v3/files?pathname=%2Ftestdir%2Ftestfile&csc_project=test_project',
-        json={'next': None, 'results': []}
+        "/v3/files?pathname__startswith=/testdir/&csc_project=test_project",
+        json={"next": None, "results": [file]}
     )
-    requests_mock.post('/v3/files/post-many', json={})
 
-    # Upload a file to directory /testdir
-    upload = Upload.create(
-        File(project_id='test_project', path='testdir/testfile'), 123
-    )
-    text_path = (tmp_path / "test.txt")
-    text_path.write_bytes(b"foo")
-    upload.add_source(text_path, checksum=None)
-    upload.store_files(verify_source=False)
-    file_identifier \
-        = get_resource('test_project', 'testdir/testfile').identifier
-
-    # Add the uploaded file to three datasets: "urn:uuid:dataset1",
+    # Add the test file to three datasets: "urn:uuid:dataset1",
     # "urn:uuid:dataset2" and "urn:uuid:dataset3". When the metadata of
     # the datasets is requested from Metax, two datasets are provided
     # per page.
     requests_mock.post(
         "/v3/files/datasets?relations=true",
-        json={file_identifier: ["urn:uuid:dataset1",
-                                "urn:uuid:dataset2",
-                                "urn:uuid:dataset3"]}
+        json={template_data.FILE["id"]: ["urn:uuid:dataset1",
+                                         "urn:uuid:dataset2",
+                                         "urn:uuid:dataset3"]}
     )
     datasets = [
         update_nested_dict(
-            TEMPLATE_DATASET,
+            template_data.DATASET,
             {
                 "id": f"urn:uuid:dataset{x}",
                 "title": "foo",
@@ -97,3 +101,41 @@ def test_get_many_datasets(requests_mock, tmp_path):
     datasets = get_resource('test_project', 'testdir').get_datasets()
     assert {dataset['identifier'] for dataset in datasets} \
         == {'urn:uuid:dataset1', 'urn:uuid:dataset2', 'urn:uuid:dataset3'}
+
+
+@pytest.mark.usefixtures("app")  # Initialize db and create test_project
+def test_directory_get_all_files(requests_mock):
+    """Test that get_all_files gets expected files.
+
+    Metax has metadata of files that have already been deleted from
+    pottumonttu (see TPASPKT-749). This test ensures that metadata of
+    deleted files does not affect get_all_dataset (and other methods
+    that use private _get_file_group method).
+    """
+    # Add metadata of three files to Metax
+    files = []
+    for filename in ["test1", "test2", "test3"]:
+        file = copy.deepcopy(template_data.FILE)
+        file["pathname"] = "/testdir/" + filename
+        files.append(file)
+    requests_mock.get(
+        "/v3/files?pathname__startswith=/testdir/",
+        json={
+            "next": None,
+            "results": files,
+        }
+    )
+
+    # Create two files storage directory. So the third file only has
+    # metadata Metax, but it does not exist in upload-rest-api
+    testdir = Project.get(id="test_project").directory / "testdir"
+    testdir.mkdir()
+    existing_file_paths = [testdir / "test1", testdir / "test2"]
+    for file in existing_file_paths:
+        file.touch()
+
+    # get_all_files should get only "test1" and "test2", although
+    # metadata of "test3" still exists in Metax
+    directory = Directory(path="testdir", project_id="test_project")
+    files = directory.get_all_files()
+    assert [file.storage_path for file in files] == existing_file_paths

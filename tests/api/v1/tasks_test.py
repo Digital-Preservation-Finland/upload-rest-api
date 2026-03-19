@@ -1,7 +1,9 @@
 """Tests for ``upload_rest_api.api.v1.tasks`` module."""
+import copy
 from urllib.parse import urlencode
 
 import pytest
+from metax_access import template_data
 from rq import SimpleWorker
 
 from upload_rest_api import jobs
@@ -16,6 +18,7 @@ def test_reverse_proxy_polling_url(
     Mock the web application running behind a reverse proxy and ensure
     that the reverse proxy's URL is detected by the web application.
     """
+    # Mock Metax
     requests_mock.get(
         "https://metax.localdomain/v3/files?{}".format(
             urlencode({
@@ -32,17 +35,26 @@ def test_reverse_proxy_polling_url(
     )
     test_client = app.test_client()
 
+    # Create a test file in directory that will be deleted.
     tus_upload_file(project_id="test_project", path="testdir/test.txt")
+    file = copy.deepcopy(template_data.FILE)
+    file["pathname"] = "/testdir/test.txt"
+    requests_mock.get("/v3/files?pathname__startswith=/testdir/",
+                      json={"next": None,
+                            "results": [file]})
 
-    # Add an environment variable containing the X-Forwarded-Host HTTP
-    # header value.
-    # This is how Werkzeug (eg. all WSGI servers) read the HTTP headers
-    # for an incoming request.
+    # Send delete DELETE request to app.
     response = test_client.delete(
         "/v1/files/test_project/testdir",
         headers=test_auth,
+        # Add an environment variable containing the X-Forwarded-Host
+        # HTTP header value. This is how Werkzeug (eg. all WSGI servers)
+        # read the HTTP headers for an incoming request.
         environ_base={"HTTP_X_FORWARDED_HOST": "reverse-proxy"}
     )
+
+    # Deletion tasks should be created. Check that response has correct
+    # polling URL.
     assert response.json["polling_url"].startswith(
         "http://reverse-proxy/v1/tasks/"
     )

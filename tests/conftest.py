@@ -460,14 +460,6 @@ def users_col(test_mongo):
 
 
 @pytest.fixture(scope="function")
-def files_col(test_mongo):
-    """Initialize and return Files instance with db connection through
-    Mongobox.
-    """
-    return test_mongo.upload.files
-
-
-@pytest.fixture(scope="function")
 def tasks_col(test_mongo):
     """Initialize and return Tasks instance with db connection through
     Mongobox.

@@ -1,12 +1,13 @@
 """Tests for ``upload_rest_api.__main__`` module."""
+import copy
 import datetime
 import json
 
 import pytest
 from click.testing import CliRunner
+from metax_access.template_data import FILE
 
 import upload_rest_api.__main__
-from upload_rest_api.models.file_entry import FileEntry
 from upload_rest_api.models.project import Project, ProjectExistsError
 from upload_rest_api.models.token import Token, TokenEntry
 from upload_rest_api.models.user import User, UserExistsError
@@ -438,18 +439,28 @@ def test_modify_project_sensitivity(
 
 
 @pytest.mark.usefixtures('app')  # Initialize database
-def test_get_file_by_path(command_runner):
+def test_get_file_by_path(command_runner, requests_mock):
     """Test displaying information of file specified by path."""
+    # Mock metax
+    file = copy.deepcopy(FILE)
+    file["pathname"] = "/path_1"
+    file["csc_project"] = "test_project"
+    file["storage_identifier"] = "pid:urn:1"
+    file["checksum"] = "checksum_1"
+    requests_mock.get(
+        "/v3/files",
+        json={
+            "results": [file],
+            "next": None,
+        }
+    )
+
     project = Project.get(id='test_project')
-    FileEntry(
-        path=str(project.directory / "path_1"),
-        checksum="checksum_1",
-        identifier="pid:urn:1"
-    ).save()
     (project.directory / 'path_1').write_text('foo')
 
     result = command_runner(["files", "get", "path",
-                             str(project.directory / "path_1")])
+                             "path_1",
+                             "--project", "test_project"])
     result_data = json.loads(result.output)
     correct_result = {
         "identifier": "pid:urn:1",
@@ -461,16 +472,18 @@ def test_get_file_by_path(command_runner):
 
 
 @pytest.mark.usefixtures('app')  # Initialize database
-def test_get_file_by_identifier(command_runner):
+def test_get_file_by_identifier(command_runner, requests_mock):
     """Test displaying information of file specified by identifier."""
-    project = Project.get(id='test_project')
-    FileEntry(
-        path=str(project.directory / "path_1"),
-        checksum="checksum_1",
-        identifier="pid:urn:1"
-    ).save()
-    (project.directory / 'path_1').write_text('foo')
+    # Mock Metax
+    file = copy.deepcopy(FILE)
+    file["pathname"] = "/path_1"
+    file["csc_project"] = "test_project"
+    file["storage_identifier"] = "pid:urn:1"
+    file["checksum"] = "checksum_1"
+    requests_mock.get("/v3/files/pid:urn:1", json=file)
 
+    # TODO: the file does not exist on disk, but file info can still be
+    # fetched. Is that ok?
     result = command_runner(["files", "get", "identifier", "pid:urn:1"])
     result_data = json.loads(result.output)
     correct_result = {
@@ -509,17 +522,36 @@ def test_get_file_by_identifier(command_runner):
         )
     ]
 )
-def test_list_files(command_runner, command, result_data):
+def test_list_files(command_runner, command, result_data, requests_mock):
     """Test listing files."""
-    project = Project.get(id='test_project')
-    FileEntry.objects.insert([
-        FileEntry(path=str(project.directory / "path_1"),
-                  identifier="pid:urn:1",
-                  checksum="checksum_1"),
-        FileEntry(path=str(project.directory / "path_2"),
-                  identifier="pid:urn:2",
-                  checksum="checksum_2")
-    ])
+    # Mock Metax
+    file1 = copy.deepcopy(FILE)
+    file1["pathname"] = "/path_1"
+    file1["csc_project"] = "test_project"
+    file1["storage_identifier"] = "pid:urn:1"
+    file1["checksum"] = "checksum_1"
+    file2 = copy.deepcopy(FILE)
+    file2["pathname"] = "/path_2"
+    file2["csc_project"] = "test_project"
+    file2["storage_identifier"] = "pid:urn:2"
+    file2["checksum"] = "checksum_2"
+
+    requests_mock.get(
+        "/v3/files?pathname__startswith=/&csc_project=test_project",
+        json={
+            "results": [file1, file2],
+            "next": None,
+        }
+    )
+    requests_mock.get(
+        "/v3/files?pathname__startswith=/&csc_project=test_project2",
+        json={
+            "results": [],
+            "next": None,
+        }
+    )
+
+    project = Project.get(id="test_project")
     (project.directory / 'path_1').write_text('foo')
     (project.directory / 'path_2').write_text('bar')
 
@@ -527,18 +559,33 @@ def test_list_files(command_runner, command, result_data):
     assert json.loads(result.output) == result_data
 
 
+@pytest.mark.usefixtures("app")  # Creates test_project
 def test_get_nonexistent_file_by_path(command_runner):
-    """Test displaying information of file specified by path that cannot be
-    found in the database.
+    """Test showing information of file that does not exist.
+
+    Path is used to identify the file.
     """
-    result = command_runner(["files", "get", "path", "nonexistent"])
+    result = command_runner(
+        ["files", "get", "path", "--project", "test_project", "nonexistent"]
+    )
     assert result.output == "File not found in path 'nonexistent'\n"
 
 
-def test_get_nonexistent_file_by_identifier(command_runner):
-    """Test displaying information of file specified by identifier that cannot
-    be found in the database.
+# TODO: test what happens with non-existing project
+
+
+def test_get_nonexistent_file_by_identifier(command_runner, requests_mock):
+    """Test showing information of file that does not exist.
+
+    Identifier is used to identify the file.
     """
+    # Mock metax
+    requests_mock.get(
+        "/v3/files/pid:urn:1",
+        status_code=404,
+        json={"detail": "Not found."}
+    )
+
     result = command_runner(["files", "get", "identifier", "pid:urn:1"])
     assert result.output == "File 'pid:urn:1' not found\n"
 

@@ -294,10 +294,11 @@ def files_get():
 
 @files_get.command("path")
 @click.argument("path")
-def get_file_by_path(path):
+@click.option("--project")
+def get_file_by_path(path, project):
     """Show information of file in PATH."""
     try:
-        file = File.get(path=path)
+        file = get_resource(project_id=project, path=path)
         _echo_json(
             {
                 'identifier': file.identifier,

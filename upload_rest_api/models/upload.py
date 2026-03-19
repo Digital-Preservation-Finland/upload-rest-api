@@ -22,7 +22,6 @@ from upload_rest_api.checksum import get_file_checksum
 from upload_rest_api.config import CONFIG
 from upload_rest_api.lock import ProjectLockManager
 from upload_rest_api.metax import get_metax_client
-from upload_rest_api.models.file_entry import FileEntry
 from upload_rest_api.models.project import Project, ProjectEntry
 from upload_rest_api.models.resource import Directory, File
 from upload_rest_api.models.upload_entry import UploadEntry, UploadType
@@ -368,13 +367,10 @@ class Upload:
                     'already have metadata', files=conflicts
                 )
 
-        metadata_dicts, file_documents = self._generate_metadata()
+        metadata_dicts = self._generate_metadata()
 
         # Post all metadata to Metax in one go
         _post_metadata(metadata_dicts)
-
-        # Insert information of all files to database in one go
-        FileEntry.objects.insert(file_documents, load_bulk=False)
 
         # Move files to project directory
         self._move_files_to_project_directory()
@@ -415,18 +411,9 @@ class Upload:
 
         return new_files
 
-    def _generate_metadata(
-        self,
-    ) -> tuple[list[MetaxFile], list[FileEntry]]:
-        """Generates metadata for Metax and file entries for the database.
-
-        :returns: Tuple containing:
-
-            - List of MetaxFile dictionaries with metadata for each file.
-            - List of FileEntry objects with basic file information
-        """
+    def _generate_metadata(self) -> list[MetaxFile]:
+        """Generate metadata for Metax."""
         metadata_dicts = []  # File metadata for Metax
-        file_documents = []  # Basic file information to database
         for dirpath, _, files in os.walk(self._tmp_project_directory):
             for fname in files:
                 file = Path(dirpath, fname)
@@ -441,14 +428,6 @@ class Upload:
                     checksum = self.source_checksum
                 else:
                     checksum = get_file_checksum("md5", file)
-
-                file_documents.append(
-                    FileEntry(
-                        path=str(self.project.directory / relative_path),
-                        checksum=checksum,
-                        identifier=identifier,
-                    )
-                )
 
                 # Create metadata
                 timestamp = _iso8601_timestamp(file)
@@ -472,7 +451,7 @@ class Upload:
                 }
                 metadata_dicts.append(metadata)
 
-        return metadata_dicts, file_documents
+        return metadata_dicts
 
     def _move_files_to_project_directory(self) -> None:
         """Move files to project directory."""

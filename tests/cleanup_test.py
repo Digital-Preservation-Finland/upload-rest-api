@@ -7,20 +7,19 @@ import time
 
 import pytest
 from flask_tus_io.resource import encode_tus_meta
+from metax_access import template_data
 from metax_access.metax import (
     DS_STATE_IN_DIGITAL_PRESERVATION,
     DS_STATE_INITIALIZED,
 )
-from metax_access.template_data import DATASET as TEMPLATE_DATASET
 
 import upload_rest_api.cleanup as clean
 from upload_rest_api.lock import ProjectLockManager
-from upload_rest_api.models.file_entry import FileEntry
 from upload_rest_api.models.project import Project
 
 
 @pytest.mark.usefixtures('app')  # Creates test_project
-def test_no_expired_files(mock_config):
+def test_no_expired_files(mock_config, requests_mock):
     """Test that files that are not too old are not removed nor
     are the access times changed by the cleanup itself.
     """
@@ -30,12 +29,21 @@ def test_no_expired_files(mock_config):
     dirpath = os.path.join(mock_config["UPLOAD_PROJECTS_PATH"], "test_project")
     fpath = os.path.join(dirpath, "test.txt")
     shutil.copy("tests/data/test.txt", fpath)
-    FileEntry(path=fpath, checksum="foo", identifier="foo").save()
 
-    current_time = time.time()
-    last_access = int(current_time-5)
+    # Mock Metax
+    file = copy.deepcopy(template_data.FILE)
+    file["pathname"] = "/test.txt"
+    requests_mock.get(
+        "/v3/files?pathname__startswith=/",
+        json={
+            "next": None,
+            "results": [file]
+        },
+    )
 
     # Modify the file timestamp to make it 10s old
+    current_time = time.time()
+    last_access = int(current_time-5)
     os.utime(fpath, (last_access, last_access))
 
     # Clean all files older than 10s. 0 files should be cleaned.
@@ -50,7 +58,7 @@ def test_no_expired_files(mock_config):
 
 
 @pytest.mark.usefixtures('app')  # Creates test_project
-def test_expired_files(test_mongo, mock_config, requests_mock):
+def test_expired_files(mock_config, requests_mock):
     """Test that all the expired files are removed."""
     # Mock metax. Files do not have pending datasets.
     requests_mock.post('/v3/files/datasets?relations=true', json={})
@@ -68,12 +76,20 @@ def test_expired_files(test_mongo, mock_config, requests_mock):
     expired_access = int(time.time() - 100)
     os.utime(fpath_expired, (expired_access, expired_access))
 
-    # Add the files to database
-    files = test_mongo.upload.files
-    files.insert_many([
-        {"_id": fpath, "checksum": "foo", "identifier": "urn:uuid:1"},
-        {"_id": fpath_expired, "checksum": "foo", "identifier": "urn:uuid:2"}
-    ])
+    # Add metadata of files to Metax
+    new_file = copy.deepcopy(template_data.FILE)
+    new_file["pathname"] = "/new_file.txt"
+    new_file["storage_identifier"] = "urn:uuid:1"
+    expired_file = copy.deepcopy(template_data.FILE)
+    expired_file["pathname"] = "/expired_file.txt"
+    expired_file["storage_identifier"] = "urn:uuid:2"
+    requests_mock.get(
+        "/v3/files?pathname__startswith=/",
+        json={
+            "next": None,
+            "results": [new_file, expired_file]
+        },
+    )
 
     # Clean all files older than 10s. One file should be cleaned.
     assert clean.clean_disk() == 1
@@ -82,10 +98,6 @@ def test_expired_files(test_mongo, mock_config, requests_mock):
     # file should still exist
     assert not os.path.isfile(fpath_expired)
     assert os.path.isfile(fpath)
-
-    # The expired file should be removed from database
-    assert files.count_documents({"_id": fpath_expired}) == 0
-    assert files.count_documents({"_id": fpath}) == 1
 
     # The metadata of expired file should be deleted from Metax
     assert delete_files_api.called_once
@@ -100,7 +112,7 @@ def test_expired_files(test_mongo, mock_config, requests_mock):
 
 
 @pytest.mark.usefixtures('app')  # Creates test_project
-def test_cleaning_files_in_datasets(test_mongo, mock_config, requests_mock):
+def test_cleaning_files_in_datasets(mock_config, requests_mock):
     """Test cleaning files that are included in datasets.
 
     Files that are inluded in pending dataset should not be cleaned.
@@ -121,12 +133,20 @@ def test_cleaning_files_in_datasets(test_mongo, mock_config, requests_mock):
     os.utime(fpath_pending, (expired_access, expired_access))
     os.utime(fpath_preserved, (expired_access, expired_access))
 
-    # Add the files to database
-    files = test_mongo.upload.files
-    files.insert_many([
-        {"_id": fpath_pending, "checksum": "foo", "identifier": "urn:uuid:1"},
-        {"_id": fpath_preserved, "checksum": "foo", "identifier": "urn:uuid:2"}
-    ])
+    # Add metadata of files to Metax
+    pending_file = copy.deepcopy(template_data.FILE)
+    pending_file["pathname"] = "/pending_file.txt"
+    pending_file["storage_identifier"] = "urn:uuid:1"
+    preserved_file = copy.deepcopy(template_data.FILE)
+    preserved_file["pathname"] = "/preserved_file.txt"
+    preserved_file["storage_identifier"] = "urn:uuid:2"
+    requests_mock.get(
+        "/v3/files?pathname__startswith=/",
+        json={
+            "next": None,
+            "results": [preserved_file, pending_file]
+        },
+    )
 
     # Mock metax. File "pending_file.txt" is added to dataset
     # "pending_dataset" and file "preserved_file.txt" is added to
@@ -143,13 +163,13 @@ def test_cleaning_files_in_datasets(test_mongo, mock_config, requests_mock):
               'urn:uuid:2': ["preserved_dataset"]}
     )
 
-    ds1 = copy.deepcopy(TEMPLATE_DATASET)
+    ds1 = copy.deepcopy(template_data.DATASET)
     ds1['id'] = "pending_dataset"
     ds1['title'] = {"en": "Dataset"}
     ds1['fileset']['csc_project'] = "bar"
     ds1['preservation']['state'] = DS_STATE_INITIALIZED
 
-    ds2 = copy.deepcopy(TEMPLATE_DATASET)
+    ds2 = copy.deepcopy(template_data.DATASET)
     ds2['id'] = "preserved_dataset"
     ds2['title'] = {"en": "Dataset"}
     ds2['fileset']['csc_project'] = "bar"
@@ -182,15 +202,12 @@ def test_cleaning_files_in_datasets(test_mongo, mock_config, requests_mock):
     assert os.path.isfile(fpath_pending)
     assert not os.path.isfile(fpath_preserved)
 
-    assert files.count_documents({"_id": fpath_pending}) == 1
-    assert files.count_documents({"_id": fpath_preserved}) == 0
-
     # The metadata of any file should not be removed from Metax
     assert not delete_files_api.called
 
 
 @pytest.mark.usefixtures('app')  # Creates test_project
-def test_all_files_expired(test_mongo, mock_config, requests_mock):
+def test_all_files_expired(mock_config, requests_mock):
     """Test cleanup for expired project.
 
     Project directory should not be removed even if all files are
@@ -198,7 +215,7 @@ def test_all_files_expired(test_mongo, mock_config, requests_mock):
     """
     # Mock metax. Files do not have pending datasets.
     requests_mock.post('/v3/files/datasets?relations=true', json={})
-    requests_mock.post('/v3/files/delete-many', json={})
+    delete_files_api = requests_mock.post('/v3/files/delete-many', json={})
 
     mock_config["CLEANUP_TIMELIM"] = 10
     upload_path = pathlib.Path(mock_config["UPLOAD_PROJECTS_PATH"])
@@ -209,10 +226,15 @@ def test_all_files_expired(test_mongo, mock_config, requests_mock):
     old_file.write_text('foo')
     os.utime(old_file, (0, 0))
 
-    # Add files to mongo
-    files = test_mongo.upload.files
-    files.insert_one(
-        {"_id": str(old_file), "checksum": "foo", "identifier": "urn:uuid:1"}
+    # Add file metadata to Metax
+    file = copy.deepcopy(template_data.FILE)
+    file["pathname"] = "/test.txt"
+    requests_mock.get(
+        "/v3/files?pathname__startswith=/",
+        json={
+            "next": None,
+            "results": [file]
+        },
     )
 
     # Clean all files older than 10s. One file should be removed.
@@ -224,8 +246,8 @@ def test_all_files_expired(test_mongo, mock_config, requests_mock):
     assert project_path.exists()
     assert not any(project_path.iterdir())
 
-    # File should have been removed
-    assert files.count_documents({}) == 0
+    # File metadata should have been removed
+    assert delete_files_api.called
 
 
 def test_expired_tasks(test_mongo, mock_config):

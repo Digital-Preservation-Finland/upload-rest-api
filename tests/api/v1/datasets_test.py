@@ -1,12 +1,13 @@
 """Tests for ``upload_rest_api.api.v1.datasets`` module."""
+import copy
 from pathlib import Path
 
 import pytest
 from metax_access import (
     DS_STATE_IN_DIGITAL_PRESERVATION,
     DS_STATE_TECHNICAL_METADATA_GENERATED,
+    template_data,
 )
-from metax_access.template_data import DATASET as TEMPLATE_DATASET
 
 from tests.utils import update_nested_dict
 
@@ -85,27 +86,33 @@ from tests.utils import update_nested_dict
     ],
 )
 def test_get_file_datasets_directory(
-        app, test_client, test_auth, requests_mock,
-        test_mongo, datasets, has_pending_dataset):
+        app, test_client, test_auth, requests_mock, datasets,
+        has_pending_dataset
+):
     upload_path = Path(app.config.get("UPLOAD_PROJECTS_PATH"))
 
+    # Create two test files in "test" directory
     project_path = upload_path / "test_project"
     (project_path / "test").mkdir(parents=True)
     (project_path / "test" / "test1.txt").write_text("test1")
     (project_path / "test" / "test2.txt").write_text("test2")
-
-    test_mongo.upload.files.insert_many([
-        {
-            "_id": str(project_path / "test" / "test1.txt"),
-            "checksum": "3e7705498e8be60520841409ebc69bc1",
-            "identifier": "urn:uuid:test1"
+    # Add metadata for files in Metax
+    file1 = copy.deepcopy(template_data.FILE)
+    # TODO: storage_identifier or id?
+    file1["storage_identifier"] = "urn:uuid:test1"
+    file1["pathname"] = "/test/test1.txt"
+    file1["checksum"] = "3e7705498e8be60520841409ebc69bc1"
+    file2 = copy.deepcopy(template_data.FILE)
+    file2["storage_identifier"] = "urn:uuid:test2"
+    file2["pathname"] = "/test/test2.txt"
+    file2["checksum"] = "3e7705498e8be60520841409ebc69bc1"
+    requests_mock.get(
+        "/v3/files?pathname__startswith=/test/",
+        json={
+            "next": None,
+            "results": [file1, file2],
         },
-        {
-            "_id": str(project_path / "test" / "test2.txt"),
-            "checksum": "126a8a51b9d1bbd07fddc65819a542c3",
-            "identifier": "urn:uuid:test2"
-        }
-    ])
+    )
 
     requests_mock.post(
         "/v3/files/datasets?relations=true",
@@ -121,8 +128,8 @@ def test_get_file_datasets_directory(
         additional_matcher=lambda req: set(req.qs["id"][0].split(","))
         == {"urn:uuid:dataset1", "urn:uuid:dataset3"},
         json=[
-            update_nested_dict(TEMPLATE_DATASET, datasets[0]),
-            update_nested_dict(TEMPLATE_DATASET, datasets[1]),
+            update_nested_dict(template_data.DATASET, datasets[0]),
+            update_nested_dict(template_data.DATASET, datasets[1]),
         ],
     )
 

@@ -51,6 +51,7 @@ def get_path(project_id, fpath):
     except FileNotFoundError:
         abort(404, "File not found")
 
+    # TODO: Is all parameter used somewhere?
     if request.args.get("all", None) == "true" and fpath.strip("/") == "":
         return jsonify(_get_dir_tree(resource.project))
 
