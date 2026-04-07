@@ -40,10 +40,10 @@ def test_reverse_proxy_polling_url(
     response = test_client.delete(
         "/v1/files/test_project/testdir",
         headers=test_auth,
-        environ_base={"HTTP_X_FORWARDED_HOST": "reverse_proxy"}
+        environ_base={"HTTP_X_FORWARDED_HOST": "reverse-proxy"}
     )
     assert response.json["polling_url"].startswith(
-        "http://reverse_proxy/v1/tasks/"
+        "http://reverse-proxy/v1/tasks/"
     )
 
     # Remove lock for dangling background job
