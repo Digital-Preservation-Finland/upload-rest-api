@@ -4,8 +4,7 @@ from __future__ import annotations
 import flask_tus_io
 import werkzeug
 from flask import Blueprint, abort, Flask
-from flask_tus_io.resource import TusResource
-from flask_tus_io.workspace import Workspace
+from flask_tus_io.resource import WorkspaceResource
 
 from upload_rest_api.authentication import current_user
 from upload_rest_api.checksum import HASH_FUNCTION_ALIASES, get_file_checksums
@@ -33,9 +32,8 @@ def register_blueprint(app: Flask) -> None:
     app.register_blueprint(UPLOADS_API_V1)
 
 
-def _release_lock(workspace: Workspace) -> None:
+def _release_lock(resource: WorkspaceResource) -> None:
     """Release file storage lock."""
-    resource = workspace.get_resource()
     try:
         upload = Upload.get(id=resource.identifier)
         lock_manager.release(upload.project.id, upload.storage_path)
@@ -43,7 +41,7 @@ def _release_lock(workspace: Workspace) -> None:
         return
 
 
-def _upload_started(workspace: Workspace, resource: TusResource) -> None:
+def _upload_started(resource: WorkspaceResource) -> None:
     """Callback function called when a new upload is started."""
     try:
         upload_type = resource.upload_metadata["type"]
@@ -70,13 +68,13 @@ def _upload_started(workspace: Workspace, resource: TusResource) -> None:
     except Exception:
         # Remove the workspace to prevent filling up disk space with
         # bogus requests
-        _release_lock(workspace)
-        workspace.remove()
+        _release_lock(resource)
+        resource.remove()
         raise
 
 
 def _store_files(
-    workspace: Workspace, resource: TusResource, upload_type: str
+    resource: WorkspaceResource, upload_type: str
 ) -> None:
     """Start the extraction job for an uploaded archive."""
     upload = Upload.get(id=resource.identifier)
@@ -98,7 +96,7 @@ def _store_files(
             )
         except Exception:
             # If we couldn't enqueue background job, release the lock
-            _release_lock(workspace)
+            _release_lock(resource)
             raise
     else:
         upload.store_files(verify_source=False)
@@ -125,7 +123,7 @@ def _get_checksum_tuple(checksum: str | None) -> tuple[str | None, str | None]:
 
 
 def _calculate_upload_checksum(
-    resource: TusResource, workspace: Workspace, checksum: str
+    resource: WorkspaceResource, checksum: str
 ) -> None:
     """
     Calculate the MD5 checksum and save it. If user also provided their own
@@ -158,12 +156,12 @@ def _calculate_upload_checksum(
             resource.upload_file_path, checksum=calculated_checksums["md5"]
         )
     except Exception:
-        _release_lock(workspace)
-        workspace.remove()
+        _release_lock(resource)
+        resource.remove()
         raise
 
 
-def _upload_completed(workspace: Workspace, resource: TusResource) -> None:
+def _upload_completed(resource: WorkspaceResource) -> None:
     """Callback function called when an upload is finished."""
     upload_type = resource.upload_metadata["type"]
 
@@ -189,33 +187,32 @@ def _upload_completed(workspace: Workspace, resource: TusResource) -> None:
                 project_id=resource.upload_metadata["project_id"],
                 job_kwargs={
                     "identifier": resource.identifier,
-                    "path": workspace.path,
+                    "path": resource.path,
                     "source_checksum_algorithm": source_checksum_algorithm,
                     "source_checksum": source_checksum,
                 }
             )
         except Exception:
             # If we couldn't enqueue background job, release the lock
-            _release_lock(workspace)
+            _release_lock(resource)
             raise
     else:
         # Perform checksum calculation synchronously
         _calculate_upload_checksum(
-            resource=resource, workspace=workspace, checksum=checksum
+            resource=resource, checksum=checksum
         )
 
-        _store_files(workspace, resource, upload_type)
+        _store_files(resource, upload_type)
 
 
 def tus_event_handler(
-    event_type: str, workspace: Workspace, resource: TusResource
+    event_type: str, resource: WorkspaceResource
 ) -> None:
     """
     Call the corresponding callback function if available for the given
     event type.
 
     :param event_type: Event type
-    :param workspace: tus workspace
     :param resource: tus resource
     """
     callbacks = {
@@ -224,4 +221,4 @@ def tus_event_handler(
     }
 
     if event_type in callbacks:
-        callbacks[event_type](workspace=workspace, resource=resource)
+        callbacks[event_type](resource=resource)

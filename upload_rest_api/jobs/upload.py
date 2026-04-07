@@ -1,5 +1,5 @@
 """Upload module background jobs."""
-from flask_tus_io.workspace import Workspace
+from flask_tus_io.resource import WorkspaceResource
 
 from upload_rest_api.checksum import get_file_checksums
 from upload_rest_api.jobs.utils import ClientError, api_background_job
@@ -25,8 +25,7 @@ def calculate_upload_checksum(
                                       provided by uploader
     :param source_checksum: Optional source checksum provided by uploader
     """
-    workspace = Workspace(path)
-    resource = workspace.get_resource()
+    resource = WorkspaceResource(path)
 
     upload = Upload.get(id=identifier)
 
@@ -53,7 +52,7 @@ def calculate_upload_checksum(
             # User provided checksum but it didn't match
             raise ClientError("Upload checksum mismatch")
     except Exception:
-        workspace.remove()
+        resource.remove()
         lock_manager.release(upload.project.id, upload.storage_path)
         raise
 
@@ -63,7 +62,7 @@ def calculate_upload_checksum(
     # Metax metadata generation) will be handled by the Upload model
     upload.add_source(resource.upload_file_path, checksum=md5_checksum)
 
-    workspace.remove()
+    resource.remove()
 
     return _store_files(
         identifier=identifier, verify_source=False, task=task
