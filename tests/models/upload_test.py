@@ -9,6 +9,7 @@ import tempfile
 import pytest
 
 from upload_rest_api.lock import ProjectLockManager
+from upload_rest_api.models.project import Project
 from upload_rest_api.models.resource import File, Directory
 from upload_rest_api.models.upload import (Upload, UploadConflictError,
                                            UploadError)
@@ -73,11 +74,43 @@ def test_store_file(
     assert metadata["size"] == test_file.stat().st_size
     assert metadata["pathname"] == "/foo/bar"
     assert metadata["csc_project"] == 'test_project'
+    assert metadata["is_sensitive"] is False
     assert "modified" in metadata
     assert "frozen" in metadata
 
     checksum = hashlib.md5(test_file.read_bytes()).hexdigest()
     assert metadata["checksum"] == f"md5:{checksum}"
+
+
+@pytest.mark.usefixtures("app")
+def test_store_sensitive_file(requests_mock, clone_test_file):
+    """
+    Test that file belonging to sensitive project is saved to Metax
+    with corresponding field set
+    """
+    mock_post_metadata = requests_mock.post(
+        "/v3/files/post-many", json = {}
+    )
+    requests_mock.get('/v3/files', json={'next': None, 'results': []})
+
+    project = Project.get(id="test_project")
+    project.set_is_sensitive(True)
+
+    upload = Upload.create(
+        File(project_id='test_project', path='foo/bar'), 123
+    )
+    upload.add_source(clone_test_file("tests/data/test.txt"), None)
+
+    # Create metadata
+    upload.store_files(verify_source=False)
+
+    # Check the metadata that was posted to Metax
+    assert mock_post_metadata.call_count == 1
+    metadata = mock_post_metadata.last_request.json()[0]
+
+    assert metadata["filename"] == "bar"
+    assert metadata["pathname"] == "/foo/bar"
+    assert metadata["is_sensitive"] is True
 
 
 @pytest.mark.usefixtures('app')

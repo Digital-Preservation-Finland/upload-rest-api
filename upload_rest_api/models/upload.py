@@ -464,6 +464,7 @@ class Upload:
                     "modified": timestamp,
                     "frozen": timestamp,
                     "checksum": f"md5:{checksum}",
+                    "is_sensitive": self.project.is_sensitive,
                     # File format deliberately left out.
                     # Metax V3 enforces complete file technical metadata
                     # (format and version) from the get-go, which can't be
