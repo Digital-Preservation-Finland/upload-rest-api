@@ -205,20 +205,31 @@ def projects():
 @click.argument("project")
 @click.option("--quota", required=True, type=click.IntRange(min=0),
               help="Set project quota in bytes.")
-def create_project(project, quota):
+@click.option(
+    "--set-sensitive/--set-nonsensitive", "is_sensitive", default=False,
+    help="Set project data sensitivity"
+)
+def create_project(project, quota, is_sensitive):
     """Create a new PROJECT."""
-    project = Project.create(identifier=project, quota=quota)
+    project = Project.create(
+        identifier=project, quota=quota, is_sensitive=is_sensitive
+    )
     _echo_json({'identifier': project.id,
                 'quota': project.quota,
                 'used_quota': project.used_quota,
-                'remaining_quota': project.remaining_quota})
+                'remaining_quota': project.remaining_quota,
+                'is_sensitive': project.is_sensitive})
 
 
 @projects.command("modify")
 @click.argument("project")
 @click.option("--quota", type=click.IntRange(min=0),
               help="Set project quota in bytes.")
-def modify_project(project, quota):
+@click.option(
+    "--set-sensitive/--set-nonsensitive", "is_sensitive", default=None,
+    help="Set project data sensitivity"
+)
+def modify_project(project, quota, is_sensitive):
     """Modify an existing PROJECT."""
     try:
         project_ = Project.get(id=project)
@@ -229,10 +240,14 @@ def modify_project(project, quota):
     if quota is not None:
         project_.set_quota(quota)
 
+    if is_sensitive is not None:
+        project_.set_is_sensitive(is_sensitive)
+
     _echo_json({'identifier': project_.id,
                 'quota': project_.quota,
                 'used_quota': project_.used_quota,
-                'remaining_quota': project_.remaining_quota})
+                'remaining_quota': project_.remaining_quota,
+                'is_sensitive': project_.is_sensitive})
 
 
 @projects.command("delete")
@@ -263,7 +278,8 @@ def get_project(project):
         _echo_json({'identifier': project.id,
                     'quota': project.quota,
                     'used_quota': project.used_quota,
-                    'remaining_quota': project.remaining_quota})
+                    'remaining_quota': project.remaining_quota,
+                    'is_sensitive': project.is_sensitive})
     except Project.DoesNotExist:
         click.echo(f"Project '{project}' not found")
 

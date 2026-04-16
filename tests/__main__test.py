@@ -174,6 +174,7 @@ def test_get_project(command_runner):
         "used_quota": 0,
         "quota": 1248,
         "remaining_quota": 1248,
+        "is_sensitive": False,
     }
 
     # Project not found
@@ -412,6 +413,29 @@ def test_modify_project_fail(command_runner):
     result = command_runner(["projects", "modify", "test_project"])
 
     assert result.output == "Project 'test_project' does not exist.\n"
+
+
+@pytest.mark.parametrize(
+    "flag,expected",
+    [
+        ("--set-sensitive", True),
+        ("--set-nonsensitive", False),
+        (None, False)
+    ]
+)
+def test_modify_project_sensitivity(
+        projects_col, command_runner, flag, expected):
+    """Test that modifying project sensitivity"""
+    Project.create(identifier="test_project")
+
+    command_runner(
+        ["projects", "modify", "test_project"]
+        + [flag] if flag else []
+    )
+
+    project = Project.get(id="test_project")
+
+    assert project.is_sensitive == expected
 
 
 @pytest.mark.usefixtures('app')  # Initialize database
