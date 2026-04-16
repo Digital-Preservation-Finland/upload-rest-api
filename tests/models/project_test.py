@@ -14,7 +14,8 @@ def test_correct_document_structure(projects_col):
     project = ProjectEntry(
         id="test_project",
         used_quota=0,
-        quota=1234
+        quota=1234,
+        is_sensitive=True
     )
     project.save()
 
@@ -23,7 +24,8 @@ def test_correct_document_structure(projects_col):
     assert docs[0] == {
         "_id": "test_project",
         "used_quota": 0,
-        "quota": 1234
+        "quota": 1234,
+        "is_sensitive": True
     }
 
 

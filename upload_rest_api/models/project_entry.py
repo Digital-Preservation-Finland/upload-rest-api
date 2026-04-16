@@ -1,5 +1,5 @@
 """ProjectEntry class."""
-from mongoengine import Document, LongField, StringField
+from mongoengine import Document, LongField, StringField, BooleanField
 
 
 class ProjectEntry(Document):
@@ -8,6 +8,7 @@ class ProjectEntry(Document):
 
     used_quota = LongField(default=0)
     quota = LongField(default=0)
+    is_sensitive = BooleanField(default=False)
 
     meta = {"collection": "projects"}
 

@@ -93,7 +93,8 @@ def test_file_metadata_conflict(mock_config, requests_mock, clone_test_file):
     file = {
         'id': 2,
         'pathname': '/path/file1',
-        'storage_identifier': 'foo'
+        'storage_identifier': 'foo',
+        'is_sensitive': False
     }
     metax_files_api = requests_mock.post('/v3/files/post-many', json={})
     requests_mock.get(

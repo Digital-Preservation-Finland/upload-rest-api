@@ -37,16 +37,19 @@ class Project:
     id = property(lambda x: x._db_project.id)
     quota = property(lambda x: x._db_project.quota)
     used_quota = property(lambda x: x._db_project.used_quota)
+    is_sensitive = property(lambda x: x._db_project.is_sensitive)
 
     remaining_quota = property(lambda x: x._db_project.remaining_quota)
 
     DoesNotExist = ProjectEntry.DoesNotExist
 
     @classmethod
-    def create(cls, identifier, quota=5 * 1024**3):
+    def create(cls, identifier, quota=5 * 1024**3, is_sensitive: bool = False):
         """Create project and prepare the file storage directory."""
         project = cls(
-            db_project=ProjectEntry(id=identifier, quota=int(quota))
+            db_project=ProjectEntry(
+                id=identifier, quota=int(quota), is_sensitive=is_sensitive
+            )
         )
 
         if project.directory.parents[0] \
@@ -99,6 +102,11 @@ class Project:
     def set_quota(self, quota):
         """Set the quota for the project"""
         self._db_project.quota = quota
+        self._db_project.save()
+
+    def set_is_sensitive(self, is_sensitive: bool):
+        """Set project sensitivity"""
+        self._db_project.is_sensitive = is_sensitive
         self._db_project.save()
 
     def update_used_quota(self):
