@@ -39,7 +39,8 @@ def test_get_user_projects_by_token(test_client):
             {
                 "identifier": "test_project",
                 "used_quota": 0,
-                "quota": 134217728
+                "quota": 134217728,
+                "is_sensitive": False
             }
         ]
     }
@@ -68,12 +69,14 @@ def test_get_user_projects_by_password(test_client):
             {
                 "identifier": "test_project",
                 "used_quota": 0,
-                "quota": 134217728
+                "quota": 134217728,
+                "is_sensitive": False
             },
             {
                 "identifier": "test_project2",
                 "used_quota": 0,
-                "quota": 12345678
+                "quota": 12345678,
+                "is_sensitive": False
             }
         ]
     }
@@ -101,7 +104,8 @@ def test_get_user_projects_by_username_admin(test_client, admin_auth):
             {
                 "identifier": "test_project",
                 "used_quota": 0,
-                "quota": 134217728
+                "quota": 134217728,
+                "is_sensitive": False
             }
         ]
     }

@@ -35,7 +35,8 @@ def list_user_projects():
         result["projects"].append({
             "identifier": project.id,
             "used_quota": project.used_quota,
-            "quota": project.quota
+            "quota": project.quota,
+            "is_sensitive": project.is_sensitive
         })
 
     return jsonify(result)
