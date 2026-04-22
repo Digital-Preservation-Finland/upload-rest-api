@@ -7,7 +7,7 @@ import click
 
 import upload_rest_api.config
 from upload_rest_api.cleanup import clean_disk, clean_mongo, clean_tus_uploads
-from upload_rest_api.models.resource import File, get_resource
+from upload_rest_api.models.resource import get_resource
 from upload_rest_api.models.project import Project
 from upload_rest_api.models.token import Token
 from upload_rest_api.models.user import User
@@ -309,24 +309,6 @@ def get_file_by_path(path, project):
         )
     except FileNotFoundError:
         click.echo(f"File not found in path '{path}'")
-
-
-@files_get.command("identifier")
-@click.argument("identifier")
-def get_file_by_identifier(identifier):
-    """Show information of file specified by IDENTIFIER."""
-    try:
-        file = File.get(identifier=identifier)
-        _echo_json(
-            {
-                'identifier': file.identifier,
-                'project': file.project.id,
-                'path': str(file.path),
-                'checksum': file.checksum
-            }
-        )
-    except FileNotFoundError:
-        click.echo(f"File '{identifier}' not found")
 
 
 @files.command("list")

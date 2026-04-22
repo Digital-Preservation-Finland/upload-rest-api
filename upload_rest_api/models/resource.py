@@ -13,7 +13,6 @@ from typing import TYPE_CHECKING
 from metax_access import (
     DS_STATE_IN_DIGITAL_PRESERVATION,
     DS_STATE_REJECTED_IN_DIGITAL_PRESERVATION_SERVICE,
-    FileNotAvailableError,
 )
 
 from upload_rest_api.config import CONFIG
@@ -175,27 +174,6 @@ class File(Resource):
     @property
     def exists(self):
         return self.storage_path.is_file()
-
-    @classmethod
-    def get(cls, identifier: str):
-        """
-        Retrieve an existing file.
-
-        :param identifier: Identifier of the file
-
-        :returns: File instance
-        """
-        # TODO: there is "id" and "storage_identifier" in file metadata.
-        # Ensure that correct identifier is used everywhere in our code.
-        try:
-            db_file = get_metax_client().get_file(identifier)
-        except FileNotAvailableError:
-            # TODO: Add unit test for this?
-            raise FileNotFoundError
-        path = db_file["pathname"]
-        project_id = db_file["csc_project"]
-
-        return cls(db_file=db_file, path=path, project_id=project_id)
 
     def _get_file_group(self):
         """File group that that contains only this file."""

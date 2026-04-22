@@ -471,30 +471,6 @@ def test_get_file_by_path(command_runner, requests_mock):
     assert result_data == correct_result
 
 
-@pytest.mark.usefixtures('app')  # Initialize database
-def test_get_file_by_identifier(command_runner, requests_mock):
-    """Test displaying information of file specified by identifier."""
-    # Mock Metax
-    file = copy.deepcopy(FILE)
-    file["pathname"] = "/path_1"
-    file["csc_project"] = "test_project"
-    file["storage_identifier"] = "pid:urn:1"
-    file["checksum"] = "checksum_1"
-    requests_mock.get("/v3/files/pid:urn:1", json=file)
-
-    # TODO: the file does not exist on disk, but file info can still be
-    # fetched. Is that ok?
-    result = command_runner(["files", "get", "identifier", "pid:urn:1"])
-    result_data = json.loads(result.output)
-    correct_result = {
-        "identifier": "pid:urn:1",
-        "project": "test_project",
-        "path": "/path_1",
-        "checksum": "checksum_1",
-    }
-    assert result_data == correct_result
-
-
 @pytest.mark.usefixtures('app')  # initialize database
 @pytest.mark.parametrize(
     ("command", "result_data"),
@@ -572,22 +548,6 @@ def test_get_nonexistent_file_by_path(command_runner):
 
 
 # TODO: test what happens with non-existing project
-
-
-def test_get_nonexistent_file_by_identifier(command_runner, requests_mock):
-    """Test showing information of file that does not exist.
-
-    Identifier is used to identify the file.
-    """
-    # Mock metax
-    requests_mock.get(
-        "/v3/files/pid:urn:1",
-        status_code=404,
-        json={"detail": "Not found."}
-    )
-
-    result = command_runner(["files", "get", "identifier", "pid:urn:1"])
-    assert result.output == "File 'pid:urn:1' not found\n"
 
 
 def test_list_files_when_no_files(command_runner):
