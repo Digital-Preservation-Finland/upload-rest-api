@@ -56,7 +56,7 @@ def test_enqueue_background_job_successful(mock_redis):
 
     rq_job = upload_queue.fetch_job(job_id)
 
-    assert rq_job.result == f"Task ID = {job_id}, value = spam"
+    assert rq_job.return_value() == f"Task ID = {job_id}, value = spam"
 
 
 @pytest.mark.usefixtures("app")
