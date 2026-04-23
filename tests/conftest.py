@@ -54,14 +54,14 @@ def pytest_addoption(parser):
                            "the test."))
 
 
-@pytest.yield_fixture(scope="function")
+@pytest.fixture(scope="function")
 def upload_tmpdir(tmpdir):
     """Temporary directory for uploads."""
     tmpdir.mkdir("upload")
-    yield Path(tmpdir.join("upload"))
+    return Path(tmpdir.join("upload"))
 
 
-@pytest.yield_fixture(scope="function", autouse=True)
+@pytest.fixture(scope="function", autouse=True)
 def mock_config(monkeypatch, upload_tmpdir, test_mongo):
     """Mock the generic configuration located in
     `upload_rest_api.config` that is accessible whether Flask is active
@@ -109,7 +109,7 @@ def mock_config(monkeypatch, upload_tmpdir, test_mongo):
     monkeypatch.setitem(CONFIG, "MONGO_HOST", test_mongo.address[0])
     monkeypatch.setitem(CONFIG, "MONGO_PORT", test_mongo.address[1])
 
-    yield CONFIG
+    return CONFIG
 
 
 @pytest.fixture(autouse=True)
@@ -120,7 +120,7 @@ def patch_hashing_iters(monkeypatch):
     monkeypatch.setattr("upload_rest_api.models.user.ITERATIONS", 2000)
 
 
-@pytest.yield_fixture(autouse=True, scope="session")
+@pytest.fixture(autouse=True, scope="session")
 def test_mongo():
     """
     Initialize MongoDB test instance and return MongoDB client instance for
@@ -137,7 +137,7 @@ def test_mongo():
     box.stop()
 
 
-@pytest.yield_fixture(scope="function", autouse=True)
+@pytest.fixture(scope="function", autouse=True)
 def mongoengine(test_mongo):
     """
     Connect MongoEngine to the MongoBox instance
@@ -151,7 +151,7 @@ def mongoengine(test_mongo):
     test_mongo.drop_database("upload")
 
 
-@pytest.yield_fixture(autouse=True)
+@pytest.fixture(autouse=True)
 def db_logging_fx(test_mongo, request):
     """
     Optionally print list of database queries made during a test.
@@ -179,7 +179,7 @@ def db_logging_fx(test_mongo, request):
         pprint.pprint(queries, indent=4)
 
 
-@pytest.yield_fixture(scope="function", autouse=True)
+@pytest.fixture(scope="function", autouse=True)
 def mock_redis(monkeypatch):
     """Patch job queue to use a mock Redis."""
     conn = fakeredis.FakeStrictRedis()
@@ -267,7 +267,7 @@ def background_job_runner(test_auth):
     return wrapper
 
 
-@pytest.yield_fixture(scope="function")
+@pytest.fixture(scope="function")
 def app(test_mongo, mock_config, monkeypatch):
     """Create temporary upload directory and app, which uses it.
 
@@ -299,10 +299,10 @@ def app(test_mongo, mock_config, monkeypatch):
     flask_app.config["UPLOAD_TMP_PATH"] = mock_config["UPLOAD_TMP_PATH"]
     flask_app.config["TUS_API_SPOOL_PATH"] = mock_config["TUS_API_SPOOL_PATH"]
 
-    yield flask_app
+    return flask_app
 
 
-@pytest.yield_fixture(scope="function")
+@pytest.fixture(scope="function")
 def test_client(app):
     """
     Flask test client fixture
