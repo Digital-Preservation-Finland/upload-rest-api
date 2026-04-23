@@ -29,6 +29,46 @@ def test_correct_document_structure(projects_col):
     }
 
 
+@pytest.mark.parametrize(
+    "kwargs,expected",
+    [
+        (
+            {
+                "identifier": "test_project",
+                "quota": 4321,
+                "is_sensitive": True
+            },
+            {
+                "_id": "test_project",
+                "used_quota": 0,
+                "quota": 4321,
+                "is_sensitive": True
+            }
+        ),
+        (
+            # Everything except 'id' uses defaults
+            {"identifier": "test_project"},
+            {
+                "_id": "test_project",
+                "quota": 5 * (1024**3),
+                "used_quota": 0,
+                "is_sensitive": False
+            }
+        )
+    ]
+)
+def test_project_create_correct_database(projects_col, kwargs, expected):
+    """
+    Test that saved Project results in the expected database document,
+    including any possible defaults
+    """
+    Project.create(**kwargs)
+
+    docs = list(projects_col.find())
+    assert len(docs) == 1
+    assert docs[0] == expected
+
+
 def test_dir_size():
     """Test that dir sizes are calculated correctly.
 
