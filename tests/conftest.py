@@ -145,7 +145,8 @@ def mongoengine(test_mongo):
     disconnect()
     connect(
         host=f"mongodb://{test_mongo.address[0]}:{test_mongo.address[1]}/upload",
-        tz_aware=True
+        tz_aware=True,
+        uuidRepresentation="standard",  # Added to avoid DeprecationWarnings
     )
     yield
     test_mongo.drop_database("upload")

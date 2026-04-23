@@ -13,7 +13,8 @@ try:
         # Connect on first operation instead of instantly.
         # This is to prevent MongoClient from being created before a fork,
         # which leads to unexpected behavior.
-        connect=False
+        connect=False,
+        uuidRepresentation="standard"  # Added to avoid DeprecationWarnings
     )
 except KeyError:
     logging.error(
