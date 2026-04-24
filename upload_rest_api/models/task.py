@@ -1,4 +1,5 @@
 """Task model."""
+import string
 import time
 
 from rq.exceptions import NoSuchJobError
@@ -7,8 +8,18 @@ from rq.job import Job
 from upload_rest_api.models.task_entry import TaskEntry, TaskStatus
 from upload_rest_api.redis import get_redis_connection
 
-
 MISSING = object()
+
+
+def _escape_task_id(task_id: str) -> str:
+    """Escape string into a string accepted as a RQ task id
+    (only letters, numbers, underscores and dashes allowed)
+    """
+    allowed = set(string.ascii_letters + string.digits + "_-")
+
+    return "".join(
+        char if char in allowed else "-" for char in str(task_id)
+    )
 
 
 class Task:
@@ -44,7 +55,8 @@ class Task:
         }
 
         if identifier:
-            task_fields["id"] = identifier
+            # Escape custom task ID to make it compatible with RQ
+            task_fields["id"] = _escape_task_id(identifier)
 
         db_task = TaskEntry(**task_fields)
         db_task.save()
@@ -65,6 +77,8 @@ class Task:
 
         :returns: Task instance
         """
+        if job_id := kwargs.get("id"):
+            kwargs["id"] = _escape_task_id(job_id)
 
         task_entry = TaskEntry.objects.get(**kwargs)
 

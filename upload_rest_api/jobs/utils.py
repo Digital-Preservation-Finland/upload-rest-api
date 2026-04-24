@@ -3,8 +3,8 @@ from functools import wraps
 
 from rq import Queue
 
+from upload_rest_api.config import CONFIG, configure_logger
 from upload_rest_api.models.task import Task, TaskStatus
-from upload_rest_api.config import configure_logger, CONFIG
 from upload_rest_api.redis import get_redis_connection
 
 FILES_QUEUE = "files"
@@ -128,7 +128,7 @@ def enqueue_background_job(
 
     queue.enqueue(
         task_func,
-        job_id=str(task_id),
+        job_id=task_id,
         timeout=job_timeout,  # rq 0.12.0 or older
         job_timeout=job_timeout,  # rq 0.13.0 and newer
         failure_ttl=CONFIG.get("RQ_FAILED_JOB_TTL", DEFAULT_FAILED_JOB_TTL),

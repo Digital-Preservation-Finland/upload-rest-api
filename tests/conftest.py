@@ -34,6 +34,7 @@ from upload_rest_api.lock import ProjectLockManager
 from upload_rest_api.models.project import Project
 from upload_rest_api.models.token import Token
 from upload_rest_api.models.user import User
+from upload_rest_api.models.task import Task
 
 
 if TYPE_CHECKING:
@@ -239,6 +240,12 @@ def background_job_runner(test_auth):
         # Ensure the task can be found in the correct queue and complete
         # it
         queue = get_job_queue(queue_name)
+
+        # Retrieve task from database. It will also contain the normalized,
+        # RQ-compatible task ID
+        task = Task.get(id=task_id)
+        task_id = task.id
+
         assert task_id in queue.job_ids
 
         job = queue.fetch_job(task_id)
