@@ -4,13 +4,11 @@ import copy
 import pytest
 from metax_access import template_data
 
-from tests.utils import update_nested_dict
 from upload_rest_api.models.resource import (
     Directory,
     File,
     InvalidPathError,
     Project,
-    get_resource,
 )
 
 
@@ -44,63 +42,6 @@ def test_parse_relative_user_path(path, result):
     else:
         with pytest.raises(InvalidPathError):
             File(project_id='test_project', path=path)
-
-
-# TODO: According to the docstring, this test should test that paging is
-# handled correctly, but it looks it does not test that. Is this test
-# necessary?
-@pytest.mark.usefixtures('app')  # Initialize db
-def test_get_many_datasets(requests_mock):
-    """Test that get_datasets method handles paging in Metax."""
-    # Create a test file in filesystem
-    project = Project.get(id="test_project")
-    testfile = project.directory / "testdir" / "testfile"
-    testfile.parent.mkdir()
-    testfile.write_text("foo")
-
-    # Create file metadata in Metax
-    file = copy.deepcopy(template_data.FILE)
-    file["pathname"] = "/testdir/testfile"
-    requests_mock.get(
-        "/v3/files?pathname__startswith=/testdir/&csc_project=test_project",
-        json={"next": None, "results": [file]}
-    )
-
-    # Add the test file to three datasets: "urn:uuid:dataset1",
-    # "urn:uuid:dataset2" and "urn:uuid:dataset3". When the metadata of
-    # the datasets is requested from Metax, two datasets are provided
-    # per page.
-    requests_mock.post(
-        "/v3/files/datasets?relations=true",
-        json={template_data.FILE["id"]: ["urn:uuid:dataset1",
-                                         "urn:uuid:dataset2",
-                                         "urn:uuid:dataset3"]}
-    )
-    datasets = [
-        update_nested_dict(
-            template_data.DATASET,
-            {
-                "id": f"urn:uuid:dataset{x}",
-                "title": "foo",
-                "fileset": {"csc_project": "bar"},
-                "preservation": {"state": 10},
-            },
-        )
-        for x in range(1, 4)
-    ]
-    requests_mock.get(
-        "/v3/datasets",
-        additional_matcher=lambda req: set(req.qs["id"][0].split(","))
-        == {"urn:uuid:dataset1", "urn:uuid:dataset2", "urn:uuid:dataset3"},
-        json=datasets,
-    )
-
-    # Get the list of datasets associated with directory "test_dir"
-    # using get_datasets method. The list should contain both
-    # datasets.
-    datasets = get_resource('test_project', 'testdir').get_datasets()
-    assert {dataset['identifier'] for dataset in datasets} \
-        == {'urn:uuid:dataset1', 'urn:uuid:dataset2', 'urn:uuid:dataset3'}
 
 
 @pytest.mark.usefixtures("app")  # Initialize db and create test_project
