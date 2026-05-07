@@ -69,13 +69,12 @@ def test_store_file(
     metadata = mock_post_metadata.last_request.json()[0]
 
     assert metadata["storage_identifier"].startswith('urn:uuid:')
-    assert metadata["filename"] == "bar"
     assert metadata["size"] == test_file.stat().st_size
+    assert metadata["storage_service"] == "pas"
     assert metadata["pathname"] == "/foo/bar"
     assert metadata["csc_project"] == 'test_project'
     assert metadata["is_sensitive"] is False
     assert "modified" in metadata
-    assert "frozen" in metadata
 
     checksum = hashlib.md5(test_file.read_bytes()).hexdigest()
     assert metadata["checksum"] == f"md5:{checksum}"
@@ -107,7 +106,6 @@ def test_store_sensitive_file(requests_mock, clone_test_file):
     assert mock_post_metadata.call_count == 1
     metadata = mock_post_metadata.last_request.json()[0]
 
-    assert metadata["filename"] == "bar"
     assert metadata["pathname"] == "/foo/bar"
     assert metadata["is_sensitive"] is True
 

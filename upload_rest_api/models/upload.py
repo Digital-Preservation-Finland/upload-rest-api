@@ -419,8 +419,6 @@ class Upload:
                 file = Path(dirpath, fname)
                 relative_path = file.relative_to(self._tmp_project_directory)
 
-                # Create file information for database
-                identifier = str(uuid.uuid4().urn)
                 file_checksum_provided = (
                     self.type_ == UploadType.FILE and self.source_checksum
                 )
@@ -429,25 +427,18 @@ class Upload:
                 else:
                     checksum = get_file_checksum("md5", file)
 
-                # Create metadata
                 timestamp = _iso8601_timestamp(file)
+
                 metadata: MetaxFile = {
-                    # Metax will generate id automatically
-                    "id": None,
-                    "storage_identifier": identifier,
-                    "filename": file.name,
+                    # storage_identifier is required by metax
+                    "storage_identifier": str(uuid.uuid4().urn),
                     "size": file.stat().st_size,
                     "storage_service": "pas",
                     "pathname": f"/{relative_path}",
                     "csc_project": self.project.id,
                     "modified": timestamp,
-                    "frozen": timestamp,
                     "checksum": f"md5:{checksum}",
                     "is_sensitive": self.project.is_sensitive,
-                    # File format deliberately left out.
-                    # Metax V3 enforces complete file technical metadata
-                    # (format and version) from the get-go, which can't be
-                    # provided at this stage.
                 }
                 metadata_dicts.append(metadata)
 
