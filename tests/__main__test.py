@@ -547,7 +547,15 @@ def test_get_nonexistent_file_by_path(command_runner):
     assert result.output == "File not found in path 'nonexistent'\n"
 
 
-# TODO: test what happens with non-existing project
+def test_get_file_from_nonexistent_project(command_runner):
+    """Try to get file from project which does not exist.
+
+    Clear error message should be shown.
+    """
+    result = command_runner(
+        ["files", "get", "path", "--project", "nonexistent_project", "path"]
+    )
+    assert result.output == "Project 'nonexistent_project' not found\n"
 
 
 def test_list_files_when_no_files(command_runner):

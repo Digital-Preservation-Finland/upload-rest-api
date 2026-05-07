@@ -309,6 +309,8 @@ def get_file_by_path(path, project):
         )
     except FileNotFoundError:
         click.echo(f"File not found in path '{path}'")
+    except Project.DoesNotExist:
+        click.echo(f"Project '{project}' not found")
 
 
 @files.command("list")

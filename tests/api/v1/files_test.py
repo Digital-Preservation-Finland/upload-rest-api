@@ -578,6 +578,8 @@ def test_delete_preserved_file(
     [
         ("GET", "/v1/files/test_project/fake_file"),
         ("DELETE", "/v1/files/test_project/fake_file"),
+        # Access project that does not exist
+        ("GET", "/v1/files/nonexistent_project/fake_file"),
     ]
 )
 def test_no_rights(test_auth2, test_client, method, url):
