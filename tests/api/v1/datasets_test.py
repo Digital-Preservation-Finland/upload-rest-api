@@ -98,12 +98,11 @@ def test_get_file_datasets_directory(
     (project_path / "test" / "test2.txt").write_text("test2")
     # Add metadata for files in Metax
     file1 = copy.deepcopy(template_data.FILE)
-    # TODO: storage_identifier or id?
-    file1["storage_identifier"] = "urn:uuid:test1"
+    file1["id"] = "test-id-1"
     file1["pathname"] = "/test/test1.txt"
     file1["checksum"] = "3e7705498e8be60520841409ebc69bc1"
     file2 = copy.deepcopy(template_data.FILE)
-    file2["storage_identifier"] = "urn:uuid:test2"
+    file2["id"] = "test-id-2"
     file2["pathname"] = "/test/test2.txt"
     file2["checksum"] = "3e7705498e8be60520841409ebc69bc1"
     requests_mock.get(
@@ -117,10 +116,10 @@ def test_get_file_datasets_directory(
     requests_mock.post(
         "/v3/files/datasets?relations=true",
         additional_matcher=(
-            lambda req: set(req.json()) == {"urn:uuid:test1", "urn:uuid:test2"}
+            lambda req: set(req.json()) == {"test-id-1", "test-id-2"}
         ),
         json={
-            "urn:uuid:test1": ["urn:uuid:dataset1", "urn:uuid:dataset3"]
+            "test-id-1": ["urn:uuid:dataset1", "urn:uuid:dataset3"]
         }
     )
     requests_mock.get(

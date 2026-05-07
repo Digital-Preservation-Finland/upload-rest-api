@@ -29,8 +29,7 @@ def test_reverse_proxy_polling_url(
     )
     requests_mock.post("https://metax.localdomain/v3/files/post-many", json={})
     requests_mock.post(
-        "https://metax.localdomain/v3/files/datasets"
-        "?relations=true&storage_service=pas",
+        "https://metax.localdomain/v3/files/datasets?relations=true",
         json={}
     )
     test_client = app.test_client()

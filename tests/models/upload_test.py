@@ -120,19 +120,13 @@ def test_file_metadata_conflict(mock_config, requests_mock, clone_test_file):
     upload.add_source(clone_test_file("tests/data/test.txt"), None)
 
     # Mock metax.
-    file = {
-        'id': 2,
-        'pathname': '/path/file1',
-        'storage_identifier': 'foo',
-        'is_sensitive': False
-    }
     metax_files_api = requests_mock.post('/v3/files/post-many', json={})
     requests_mock.get(
         '/v3/files?pathname=%2Fpath%2Ffile1&csc_project=test_project',
         json={
             'next': None,
             'results': [
-                update_nested_dict(TEMPLATE_FILE, file)
+                update_nested_dict(TEMPLATE_FILE, {"pathname": "/path/file1"})
             ]
         }
     )
@@ -177,15 +171,15 @@ def test_file_metadata_multiple_conflicts(
                 update_nested_dict(
                     TEMPLATE_FILE,
                     {
-                        "id": 3, "pathname": "/path/file3.txt",
-                        "storage_identifier": "foo3"
+                        "id": 3,
+                        "pathname": "/path/file3.txt",
                     }
                 ),
                 update_nested_dict(
                     TEMPLATE_FILE,
                     {
-                        "id": 4, "pathname": "/path/file4.txt",
-                        "storage_identifier": "foo4"
+                        "id": 4,
+                        "pathname": "/path/file4.txt",
                     }
                 )
             ]

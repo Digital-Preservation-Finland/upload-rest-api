@@ -85,8 +85,7 @@ def test_get_file(app, test_auth, test_auth2, requests_mock):
     file = copy.deepcopy(template_data.FILE)
     file["pathname"] = "/test.txt"
     file["checksum"] = "150b62e4e7d58c70503bd5fc8a26463c"
-    # TODO: "id" or "storage_identifier"?
-    file["storage_identifier"] = "fake_identifier"
+    file["id"] = "fake_identifier"
     requests_mock.get(
         "/v3/files?pathname=%2Ftest.txt&csc_project=test_project",
         json={"next": None, "results": [file]}
@@ -118,7 +117,7 @@ def test_delete_file(app, test_auth, requests_mock, name):
     # Mock Metax
     file = copy.deepcopy(template_data.FILE)
     file["pathname"] = f"/{name}"
-    file["storage_identifier"] = "test-identifier"
+    file["id"] = "test-identifier"
     requests_mock.get(
         f"/v3/files?pathname=%2F{name}&csc_project=test_project",
         json={"next": None, "results": [file]}
@@ -149,8 +148,7 @@ def test_delete_file(app, test_auth, requests_mock, name):
     request_json = delete_files_api.last_request.json()
     assert isinstance(request_json, list)
     assert len(request_json) == 1
-    # TODO: "storage_identifier" of "id"?
-    assert request_json[0]["storage_identifier"] == file["storage_identifier"]
+    assert request_json[0]["id"] == file["id"]
 
     # Try to DELETE file that does not exist. Request should fail with
     # 404 "Not found" error.
@@ -283,10 +281,7 @@ def test_delete_directory(
         = pathlib.Path(app.config.get("UPLOAD_PROJECTS_PATH")) / "test_project"
 
     # Mock metax.
-    requests_mock.post(
-       "/v3/files/datasets?relations=true&storage_service=pas",
-       json={}
-    )
+    requests_mock.post("/v3/files/datasets?relations=true", json={})
     delete_files_api = requests_mock.post("/v3/files/delete-many", json={})
 
     # Create test files
@@ -297,10 +292,10 @@ def test_delete_directory(
 
     file1 = copy.deepcopy(template_data.FILE)
     file1["pathname"] = "/test.txt"
-    file1["storage_identifier"] = "id1"
+    file1["id"] = "id1"
     file2 = copy.deepcopy(template_data.FILE)
     file2["pathname"] = "/test/test.txt"
-    file2["storage_identifier"] = "id2"
+    file2["id"] = "id2"
     requests_mock.get(
         "/v3/files?csc_project=test_project&pathname__startswith=/",
         json={
@@ -354,12 +349,12 @@ def test_delete_directory(
     # Expected files should have been deleted from Metax
     assert delete_files_api.called_once
     ids_of_deleted_files = {
-        file["storage_identifier"]
+        file["id"]
         for file
         in delete_files_api.request_history[0].json()
     }
     ids_of_files_that_should_be_deleted = {
-        file["storage_identifier"]
+        file["id"]
         for file
         in (file1, file2)
         if file["pathname"] in files_to_delete
@@ -411,8 +406,7 @@ def test_delete_file_in_dataset(
     # Mock Metax
     file_md = copy.deepcopy(template_data.FILE)
     file_md["pathname"] = "/testdir/test.txt"
-    # TODO: "storage_identifier" or "id"?
-    file_md["storage_identifier"] = "test-identifier"
+    file_md["id"] = "test-id-1"
     requests_mock.get(
         "/v3/files?pathname=/testdir/test.txt&csc_project=test_project",
         json={"next": None, "results": [file_md]}
@@ -445,8 +439,10 @@ def test_delete_file_in_dataset(
     )
     requests_mock.post(
         "/v3/files/datasets?relations=true",
-        additional_matcher=lambda req: req.json() == [file_md["storage_identifier"]],
-        json={file_md["storage_identifier"]: ["test_dataset"]}
+        additional_matcher=(
+            lambda req: req.json() == ["test-id-1"]
+        ),
+        json={"test-id-1": ["test_dataset"]}
     )
 
     # Try to delete the file (or some parent directory of the file)
@@ -492,11 +488,9 @@ def test_delete_preserved_file(
     file1 = copy.deepcopy(template_data.FILE)
     file1["pathname"] = "/testdir/test1.txt"
     file1["id"] = "file1-id"
-    file1["storage_identifier"] = "file1-storage-identifier"
     file2 = copy.deepcopy(template_data.FILE)
     file2["pathname"] = "/testdir/test2.txt"
     file2["id"] = "file2-id"
-    file2["storage_identifier"] = "file2-storage-identifier"
     requests_mock.get(
         "/v3/files?pathname=/testdir/test1.txt&csc_project=test_project",
         json={"next": None, "results": [file1]}
@@ -531,10 +525,9 @@ def test_delete_preserved_file(
     )
     requests_mock.post(
         "/v3/files/datasets?relations=true",
-        # TODO: "storage_identifier" or "id"?
         json={
-            file1["storage_identifier"]: ["test_dataset"],
-            file2["storage_identifier"]: []
+            file1["id"]: ["test_dataset"],
+            file2["id"]: []
         }
     )
 
@@ -562,8 +555,7 @@ def test_delete_preserved_file(
         assert delete_file_metadata_api.called_once
         assert delete_file_metadata_api.request_history[0].json() == [
             {
-                "storage_identifier": file2["storage_identifier"],
-                "storage_service": "pas",
+                "id": file2["id"],
             }
         ]
     else:

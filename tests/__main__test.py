@@ -445,7 +445,7 @@ def test_get_file_by_path(command_runner, requests_mock):
     file = copy.deepcopy(FILE)
     file["pathname"] = "/path_1"
     file["csc_project"] = "test_project"
-    file["storage_identifier"] = "pid:urn:1"
+    file["id"] = "test-id-1"
     file["checksum"] = "checksum_1"
     requests_mock.get(
         "/v3/files",
@@ -463,7 +463,7 @@ def test_get_file_by_path(command_runner, requests_mock):
                              "--project", "test_project"])
     result_data = json.loads(result.output)
     correct_result = {
-        "identifier": "pid:urn:1",
+        "identifier": "test-id-1",
         "project": "test_project",
         "path": "/path_1",
         "checksum": "checksum_1",
@@ -478,11 +478,11 @@ def test_get_file_by_path(command_runner, requests_mock):
         (
             ["files", "list"],
             [
-                {"identifier": "pid:urn:1",
+                {"identifier": "test-id-1",
                  "project": "test_project",
                  "path": "/path_1",
                  "checksum": "checksum_1"},
-                {"identifier": "pid:urn:2",
+                {"identifier": "test-id-2",
                  "project": "test_project",
                  "path": "/path_2",
                  "checksum": "checksum_2"},
@@ -494,7 +494,7 @@ def test_get_file_by_path(command_runner, requests_mock):
         ),
         (
             ["files", "list", "--identifiers-only"],
-            ["pid:urn:1", "pid:urn:2"]
+            ["test-id-1", "test-id-2"]
         )
     ]
 )
@@ -504,12 +504,12 @@ def test_list_files(command_runner, command, result_data, requests_mock):
     file1 = copy.deepcopy(FILE)
     file1["pathname"] = "/path_1"
     file1["csc_project"] = "test_project"
-    file1["storage_identifier"] = "pid:urn:1"
+    file1["id"] = "test-id-1"
     file1["checksum"] = "checksum_1"
     file2 = copy.deepcopy(FILE)
     file2["pathname"] = "/path_2"
     file2["csc_project"] = "test_project"
-    file2["storage_identifier"] = "pid:urn:2"
+    file2["id"] = "test-id-2"
     file2["checksum"] = "checksum_2"
 
     requests_mock.get(

@@ -79,10 +79,10 @@ def test_expired_files(mock_config, requests_mock):
     # Add metadata of files to Metax
     new_file = copy.deepcopy(template_data.FILE)
     new_file["pathname"] = "/new_file.txt"
-    new_file["storage_identifier"] = "urn:uuid:1"
+    new_file["id"] = "test-id-1"
     expired_file = copy.deepcopy(template_data.FILE)
     expired_file["pathname"] = "/expired_file.txt"
-    expired_file["storage_identifier"] = "urn:uuid:2"
+    expired_file["id"] = "test-id-2"
     requests_mock.get(
         "/v3/files?pathname__startswith=/",
         json={
@@ -101,9 +101,7 @@ def test_expired_files(mock_config, requests_mock):
 
     # The metadata of expired file should be deleted from Metax
     assert delete_files_api.called_once
-    assert delete_files_api.request_history[0].json() == [
-        {"storage_identifier": "urn:uuid:2", "storage_service": "pas"}
-    ]
+    assert delete_files_api.request_history[0].json() == [{"id": "test-id-2"}]
 
     # Used quota should be updated. One copy of "test.txt" should be
     # left.
@@ -136,10 +134,10 @@ def test_cleaning_files_in_datasets(mock_config, requests_mock):
     # Add metadata of files to Metax
     pending_file = copy.deepcopy(template_data.FILE)
     pending_file["pathname"] = "/pending_file.txt"
-    pending_file["storage_identifier"] = "urn:uuid:1"
+    pending_file["id"] = "test-id-pending_file"
     preserved_file = copy.deepcopy(template_data.FILE)
     preserved_file["pathname"] = "/preserved_file.txt"
-    preserved_file["storage_identifier"] = "urn:uuid:2"
+    preserved_file["id"] = "test-id-preserved_file"
     requests_mock.get(
         "/v3/files?pathname__startswith=/",
         json={
@@ -157,10 +155,15 @@ def test_cleaning_files_in_datasets(mock_config, requests_mock):
     requests_mock.post(
         "/v3/files/datasets?relations=true",
         additional_matcher=(
-            lambda req: set(req.json()) == {'urn:uuid:1', 'urn:uuid:2'}
+            lambda req: set(req.json()) == {
+                "test-id-pending_file",
+                "test-id-preserved_file",
+            }
         ),
-        json={'urn:uuid:1': ["pending_dataset"],
-              'urn:uuid:2': ["preserved_dataset"]}
+        json={
+            "test-id-pending_file": ["pending_dataset"],
+            "test-id-preserved_file": ["preserved_dataset"],
+        }
     )
 
     ds1 = copy.deepcopy(template_data.DATASET)
@@ -189,8 +192,9 @@ def test_cleaning_files_in_datasets(mock_config, requests_mock):
     )
     requests_mock.post(
         "/v3/files/datasets?relations=true",
-        additional_matcher=lambda req: req.json() == ['urn:uuid:2'],
-        json={'urn:uuid:2': ["preserved_dataset"]}
+        additional_matcher=lambda req: req.json()
+        == ["test-id-preserved_file"],
+        json={"test-id-preserved_file": ["preserved_dataset"]}
     )
     delete_files_api = requests_mock.delete('/v3/files', json={})
 

@@ -197,8 +197,7 @@ class File(Resource):
     @property
     def identifier(self):
         """Return identifier of file."""
-        # TODO: Why "storage_identifier" and not "id"?
-        return self._file_metadata["storage_identifier"]
+        return self._file_metadata["id"]
 
     @property
     def checksum(self):
@@ -389,10 +388,9 @@ class FileGroup:
         metax_client = get_metax_client()
 
         # Retrieve file -> dataset(s) associations
-        file_storage_identifiers \
-            = [file.identifier for file in self.files]
+        file_identifiers = [file.identifier for file in self.files]
         self._file2dataset \
-            = metax_client.get_file2dataset_dict(file_storage_identifiers)
+            = metax_client.get_file2dataset_dict(file_identifiers)
         # Retrieve metadata of all datasets associated to files
         all_dataset_ids = set()
         for dataset_ids in self._file2dataset.values():
@@ -462,16 +460,13 @@ class FileGroup:
         if any(self.file_has_pending_dataset(file) for file in self.files):
             raise HasPendingDatasetError
 
-        storage_identifiers = []
-        storage_paths = []  # All storage_paths in one list
+        identifiers = []
         for file in self.files:
             # Remove the actual file
             file.storage_path.unlink()
             LOGGER.info("Deleted file %s", str(file.storage_path))
-            # add identifiers storage_path to lists for bulk removal
-            # from databases
-            storage_identifiers.append(file.identifier)
-            storage_paths.append(str(file.storage_path))
+            # add file identifier to lists for bulk removal of metadata
+            identifiers.append(file.identifier)
 
         # Remove metadata from Metax.
         # The metadata of preserved files should not be removed (see
@@ -483,14 +478,11 @@ class FileGroup:
         # inefficient), as we can just remove metadata of all files that
         # are not inlcuded in any dataset.
         metax_client = get_metax_client()
-        file2datasets = metax_client.get_file2dataset_dict(storage_identifiers)
+        file2datasets = metax_client.get_file2dataset_dict(identifiers)
         files_without_datasets = [
-            {
-                "storage_identifier": storage_identifier,
-                "storage_service": "pas",
-            }
-            for storage_identifier in storage_identifiers
-            if not file2datasets.get(storage_identifier)
+            {"id": identifier}
+            for identifier in identifiers
+            if not file2datasets.get(identifier)
         ]
         if files_without_datasets:
             metax_client.delete_files(files_without_datasets)
