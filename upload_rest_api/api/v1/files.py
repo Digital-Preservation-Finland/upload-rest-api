@@ -3,10 +3,7 @@
 Functionality for uploading, querying and deleting files from the
 server.
 """
-import os
-from pathlib import Path
-
-from flask import Blueprint, abort, jsonify, request
+from flask import Blueprint, abort, jsonify
 
 from upload_rest_api.api.v1.tasks import get_polling_url
 from upload_rest_api.authentication import require_project_access
@@ -16,20 +13,6 @@ from upload_rest_api.lock import ProjectLockManager
 from upload_rest_api.models.resource import get_resource
 
 FILES_API_V1 = Blueprint("files_v1", __name__, url_prefix="/v1/files")
-
-
-def _get_dir_tree(project):
-    """Return with dir tree from project directory."""
-    file_dict = {}
-    for dirpath, _, files in os.walk(project.directory):
-
-        path = Path(dirpath).relative_to(project.directory)
-        file_dict[f'/{path}'] = files
-
-    if "/." in file_dict:
-        file_dict["/"] = file_dict.pop("/.")
-
-    return file_dict
 
 
 @FILES_API_V1.route(
@@ -50,10 +33,6 @@ def get_path(project_id, fpath):
         resource = get_resource(project_id, fpath)
     except FileNotFoundError:
         abort(404, "File not found")
-
-    # TODO: Is all parameter used somewhere?
-    if request.args.get("all", None) == "true" and fpath.strip("/") == "":
-        return jsonify(_get_dir_tree(resource.project))
 
     if resource.storage_path.is_file():
         response = {

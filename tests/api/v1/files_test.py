@@ -165,17 +165,6 @@ def test_delete_file(app, test_auth, requests_mock, name):
 @pytest.mark.parametrize(
     ("path", "expected_data"),
     [
-        # All files of user
-        # TODO: is all=true parameter used anymore?
-        (
-            '/?all=true',
-            {
-                '/': ['file1.txt'],
-                '/dir1': ['file2.txt'],
-                '/dir2': [],
-                '/dir2/subdir1': ['file3.txt']
-            }
-        ),
         # Root directory, contains files and directories
         (
             '/',
@@ -215,13 +204,8 @@ def test_get_files(app, test_auth, path, expected_data, requests_mock):
     upload_path = pathlib.Path(app.config.get("UPLOAD_PROJECTS_PATH"))
     (upload_path / "test_project/dir1").mkdir(parents=True)
     (upload_path / "test_project/dir2/subdir1").mkdir(parents=True)
-    # TODO: dir2/subdir1/file3.txt is only required for testing
-    # all=true -parameter. Do we need that parameter?
-    for path_ in ["file1.txt", "dir1/file2.txt", "dir2/subdir1/file3.txt"]:
-        shutil.copy(
-            "tests/data/test.txt",
-            upload_path / "test_project" / path_
-        )
+    (upload_path / "test_project/file1.txt").touch()
+    (upload_path / "test_project/dir1/file2.txt").touch()
 
     # Mock metax
     file1 = copy.deepcopy(template_data.FILE)
