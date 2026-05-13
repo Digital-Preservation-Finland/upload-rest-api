@@ -1,6 +1,5 @@
 """Tests for ``upload_rest_api.api.v1.datasets`` module."""
 import copy
-from pathlib import Path
 
 import pytest
 from metax_access import (
@@ -10,10 +9,11 @@ from metax_access import (
 )
 
 from tests.utils import update_nested_dict
+from upload_rest_api.models.project import Project
 
 
 @pytest.mark.parametrize(
-    ("datasets", "has_pending_dataset"),
+    ("datasets", "expected_response"),
     [
         # Contains a pending dataset
         (
@@ -47,7 +47,34 @@ from tests.utils import update_nested_dict
                     },
                 },
             ],
-            True,
+            {
+                # One of the datasets is not preserved, so the directory
+                # must have "pending dataset"
+                "has_pending_dataset": True,
+                "datasets": [
+                    {
+                        "identifier": "urn:uuid:dataset1",
+                        "languages": [
+                            "en",
+                        ],
+                        "preservation_state": DS_STATE_IN_DIGITAL_PRESERVATION,
+                        "title": {
+                            "en": "Dataset 1",
+                        },
+                    },
+                    {
+                        "identifier": "urn:uuid:dataset3",
+                        "languages": [
+                            "en",
+                        ],
+                        "preservation_state":
+                        DS_STATE_TECHNICAL_METADATA_GENERATED,
+                        "title": {
+                            "en": "Dataset 3",
+                        },
+                    },
+                ],
+            },
         ),
         # Doesn't contain pending datasets
         (
@@ -81,21 +108,58 @@ from tests.utils import update_nested_dict
                     },
                 },
             ],
-            False,
+            {
+                # All datasets are already preserved, so no "pending"
+                # datasets
+                "has_pending_dataset": False,
+                "datasets": [
+                    {
+                        "identifier": "urn:uuid:dataset1",
+                        "languages": [
+                            "en",
+                        ],
+                        "preservation_state": DS_STATE_IN_DIGITAL_PRESERVATION,
+                        "title": {
+                            "en": "Dataset 1",
+                        },
+                    },
+                    {
+                        "identifier": "urn:uuid:dataset3",
+                        "languages": [
+                            "en",
+                        ],
+                        "preservation_state": DS_STATE_IN_DIGITAL_PRESERVATION,
+                        "title": {
+                            "en": "Dataset 3",
+                        },
+                    },
+                ],
+            },
         ),
     ],
 )
-def test_get_file_datasets_directory(
-        app, test_client, test_auth, requests_mock, datasets,
-        has_pending_dataset
+def test_get_directory_datasets(
+    test_client, test_auth, requests_mock, datasets, expected_response
 ):
-    upload_path = Path(app.config.get("UPLOAD_PROJECTS_PATH"))
+    """Test fetching datasets that contain the directory.
 
+    Creates a directory which contains a file which is added to
+    'datasets'. Fetches datasets that contain the directory from
+    /v1/datasets API, and checks that response contains expected
+    data.
+
+    :param test_client: Flask test client
+    :param test_auth: Authentication headers
+    :param requests_mock: HTTP request mocker
+    :param datasets: The datasets to which will contain the directory
+    :param expected_response: Expected response from API
+    """
     # Create two test files in "test" directory
-    project_path = upload_path / "test_project"
-    (project_path / "test").mkdir(parents=True)
+    project_path = Project.get(id="test_project").directory
+    (project_path / "test").mkdir()
     (project_path / "test" / "test1.txt").write_text("test1")
     (project_path / "test" / "test2.txt").write_text("test2")
+
     # Add metadata for files in Metax
     file1 = copy.deepcopy(template_data.FILE)
     file1["id"] = "test-id-1"
@@ -113,6 +177,7 @@ def test_get_file_datasets_directory(
         },
     )
 
+    # Add one of the files to two datasets
     requests_mock.post(
         "/v3/files/datasets?relations=true",
         additional_matcher=(
@@ -122,6 +187,8 @@ def test_get_file_datasets_directory(
             "test-id-1": ["urn:uuid:dataset1", "urn:uuid:dataset3"]
         }
     )
+
+    # Add dataset metadata to Metax
     requests_mock.get(
         "/v3/datasets",
         additional_matcher=lambda req: set(req.qs["id"][0].split(","))
@@ -132,20 +199,10 @@ def test_get_file_datasets_directory(
         ],
     )
 
-    response = test_client.get(
+    # Check that response from API contains expected data
+    assert test_client.get(
         "/v1/datasets/test_project/test", headers=test_auth
-    )
-    result = response.json
-    assert result["has_pending_dataset"] == has_pending_dataset
-    assert len(result["datasets"]) == 2
-    dataset_a, dataset_b = sorted(result["datasets"],
-                                  key=lambda ds: ds["title"]["en"])
-
-    assert dataset_a["title"]["en"] == "Dataset 1"
-    assert dataset_a["languages"] == ["en"]
-
-    assert dataset_b["title"]["en"] == "Dataset 3"
-    assert dataset_b["languages"] == ["en"]
+    ).json == expected_response
 
 
 def test_no_rights(test_auth2, test_client):
