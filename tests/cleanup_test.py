@@ -135,9 +135,11 @@ def test_cleaning_files_in_datasets(mock_config, requests_mock):
     pending_file = copy.deepcopy(template_data.FILE)
     pending_file["pathname"] = "/pending_file.txt"
     pending_file["id"] = "test-id-pending_file"
+    pending_file["pas_process_running"] = True
     preserved_file = copy.deepcopy(template_data.FILE)
     preserved_file["pathname"] = "/preserved_file.txt"
     preserved_file["id"] = "test-id-preserved_file"
+    preserved_file["pas_process_running"] = False
     requests_mock.get(
         "/v3/files?pathname__startswith=/",
         json={

@@ -71,7 +71,7 @@ def delete_path(project_id, fpath):
     except FileNotFoundError:
         abort(404, "File not found")
 
-    if resource.has_pending_dataset():
+    if resource.locked:
         abort(
             400,
             "File/directory is used in a pending dataset and cannot be deleted"

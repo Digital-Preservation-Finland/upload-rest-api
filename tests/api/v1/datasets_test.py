@@ -1,8 +1,8 @@
 """Tests for ``upload_rest_api.api.v1.datasets`` module."""
 import copy
 
-import pytest
 from metax_access import (
+    # TODO: remove preservation states
     DS_STATE_IN_DIGITAL_PRESERVATION,
     DS_STATE_TECHNICAL_METADATA_GENERATED,
     template_data,
@@ -12,135 +12,7 @@ from tests.utils import update_nested_dict
 from upload_rest_api.models.project import Project
 
 
-@pytest.mark.parametrize(
-    ("datasets", "expected_response"),
-    [
-        # Contains a pending dataset
-        (
-            [
-                {
-                    "id": "urn:uuid:dataset1",
-                    "title": {"en": "Dataset 1"},
-                    "language": [
-                        {
-                            "url": "http://lexvo.org/id/iso639-3/eng",
-                            "pref_label": {"en": "English"},
-                        }
-                    ],
-                    "fileset": {"csc_project": "bar"},
-                    "preservation": {
-                        "state": DS_STATE_IN_DIGITAL_PRESERVATION
-                    },
-                },
-                {
-                    "id": "urn:uuid:dataset3",
-                    "title": {"en": "Dataset 3"},
-                    "language": [
-                        {
-                            "url": "http://lexvo.org/id/iso639-3/eng",
-                            "pref_label": {"en": "English"},
-                        }
-                    ],
-                    "fileset": {"csc_project": "bar"},
-                    "preservation": {
-                        "state": DS_STATE_TECHNICAL_METADATA_GENERATED
-                    },
-                },
-            ],
-            {
-                # One of the datasets is not preserved, so the directory
-                # must have "pending dataset"
-                "has_pending_dataset": True,
-                "datasets": [
-                    {
-                        "identifier": "urn:uuid:dataset1",
-                        "languages": [
-                            "en",
-                        ],
-                        "preservation_state": DS_STATE_IN_DIGITAL_PRESERVATION,
-                        "title": {
-                            "en": "Dataset 1",
-                        },
-                    },
-                    {
-                        "identifier": "urn:uuid:dataset3",
-                        "languages": [
-                            "en",
-                        ],
-                        "preservation_state":
-                        DS_STATE_TECHNICAL_METADATA_GENERATED,
-                        "title": {
-                            "en": "Dataset 3",
-                        },
-                    },
-                ],
-            },
-        ),
-        # Doesn't contain pending datasets
-        (
-            [
-                {
-                    "id": "urn:uuid:dataset1",
-                    "title": {"en": "Dataset 1"},
-                    "language": [
-                        {
-                            "url": "http://lexvo.org/id/iso639-3/eng",
-                            "pref_label": {"en": "English"},
-                        }
-                    ],
-                    "fileset": {"csc_project": "bar"},
-                    "preservation": {
-                        "state": DS_STATE_IN_DIGITAL_PRESERVATION
-                    },
-                },
-                {
-                    "id": "urn:uuid:dataset3",
-                    "title": {"en": "Dataset 3"},
-                    "language": [
-                        {
-                            "url": "http://lexvo.org/id/iso639-3/eng",
-                            "pref_label": {"en": "English"},
-                        }
-                    ],
-                    "fileset": {"csc_project": "bar"},
-                    "preservation": {
-                        "state": DS_STATE_IN_DIGITAL_PRESERVATION
-                    },
-                },
-            ],
-            {
-                # All datasets are already preserved, so no "pending"
-                # datasets
-                "has_pending_dataset": False,
-                "datasets": [
-                    {
-                        "identifier": "urn:uuid:dataset1",
-                        "languages": [
-                            "en",
-                        ],
-                        "preservation_state": DS_STATE_IN_DIGITAL_PRESERVATION,
-                        "title": {
-                            "en": "Dataset 1",
-                        },
-                    },
-                    {
-                        "identifier": "urn:uuid:dataset3",
-                        "languages": [
-                            "en",
-                        ],
-                        "preservation_state": DS_STATE_IN_DIGITAL_PRESERVATION,
-                        "title": {
-                            "en": "Dataset 3",
-                        },
-                    },
-                ],
-            },
-        ),
-    ],
-)
-def test_get_directory_datasets(
-    test_client, test_auth, requests_mock, datasets, expected_response
-):
+def test_get_directory_datasets(test_client, test_auth, requests_mock):
     """Test fetching datasets that contain the directory.
 
     Creates a directory which contains a file which is added to
@@ -151,8 +23,6 @@ def test_get_directory_datasets(
     :param test_client: Flask test client
     :param test_auth: Authentication headers
     :param requests_mock: HTTP request mocker
-    :param datasets: The datasets to which will contain the directory
-    :param expected_response: Expected response from API
     """
     # Create two test files in "test" directory
     project_path = Project.get(id="test_project").directory
@@ -165,10 +35,12 @@ def test_get_directory_datasets(
     file1["id"] = "test-id-1"
     file1["pathname"] = "/test/test1.txt"
     file1["checksum"] = "3e7705498e8be60520841409ebc69bc1"
+    file1["pas_process_running"] = True
     file2 = copy.deepcopy(template_data.FILE)
     file2["id"] = "test-id-2"
     file2["pathname"] = "/test/test2.txt"
     file2["checksum"] = "3e7705498e8be60520841409ebc69bc1"
+    file2["pas_process_running"] = False
     requests_mock.get(
         "/v3/files?pathname__startswith=/test/",
         json={
@@ -189,20 +61,74 @@ def test_get_directory_datasets(
     )
 
     # Add dataset metadata to Metax
+    dataset1 = {
+        "id": "urn:uuid:dataset1",
+        "title": {"en": "Dataset 1"},
+        "language": [
+            {
+                "url": "http://lexvo.org/id/iso639-3/eng",
+                "pref_label": {"en": "English"},
+            }
+        ],
+        "fileset": {"csc_project": "bar"},
+        "preservation": {
+            "state": DS_STATE_IN_DIGITAL_PRESERVATION
+        },
+    }
+    dataset3 = {
+        "id": "urn:uuid:dataset3",
+        "title": {"en": "Dataset 3"},
+        "language": [
+            {
+                "url": "http://lexvo.org/id/iso639-3/eng",
+                "pref_label": {"en": "English"},
+            }
+        ],
+        "fileset": {"csc_project": "bar"},
+        "preservation": {
+            "state": DS_STATE_TECHNICAL_METADATA_GENERATED
+        },
+    }
     requests_mock.get(
         "/v3/datasets",
         additional_matcher=lambda req: set(req.qs["id"][0].split(","))
         == {"urn:uuid:dataset1", "urn:uuid:dataset3"},
         json=[
-            update_nested_dict(template_data.DATASET, datasets[0]),
-            update_nested_dict(template_data.DATASET, datasets[1]),
+            update_nested_dict(template_data.DATASET, dataset1),
+            update_nested_dict(template_data.DATASET, dataset3),
         ],
     )
 
     # Check that response from API contains expected data
     assert test_client.get(
         "/v1/datasets/test_project/test", headers=test_auth
-    ).json == expected_response
+    ).json == {
+        "has_pending_dataset": True,  # TODO: remove this?
+        "datasets": [
+            {
+                "identifier": "urn:uuid:dataset1",
+                "languages": [
+                    "en",
+                ],
+                # TODO: remove preservation state
+                "preservation_state": DS_STATE_IN_DIGITAL_PRESERVATION,
+                "title": {
+                    "en": "Dataset 1",
+                },
+            },
+            {
+                "identifier": "urn:uuid:dataset3",
+                "languages": [
+                    "en",
+                ],
+                # TODO: remove preservation state
+                "preservation_state": DS_STATE_TECHNICAL_METADATA_GENERATED,
+                "title": {
+                    "en": "Dataset 3",
+                },
+            },
+        ],
+    }
 
 
 def test_no_rights(test_auth2, test_client):

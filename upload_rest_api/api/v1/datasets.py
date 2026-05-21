@@ -21,5 +21,6 @@ def get_file_datasets(project_id, fpath):
 
     return {
         "datasets": resource.get_datasets(),
-        "has_pending_dataset": resource.has_pending_dataset()
+        # TODO: rename this? or remove it?
+        "has_pending_dataset": resource.locked
     }

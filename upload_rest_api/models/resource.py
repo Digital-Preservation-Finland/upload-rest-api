@@ -9,11 +9,7 @@ import shutil
 import time
 from datetime import datetime, timezone
 from typing import TYPE_CHECKING
-
-from metax_access import (
-    DS_STATE_IN_DIGITAL_PRESERVATION,
-    DS_STATE_REJECTED_IN_DIGITAL_PRESERVATION_SERVICE,
-)
+from metax_access import DS_STATE_IN_DIGITAL_PRESERVATION
 
 from upload_rest_api.config import CONFIG
 from upload_rest_api.lock import ProjectLockManager
@@ -63,6 +59,7 @@ def _dataset_to_result(dataset):
         "title": dataset["title"],
         "languages": language_identifiers,
         "identifier": dataset["id"],
+        # TODO: remove preservation state
         "preservation_state": dataset["preservation"]["state"]
     }
 
@@ -142,15 +139,10 @@ class Resource(abc.ABC):
         """List all datasets in which the resource has been added."""
         return self._get_file_group().get_datasets()
 
-    def has_pending_dataset(self):
-        """Check if resource has pending datasets.
-
-        If the resource belongs to pending dataset, it can not be
-        removed. If the resource belongs to preserved dataset it can be
-        removed, but the metadata is not removed from Metax. See
-        TPASPKT-749 for more information.
-        """
-        return self._get_file_group().has_pending_dataset()
+    @property
+    def locked(self):
+        """Check if resource is locked."""
+        return self._get_file_group().locked
 
 
 class File(Resource):
@@ -203,6 +195,11 @@ class File(Resource):
     def checksum(self):
         """Return checksum of file."""
         return self._file_metadata["checksum"]
+
+    @property
+    def locked(self):
+        """Return whether the file is locked or not."""
+        return self._file_metadata["pas_process_running"]
 
     @property
     def timestamp(self):
@@ -350,28 +347,25 @@ class Directory(Resource):
         """Remove expired files.
 
         Remove all files in the directory and its subdirectories, that
-        haven't been accessed within CLEANUP_TIMELIM. Files that are
-        part of pending dataset are not removed.
+        haven't been accessed within CLEANUP_TIMELIM. Locked files are
+        not removed.
 
         :returns: Number of deleted files
         """
         lock_manager = ProjectLockManager()
         with lock_manager.lock(self.project.id, self.storage_path):
 
-            expired_files = []
-            file_group = self._get_file_group()
-            for file in file_group.files:
-                if file.is_expired \
-                        and not file_group.file_has_pending_dataset(file):
-                    expired_files.append(file)
+            files_to_delete = [file
+                               for file in self._get_file_group().files
+                               if file.is_expired and not file.locked]
 
-            if expired_files:
-                FileGroup(expired_files).delete()
+            if files_to_delete:
+                FileGroup(files_to_delete).delete()
 
         # Update used_quota
         self.project.update_used_quota()
 
-        return len(expired_files)
+        return len(files_to_delete)
 
 
 class FileGroup:
@@ -380,6 +374,8 @@ class FileGroup:
     def __init__(self, files):
         """Initialize file group."""
         self.files = files
+        # TODO: Refactor this to fileid->dataset instead of
+        # file->dataset_id?
         self._file2dataset = None
         self._datasets = None
 
@@ -413,76 +409,40 @@ class FileGroup:
             self._retrieve_all_dataset_metadata()
         return list(self._datasets.values())
 
-    def has_pending_dataset(self):
-        """Check if any file of the group has a pending dataset."""
-        datasets = self.get_datasets()
-        return any(
-            dataset["preservation_state"]
-            < DS_STATE_IN_DIGITAL_PRESERVATION
-            or dataset["preservation_state"]
-            == DS_STATE_REJECTED_IN_DIGITAL_PRESERVATION_SERVICE
-            for dataset in datasets
-        )
-
-    def get_file_datasets(self, file):
-        """Get datasets of file."""
-        if self._datasets is None:
-            # Retrive datasets
-            self._retrieve_all_dataset_metadata()
-
-        datasets = []
-        for dataset_id in self._file2dataset.get(file.identifier, []):
-            datasets.append(self._datasets.get(dataset_id))
-
-        return datasets
-
-    def file_has_pending_dataset(self, file):
-        """Check if file has pending dataset."""
-        datasets = self.get_file_datasets(file)
-
-        return any(
-            dataset["preservation_state"]
-            < DS_STATE_IN_DIGITAL_PRESERVATION
-            or dataset["preservation_state"]
-            == DS_STATE_REJECTED_IN_DIGITAL_PRESERVATION_SERVICE
-            for dataset in datasets
-        )
+    @property
+    def locked(self):
+        """File group is locked if any of the files is locked."""
+        return any(file.locked for file in self.files)
 
     def delete(self):
         """Delete files of the group.
 
         Deletes each file from filesystem and file metadata from Metax.
 
-        The metadata of files that are part of a dataset is not removed
-        (unless the dataset is in digital preservation, see TPASPKT-749
-        for more information).
+        The metadata of files that are part of a preserved dataset is
+        not removed (see TPASPKT-749 for more information).
         """
-        if any(self.file_has_pending_dataset(file) for file in self.files):
+        if self.locked:
             raise HasPendingDatasetError
 
-        identifiers = []
         for file in self.files:
             # Remove the actual file
             file.storage_path.unlink()
             LOGGER.info("Deleted file %s", str(file.storage_path))
-            # add file identifier to lists for bulk removal of metadata
-            identifiers.append(file.identifier)
 
-        # Remove metadata from Metax.
-        # The metadata of preserved files should not be removed (see
-        # TPASPKT-749). Deleting files that have pending
-        # datasets is not possible, so at this point we know that if
-        # a file in "directory_files" has a dataset, it is in
-        # preservation. Therefore, we do not have to check the
-        # preservation state of every dataset (which would be very
-        # inefficient), as we can just remove metadata of all files that
-        # are not inlcuded in any dataset.
-        metax_client = get_metax_client()
-        file2datasets = metax_client.get_file2dataset_dict(identifiers)
-        files_without_datasets = [
-            {"id": identifier}
-            for identifier in identifiers
-            if not file2datasets.get(identifier)
-        ]
-        if files_without_datasets:
-            metax_client.delete_files(files_without_datasets)
+        # Remove metadata from Metax. The metadata of preserved files
+        # should not be removed (see TPASPKT-749).
+        if self._datasets is None:
+            self._retrieve_all_dataset_metadata()
+        not_preserved_files = []
+        for file in self.files:
+            # Check if file is part of any preserved dataset
+            if DS_STATE_IN_DIGITAL_PRESERVATION not in [
+                    self._datasets[dataset_id]["preservation_state"]
+                    for dataset_id
+                    in self._file2dataset.get(file.identifier, [])
+            ]:
+                not_preserved_files.append({"id": file.identifier})
+        if not_preserved_files:
+            metax_client = get_metax_client()
+            metax_client.delete_files(not_preserved_files)

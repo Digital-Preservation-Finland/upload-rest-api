@@ -6,7 +6,7 @@ import shutil
 import pytest
 from metax_access import (
     DS_STATE_IN_DIGITAL_PRESERVATION,
-    DS_STATE_TECHNICAL_METADATA_GENERATED,
+    DS_STATE_INITIALIZED,
     template_data,
 )
 
@@ -389,12 +389,13 @@ def test_delete_empty_project(app, test_auth, requests_mock):
         '/',  # project root directory
     ]
 )
-def test_delete_file_in_dataset(
+def test_delete_locked_file(
         test_auth, test_client, requests_mock, path_to_delete
 ):
-    """Test deleting a file that belongs to a pending dataset.
+    """Test deleting a locked file.
 
-    The deletion should fail.
+    Test deleting a locked files, or a directory that contains a locked
+    file. The deletion should fail.
 
     :param path_to_delete: The path to be deleted.
     """
@@ -406,7 +407,8 @@ def test_delete_file_in_dataset(
     # Mock Metax
     file_md = copy.deepcopy(template_data.FILE)
     file_md["pathname"] = "/testdir/test.txt"
-    file_md["id"] = "test-id-1"
+    file_md["pas_process_running"] = True
+
     requests_mock.get(
         "/v3/files?pathname=/testdir/test.txt&csc_project=test_project",
         json={"next": None, "results": [file_md]}
@@ -420,31 +422,6 @@ def test_delete_file_in_dataset(
         json={"next": None, "results": [file_md]}
     )
 
-    # Create a dataset "test_dataset", and add the uploaded file to it
-    requests_mock.get(
-        "/v3/datasets?id=test_dataset",
-        json=[
-                update_nested_dict(
-                    template_data.DATASET,
-                    {
-                        "id": "test_dataset",
-                        "title": {"en": "Dataset"},
-                        "fileset": {"csc_project": "bar"},
-                        "preservation": {
-                            "state": DS_STATE_TECHNICAL_METADATA_GENERATED
-                        },
-                    },
-                )
-            ]
-    )
-    requests_mock.post(
-        "/v3/files/datasets?relations=true",
-        additional_matcher=(
-            lambda req: req.json() == ["test-id-1"]
-        ),
-        json={"test-id-1": ["test_dataset"]}
-    )
-
     # Try to delete the file (or some parent directory of the file)
     response = test_client.delete(
         f"/v1/files/test_project{path_to_delete}", headers=test_auth
@@ -454,115 +431,108 @@ def test_delete_file_in_dataset(
         "File/directory is used in a pending dataset and cannot be deleted"
 
 
-@pytest.mark.parametrize(
-    'path_to_delete',
-    [
-        '/testdir/test1.txt',  # only the file
-        '/testdir',  # parent directory of the file
-        '/',  # project root directory
-    ]
-)
 def test_delete_preserved_file(
     test_auth, test_client, requests_mock, background_job_runner,
-    path_to_delete
 ):
     """Test deleting a file that belongs to a preserved dataset.
 
-    The file should be deleted, but the metadata should not be deleted
-    from Metax (see TPASPKT-749).
-
-    :param path_to_delete: The path to be deleted.
+    Delete a directory that contains a preserved file, and another file
+    which has been added to a dataset, but is not locked or preserved.
+    Both files should be deleted, but the metadata of the preserved file
+    should not be deleted from Metax (see TPASPKT-749).
     """
-    # Create two files. test1.txt will be added to a dataset, and the
-    # metadata of this file will NOT be removed from Metax. test2.txt is
-    # not added to any dataset, so its metadata is removed from Metax if
-    # the file is removed.
+    # create two files in file system:
+    # * preserved-file.txt will be added to a preserved dataset, so the
+    #   file can be removed, but the metadata of the file will not be
+    #   removed from metax. (see TPASPKT-749)
+    # * another-file.txt is added to a initialized dataset. Files in
+    #   initialized datasets are unlocked, so they can be removed
+    #   normally.
     project_directory = Project.get(id="test_project").directory
     (project_directory / "testdir").mkdir()
-    file1_path = project_directory / "testdir" / "test1.txt"
-    file1_path.write_text("contenct of text1.txt")
-    file2_path = project_directory / "testdir" / "test2.txt"
-    file2_path.write_text("contenct of text2.txt")
+    preserved_file_path = project_directory / "testdir" / "preserved-file.txt"
+    preserved_file_path.touch()
+    another_file_path = project_directory / "testdir" / "another-file.txt"
+    another_file_path.touch()
 
-    # Mock Metax
-    file1 = copy.deepcopy(template_data.FILE)
-    file1["pathname"] = "/testdir/test1.txt"
-    file1["id"] = "file1-id"
-    file2 = copy.deepcopy(template_data.FILE)
-    file2["pathname"] = "/testdir/test2.txt"
-    file2["id"] = "file2-id"
-    requests_mock.get(
-        "/v3/files?pathname=/testdir/test1.txt&csc_project=test_project",
-        json={"next": None, "results": [file1]}
-    )
+    # Mock metax. Add file metadata to Metax.
+    preserved_file = copy.deepcopy(template_data.FILE)
+    preserved_file["pathname"] = "/testdir/preserved-file.txt"
+    preserved_file["id"] = "preserved-file-id"
+    another_file = copy.deepcopy(template_data.FILE)
+    another_file["pathname"] = "/testdir/another-file.txt"
+    another_file["id"] = "another-file-id"
     requests_mock.get(
         "/v3/files?pathname__startswith=/testdir/&csc_project=test_project",
-        json={"next": None, "results": [file1, file2]}
-    )
-    requests_mock.get(
-        "/v3/files?pathname__startswith=/&csc_project=test_project",
-        json={"next": None, "results": [file1, file2]}
+        json={"next": None, "results": [preserved_file, another_file]}
     )
     delete_file_metadata_api \
         = requests_mock.post("/v3/files/delete-many", json={})
 
-    # Create a dataset "test_dataset", and add test1.txt to it
+    # Add metadata for two datasets
     requests_mock.get(
-        "/v3/datasets?id=test_dataset",
+        # Match either of:
+        # /v3/datasets?id=preserved-dataset-id,initialized-dataset-id
+        # /v3/datasets?id=initialized-dataset-id,preserved-dataset-id
+        "/v3/datasets",
+        additional_matcher=lambda request: set(
+            request.qs["id"][0].split(",")
+        ) == {"initialized-dataset-id", "preserved-dataset-id"},
         json=[
-                update_nested_dict(
-                    template_data.DATASET,
-                    {
-                        "id": "test_dataset",
-                        "title": {"en": "Dataset"},
-                        "fileset": {"csc_project": "bar"},
-                        "preservation": {
-                            "state": DS_STATE_IN_DIGITAL_PRESERVATION
-                        },
+            # The preserved dataset
+            update_nested_dict(
+                template_data.DATASET,
+                {
+                    "id": "preserved-dataset-id",
+                    "preservation": {
+                        "state": DS_STATE_IN_DIGITAL_PRESERVATION
                     },
-                )
-            ]
+                },
+            ),
+            # The initialized dataset. Files in initialized dataset are
+            # not locked (or at least they should not be)
+            update_nested_dict(
+                template_data.DATASET,
+                {
+                    "id": "initialized-dataset-id",
+                    "preservation": {
+                        "state": DS_STATE_INITIALIZED,
+                    },
+                },
+            )
+        ]
     )
+
+    # Add the preserved file to preserved dataset, and another file to
+    # initialized dataset.
     requests_mock.post(
         "/v3/files/datasets?relations=true",
         json={
-            file1["id"]: ["test_dataset"],
-            file2["id"]: []
+            preserved_file["id"]: ["preserved-dataset-id"],
+            another_file["id"]: ["initialized-dataset-id"]
         }
     )
 
-    # Delete the file (or some parent directory of the file)
+    # Delete the directory that contains both of the files
     response = test_client.delete(
-        f"/v1/files/test_project{path_to_delete}", headers=test_auth
+        "/v1/files/test_project/testdir", headers=test_auth
     )
-    if response.status_code == 202:
-        # Directory deletion task queued. Run the background task.
-        response = background_job_runner(test_client, "files", response)
-        assert response.json['status'] == 'done'
-        assert response.json["message"] \
-            == f"Deleted files and metadata: {path_to_delete}"
-    elif response.status_code == 200:
-        # Single file deleted
-        assert response.json["file_path"] == path_to_delete
-        assert response.json["message"] == "deleted"
-    else:
-        raise ValueError('Wrong status code')
+    # Directory deletion task queued. Run the background task.
+    response = background_job_runner(test_client, "files", response)
+    assert response.json["status"] == "done"
+    assert response.json["message"] == "Deleted files and metadata: /testdir"
 
-    if pathlib.Path("/testdir/text2.txt").is_relative_to(path_to_delete):
-        # Both files are removed from upload-rest-api. The metadata of
-        # test2.txt should be removed from Metax, as it is not in
-        # preservation.
-        assert delete_file_metadata_api.called_once
-        assert delete_file_metadata_api.request_history[0].json() == [
-            {
-                "id": file2["id"],
-            }
-        ]
-    else:
-        # Only test1.txt is removed removed from upload-rest-api.
-        # Metadata should not be removed from Metax, because test1.txt
-        # is in digital preservation.
-        assert not delete_file_metadata_api.called
+    # Only the metadata of preserved file should not be removed from
+    # Metax, but metadata of another file should.
+    assert delete_file_metadata_api.request_history[0].json() == [
+        {
+            "id": another_file["id"],
+        }
+    ]
+
+    # Both files should be removed from filesystem
+    assert not preserved_file_path.exists()
+    assert not another_file_path.exists()
 
 
 @pytest.mark.parametrize(
