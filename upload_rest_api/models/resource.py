@@ -9,7 +9,6 @@ import shutil
 import time
 from datetime import datetime, timezone
 from typing import TYPE_CHECKING
-from metax_access import DS_STATE_IN_DIGITAL_PRESERVATION
 
 from upload_rest_api.config import CONFIG
 from upload_rest_api.lock import ProjectLockManager
@@ -44,6 +43,7 @@ class InvalidPathError(Exception):
     """
 
 
+# TODO: move this method to API module
 def _dataset_to_result(dataset):
     """Extract basic information from dataset metadata.
 
@@ -59,8 +59,7 @@ def _dataset_to_result(dataset):
         "title": dataset["title"],
         "languages": language_identifiers,
         "identifier": dataset["id"],
-        # TODO: remove preservation state
-        "preservation_state": dataset["preservation"]["state"]
+        "is_preserved": dataset["preservation"]["pas_package_created"]
     }
 
 
@@ -374,8 +373,6 @@ class FileGroup:
     def __init__(self, files):
         """Initialize file group."""
         self.files = files
-        # TODO: Refactor this to fileid->dataset instead of
-        # file->dataset_id?
         self._file2dataset = None
         self._datasets = None
 
@@ -437,11 +434,11 @@ class FileGroup:
         not_preserved_files = []
         for file in self.files:
             # Check if file is part of any preserved dataset
-            if DS_STATE_IN_DIGITAL_PRESERVATION not in [
-                    self._datasets[dataset_id]["preservation_state"]
-                    for dataset_id
-                    in self._file2dataset.get(file.identifier, [])
-            ]:
+            if not any(
+                self._datasets[dataset_id]["is_preserved"]
+                for dataset_id
+                in self._file2dataset.get(file.identifier, [])
+            ):
                 not_preserved_files.append({"id": file.identifier})
         if not_preserved_files:
             metax_client = get_metax_client()

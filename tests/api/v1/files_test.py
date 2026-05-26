@@ -4,11 +4,7 @@ import pathlib
 import shutil
 
 import pytest
-from metax_access import (
-    DS_STATE_IN_DIGITAL_PRESERVATION,
-    DS_STATE_INITIALIZED,
-    template_data,
-)
+from metax_access import template_data
 
 from tests.utils import update_nested_dict
 from upload_rest_api.lock import LockAlreadyTaken, ProjectLockManager
@@ -485,7 +481,7 @@ def test_delete_preserved_file(
                 {
                     "id": "preserved-dataset-id",
                     "preservation": {
-                        "state": DS_STATE_IN_DIGITAL_PRESERVATION
+                        "pas_package_created": True
                     },
                 },
             ),
@@ -496,7 +492,7 @@ def test_delete_preserved_file(
                 {
                     "id": "initialized-dataset-id",
                     "preservation": {
-                        "state": DS_STATE_INITIALIZED,
+                        "pas_package_created": False
                     },
                 },
             )

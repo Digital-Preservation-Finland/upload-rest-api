@@ -8,10 +8,6 @@ import time
 import pytest
 from flask_tus_io.resource import encode_tus_meta
 from metax_access import template_data
-from metax_access.metax import (
-    DS_STATE_IN_DIGITAL_PRESERVATION,
-    DS_STATE_INITIALIZED,
-)
 
 import upload_rest_api.cleanup as clean
 from upload_rest_api.lock import ProjectLockManager
@@ -113,100 +109,65 @@ def test_expired_files(mock_config, requests_mock):
 def test_cleaning_files_in_datasets(mock_config, requests_mock):
     """Test cleaning files that are included in datasets.
 
-    Files that are inluded in pending dataset should not be cleaned.
-    Files that are included in preserved dataset should be cleaned, but
-    their metadata should not be removed from Metax (see TPASPKT-749).
+    Files that are inluded in pending dataset are locked and therefore
+    should not be cleaned. Files that are included in preserved dataset
+    should be cleaned, but their metadata should not be removed from
+    Metax (see TPASPKT-749).
     """
     mock_config["CLEANUP_TIMELIM"] = 10
-    project_directory \
-        = os.path.join(mock_config["UPLOAD_PROJECTS_PATH"], "test_project")
+    project_directory = Project.get(id="test_project").directory
 
-    # Create two expired files: one will be added to a pending dataset
-    # and the one will be added to a preserved dataset
-    fpath_pending = os.path.join(project_directory, "pending_file.txt")
-    fpath_preserved = os.path.join(project_directory, "preserved_file.txt")
-    shutil.copy("tests/data/test.txt", fpath_pending)
-    shutil.copy("tests/data/test.txt", fpath_preserved)
+    # Create two expired files: one will be locked, and the other will
+    # be added to a preserved dataset
+    locked_file_path = project_directory / "locked_file.txt"
+    locked_file_path.touch()
+    preserved_file_path = project_directory / "preserved_file.txt"
+    preserved_file_path.touch()
     expired_access = int(time.time() - 100)
-    os.utime(fpath_pending, (expired_access, expired_access))
-    os.utime(fpath_preserved, (expired_access, expired_access))
+    os.utime(locked_file_path, (expired_access, expired_access))
+    os.utime(preserved_file_path, (expired_access, expired_access))
 
     # Add metadata of files to Metax
-    pending_file = copy.deepcopy(template_data.FILE)
-    pending_file["pathname"] = "/pending_file.txt"
-    pending_file["id"] = "test-id-pending_file"
-    pending_file["pas_process_running"] = True
+    locked_file = copy.deepcopy(template_data.FILE)
+    locked_file["pathname"] = "/locked_file.txt"
+    locked_file["id"] = "locked-file-id"
+    locked_file["pas_process_running"] = True
     preserved_file = copy.deepcopy(template_data.FILE)
     preserved_file["pathname"] = "/preserved_file.txt"
-    preserved_file["id"] = "test-id-preserved_file"
+    preserved_file["id"] = "preserved-file-id"
     preserved_file["pas_process_running"] = False
     requests_mock.get(
         "/v3/files?pathname__startswith=/",
         json={
             "next": None,
-            "results": [preserved_file, pending_file]
+            "results": [preserved_file, locked_file]
         },
     )
 
-    # Mock metax. File "pending_file.txt" is added to dataset
-    # "pending_dataset" and file "preserved_file.txt" is added to
-    # dataset "preserved_dataset". The deletion code will first search
-    # files that can be deleted. Before deleting the files it will
-    # ensure that the files can be deleted. Therefore, the pending
-    # datasets of deleted files will be checked twice.
+    # Add metadata for preserved dataset
+    preserved_dataset = copy.deepcopy(template_data.DATASET)
+    preserved_dataset["id"] = "preserved-dataset-id"
+    preserved_dataset["preservation"]["pas_package_created"] = True
+    requests_mock.get(
+        f"/v3/datasets?id={preserved_dataset['id']}",
+        json=[preserved_dataset]
+    )
+
+    # The preserved file is added to preserved dataset
     requests_mock.post(
         "/v3/files/datasets?relations=true",
-        additional_matcher=(
-            lambda req: set(req.json()) == {
-                "test-id-pending_file",
-                "test-id-preserved_file",
-            }
-        ),
-        json={
-            "test-id-pending_file": ["pending_dataset"],
-            "test-id-preserved_file": ["preserved_dataset"],
-        }
+        additional_matcher=lambda req: req.json() == [preserved_file["id"]],
+        json={preserved_file["id"]: [preserved_dataset["id"]]}
     )
 
-    ds1 = copy.deepcopy(template_data.DATASET)
-    ds1['id'] = "pending_dataset"
-    ds1['title'] = {"en": "Dataset"}
-    ds1['fileset']['csc_project'] = "bar"
-    ds1['preservation']['state'] = DS_STATE_INITIALIZED
+    # Mock Metax file deletion API
+    delete_files_api = requests_mock.post("/v3/files/delete-many", json={})
 
-    ds2 = copy.deepcopy(template_data.DATASET)
-    ds2['id'] = "preserved_dataset"
-    ds2['title'] = {"en": "Dataset"}
-    ds2['fileset']['csc_project'] = "bar"
-    ds2['preservation']['state'] = DS_STATE_IN_DIGITAL_PRESERVATION
-
-    requests_mock.get(
-        "/v3/datasets",
-        additional_matcher=lambda req: set(req.qs["id"][0].split(","))
-        == {"preserved_dataset", "pending_dataset"},
-        json=[ds1, ds2],
-    )
-
-    requests_mock.get(
-        "/v3/datasets?id=preserved_dataset&pagination=False&include_nulls=True",
-        complete_qs=True,
-        json=[ds2]
-    )
-    requests_mock.post(
-        "/v3/files/datasets?relations=true",
-        additional_matcher=lambda req: req.json()
-        == ["test-id-preserved_file"],
-        json={"test-id-preserved_file": ["preserved_dataset"]}
-    )
-    delete_files_api = requests_mock.delete('/v3/files', json={})
-
-    # Clean all files older than 10s.
+    # Clean the disk. "locked_file.txt" should not be removed, but
+    # "preserved_file.txt" should be removed.
     assert clean.clean_disk() == 1
-
-    # "pending_file.txt" should not be removed, but "preserved_file.txt"
-    # should be removed.
-    assert os.path.isfile(fpath_pending)
-    assert not os.path.isfile(fpath_preserved)
+    assert locked_file_path.exists()
+    assert not preserved_file_path.exists()
 
     # The metadata of any file should not be removed from Metax
     assert not delete_files_api.called

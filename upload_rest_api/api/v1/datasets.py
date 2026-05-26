@@ -18,9 +18,16 @@ def get_file_datasets(project_id, fpath):
         abort(403, "No permissions to access this project")
 
     resource = get_resource(project_id, fpath)
-
+    datasets = [
+        {
+            "identifier": dataset["identifier"],
+            "languages": dataset["languages"],
+            "title": dataset["title"],
+        }
+        for dataset in resource.get_datasets()
+    ]
     return {
-        "datasets": resource.get_datasets(),
+        "datasets": datasets,
         # TODO: rename this? or remove it?
         "has_pending_dataset": resource.locked
     }

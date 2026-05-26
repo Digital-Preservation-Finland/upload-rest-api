@@ -1,12 +1,7 @@
 """Tests for ``upload_rest_api.api.v1.datasets`` module."""
 import copy
 
-from metax_access import (
-    # TODO: remove preservation states
-    DS_STATE_IN_DIGITAL_PRESERVATION,
-    DS_STATE_TECHNICAL_METADATA_GENERATED,
-    template_data,
-)
+from metax_access import template_data
 
 from tests.utils import update_nested_dict
 from upload_rest_api.models.project import Project
@@ -72,7 +67,7 @@ def test_get_directory_datasets(test_client, test_auth, requests_mock):
         ],
         "fileset": {"csc_project": "bar"},
         "preservation": {
-            "state": DS_STATE_IN_DIGITAL_PRESERVATION
+            "pas_package_created": True
         },
     }
     dataset3 = {
@@ -86,7 +81,7 @@ def test_get_directory_datasets(test_client, test_auth, requests_mock):
         ],
         "fileset": {"csc_project": "bar"},
         "preservation": {
-            "state": DS_STATE_TECHNICAL_METADATA_GENERATED
+            "pas_package_created": False
         },
     }
     requests_mock.get(
@@ -103,15 +98,13 @@ def test_get_directory_datasets(test_client, test_auth, requests_mock):
     assert test_client.get(
         "/v1/datasets/test_project/test", headers=test_auth
     ).json == {
-        "has_pending_dataset": True,  # TODO: remove this?
+        "has_pending_dataset": True,
         "datasets": [
             {
                 "identifier": "urn:uuid:dataset1",
                 "languages": [
                     "en",
                 ],
-                # TODO: remove preservation state
-                "preservation_state": DS_STATE_IN_DIGITAL_PRESERVATION,
                 "title": {
                     "en": "Dataset 1",
                 },
@@ -121,8 +114,6 @@ def test_get_directory_datasets(test_client, test_auth, requests_mock):
                 "languages": [
                     "en",
                 ],
-                # TODO: remove preservation state
-                "preservation_state": DS_STATE_TECHNICAL_METADATA_GENERATED,
                 "title": {
                     "en": "Dataset 3",
                 },
