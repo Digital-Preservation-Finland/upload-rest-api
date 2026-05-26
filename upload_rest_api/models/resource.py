@@ -16,14 +16,8 @@ from upload_rest_api.metax import get_metax_client
 from upload_rest_api.models.project import Project
 
 if TYPE_CHECKING:
-    from metax_access.metax import MetaxFile
+    from metax_access.metax import MetaxDataset, MetaxFile
 
-
-LANGUAGE_IDENTIFIERS = {
-    "http://lexvo.org/id/iso639-3/eng": "en",
-    "http://lexvo.org/id/iso639-3/fin": "fi",
-    "http://lexvo.org/id/iso639-3/swe": "sv"
-}
 
 LOGGER = logging.getLogger(__name__)
 
@@ -41,26 +35,6 @@ class InvalidPathError(Exception):
 
     Raised if path of the resource is invalid.
     """
-
-
-# TODO: move this method to API module
-def _dataset_to_result(dataset):
-    """Extract basic information from dataset metadata.
-
-    :param dataset: Raw dataset metadata from Metax
-    """
-    language_identifiers = [
-        LANGUAGE_IDENTIFIERS[language["url"]]
-        for language in dataset["language"]
-        if LANGUAGE_IDENTIFIERS.get(language["url"])
-    ]
-
-    return {
-        "title": dataset["title"],
-        "languages": language_identifiers,
-        "identifier": dataset["id"],
-        "is_preserved": dataset["preservation"]["pas_package_created"]
-    }
 
 
 def get_resource(project_id, path):
@@ -118,7 +92,6 @@ class Resource(abc.ABC):
             self.project = project
         elif project_id:
             self.project = Project.get(id=project_id)
-        self._datasets = None
 
     @property
     def storage_path(self):
@@ -373,8 +346,8 @@ class FileGroup:
     def __init__(self, files):
         """Initialize file group."""
         self.files = files
-        self._file2dataset = None
-        self._datasets = None
+        self._file_id2dataset_ids: dict[str, list[str]] = None
+        self._dataset_id2dataset: dict[str, MetaxDataset] = None
 
     def _retrieve_all_dataset_metadata(self):
         """Retrieve dataset metadata from Metax."""
@@ -382,29 +355,28 @@ class FileGroup:
 
         # Retrieve file -> dataset(s) associations
         file_identifiers = [file.identifier for file in self.files]
-        self._file2dataset \
+        self._file_id2dataset_ids \
             = metax_client.get_file2dataset_dict(file_identifiers)
-        # Retrieve metadata of all datasets associated to files
+
         all_dataset_ids = set()
-        for dataset_ids in self._file2dataset.values():
+        for dataset_ids in self._file_id2dataset_ids.values():
             all_dataset_ids |= set(dataset_ids)
-        if not all_dataset_ids:
-            self._datasets = {}
-        else:
-            self._datasets = {}
+
+        self._dataset_id2dataset = {}
+        if all_dataset_ids:
+            # Retrieve metadata of all datasets associated to files
             datasets = metax_client.get_datasets_by_ids(
                 list(all_dataset_ids)
             )
             for dataset in datasets:
-                self._datasets[dataset['id']] \
-                    = _dataset_to_result(dataset)
+                self._dataset_id2dataset[dataset["id"]] = dataset
 
     def get_datasets(self):
         """List of all datasets that contain any file of the group."""
-        if self._datasets is None:
+        if self._dataset_id2dataset is None:
             # Retrive datasets
             self._retrieve_all_dataset_metadata()
-        return list(self._datasets.values())
+        return list(self._dataset_id2dataset.values())
 
     @property
     def locked(self):
@@ -429,15 +401,20 @@ class FileGroup:
 
         # Remove metadata from Metax. The metadata of preserved files
         # should not be removed (see TPASPKT-749).
-        if self._datasets is None:
+        if self._dataset_id2dataset is None:
             self._retrieve_all_dataset_metadata()
         not_preserved_files = []
         for file in self.files:
             # Check if file is part of any preserved dataset
-            if not any(
-                self._datasets[dataset_id]["is_preserved"]
+            datasets_of_file = [
+                self._dataset_id2dataset[dataset_id]
                 for dataset_id
-                in self._file2dataset.get(file.identifier, [])
+                in self._file_id2dataset_ids.get(file.identifier, [])
+            ]
+            if not any(
+                dataset["preservation"]["pas_package_created"] is True
+                for dataset
+                in datasets_of_file
             ):
                 not_preserved_files.append({"id": file.identifier})
         if not_preserved_files:

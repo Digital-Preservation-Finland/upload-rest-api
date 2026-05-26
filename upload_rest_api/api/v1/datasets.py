@@ -10,6 +10,12 @@ from upload_rest_api.models.resource import get_resource
 
 DATASETS_API_V1 = Blueprint("datasets_v1", __name__, url_prefix="/v1/datasets")
 
+LANGUAGE_IDENTIFIERS = {
+    "http://lexvo.org/id/iso639-3/eng": "en",
+    "http://lexvo.org/id/iso639-3/fin": "fi",
+    "http://lexvo.org/id/iso639-3/swe": "sv"
+}
+
 
 @DATASETS_API_V1.route("/<string:project_id>/<path:fpath>", methods=["GET"])
 def get_file_datasets(project_id, fpath):
@@ -18,16 +24,23 @@ def get_file_datasets(project_id, fpath):
         abort(403, "No permissions to access this project")
 
     resource = get_resource(project_id, fpath)
-    datasets = [
-        {
-            "identifier": dataset["identifier"],
-            "languages": dataset["languages"],
-            "title": dataset["title"],
-        }
-        for dataset in resource.get_datasets()
-    ]
+    datasets = []
+    for dataset in resource.get_datasets():
+        language_identifiers = [
+            LANGUAGE_IDENTIFIERS[language["url"]]
+            for language in dataset["language"]
+            if LANGUAGE_IDENTIFIERS.get(language["url"])
+        ]
+
+        datasets.append(
+            {
+                "title": dataset["title"],
+                "languages": language_identifiers,
+                "identifier": dataset["id"],
+            }
+        )
+
     return {
         "datasets": datasets,
-        # TODO: rename this? or remove it?
         "has_pending_dataset": resource.locked
     }
