@@ -5,10 +5,10 @@ pytest
 pytest-mock
 pytest-cov
 requests-mock
-# Fakeredis 2.28.0 and 2.28.1 have buggy `CLIENT LIST`, while
-# the newer version will fix the issue.
-# (https://github.com/cunla/fakeredis-py/issues/376)
-fakeredis[lua] != 2.28.0, != 2.28.1
+# TODO: Fakeredis 2.36+ dropped the `addr` field from `client_list()` responses;
+# rq requires that field in BaseWorker.set_ip_address(). Upgrading to 2.36 is
+# prevented until real solution to the problem exists.
+fakeredis[lua] < 2.36
 
 # Install requirements
 
