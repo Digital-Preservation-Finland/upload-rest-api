@@ -372,11 +372,26 @@ class FileGroup:
                 self._dataset_id2dataset[dataset["id"]] = dataset
 
     def get_datasets(self):
-        """List of all datasets that contain any file of the group."""
+        """List of datasets that contain any locked file of the group."""
         if self._dataset_id2dataset is None:
-            # Retrive datasets
             self._retrieve_all_dataset_metadata()
-        return list(self._dataset_id2dataset.values())
+
+        locked_dataset_ids = set()
+        for file in self.files:
+            if file.locked:
+                for dataset_id in self._file_id2dataset_ids.get(
+                    file.identifier, []
+                ):
+                    locked_dataset_ids.add(dataset_id)
+
+        return [
+            self._dataset_id2dataset[dataset_id]
+            for dataset_id in locked_dataset_ids
+            if dataset_id in self._dataset_id2dataset
+            and not self._dataset_id2dataset[dataset_id][
+                "preservation"
+            ]["pas_package_created"]
+        ]
 
     @property
     def locked(self):
