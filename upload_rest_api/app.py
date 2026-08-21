@@ -44,6 +44,15 @@ def configure_app(app):
     app.config.update(get_config())
 
 
+def _log_request(response):
+    """Log user who made the request."""
+    LOGGER.info(
+        "user=%s",
+        auth.get_current_username() or "-"
+    )
+    return response
+
+
 def create_app():
     """Configure and return a Flask application instance.
 
@@ -78,6 +87,7 @@ def create_app():
 
     # Authenticate all requests
     app.before_request(auth.authenticate)
+    app.after_request(_log_request)
 
     # Register all blueprints
     app.register_blueprint(DATASETS_API_V1)

@@ -57,6 +57,17 @@ class CurrentUser:
 current_user = LocalProxy(lambda: g.current_user)
 
 
+def get_current_username():
+    """Return username of the currently authenticated user.
+
+    :returns: Username, or None if the request is not authenticated.
+    """
+    try:
+        return current_user.username
+    except AttributeError:
+        return None
+
+
 def _auth_user_by_token():
     """Authenticate user using a token provided through Authorization header.
 
