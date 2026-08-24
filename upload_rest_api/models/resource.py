@@ -131,7 +131,7 @@ class File(Resource):
         If 'file_metadata' is provided, set it to prevent unnecessary
         Metax request later on.
         """
-        self._file_metadata_ = file_metadata
+        self._file_metadata = file_metadata
 
         super().__init__(*args, **kwargs)
 
@@ -144,34 +144,34 @@ class File(Resource):
         return FileGroup([self])
 
     @property
-    def _file_metadata(self):
+    def file_metadata(self):
         """The metadata for this file.
 
         This property is lazy, meaning the metadata is not retrieved
         until this property is accessed for the first time.
         """
-        if not self._file_metadata_:
-            self._file_metadata_ = get_metax_client().get_project_file(
+        if not self._file_metadata:
+            self._file_metadata = get_metax_client().get_project_file(
                 project=str(self.project.id),
                 path=str(self.path)
             )
 
-        return self._file_metadata_
+        return self._file_metadata
 
     @property
     def identifier(self):
         """Return identifier of file."""
-        return self._file_metadata["id"]
+        return self.file_metadata["id"]
 
     @property
     def checksum(self):
         """Return checksum of file."""
-        return self._file_metadata["checksum"]
+        return self.file_metadata["checksum"]
 
     @property
     def locked(self):
         """Return whether the file is locked or not."""
-        return self._file_metadata["pas_process_running"]
+        return self.file_metadata["pas_process_running"]
 
     @property
     def timestamp(self):
