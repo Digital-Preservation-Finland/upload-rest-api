@@ -35,12 +35,7 @@ def get_path(project_id, fpath):
         abort(404, "File not found")
 
     if resource.storage_path.is_file():
-        response = {
-            "file_path": str(resource.path),
-            "identifier": resource.identifier,
-            "md5": resource.checksum,
-            "timestamp": resource.timestamp
-        }
+        response = resource.file_metadata
     elif resource.storage_path.is_dir():
         response = {
             'directories': [dir_.path.name for

@@ -80,7 +80,7 @@ def test_get_file(app, test_auth, test_auth2, requests_mock):
     #  Mock metax
     file = copy.deepcopy(template_data.FILE)
     file["pathname"] = "/test.txt"
-    file["checksum"] = "150b62e4e7d58c70503bd5fc8a26463c"
+    file["checksum"] = "md5:150b62e4e7d58c70503bd5fc8a26463c"
     file["id"] = "fake_identifier"
     requests_mock.get(
         "/v3/files?pathname=%2Ftest.txt&csc_project=test_project",
@@ -93,9 +93,12 @@ def test_get_file(app, test_auth, test_auth2, requests_mock):
     )
 
     assert response.status_code == 200
-    assert response.json["file_path"] == "/test.txt"
-    assert response.json["md5"] == "150b62e4e7d58c70503bd5fc8a26463c"
-    assert response.json["identifier"] == "fake_identifier"
+
+    # Check the necessary fields exist and have expected values
+    assert response.json["pathname"] == "/test.txt"
+    assert response.json["checksum"] == "md5:150b62e4e7d58c70503bd5fc8a26463c"
+    assert response.json["id"] == "fake_identifier"
+    assert response.json["is_sensitive"] is False
 
     # GET file with user that is not in "test_project"
     response = test_client.get(
