@@ -164,11 +164,6 @@ class File(Resource):
         return self.file_metadata["id"]
 
     @property
-    def checksum(self):
-        """Return checksum of file."""
-        return self.file_metadata["checksum"]
-
-    @property
     def locked(self):
         """Return whether the file is locked or not."""
         return self.file_metadata["pas_process_running"]

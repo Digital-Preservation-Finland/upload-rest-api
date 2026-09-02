@@ -304,7 +304,7 @@ def get_file_by_path(path, project):
                 'identifier': file.identifier,
                 'project': file.project.id,
                 'path': str(file.path),
-                'checksum': file.checksum
+                'checksum': file.file_metadata["checksum"]
             }
         )
     except FileNotFoundError:
@@ -329,7 +329,7 @@ def list_files(identifiers_only, checksums_only):
             result = [file.identifier for file in all_files]
 
         elif checksums_only:
-            result = [file.checksum for file in all_files]
+            result = [file.file_metadata["checksum"] for file in all_files]
 
         else:
             result = []
@@ -339,7 +339,7 @@ def list_files(identifiers_only, checksums_only):
                         'identifier': file.identifier,
                         'project': file.project.id,
                         'path': str(file.path),
-                        'checksum': file.checksum
+                        'checksum': file.file_metadata["checksum"]
                     }
                 )
         _echo_json(result)
